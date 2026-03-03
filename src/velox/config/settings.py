@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     # App
     app_env: str = "development"
     app_debug: bool = False
-    app_port: int = 8000
+    app_port: int = 8001
     app_host: str = "0.0.0.0"
     app_log_level: str = "INFO"
     app_secret_key: str = "change-me-in-production"

@@ -7,7 +7,8 @@ from fastapi import FastAPI
 import structlog
 
 from velox.adapters.elektraweb.client import close_elektraweb_client
-from velox.api.routes import admin, health
+from velox.adapters.whatsapp.client import close_whatsapp_client
+from velox.api.routes import admin, health, whatsapp_webhook
 from velox.config.settings import settings
 from velox.core.hotel_profile_loader import load_all_profiles
 from velox.core.template_engine import load_templates
@@ -56,6 +57,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     yield
     await close_db_pool()
     await close_elektraweb_client()
+    await close_whatsapp_client()
     logger.info("application_shutdown")
     # TODO: Close Redis connection
 
@@ -71,7 +73,7 @@ app = FastAPI(
 # from velox.api.routes import whatsapp_webhook, admin_webhook, admin
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
-# app.include_router(whatsapp_webhook.router, prefix="/api/v1")
+app.include_router(whatsapp_webhook.router, prefix="/api/v1")
 # app.include_router(admin_webhook.router, prefix="/api/v1")
 
 
