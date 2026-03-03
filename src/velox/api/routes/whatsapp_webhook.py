@@ -4,6 +4,7 @@ from collections import defaultdict, deque
 import hashlib
 import re
 import time
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, status
 import orjson
@@ -13,8 +14,9 @@ from velox.adapters.whatsapp.client import get_whatsapp_client
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.adapters.whatsapp.webhook import IncomingMessage, WhatsAppWebhook
 from velox.config.settings import settings
+from velox.core.pipeline import post_process_escalation
 from velox.db.repositories.conversation import ConversationRepository
-from velox.models.conversation import Conversation, Message
+from velox.models.conversation import Conversation, InternalJSON, LLMResponse, Message
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/webhook/whatsapp", tags=["whatsapp"])
@@ -123,12 +125,50 @@ def _default_reply_message() -> str:
     )
 
 
-async def _run_message_pipeline(_conversation: Conversation, normalized_text: str) -> str:
-    """Run message pipeline and return assistant reply text."""
+async def _run_message_pipeline(_conversation: Conversation, normalized_text: str) -> LLMResponse:
+    """Run message pipeline and return structured LLM response."""
     if PAYMENT_DATA_PATTERN.search(normalized_text):
-        return _payment_warning_message()
+        return LLMResponse(
+            user_message=_payment_warning_message(),
+            internal_json=InternalJSON(
+                intent="payment_inquiry",
+                state="HANDOFF",
+                risk_flags=["PAYMENT_CONFUSION"],
+                next_step="handoff_to_sales",
+            ),
+        )
     # Task 06 will replace this fallback with LLM + tools pipeline.
-    return _default_reply_message()
+    return LLMResponse(
+        user_message=_default_reply_message(),
+        internal_json=InternalJSON(
+            intent="other",
+            state="INTENT_DETECTED",
+            risk_flags=[],
+            next_step="await_user_input",
+        ),
+    )
+
+
+class _HandoffToolAdapter:
+    """Adapter exposing create_ticket method for escalation engine."""
+
+    def __init__(self, dispatcher: Any) -> None:
+        self._dispatcher = dispatcher
+
+    async def create_ticket(self, **kwargs: Any) -> dict[str, Any]:
+        """Dispatch handoff ticket tool call."""
+        return await self._dispatcher.dispatch("handoff_create_ticket", **kwargs)
+
+
+class _NotifyToolAdapter:
+    """Adapter exposing send method for escalation engine."""
+
+    def __init__(self, dispatcher: Any) -> None:
+        self._dispatcher = dispatcher
+
+    async def send(self, **kwargs: Any) -> dict[str, Any]:
+        """Dispatch notification tool call."""
+        return await self._dispatcher.dispatch("notify_send", **kwargs)
 
 
 async def _create_or_get_conversation(repository: ConversationRepository, incoming: IncomingMessage) -> Conversation:
@@ -147,7 +187,12 @@ async def _create_or_get_conversation(repository: ConversationRepository, incomi
     return await repository.create(new_conversation)
 
 
-async def _process_incoming_message(incoming: IncomingMessage) -> None:
+async def _process_incoming_message(
+    incoming: IncomingMessage,
+    escalation_engine: Any,
+    tools: dict[str, Any],
+    db_pool: Any,
+) -> None:
     """Background pipeline: log message, generate response, and send via WhatsApp."""
     conversation_repository = ConversationRepository()
     whatsapp_client = get_whatsapp_client()
@@ -159,27 +204,46 @@ async def _process_incoming_message(incoming: IncomingMessage) -> None:
 
         normalized_text = _normalize_text(incoming.text)
 
-        await conversation_repository.add_message(
-            Message(
-                conversation_id=conversation.id,
-                role="user",
-                content=normalized_text,
-            )
+        user_msg = Message(
+            conversation_id=conversation.id,
+            role="user",
+            content=normalized_text,
         )
+        await conversation_repository.add_message(user_msg)
+        conversation.messages.append(user_msg)
 
         await whatsapp_client.mark_as_read(incoming.message_id)
 
-        reply_text = await _run_message_pipeline(conversation, normalized_text)
-        reply_text = formatter.truncate(reply_text)
+        llm_response = await _run_message_pipeline(conversation, normalized_text)
+        reply_text = formatter.truncate(llm_response.user_message)
         await whatsapp_client.send_text_message(to=incoming.phone, body=reply_text)
 
-        await conversation_repository.add_message(
-            Message(
-                conversation_id=conversation.id,
-                role="assistant",
-                content=reply_text,
-            )
+        assistant_msg = Message(
+            conversation_id=conversation.id,
+            role="assistant",
+            content=reply_text,
+            internal_json=llm_response.internal_json.model_dump(mode="json"),
         )
+        await conversation_repository.add_message(assistant_msg)
+        conversation.messages.append(assistant_msg)
+
+        if escalation_engine is not None and db_pool is not None and "handoff" in tools and "notify" in tools:
+            escalation_result = await post_process_escalation(
+                user_message_text=normalized_text,
+                llm_response=llm_response,
+                conversation=conversation,
+                escalation_engine=escalation_engine,
+                tools=tools,
+                db_pool=db_pool,
+            )
+            if escalation_result.level.value != "L0" or escalation_result.risk_flags_matched:
+                logger.info(
+                    "escalation_check",
+                    conversation_id=str(conversation.id),
+                    level=escalation_result.level.value,
+                    flags=escalation_result.risk_flags_matched,
+                    actions=escalation_result.actions,
+                )
     except Exception:
         logger.exception(
             "whatsapp_background_processing_failed",
@@ -188,9 +252,15 @@ async def _process_incoming_message(incoming: IncomingMessage) -> None:
         )
 
 
-def _schedule_background_task(background_tasks: BackgroundTasks, incoming: IncomingMessage) -> None:
+def _schedule_background_task(
+    background_tasks: BackgroundTasks,
+    incoming: IncomingMessage,
+    escalation_engine: Any,
+    tools: dict[str, Any],
+    db_pool: Any,
+) -> None:
     """Add incoming message task to FastAPI background worker."""
-    background_tasks.add_task(_process_incoming_message, incoming)
+    background_tasks.add_task(_process_incoming_message, incoming, escalation_engine, tools, db_pool)
 
 
 @router.get("")
@@ -245,6 +315,21 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
         logger.warning("whatsapp_phone_rate_limited", phone=_mask_phone(incoming.phone))
         return {"status": "ok"}
 
-    _schedule_background_task(background_tasks, incoming)
-    logger.info("whatsapp_webhook_message_accepted", phone=_mask_phone(incoming.phone), message_type=incoming.message_type)
+    dispatcher = getattr(request.app.state, "tool_dispatcher", None)
+    escalation_engine = getattr(request.app.state, "escalation_engine", None)
+    db_pool = getattr(request.app.state, "db_pool", None)
+
+    tools = {
+        "handoff": _HandoffToolAdapter(dispatcher) if dispatcher is not None else None,
+        "notify": _NotifyToolAdapter(dispatcher) if dispatcher is not None else None,
+    }
+    if tools["handoff"] is None or tools["notify"] is None:
+        tools = {}
+
+    _schedule_background_task(background_tasks, incoming, escalation_engine, tools, db_pool)
+    logger.info(
+        "whatsapp_webhook_message_accepted",
+        phone=_mask_phone(incoming.phone),
+        message_type=incoming.message_type,
+    )
     return {"status": "accepted"}

@@ -10,10 +10,12 @@ from velox.adapters.elektraweb.client import close_elektraweb_client
 from velox.adapters.whatsapp.client import close_whatsapp_client
 from velox.api.routes import admin, health, whatsapp_webhook
 from velox.config.settings import settings
+from velox.core.pipeline import post_process_escalation
 from velox.core.hotel_profile_loader import load_all_profiles
 from velox.core.template_engine import load_templates
 from velox.db.database import close_db_pool, init_db_pool
 from velox.db.repositories.hotel import HotelRepository
+from velox.escalation.engine import EscalationEngine
 from velox.escalation.matrix import load_escalation_matrix
 from velox.llm.client import close_llm_client
 from velox.tools import initialize_tool_dispatcher
@@ -27,7 +29,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Manage application startup and shutdown lifecycle."""
     setup_logging()
     logger.info("application_startup", env=settings.app_env)
-    await init_db_pool()
+    db_pool = await init_db_pool()
+    _app.state.db_pool = db_pool
     # TODO: Initialize Redis connection
 
     profiles = load_all_profiles()
@@ -52,10 +55,15 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
     matrix = load_escalation_matrix()
     logger.info("escalation_matrix_loaded", count=len(matrix))
+    escalation_engine = EscalationEngine()
+    escalation_engine.load_matrix()
+    _app.state.escalation_engine = escalation_engine
 
     templates = load_templates()
     logger.info("templates_loaded", count=len(templates))
     dispatcher = initialize_tool_dispatcher()
+    _app.state.tool_dispatcher = dispatcher
+    _app.state.post_process_escalation = post_process_escalation
     logger.info("tools_registered", count=len(dispatcher.registered_names()))
 
     yield
