@@ -1,8 +1,10 @@
 """Transfer information and hold management tools."""
 
-from datetime import date, time
+from datetime import date, datetime, time
 from decimal import Decimal
+import re
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel
 
@@ -11,6 +13,11 @@ from velox.db.repositories.transfer import TransferRepository
 from velox.core.hotel_profile_loader import get_profile
 from velox.models.transfer import TransferHold, TransferInfoRequest
 from velox.tools.base import BaseTool
+
+FLIGHT_DELAY_PATTERN = re.compile(
+    r"(flight\s*delay|delayed|delay|gecik|r[oö]tar|late\s*flight)",
+    flags=re.IGNORECASE,
+)
 
 
 class _TransferHoldUpdates(BaseModel):
@@ -60,7 +67,16 @@ class TransferGetInfoTool(BaseTool):
                         "notes": "Oversize vehicle required.",
                     }
                 return {"found": False, "error": "Pax count exceeds route capacity."}
-        return {"found": False, "error": "Route not found."}
+        return {
+            "found": False,
+            "reason": "CUSTOM_ROUTE",
+            "suggestion": "handoff_admin",
+            "escalation": {
+                "level": "L2",
+                "route_to_role": "ADMIN",
+            },
+            "notes": "Custom or unknown route requires admin confirmation.",
+        }
 
 
 class TransferCreateHoldTool(BaseTool):
@@ -72,17 +88,25 @@ class TransferCreateHoldTool(BaseTool):
 
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         self.validate_required(kwargs, ["hotel_id", "route", "date", "time", "pax_count", "guest_name", "phone"])
+        hotel_id = int(kwargs["hotel_id"])
         info = await self._info_tool.execute(
-            hotel_id=int(kwargs["hotel_id"]),
+            hotel_id=hotel_id,
             route=str(kwargs["route"]),
             pax_count=int(kwargs["pax_count"]),
         )
         if not info.get("price_eur"):
-            return {"error": info.get("error", "Transfer info not found.")}
+            response = {"error": info.get("error", "Transfer info not found.")}
+            if "suggestion" in info:
+                response["suggestion"] = info["suggestion"]
+            if "escalation" in info:
+                response["escalation"] = info["escalation"]
+            if "reason" in info:
+                response["reason"] = info["reason"]
+            return response
 
         hold = TransferHold(
             hold_id="",
-            hotel_id=int(kwargs["hotel_id"]),
+            hotel_id=hotel_id,
             conversation_id=kwargs.get("conversation_id"),
             route=str(kwargs["route"]),
             date=kwargs["date"],
@@ -97,7 +121,7 @@ class TransferCreateHoldTool(BaseTool):
             notes=str(kwargs["notes"]) if kwargs.get("notes") else None,
         )
         created = await self._transfer_repository.create_hold(hold)
-        return {
+        result: dict[str, Any] = {
             "transfer_hold_id": created.hold_id,
             "status": created.status.value,
             "summary": (
@@ -105,6 +129,20 @@ class TransferCreateHoldTool(BaseTool):
                 f"{created.pax_count} pax {created.price_eur} EUR"
             ),
         }
+
+        escalation: dict[str, str] | None = _same_day_urgent_escalation(
+            hold_date=created.date,
+            hold_time=created.time,
+            hotel_id=hotel_id,
+        )
+        if escalation is not None:
+            result["escalation"] = escalation
+
+        ops_notification: dict[str, str] | None = _flight_delay_notification(created.notes)
+        if ops_notification is not None:
+            result["ops_notification"] = ops_notification
+
+        return result
 
 
 class TransferConfirmTool(BaseTool):
@@ -184,3 +222,39 @@ class TransferCancelTool(BaseTool):
             str(kwargs.get("reason", "Cancelled by request")),
         )
         return {"transfer_hold_id": str(kwargs["transfer_hold_id"]), "status": "CANCELLED"}
+
+
+def _same_day_urgent_escalation(hold_date: date, hold_time: time, hotel_id: int) -> dict[str, str] | None:
+    """Return L2 OPS escalation for same-day transfers within next 3 hours."""
+    profile = get_profile(hotel_id)
+    timezone_name = profile.timezone if profile else "UTC"
+    try:
+        tz = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        tz = ZoneInfo("UTC")
+
+    now = datetime.now(tz)
+    hold_dt = datetime.combine(hold_date, hold_time, tzinfo=tz)
+    if hold_dt.date() != now.date():
+        return None
+    time_to_transfer = hold_dt - now
+    if 0 <= time_to_transfer.total_seconds() < 3 * 3600:
+        return {
+            "level": "L2",
+            "route_to_role": "OPS",
+            "reason": "SAME_DAY_URGENT",
+        }
+    return None
+
+
+def _flight_delay_notification(notes: str | None) -> dict[str, str] | None:
+    """Return L1 OPS notification hint when notes indicate flight delay."""
+    if not notes:
+        return None
+    if not FLIGHT_DELAY_PATTERN.search(notes):
+        return None
+    return {
+        "level": "L1",
+        "to_role": "OPS",
+        "reason": "FLIGHT_DELAY_REPORTED",
+    }

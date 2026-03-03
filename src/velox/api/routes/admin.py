@@ -20,6 +20,7 @@ from velox.config.constants import HoldStatus, Role
 from velox.config.settings import settings
 from velox.core.hotel_profile_loader import reload_profiles
 from velox.db.repositories.restaurant import RestaurantRepository
+from velox.db.repositories.transfer import TransferRepository
 from velox.models.restaurant import RestaurantSlotCreate, RestaurantSlotUpdate
 from velox.core.template_engine import reload_templates
 from velox.escalation.matrix import reload_matrix
@@ -232,6 +233,120 @@ async def update_restaurant_slot(
     if row is None:
         raise HTTPException(status_code=404, detail="Slot not found")
     return {"status": "updated", "slot": row}
+
+
+@router.get("/hotels/{hotel_id}/transfers/holds")
+async def list_transfer_holds(
+    hotel_id: int,
+    user: Annotated[TokenData, Depends(get_current_user)],
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
+    status_filter: str | None = Query(None, alias="status"),
+) -> dict[str, Any]:
+    """List transfer holds with optional date and status filters."""
+    check_permission(user, "holds:read")
+    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
+        raise HTTPException(status_code=403, detail="Access denied to this hotel")
+    if date_from and date_to and date_to < date_from:
+        raise HTTPException(status_code=400, detail="date_to must be >= date_from")
+    if status_filter and status_filter not in {status.value for status in HoldStatus}:
+        raise HTTPException(status_code=400, detail="Invalid hold status")
+
+    repository = TransferRepository()
+    holds = await repository.list_holds(
+        hotel_id=hotel_id,
+        date_from=date_from,
+        date_to=date_to,
+        status=status_filter,
+    )
+    return {"items": [hold.model_dump(mode="json") for hold in holds], "total": len(holds)}
+
+
+@router.post("/hotels/{hotel_id}/transfers/holds/{hold_id}/approve")
+async def approve_transfer_hold(
+    hotel_id: int,
+    hold_id: str,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Approve transfer hold and linked approval request."""
+    check_permission(user, "holds:approve")
+    if not hold_id.startswith("TR_HOLD_"):
+        raise HTTPException(status_code=400, detail="Invalid transfer hold id")
+
+    repository = TransferRepository()
+    hold = await repository.get_hold(hold_id)
+    if hold is None:
+        raise HTTPException(status_code=404, detail="Transfer hold not found")
+    if hold.hotel_id != hotel_id:
+        raise HTTPException(status_code=404, detail="Transfer hold not found for hotel")
+    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if hold.status != HoldStatus.PENDING_APPROVAL:
+        raise HTTPException(status_code=409, detail=f"Hold is not pending approval (current: {hold.status})")
+
+    await repository.update_hold_status(
+        hold_id=hold_id,
+        status=HoldStatus.APPROVED.value,
+        approved_by=user.username,
+    )
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE approval_requests
+            SET status = 'APPROVED', decided_by_role = $1, decided_by_name = $2, decided_at = now()
+            WHERE reference_id = $3 AND status = 'REQUESTED'
+            """,
+            user.role.value,
+            user.username,
+            hold_id,
+        )
+    return {"status": "approved", "hold_id": hold_id, "hold_type": "transfer"}
+
+
+@router.post("/hotels/{hotel_id}/transfers/holds/{hold_id}/reject")
+async def reject_transfer_hold(
+    hotel_id: int,
+    hold_id: str,
+    body: RejectRequest,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Reject transfer hold and linked approval request."""
+    check_permission(user, "holds:reject")
+    if not hold_id.startswith("TR_HOLD_"):
+        raise HTTPException(status_code=400, detail="Invalid transfer hold id")
+
+    repository = TransferRepository()
+    hold = await repository.get_hold(hold_id)
+    if hold is None:
+        raise HTTPException(status_code=404, detail="Transfer hold not found")
+    if hold.hotel_id != hotel_id:
+        raise HTTPException(status_code=404, detail="Transfer hold not found for hotel")
+    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if hold.status != HoldStatus.PENDING_APPROVAL:
+        raise HTTPException(status_code=409, detail=f"Hold is not pending approval (current: {hold.status})")
+
+    await repository.update_hold_status(
+        hold_id=hold_id,
+        status=HoldStatus.REJECTED.value,
+        rejected_reason=body.reason,
+    )
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE approval_requests
+            SET status = 'REJECTED', decided_by_role = $1, decided_by_name = $2, decided_at = now()
+            WHERE reference_id = $3 AND status = 'REQUESTED'
+            """,
+            user.role.value,
+            user.username,
+            hold_id,
+        )
+    return {"status": "rejected", "hold_id": hold_id, "reason": body.reason}
 
 
 @router.get("/conversations")

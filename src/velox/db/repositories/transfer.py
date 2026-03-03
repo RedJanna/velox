@@ -1,6 +1,7 @@
 """Repository for transfer holds."""
 
 from datetime import date
+from typing import Any
 
 import asyncpg
 import structlog
@@ -57,6 +58,10 @@ class TransferRepository:
             return None
         return self._row_to_hold(row)
 
+    async def get_hold(self, hold_id: str) -> TransferHold | None:
+        """Fetch hold by ID."""
+        return await self.get_by_hold_id(hold_id)
+
     async def update_status(
         self,
         hold_id: str,
@@ -81,12 +86,54 @@ class TransferRepository:
             rejected_reason,
         )
 
+    async def update_hold_status(
+        self,
+        hold_id: str,
+        status: str,
+        approved_by: str | None = None,
+        rejected_reason: str | None = None,
+    ) -> None:
+        """Update hold status."""
+        await self.update_status(hold_id, status, approved_by, rejected_reason)
+
     async def get_holds_by_date(self, hotel_id: int, target_date: date) -> list[TransferHold]:
         """Get all transfer holds for a specific date."""
         rows = await fetch(
             "SELECT * FROM transfer_holds WHERE hotel_id = $1 AND date = $2 ORDER BY time ASC",
             hotel_id,
             target_date,
+        )
+        return [self._row_to_hold(row) for row in rows]
+
+    async def list_holds(
+        self,
+        hotel_id: int,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        status: str | None = None,
+    ) -> list[TransferHold]:
+        """List holds with optional filters."""
+        conditions: list[str] = ["hotel_id = $1"]
+        params: list[Any] = [hotel_id]
+        param_idx = 2
+
+        if date_from is not None:
+            conditions.append(f"date >= ${param_idx}")
+            params.append(date_from)
+            param_idx += 1
+        if date_to is not None:
+            conditions.append(f"date <= ${param_idx}")
+            params.append(date_to)
+            param_idx += 1
+        if status is not None:
+            conditions.append(f"status = ${param_idx}")
+            params.append(status)
+            param_idx += 1
+
+        where_clause = " AND ".join(conditions)
+        rows = await fetch(
+            f"SELECT * FROM transfer_holds WHERE {where_clause} ORDER BY date ASC, time ASC",
+            *params,
         )
         return [self._row_to_hold(row) for row in rows]
 
