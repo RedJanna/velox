@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import structlog
 
+from velox.adapters.elektraweb.client import close_elektraweb_client
 from velox.api.routes import admin, health
 from velox.config.settings import settings
 from velox.core.hotel_profile_loader import load_all_profiles
@@ -54,6 +55,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
     yield
     await close_db_pool()
+    await close_elektraweb_client()
     logger.info("application_shutdown")
     # TODO: Close Redis connection
 
