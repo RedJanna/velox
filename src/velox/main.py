@@ -16,6 +16,7 @@ from velox.db.database import close_db_pool, init_db_pool
 from velox.db.repositories.hotel import HotelRepository
 from velox.escalation.matrix import load_escalation_matrix
 from velox.llm.client import close_llm_client
+from velox.tools import initialize_tool_dispatcher
 from velox.utils.logging import setup_logging
 
 logger = structlog.get_logger(__name__)
@@ -54,6 +55,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
     templates = load_templates()
     logger.info("templates_loaded", count=len(templates))
+    dispatcher = initialize_tool_dispatcher()
+    logger.info("tools_registered", count=len(dispatcher.registered_names()))
 
     yield
     await close_db_pool()
