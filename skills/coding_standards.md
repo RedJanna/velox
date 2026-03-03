@@ -56,10 +56,18 @@
 - Sınıf isimleri: `PascalCase`
 - Sabitler: `UPPER_SNAKE_CASE`
 
-### 6) Dosya boyutu sınırı (300 satır)
-**Ne demek?** Çok büyüyen dosyalar bölünecek. `main.py` kısa kalacak.  
-**Neden?** Dev bir dosyada hata saklanır, bakım zorlaşır.  
+### 6) Dosya boyutu sınırı (hedef 600 satır)
+**Ne demek?** Çok büyüyen dosyalar sorumluluk bazlı bölünecek. `main.py` kısa kalacak.
+**Neden?** Dev bir dosyada hata saklanır, bakım zorlaşır.
 **Benzetme:** Tek dev depo yerine raf raf düzenli depo.
+
+**Hedef:** 600 satır/dosya. Aşılırsa **mantıksal sorumluluk** bazında böl.
+**İstisnalar (600+ olabilir):**
+- SQL migration dosyaları (tek transaction bütünlüğü gerekir)
+- Enum/constant tanım dosyaları (bölmek import karmaşası yaratır)
+- Test dosyaları (bir modülün tüm testleri tek dosyada kalabilir)
+
+**⚠️ Yasak olan:** Yapay bölme (dosyayı rastgele 600'er satıra kesmek). Bölme her zaman **tek sorumluluk prensibine** göre yapılır.
 
 ### 7) Imports (Malzeme rafı düzeni)
 **Ne demek?** İçe aktarmalar düzenli ve tahmin edilebilir olacak.  
@@ -147,7 +155,7 @@ class ReservationRepository:
 - `from X import *` yok
 - `.env` commit yok
 - SQL’de f-string ile birleştirme yok → parametreli sorgu (`$1`, `$2`)
-- 300 satır üstü dosya yok
+- Hedef 600 satır/dosya — aşılırsa sorumluluk bazlı böl (istisnalar: migration, enum, test)
 
 ---
 
@@ -179,7 +187,7 @@ Aşağıdakiler “ekip büyüyünce hayat kurtaran” bölümler olur:
 
 - [ ] Tüm fonksiyonlarda tip bilgisi var (girdi + çıktı)
 - [ ] Tüm I/O async
-- [ ] Hiçbir dosya 300 satırı geçmiyor
+- [ ] Dosyalar hedef 600 satır altında (istisnalar: migration, enum, test)
 - [ ] Otel/ayar değerleri hardcoded değil
 - [ ] Import sırası düzgün: stdlib → third-party → local
 - [ ] Sınırdan geçen veriler Pydantic model

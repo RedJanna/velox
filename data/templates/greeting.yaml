@@ -1,0 +1,24 @@
+# Greeting templates
+- id: "greeting_new_guest"
+  intent: "greeting"
+  state: "GREETING"
+  language: "tr"
+  template: "Merhaba! {hotel_name} ailesine hosgeldiniz. Size nasil yardimci olabilirim?"
+
+- id: "greeting_new_guest_en"
+  intent: "greeting"
+  state: "GREETING"
+  language: "en"
+  template: "Hello! Welcome to {hotel_name}. How may I assist you today?"
+
+- id: "greeting_returning"
+  intent: "greeting"
+  state: "GREETING"
+  language: "tr"
+  template: "Tekrar hosgeldiniz! Onceki talebinizle ilgili mi, yoksa yeni bir konuda mi yardimci olabilirim?"
+
+- id: "greeting_returning_en"
+  intent: "greeting"
+  state: "GREETING"
+  language: "en"
+  template: "Welcome back! Would you like to continue with your previous request, or may I help with something new?"

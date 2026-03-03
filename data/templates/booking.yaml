@@ -1,0 +1,21 @@
+- id: "stay_hold_created"
+  intent: "stay_booking_create"
+  state: "PENDING_APPROVAL"
+  language: "tr"
+  template: |
+    Rezervasyon talebiniz olusturuldu!
+
+    {summary}
+
+    Talebiniz yonetimimize iletildi. Onay alir almaz sizi bilgilendiririz.
+
+- id: "stay_hold_created_en"
+  intent: "stay_booking_create"
+  state: "PENDING_APPROVAL"
+  language: "en"
+  template: |
+    Your reservation request has been created!
+
+    {summary}
+
+    Your request has been forwarded to our management. We will inform you as soon as it is approved.

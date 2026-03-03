@@ -46,13 +46,6 @@ Sadece gerekli veriyi al.
 - Telefon, isim, tarih gibi şeyler **gerekliyse** istenir.
 - Gereksizse hiç istenmez.
 
-### 2.2 Telefon numarası “ham” saklanmaz (Phone hashing)
-- Veritabanında telefon **açık açık yazılmaz**.
-- Veritabanında telefonun **geri döndürülemez parmak izi** saklanır (`phone_hash`).
-- Admin panelde görüntü için telefon **maskeli** gösterilir: `+90 5** *** **77`.
-- Ham telefon numarası sadece işlem sırasında, **geçici olarak** hafızada bulunur.
-
-**Benzetme:** Telefonu deftere yazmak yerine, “kilitli bir etiket” gibi bir kod yazmak.
 
 ### 2.3 Kart / ödeme bilgisi asla alınmaz (No payment data)
 Sistem **asla** şu bilgileri istemez veya işlemez:
