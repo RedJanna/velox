@@ -86,9 +86,20 @@ Execute tasks in `tasks/` directory sequentially:
 3. **Snake_case** for all internal code. Adapter normalizes external kebab-case.
 4. **EUR is base currency**. Never calculate exchange rates in code.
 5. **PII safety**: Never log raw phone/email. Hash or mask in logs.
-6. **Modular code**: No file should exceed ~300 lines. Split into modules.
+6. **Modular code**: Target 600 lines per file. Split by responsibility if exceeded.
 7. **Async everywhere**: Use async/await for all I/O operations.
 8. **Type hints**: Use Pydantic models and Python type hints everywhere.
+
+## Auto-Commit Rule
+After completing each task, you MUST commit your changes:
+```bash
+git add -A && git commit -m "Task XX: <short description of what was done>"
+```
+Replace `XX` with the task number and provide a brief summary. Example:
+```bash
+git add -A && git commit -m "Task 04: Elektraweb PMS adapter with JWT auth and retry"
+```
+This is mandatory — do NOT skip the commit step.
 
 ## Environment Variables (see .env.example)
 All secrets, API keys, and configuration must be in environment variables. Never commit .env files.
