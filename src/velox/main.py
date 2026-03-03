@@ -4,10 +4,12 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+import redis.asyncio as redis
 import structlog
 
 from velox.adapters.elektraweb.client import close_elektraweb_client
 from velox.adapters.whatsapp.client import close_whatsapp_client
+from velox.api.middleware.rate_limiter import RateLimitMiddleware
 from velox.api.routes import admin, health, whatsapp_webhook
 from velox.config.settings import settings
 from velox.core.pipeline import post_process_escalation
@@ -31,7 +33,14 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("application_startup", env=settings.app_env)
     db_pool = await init_db_pool()
     _app.state.db_pool = db_pool
-    # TODO: Initialize Redis connection
+    redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        await redis_client.ping()
+        _app.state.redis = redis_client
+        logger.info("redis_connected")
+    except Exception:
+        _app.state.redis = None
+        logger.exception("redis_connection_failed")
 
     profiles = load_all_profiles()
     logger.info("hotel_profiles_loaded", count=len(profiles))
@@ -71,8 +80,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await close_elektraweb_client()
     await close_whatsapp_client()
     await close_llm_client()
+    redis_state = getattr(_app.state, "redis", None)
+    if redis_state is not None:
+        await redis_state.aclose()
     logger.info("application_shutdown")
-    # TODO: Close Redis connection
 
 
 app = FastAPI(
@@ -81,6 +92,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+app.add_middleware(RateLimitMiddleware)
 
 # TODO: Include routers
 # from velox.api.routes import whatsapp_webhook, admin_webhook, admin
