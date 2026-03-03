@@ -15,6 +15,7 @@ from velox.core.template_engine import load_templates
 from velox.db.database import close_db_pool, init_db_pool
 from velox.db.repositories.hotel import HotelRepository
 from velox.escalation.matrix import load_escalation_matrix
+from velox.llm.client import close_llm_client
 from velox.utils.logging import setup_logging
 
 logger = structlog.get_logger(__name__)
@@ -58,6 +59,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await close_db_pool()
     await close_elektraweb_client()
     await close_whatsapp_client()
+    await close_llm_client()
     logger.info("application_shutdown")
     # TODO: Close Redis connection
 
