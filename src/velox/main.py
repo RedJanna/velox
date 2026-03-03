@@ -22,7 +22,7 @@ from velox.escalation.engine import EscalationEngine
 from velox.escalation.matrix import load_escalation_matrix
 from velox.llm.client import close_llm_client
 from velox.tools import initialize_tool_dispatcher
-from velox.utils.logging import setup_logging
+from velox.utils.logger import setup_logging
 
 logger = structlog.get_logger(__name__)
 
@@ -30,7 +30,7 @@ logger = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Manage application startup and shutdown lifecycle."""
-    setup_logging()
+    setup_logging(settings.app_log_level)
     logger.info("application_startup", env=settings.app_env)
     db_pool = await init_db_pool()
     _app.state.db_pool = db_pool

@@ -29,12 +29,27 @@ Velox is an AI-powered receptionist that handles guest inquiries, reservations (
 3. Fill in your API keys in `.env`
 4. Install dependencies: `pip install -e ".[dev]"`
 5. Start infrastructure: `docker-compose up -d db redis`
-6. Run the app: `uvicorn velox.main:app --reload`
+6. Run the app: `uvicorn velox.main:app --reload --port 8001`
 
 ### Docker
 ```bash
 docker-compose up --build
 ```
+
+## Production
+1. Copy `.env.production.example` to `.env.production`
+2. Fill real secrets and credentials
+3. Start production profile:
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+4. Verify:
+```bash
+curl -fsS http://127.0.0.1:8001/api/v1/health
+curl -fsS http://127.0.0.1:8001/api/v1/health/ready
+```
+
+Detailed production checklist: `docs/production_deployment.md`
 
 ## Project Structure
 ```
@@ -56,6 +71,7 @@ src/velox/
 ## API Endpoints
 - `GET /` — Service status
 - `GET /api/v1/health` — Health check
+- `GET /api/v1/health/ready` — Readiness check
 - `GET /api/v1/webhook/whatsapp` — WhatsApp webhook verification
 - `POST /api/v1/webhook/whatsapp` — WhatsApp message handler
 

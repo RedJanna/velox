@@ -1,0 +1,75 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: velox_test
+          POSTGRES_USER: velox
+          POSTGRES_PASSWORD: test
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U velox"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - "6379:6379"
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      APP_ENV: test
+      APP_PORT: "8001"
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DB_NAME: velox_test
+      DB_USER: velox
+      DB_PASSWORD: test
+      REDIS_URL: redis://127.0.0.1:6379/0
+      OPENAI_API_KEY: test-openai-key
+      ELEKTRA_API_BASE_URL: https://example.invalid
+      ELEKTRA_API_KEY: test-elektra-key
+      WHATSAPP_VERIFY_TOKEN: test-token
+      WHATSAPP_APP_SECRET: test-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[dev]"
+      - run: pytest --cov=velox
+      - run: ruff check src/
+      - run: mypy src/
+
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t velox:latest .
+      - run: docker run --rm velox:latest python -c "import velox; print('OK')"
+
+  security:
+    needs: docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t velox:latest .
+      - uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: velox:latest
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
