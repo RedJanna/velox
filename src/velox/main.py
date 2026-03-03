@@ -10,8 +10,9 @@ import structlog
 from velox.adapters.elektraweb.client import close_elektraweb_client
 from velox.adapters.whatsapp.client import close_whatsapp_client
 from velox.api.middleware.rate_limiter import RateLimitMiddleware
-from velox.api.routes import admin, health, whatsapp_webhook
+from velox.api.routes import admin, admin_webhook, health, whatsapp_webhook
 from velox.config.settings import settings
+from velox.core.event_processor import EventProcessor
 from velox.core.pipeline import post_process_escalation
 from velox.core.hotel_profile_loader import load_all_profiles
 from velox.core.template_engine import load_templates
@@ -72,6 +73,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("templates_loaded", count=len(templates))
     dispatcher = initialize_tool_dispatcher()
     _app.state.tool_dispatcher = dispatcher
+    _app.state.event_processor = EventProcessor(db_pool=db_pool, dispatcher=dispatcher)
     _app.state.post_process_escalation = post_process_escalation
     logger.info("tools_registered", count=len(dispatcher.registered_names()))
 
@@ -99,7 +101,7 @@ app.add_middleware(RateLimitMiddleware)
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(whatsapp_webhook.router, prefix="/api/v1")
-# app.include_router(admin_webhook.router, prefix="/api/v1")
+app.include_router(admin_webhook.router, prefix="/api/v1")
 
 
 @app.get("/")

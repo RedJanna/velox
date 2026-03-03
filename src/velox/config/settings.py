@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     admin_jwt_secret: str = "change-me-in-production"
     admin_jwt_algorithm: str = "HS256"
     admin_jwt_expire_minutes: int = 60
+    admin_webhook_secret: str = ""
 
     # Rate Limiting
     rate_limit_per_phone_per_minute: int = 30
