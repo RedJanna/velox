@@ -1,0 +1,445 @@
+# Kassandra Oludeniz Hotel Profile
+# Source: Otel_Veri_Toplama_Soru_Formu_HOTEL_PROFILE_v1_2.md
+# Last updated: 2026-02-27
+
+hotel_id: 21966
+hotel_name:
+  tr: "Kassandra Oludeniz"
+  en: "Kassandra Oludeniz"
+hotel_type: "boutique"
+timezone: "Europe/Istanbul"
+currency_base: "EUR"
+pms: "elektraweb"
+whatsapp_number: "+905332503277"
+
+season:
+  open: "04-20"
+  close: "11-10"
+
+# ============================================================
+# Contacts
+# ============================================================
+contacts:
+  reception:
+    phone: "+905332503277"
+    email: "info@kassandraoludeniz.com"
+    hours: "24/7"
+  restaurant:
+    phone: "+905332503277"
+    email: "info@kassandraoludeniz.com"
+    hours: "08:00-22:00"
+  housekeeping:
+    phone: "+905332503277"
+    email: "info@kassandraoludeniz.com"
+    hours: "08:00-16:00"
+  escalation_admin:
+    name: "Omer Alperen Gonen"
+    phone: "+905304498453"
+    role: "ADMIN"
+
+# ============================================================
+# Location
+# ============================================================
+location:
+  country: "TR"
+  city: "Mugla"
+  district: "Fethiye"
+  address: "Oludeniz, 224. Sk. No:12, 48330 Fethiye/Mugla"
+  google_maps_hotel: "https://maps.app.goo.gl/HotelLink"
+  google_maps_restaurant: "https://maps.app.goo.gl/RestaurantLink"
+  nearby:
+    - name: "Oludeniz Blue Lagoon"
+      distance: "300m"
+    - name: "Fethiye merkez"
+      distance: "20 dakika"
+    - name: "Dalaman Havalimani"
+      distance: "75 dakika"
+    - name: "Oludeniz Teleferik"
+      distance: "1km"
+
+# ============================================================
+# Room Types
+# ============================================================
+room_types:
+  - id: 1
+    pms_room_type_id: 60
+    name: {tr: "Deluxe", en: "Deluxe"}
+    max_pax: 3
+    size_m2: 25
+    bed_type: "king"
+    view: "garden"
+    features: ["accessible", "ground_floor"]
+    extra_bed: true
+    baby_crib: true
+    accessible: true
+    description:
+      tr: "Bahce manzarali, sessiz, giris katta, engelli erisimli"
+      en: "Garden view, quiet, ground floor, accessible"
+
+  - id: 2
+    pms_room_type_id: 61
+    name: {tr: "Superior", en: "Superior"}
+    max_pax: 3
+    size_m2: 30
+    bed_type: "king"
+    view: "pool"
+    features: ["honeymoon_recommended"]
+    extra_bed: true
+    baby_crib: true
+    accessible: false
+    description:
+      tr: "Havuz manzarali, balayina uygun, 0-2. katlar"
+      en: "Pool view, honeymoon recommended, floors 0-2"
+
+  - id: 3
+    pms_room_type_id: 62
+    name: {tr: "Exclusive Land", en: "Exclusive Land"}
+    max_pax: 4
+    size_m2: 40
+    bed_type: "king"
+    view: "street"
+    features: ["spacious"]
+    extra_bed: true
+    baby_crib: true
+    accessible: false
+
+  - id: 4
+    pms_room_type_id: 63
+    name: {tr: "Penthouse Land", en: "Penthouse Land"}
+    max_pax: 2
+    size_m2: 25
+    bed_type: "king"
+    view: "street"
+    features: ["jacuzzi"]
+    extra_bed: false
+    baby_crib: false
+    accessible: false
+
+  - id: 5
+    pms_room_type_id: 64
+    name: {tr: "Exclusive Pool", en: "Exclusive Pool"}
+    max_pax: 4
+    size_m2: 40
+    bed_type: "king"
+    view: "pool"
+    features: ["spacious"]
+    extra_bed: true
+    baby_crib: true
+    accessible: false
+
+  - id: 6
+    pms_room_type_id: 65
+    name: {tr: "Penthouse", en: "Penthouse"}
+    max_pax: 4
+    size_m2: 45
+    bed_type: "king"
+    view: "pool_mountain"
+    features: ["jacuzzi", "rooftop", "spacious", "quiet"]
+    extra_bed: true
+    baby_crib: true
+    accessible: false
+    description:
+      tr: "Havuz ve dag manzarali, cati kati, jakuzili, genis, sessiz"
+      en: "Pool and mountain view, rooftop, jacuzzi, spacious, quiet"
+
+  - id: 7
+    pms_room_type_id: 66
+    name: {tr: "Premium", en: "Premium"}
+    max_pax: 4
+    size_m2: 40
+    bed_type: "king"
+    view: "pool_garden"
+    features: ["jacuzzi", "quiet", "modern", "honeymoon_recommended"]
+    extra_bed: true
+    baby_crib: true
+    accessible: false
+    description:
+      tr: "Havuz ve bahce manzarali, jakuzili, sessiz, modern, balayina uygun"
+      en: "Pool and garden view, jacuzzi, quiet, modern, honeymoon recommended"
+
+# All rooms common
+room_common:
+  smoking: false
+  connecting_rooms: false
+  balcony: true
+  daily_cleaning: true
+  amenities:
+    - "klima"
+    - "minibar (su)"
+    - "TV (Digiturk)"
+    - "kasa"
+    - "sac kurutma makinesi"
+    - "banyo urunleri"
+    - "su isitici"
+    - "self-servis su/kahve/bitki cayi"
+
+# ============================================================
+# Board Types
+# ============================================================
+board_types:
+  - id: 2
+    code: "BB"
+    name: {tr: "Oda Kahvalti", en: "Bed & Breakfast"}
+    breakfast_hours: "08:00-10:30"
+    breakfast_type: "acik_buyfe"
+
+# ============================================================
+# Rate Mapping
+# ============================================================
+rate_mapping:
+  FREE_CANCEL:
+    rate_type_id: 10
+    rate_code_id: 101
+  NON_REFUNDABLE:
+    rate_type_id: 11
+    rate_code_id: 102
+
+# ============================================================
+# Cancellation Rules
+# ============================================================
+cancellation_rules:
+  FREE_CANCEL:
+    free_cancel_deadline_days: 5
+    prepayment_days_before: 7
+    prepayment_amount: "1_night"
+    refund_after_deadline: false
+    penalty_after_deadline: "full_stay"
+  NON_REFUNDABLE:
+    prepayment_immediate: true
+    prepayment_amount: "1_night"
+    refund: false
+    exception_days_before: 21
+    exception_refund: "total_minus_1_night"
+
+# ============================================================
+# Transfer Routes
+# ============================================================
+transfer_routes:
+  - route_code: "DALAMAN_AIRPORT_TO_HOTEL"
+    from_location: "Dalaman Havalimani"
+    to_location: "Kassandra Oludeniz"
+    price_eur: 75
+    vehicle_type: "Vito"
+    max_pax: 7
+    duration_min: 75
+    baby_seat: true
+    oversize_vehicle:
+      type: "Sprinter"
+      price_eur: 100
+      min_pax: 8
+
+  - route_code: "HOTEL_TO_DALAMAN_AIRPORT"
+    from_location: "Kassandra Oludeniz"
+    to_location: "Dalaman Havalimani"
+    price_eur: 75
+    vehicle_type: "Vito"
+    max_pax: 7
+    duration_min: 75
+    baby_seat: true
+    oversize_vehicle:
+      type: "Sprinter"
+      price_eur: 100
+      min_pax: 8
+
+  - route_code: "ANTALYA_AIRPORT_TO_HOTEL"
+    from_location: "Antalya Havalimani"
+    to_location: "Kassandra Oludeniz"
+    price_eur: 220
+    vehicle_type: "Vito"
+    max_pax: 7
+    duration_min: 240
+    baby_seat: true
+
+  - route_code: "HOTEL_TO_ANTALYA_AIRPORT"
+    from_location: "Kassandra Oludeniz"
+    to_location: "Antalya Havalimani"
+    price_eur: 220
+    vehicle_type: "Vito"
+    max_pax: 7
+    duration_min: 240
+    baby_seat: true
+
+# ============================================================
+# Restaurant
+# ============================================================
+restaurant:
+  name: "Kassandra Restoran"
+  concept: "a_la_carte"
+  capacity_min: 70
+  capacity_max: 85
+  area_types: ["outdoor"]
+  hours:
+    breakfast: "08:00-10:30"
+    lunch: "12:00-17:00"
+    dinner: "18:00-22:00"
+  max_ai_party_size: 8
+  late_tolerance_min: 15
+  external_guests_allowed: true
+  breakfast_hotel_guest: "free"
+  breakfast_external_guest: "paid"
+  lunch_dinner: "paid"
+
+# ============================================================
+# Facility Policies
+# ============================================================
+facility_policies:
+  check_in:
+    time: "14:00"
+    early_checkin_free_from: "09:00"
+    early_checkin_before_09_charge: true
+  check_out:
+    time: "12:00"
+    late_checkout: "admin_decision"
+  children:
+    policy: "Tum yaslar kabul edilir"
+    extra_bed: "Ucretsiz"
+    baby_crib: "Ucretsiz (Penthouse Land haric)"
+  pets:
+    allowed: false
+  smoking:
+    rooms: "non_smoking"
+  parking:
+    hotel_parking: false
+    street_parking: "Ucretsiz sokak parklanmasi"
+    private_parking: "Karsida ucretli ozel otopark"
+    ai_note: "Misafire 'otoparkimiz yok' deme! Sokak parklanmasi mevcut de."
+  pool:
+    type: "open"
+    hours: "08:00-19:00"
+    heated: false
+    hotel_guest: "free"
+    external_guest: "paid_handoff"
+  wifi:
+    available: true
+    free: true
+    hours: "24/7"
+  room_service:
+    hours: "08:00-21:00"
+    delivery_time_min: "30-45"
+    breakfast_room_service: false
+  pool_bar:
+    hours: "12:00-18:00"
+    type: "paid"
+  a_la_carte_bar:
+    hours: "12:00-22:00"
+    type: "paid"
+
+# ============================================================
+# FAQ Data
+# ============================================================
+faq_data:
+  - topic: "check_in_time"
+    question_tr: "Check-in saati kac?"
+    answer_tr: "Check-in saat 14:00'den itibaren mumkundur."
+    answer_en: "Check-in is available from 14:00 onwards."
+
+  - topic: "check_out_time"
+    question_tr: "Check-out saati kac?"
+    answer_tr: "Check-out saat 12:00'ye kadar yapilmalidir."
+    answer_en: "Check-out must be done by 12:00."
+
+  - topic: "beach_distance"
+    question_tr: "Denize ne kadar uzak?"
+    answer_tr: "Belcekiz Plaji'na sadece 300 metre mesafedeyiz."
+    answer_en: "We are just 300 meters from Belcekiz Beach."
+
+  - topic: "breakfast_hours"
+    question_tr: "Kahvalti saatleri?"
+    answer_tr: "Kahvalti 08:00-10:30 arasi acik buyfe olarak sunulmaktadir."
+    answer_en: "Breakfast is served as open buffet between 08:00-10:30."
+
+  - topic: "wifi"
+    question_tr: "WiFi var mi?"
+    answer_tr: "Evet, 7/24 ucretsiz WiFi mevcuttur."
+    answer_en: "Yes, free WiFi is available 24/7."
+
+  - topic: "parking"
+    question_tr: "Otopark var mi?"
+    answer_tr: "Otelimizin onunde ucretsiz sokak parklanmasi mevcuttur. Ayrica karsida ucretli ozel otopark bulunmaktadir."
+    answer_en: "Free street parking is available in front of the hotel. There is also a paid private parking lot across the street."
+
+  - topic: "pool"
+    question_tr: "Havuz var mi?"
+    answer_tr: "Evet, acik havuzumuz 08:00-19:00 saatleri arasinda otel misafirlerimize ucretsizdir."
+    answer_en: "Yes, our open pool is free for hotel guests between 08:00-19:00."
+
+  - topic: "airport_transfer"
+    question_tr: "Havalimani transferi var mi?"
+    answer_tr: "Evet, Dalaman Havalimani transferi tek yon 75 EUR (max 7 kisi). Antalya Havalimani transferi tek yon 220 EUR."
+    answer_en: "Yes, Dalaman Airport transfer is 75 EUR one way (max 7 persons). Antalya Airport transfer is 220 EUR one way."
+
+  - topic: "child_policy"
+    question_tr: "Cocuk politikasi nedir?"
+    answer_tr: "Tum yaslardaki cocuklar kabul edilir. Ekstra yatak ve bebek besigi ucretsizdir (Penthouse Land haric)."
+    answer_en: "Children of all ages are welcome. Extra bed and baby crib are free (except Penthouse Land)."
+
+  - topic: "total_rooms"
+    question_tr: "Kac oda var?"
+    answer_tr: "Otelimizde toplam 24 oda bulunmaktadir."
+    answer_en: "Our hotel has a total of 24 rooms."
+
+  - topic: "family_suitability"
+    question_tr: "Aile icin uygun mu?"
+    answer_tr: "Evet, otelimiz ailelere cok uygundur. Cocuk dostu odalarimiz ve hizmetlerimiz mevcuttur."
+    answer_en: "Yes, our hotel is very suitable for families. We have child-friendly rooms and services."
+
+  - topic: "fethiye_distance"
+    question_tr: "Fethiye merkeze ne kadar?"
+    answer_tr: "Fethiye merkeze yaklasik 12 km, arac ile 20 dakika mesafededir."
+    answer_en: "It's approximately 12 km to Fethiye center, about 20 minutes by car."
+
+  - topic: "private_beach"
+    question_tr: "Ozel plajiniz var mi?"
+    answer_tr: "Ozel plajimiz bulunmamaktadir, ancak Belcekiz Plaji'na sadece 300 metre mesafedeyiz."
+    answer_en: "We don't have a private beach, but we are just 300 meters from Belcekiz Beach."
+
+  - topic: "room_amenities"
+    question_tr: "Odalarda ne var?"
+    answer_tr: "Tum odalarimizda klima, minibar, TV (Digiturk), kasa, sac kurutma makinesi, banyo urunleri, su isitici ve self-servis icecekler bulunmaktadir."
+    answer_en: "All rooms include AC, minibar, TV, safe, hairdryer, toiletries, kettle, and self-service beverages."
+
+# ============================================================
+# Payment Info
+# ============================================================
+payment:
+  methods:
+    - "BANK_TRANSFER"
+    - "PAYMENT_LINK"
+    - "POS"
+    - "CASH"
+    - "MAIL_ORDER"
+  eur_bank:
+    bank: "Turkiye Halk Bankasi"
+    account_holder: "Mehmet Can Unsal"
+    swift: "TRHBTR2A"
+  try_bank:
+    bank: "Halk Bankasi Fethiye"
+    account_holder: "Mehmet Can Unsal"
+  payment_link_handling: "human_handoff"
+  mail_order_handling: "human_handoff"
+
+# ============================================================
+# Operational Notes
+# ============================================================
+operational:
+  no_show_policy: "human_handoff"
+  early_departure_refund: "human_handoff"
+  min_stay: null
+  max_stay: null
+  age_restriction: null
+  tool_error_fallback: "Sistemimizdeki teknik sorun nedeniyle isleminizi simdilik tamamlayamiyorum. Sizi hemen misafir temsilcimizle bagliyorum."
+  response_sla_minutes: 15
+
+# ============================================================
+# Description
+# ============================================================
+description:
+  tr: "Belcekiz Plaji'na sadece 300 metre mesafede, Oludeniz'in kalbinde butik bir otel deneyimi. Signature kokteyller sunan Kitchen & Bar, jakuzili havuz ve swim-up bar, yoresel lezzetlerle zenginlestirilmis kahvalti."
+  en: "A boutique hotel experience in the heart of Oludeniz, just 300 meters from Belcekiz Beach. Kitchen & Bar serving signature cocktails, pool with jacuzzi jets and swim-up bar, breakfast enriched with regional flavors."
+highlights:
+  - "beachside"
+  - "central_location"
+  - "excellent_reviews"
+  - "pool_jacuzzi"
+  - "family_friendly"
+  - "regional_breakfast"

@@ -1,0 +1,220 @@
+# ESCALATION_MATRIX v1 — Admin panelde konfigurasyon edilebilir
+# Kural: Birden fazla risk_flag varsa en yuksek seviye (L3 > L2 > L1 > L0) kazanir.
+# Ayni seviyede ise priority yuksek olan kazanir.
+# Dedupe: dedupe_key = "<risk_flag>|<intent>|<reference_id_or_phone>"
+
+# === L3 — Critical ===
+- risk_flag: LEGAL_REQUEST
+  level: L3
+  route_to_role: ADMIN
+  priority: high
+  action: [handoff.create_ticket, notify.send]
+  notify_channel: panel
+  user_message_style: calm_premium
+  reason_hint: "Hukuki talep / resmi surec"
+
+- risk_flag: SECURITY_INCIDENT
+  level: L3
+  route_to_role: ADMIN
+  priority: high
+  action: [handoff.create_ticket, notify.send]
+  reason_hint: "Guvenlik olayi"
+
+- risk_flag: THREAT_SELF_HARM
+  level: L3
+  route_to_role: ADMIN
+  priority: high
+  action: [handoff.create_ticket, notify.send]
+  reason_hint: "Kendine zarar riski"
+
+- risk_flag: MEDICAL_EMERGENCY
+  level: L3
+  route_to_role: OPS
+  priority: high
+  action: [handoff.create_ticket, notify.send]
+  reason_hint: "Tibbi acil durum"
+
+# === L2 — Assisted ===
+- risk_flag: PAYMENT_CONFUSION
+  level: L2
+  route_to_role: SALES
+  priority: high
+  action: [handoff.create_ticket, notify.send]
+  reason_hint: "Odeme belirsizligi / yontem sorusu"
+
+- risk_flag: CHARGEBACK_MENTION
+  level: L2
+  route_to_role: SALES
+  priority: high
+  action: [handoff.create_ticket, notify.send]
+  reason_hint: "Chargeback / itiraz"
+
+- risk_flag: REFUND_DISPUTE
+  level: L2
+  route_to_role: SALES
+  priority: high
+  action: [handoff.create_ticket, notify.send]
+  reason_hint: "Iade anlasmazligi"
+
+- risk_flag: ANGRY_COMPLAINT
+  level: L2
+  route_to_role: OPS
+  priority: high
+  action: [handoff.create_ticket]
+  reason_hint: "Ofkeli sikayet / kriz"
+
+- risk_flag: HARASSMENT_HATE
+  level: L2
+  route_to_role: ADMIN
+  priority: high
+  action: [handoff.create_ticket, notify.send]
+  reason_hint: "Taciz / nefret soylemi"
+
+- risk_flag: FRAUD_SIGNAL
+  level: L2
+  route_to_role: ADMIN
+  priority: high
+  action: [handoff.create_ticket, notify.send]
+  reason_hint: "Dolandiricilik sinyali"
+
+- risk_flag: TOOL_UNAVAILABLE
+  level: L2
+  route_to_role: OPS
+  priority: high
+  action: [handoff.create_ticket]
+  reason_hint: "Tool erisilemiyor"
+
+- risk_flag: TOOL_ERROR_REPEAT
+  level: L2
+  route_to_role: OPS
+  priority: high
+  action: [handoff.create_ticket]
+  reason_hint: "Tekrarlayan tool hatasi"
+
+- risk_flag: DATA_INCONSISTENCY
+  level: L2
+  route_to_role: OPS
+  priority: high
+  action: [handoff.create_ticket, notify.send]
+  reason_hint: "Veri tutarsizligi"
+
+- risk_flag: RATE_MAPPING_MISSING
+  level: L2
+  route_to_role: ADMIN
+  priority: high
+  action: [notify.send]
+  reason_hint: "Rate mapping eksik"
+
+- risk_flag: GROUP_BOOKING
+  level: L2
+  route_to_role: SALES
+  priority: medium
+  action: [handoff.create_ticket, notify.send]
+  reason_hint: "Grup rezervasyonu"
+
+- risk_flag: SPECIAL_EVENT
+  level: L2
+  route_to_role: SALES
+  priority: medium
+  action: [handoff.create_ticket, notify.send]
+  reason_hint: "Etkinlik / organizasyon"
+
+- risk_flag: PII_OVERREQUEST
+  level: L2
+  route_to_role: ADMIN
+  priority: high
+  action: [handoff.create_ticket, notify.send]
+  reason_hint: "Hassas veri/PII riski"
+
+# === L1 — Soft ===
+- risk_flag: VIP_REQUEST
+  level: L1
+  route_to_role: ADMIN
+  priority: medium
+  action: [notify.send]
+  reason_hint: "VIP / ozel istek"
+
+- risk_flag: ALLERGY_ALERT
+  level: L1
+  route_to_role: CHEF
+  priority: medium
+  action: [notify.send]
+  reason_hint: "Alerji / diyet notu"
+
+- risk_flag: ACCESSIBILITY_NEED
+  level: L1
+  route_to_role: OPS
+  priority: medium
+  action: [notify.send]
+  reason_hint: "Erisebilirlik ihtiyaci"
+
+- risk_flag: NO_SHOW_RISK
+  level: L1
+  route_to_role: OPS
+  priority: medium
+  action: [notify.send]
+  reason_hint: "No-show riski"
+
+- risk_flag: CAPACITY_LIMIT
+  level: L1
+  route_to_role: OPS
+  priority: medium
+  action: [notify.send]
+  reason_hint: "Kapasite siniri"
+
+- risk_flag: OVERBOOK_RISK
+  level: L1
+  route_to_role: ADMIN
+  priority: high
+  action: [notify.send]
+  reason_hint: "Overbook riski"
+
+- risk_flag: POLICY_MISSING
+  level: L1
+  route_to_role: ADMIN
+  priority: medium
+  action: [notify.send]
+  reason_hint: "Policy dokumani eksik / belirsiz"
+
+- risk_flag: LOST_ITEM
+  level: L1
+  route_to_role: OPS
+  priority: low
+  action: [notify.send]
+  reason_hint: "Kayip esya"
+
+# === L0 — Self-Serve ===
+- risk_flag: TEMPLATE_MISSING
+  level: L0
+  route_to_role: OPS
+  priority: low
+  action: [notify.send]
+  reason_hint: "Sablon yok; gunluk rapora aday"
+
+- risk_flag: LANGUAGE_UNSUPPORTED
+  level: L0
+  route_to_role: NONE
+  priority: low
+  action: []
+  reason_hint: "Dil fallback (EN)"
+
+- risk_flag: RESERVATION_ID_MISSING
+  level: L0
+  route_to_role: NONE
+  priority: medium
+  action: []
+  reason_hint: "Eksik dogrulama alani"
+
+- risk_flag: DATE_INVALID
+  level: L0
+  route_to_role: NONE
+  priority: medium
+  action: []
+  reason_hint: "Gecersiz tarih/format"
+
+- risk_flag: CURRENCY_CONVERSION_REQUEST
+  level: L0
+  route_to_role: NONE
+  priority: low
+  action: []
+  reason_hint: "Kur donusumu istegi"

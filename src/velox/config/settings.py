@@ -1,0 +1,73 @@
+"""Application settings loaded from environment variables."""
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    # App
+    app_env: str = "development"
+    app_debug: bool = False
+    app_port: int = 8000
+    app_host: str = "0.0.0.0"
+    app_log_level: str = "INFO"
+    app_secret_key: str = "change-me-in-production"
+
+    # Database
+    db_host: str = "localhost"
+    db_port: int = 5432
+    db_name: str = "velox"
+    db_user: str = "velox"
+    db_password: str = "change-me"
+    db_pool_min: int = 5
+    db_pool_max: int = 20
+
+    @property
+    def database_url(self) -> str:
+        return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+
+    # Redis
+    redis_url: str = "redis://localhost:6379/0"
+    redis_session_ttl_seconds: int = 1800
+    redis_rate_limit_ttl_seconds: int = 60
+
+    # OpenAI
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o"
+    openai_fallback_model: str = "gpt-4o-mini"
+    openai_max_tokens: int = 2048
+    openai_temperature: float = 0.3
+
+    # WhatsApp
+    whatsapp_api_version: str = "v21.0"
+    whatsapp_api_base_url: str = "https://graph.facebook.com"
+    whatsapp_phone_number_id: str = ""
+    whatsapp_business_account_id: str = ""
+    whatsapp_access_token: str = ""
+    whatsapp_verify_token: str = ""
+    whatsapp_app_secret: str = ""
+
+    # Elektraweb
+    elektra_api_base_url: str = ""
+    elektra_api_key: str = ""
+    elektra_hotel_id: int = 21966
+
+    # Admin
+    admin_jwt_secret: str = "change-me-in-production"
+    admin_jwt_algorithm: str = "HS256"
+    admin_jwt_expire_minutes: int = 60
+
+    # Rate Limiting
+    rate_limit_per_phone_per_minute: int = 30
+    rate_limit_per_phone_per_hour: int = 200
+    rate_limit_webhook_per_minute: int = 100
+
+    # Paths
+    hotel_profiles_dir: str = "data/hotel_profiles"
+    escalation_matrix_path: str = "data/escalation_matrix.yaml"
+    templates_dir: str = "data/templates"
+    scenarios_dir: str = "data/scenarios"
+
+
+settings = Settings()
