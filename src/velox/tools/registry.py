@@ -66,10 +66,17 @@ def build_dispatcher() -> ToolDispatcher:
     dispatcher.register("booking_cancel", BookingCancelTool())
 
     dispatcher.register("restaurant_availability", RestaurantAvailabilityTool(restaurant_repository))
-    dispatcher.register("restaurant_create_hold", RestaurantCreateHoldTool(restaurant_repository))
-    dispatcher.register("restaurant_confirm", RestaurantConfirmTool())
+    dispatcher.register(
+        "restaurant_create_hold",
+        RestaurantCreateHoldTool(
+            restaurant_repository,
+            approval_repository,
+            notification_repository,
+        ),
+    )
+    dispatcher.register("restaurant_confirm", RestaurantConfirmTool(restaurant_repository))
     dispatcher.register("restaurant_modify", RestaurantModifyTool())
-    dispatcher.register("restaurant_cancel", RestaurantCancelTool())
+    dispatcher.register("restaurant_cancel", RestaurantCancelTool(restaurant_repository))
 
     dispatcher.register("transfer_get_info", TransferGetInfoTool())
     dispatcher.register("transfer_create_hold", TransferCreateHoldTool(transfer_repository))

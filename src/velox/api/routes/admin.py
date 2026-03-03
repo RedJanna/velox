@@ -19,6 +19,8 @@ from velox.api.middleware.auth import (
 from velox.config.constants import HoldStatus, Role
 from velox.config.settings import settings
 from velox.core.hotel_profile_loader import reload_profiles
+from velox.db.repositories.restaurant import RestaurantRepository
+from velox.models.restaurant import RestaurantSlotCreate, RestaurantSlotUpdate
 from velox.core.template_engine import reload_templates
 from velox.escalation.matrix import reload_matrix
 
@@ -173,6 +175,63 @@ async def update_hotel_profile(
     if result == "UPDATE 0":
         raise HTTPException(status_code=404, detail="Hotel not found")
     return {"status": "updated", "hotel_id": hotel_id}
+
+
+@router.post("/hotels/{hotel_id}/restaurant/slots")
+async def create_restaurant_slots(
+    hotel_id: int,
+    slots: list[RestaurantSlotCreate],
+    user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
+) -> dict[str, Any]:
+    """Create restaurant slots for one or more date ranges."""
+    _ = user
+    repository = RestaurantRepository()
+    try:
+        created_count = await repository.create_slots(hotel_id=hotel_id, slots=slots)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"status": "created", "created_count": created_count}
+
+
+@router.get("/hotels/{hotel_id}/restaurant/slots")
+async def list_restaurant_slots(
+    hotel_id: int,
+    date_from: date,
+    date_to: date,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """List restaurant slots with remaining capacity."""
+    check_permission(user, "holds:read")
+    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
+        raise HTTPException(status_code=403, detail="Access denied to this hotel")
+    if date_to < date_from:
+        raise HTTPException(status_code=400, detail="date_to must be >= date_from")
+
+    repository = RestaurantRepository()
+    slots = await repository.list_slots(hotel_id=hotel_id, date_from=date_from, date_to=date_to)
+    return {"items": [slot.model_dump(mode="json") for slot in slots], "total": len(slots)}
+
+
+@router.put("/hotels/{hotel_id}/restaurant/slots/{slot_id}")
+async def update_restaurant_slot(
+    hotel_id: int,
+    slot_id: int,
+    update: RestaurantSlotUpdate,
+    user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
+) -> dict[str, Any]:
+    """Update restaurant slot capacity or active flag."""
+    _ = user
+    if update.total_capacity is None and update.is_active is None:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    repository = RestaurantRepository()
+    try:
+        row = await repository.update_slot(hotel_id=hotel_id, slot_id=slot_id, update=update)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if row is None:
+        raise HTTPException(status_code=404, detail="Slot not found")
+    return {"status": "updated", "slot": row}
 
 
 @router.get("/conversations")

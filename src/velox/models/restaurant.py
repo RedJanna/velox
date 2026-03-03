@@ -23,6 +23,32 @@ class RestaurantSlot(BaseModel):
     capacity_left: int
 
 
+class RestaurantSlotCreate(BaseModel):
+    date_from: date
+    date_to: date
+    time: time
+    total_capacity: int = Field(ge=1)
+    area: str = "outdoor"
+    is_active: bool = True
+
+
+class RestaurantSlotUpdate(BaseModel):
+    total_capacity: int | None = Field(default=None, ge=1)
+    is_active: bool | None = None
+
+
+class RestaurantSlotView(BaseModel):
+    slot_id: int
+    hotel_id: int
+    date: date
+    time: time
+    area: str
+    total_capacity: int
+    booked_count: int
+    capacity_left: int
+    is_active: bool
+
+
 class RestaurantHold(BaseModel):
     id: UUID | None = None
     hold_id: str
