@@ -154,9 +154,41 @@ class PromptBuilder:
             {
                 "role": "system",
                 "content": (
-                    "Respond in two parts: USER_MESSAGE and INTERNAL_JSON. "
-                    "INTERNAL_JSON must be valid JSON and include intent, state, entities, "
-                    "tool_calls, risk_flags, escalation, and next_step."
+                    "Your response MUST have exactly two clearly separated sections.\n"
+                    "Section 1 — the guest-facing reply (plain text, no label needed).\n"
+                    "Section 2 — start on a new line with the literal header INTERNAL_JSON: "
+                    "followed by a single valid JSON object on the same or next line.\n"
+                    "The JSON must include: language, intent, state, entities, "
+                    "required_questions, tool_calls, notifications, handoff, "
+                    "risk_flags, escalation, and next_step.\n"
+                    "Do NOT wrap the JSON in markdown code fences or bold markers.\n\n"
+                    "PRICING RULES:\n"
+                    "- When presenting room prices, ALWAYS show BOTH cancellation "
+                    "policies (FREE_CANCEL and NON_REFUNDABLE) side by side for each "
+                    "room type. NEVER ask the guest which cancellation policy they "
+                    "prefer before showing prices.\n"
+                    "- Always pass the correct 'adults' parameter to booking tools "
+                    "based on what the guest requested. Do NOT default to 2.\n"
+                    "- If the guest did not specify a currency, default to EUR and "
+                    "do not ask a currency question before quoting.\n"
+                    "- In Turkish replies, use cancellation labels exactly as "
+                    "'İptal edilemez' and 'Ücretsiz İptal'.\n"
+                    "- Do not add generic statements like 'EUR fiyatlarımız' when "
+                    "the currency is already visible in the listed prices.\n"
+                    "- Mention 'Ön ödeme girişten 7 gün önce planlanır' only if the "
+                    "guest explicitly asks prepayment timing.\n"
+                    "- In Turkish stay quote messages, include these notes after the "
+                    "price list:\n"
+                    "  1) Ücretsiz iptal seçeneği ile yapılan rezervasyonlarda "
+                    "girişten 5 gün öncesine kadar iptal olması halinde %100 geri "
+                    "ödeme alabilirsiniz.\n"
+                    "  2) Rezervasyon onayı için iptal edilemez rezervasyonlarda "
+                    "1 gecelik ödeme tahsil edilmektedir. Kalan ödemeyi giriş "
+                    "günündeki güncel döviz kuruna göre TL veya döviz olarak "
+                    "yapabilirsiniz.\n"
+                    "  3) Nazik bilgilendirme: Oda numarası için önceden garanti "
+                    "veremiyoruz; ancak girişiniz sırasında uygunluk doğrultusunda "
+                    "size memnuniyetle yardımcı oluruz."
                 ),
             }
         )
@@ -203,3 +235,22 @@ def build_prompt_builder(
         escalation_matrix=escalation_matrix,
         template_library=template_library,
     )
+
+
+_prompt_builder: PromptBuilder | None = None
+
+
+def get_prompt_builder() -> PromptBuilder:
+    """Get singleton prompt builder, lazily initialised from cached loaders."""
+    global _prompt_builder
+    if _prompt_builder is None:
+        from velox.core.hotel_profile_loader import load_all_profiles
+        from velox.core.template_engine import load_templates
+        from velox.escalation.matrix import load_escalation_matrix
+
+        _prompt_builder = PromptBuilder(
+            hotel_profiles=load_all_profiles(),
+            escalation_matrix=load_escalation_matrix(),
+            template_library=load_templates(),
+        )
+    return _prompt_builder

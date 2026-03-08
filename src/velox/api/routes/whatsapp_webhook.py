@@ -35,6 +35,19 @@ PAYMENT_DATA_PATTERN = re.compile(
     flags=re.IGNORECASE,
 )
 
+TR_FREE_CANCEL_NOTE = (
+    "Ücretsiz iptal seçeneği ile yapılan rezervasyonlarda girişten 5 gün öncesine kadar "
+    "iptal olması halinde %100 geri ödeme alabilirsiniz."
+)
+TR_NON_REFUNDABLE_NOTE = (
+    "Rezervasyon onayı için iptal edilemez rezervasyonlarda 1 gecelik ödeme tahsil edilmektedir. "
+    "Kalan ödemeyi giriş günündeki güncel döviz kuruna göre TL veya döviz olarak yapabilirsiniz."
+)
+TR_ROOM_NUMBER_NOTE = (
+    "Nazik bilgilendirme: Oda numarası için önceden garanti veremiyoruz; ancak girişiniz sırasında "
+    "uygunluk doğrultusunda size memnuniyetle yardımcı oluruz."
+)
+
 
 class SlidingWindowRateLimiter:
     """In-memory sliding-window rate limiter."""
@@ -131,6 +144,47 @@ def _default_reply_message() -> str:
     )
 
 
+def _wants_prepayment_timing(user_text: str) -> bool:
+    """Return True when the guest explicitly asks when prepayment is taken."""
+    normalized = user_text.casefold()
+    keywords = ("ön ödeme", "on odeme", "prepayment", "ne zaman", "kaç gün", "kac gun")
+    return any(keyword in normalized for keyword in keywords)
+
+
+def _normalize_turkish_stay_quote_reply(reply_text: str, user_text: str) -> str:
+    """Apply deterministic Turkish pricing wording and required notes."""
+    normalized_reply = (
+        reply_text.replace("Non-Refundable", "İptal edilemez")
+        .replace("Non‑Refundable", "İptal edilemez")
+        .replace("Non refundable", "İptal edilemez")
+        .replace("FREE CANCEL", "Ücretsiz İptal")
+        .replace("Free Cancel", "Ücretsiz İptal")
+        .replace("free cancel", "ücretsiz iptal")
+        .replace("İptal Edilemez", "İptal edilemez")
+        .replace("Ücretsiz iptal", "Ücretsiz İptal")
+    )
+
+    keep_seven_day_info = _wants_prepayment_timing(user_text)
+    filtered_lines: list[str] = []
+    for raw_line in normalized_reply.splitlines():
+        line = raw_line.strip()
+        lowered = line.casefold()
+        if "eur baz" in lowered:
+            continue
+        if ("7 gün" in lowered or "7 gun" in lowered) and not keep_seven_day_info:
+            continue
+        filtered_lines.append(raw_line)
+
+    text = "\n".join(filtered_lines).strip()
+    if TR_FREE_CANCEL_NOTE not in text:
+        text = f"{text}\n\n{TR_FREE_CANCEL_NOTE}"
+    if TR_NON_REFUNDABLE_NOTE not in text:
+        text = f"{text}\n\n{TR_NON_REFUNDABLE_NOTE}"
+    if TR_ROOM_NUMBER_NOTE not in text:
+        text = f"{text}\n\n{TR_ROOM_NUMBER_NOTE}"
+    return text.strip()
+
+
 async def _run_message_pipeline(
     conversation: Conversation,
     normalized_text: str,
@@ -173,7 +227,12 @@ async def _run_message_pipeline(
                 count=len(executed_calls),
             )
 
-        return ResponseParser.parse(content)
+        parsed = ResponseParser.parse(content)
+        intent = str(parsed.internal_json.intent or "").lower()
+        language = str(parsed.internal_json.language or "tr").lower()
+        if intent == "stay_quote" and language == "tr":
+            parsed.user_message = _normalize_turkish_stay_quote_reply(parsed.user_message, normalized_text)
+        return parsed
     except LLMUnavailableError:
         logger.warning("llm_unavailable_fallback")
         return LLMResponse(
