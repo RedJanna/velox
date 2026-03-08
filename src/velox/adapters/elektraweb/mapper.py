@@ -82,15 +82,50 @@ class ReservationDetailResponse(BaseModel):
     raw_data: dict = Field(default_factory=dict)
 
 
-def parse_availability(raw: dict) -> AvailabilityResponse:
+def parse_availability(raw: dict | list) -> AvailabilityResponse:
     """Parse raw availability response."""
     normalized = normalize_keys(raw)
+    if isinstance(normalized, list):
+        rows = [
+            AvailabilityRow(
+                date=str(item.get("date", "")),
+                room_type_id=int(item.get("room_type_id", 0) or 0),
+                room_type=str(item.get("room_type", "")),
+                room_to_sell=int(item.get("available_room_count", item.get("room_to_sell", 0)) or 0),
+                stop_sell=bool(item.get("stopsell", item.get("stop_sell", False))),
+            )
+            for item in normalized
+        ]
+        return AvailabilityResponse(
+            available=any((row.room_to_sell > 0) and (not row.stop_sell) for row in rows),
+            rows=rows,
+            derived={"source": "live_list_response", "row_count": len(rows)},
+            notes="",
+        )
     return AvailabilityResponse(**normalized)
 
 
-def parse_quote(raw: dict) -> QuoteResponse:
+def parse_quote(raw: dict | list) -> QuoteResponse:
     """Parse raw quote response."""
     normalized = normalize_keys(raw)
+    if isinstance(normalized, list):
+        offers: list[BookingOffer] = []
+        for item in normalized:
+            offers.append(
+                BookingOffer(
+                    id=str(item.get("id", "")),
+                    room_type_id=int(item.get("room_type_id", 0) or 0),
+                    board_type_id=int(item.get("board_type_id", 0) or 0),
+                    rate_type_id=int(item.get("rate_type_id", 0) or 0),
+                    rate_code_id=int(item.get("rate_code_id", 0) or 0),
+                    price_agency_id=item.get("price_agency_id"),
+                    currency_code=str(item.get("currency", "EUR")),
+                    price=item.get("price", 0),
+                    discounted_price=item.get("discounted_price", item.get("price", 0)),
+                    cancellation_penalty=item.get("cancellation_penalty") or {},
+                )
+            )
+        return QuoteResponse(offers=offers)
     return QuoteResponse(**normalized)
 
 

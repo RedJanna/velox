@@ -64,7 +64,7 @@ class ElektrawebClient:
                         continue
 
                     data = response.json()
-                    token = str(data.get("token") or "")
+                    token = str(data.get("token") or data.get("jwt") or data.get("accessToken") or "")
                     if not token:
                         last_response = response
                         continue

@@ -31,9 +31,9 @@ async def availability(
     """Check room availability for given dates."""
     client = get_elektraweb_client()
     params: dict[str, str | int] = {
-        "checkin": checkin.isoformat(),
-        "checkout": checkout.isoformat(),
-        "adults": adults,
+        "fromdate": checkin.isoformat(),
+        "todate": checkout.isoformat(),
+        "adult": adults,
         "chdCount": chd_count,
         "currency": currency,
     }
@@ -61,9 +61,9 @@ async def quote(
     """Get price quotes/offers for given dates and room configuration."""
     client = get_elektraweb_client()
     params: dict[str, str | int | bool] = {
-        "checkin": checkin.isoformat(),
-        "checkout": checkout.isoformat(),
-        "adults": adults,
+        "fromdate": checkin.isoformat(),
+        "todate": checkout.isoformat(),
+        "adult": adults,
         "chdCount": chd_count,
         "currency": currency,
         "language": language,
