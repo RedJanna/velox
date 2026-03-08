@@ -151,6 +151,33 @@ def _wants_prepayment_timing(user_text: str) -> bool:
     return any(keyword in normalized for keyword in keywords)
 
 
+def _canonical_text(value: str) -> str:
+    """Normalize text for fuzzy duplicate checks."""
+    lowered = value.casefold()
+    return re.sub(r"[^a-z0-9çğıöşü]+", "", lowered)
+
+
+def _ensure_single_note(text: str, note: str) -> str:
+    """Keep at most one note variant; append once if missing."""
+    canonical_note = _canonical_text(note)
+    lines = text.splitlines()
+    output_lines: list[str] = []
+    found = False
+
+    for line in lines:
+        line_canonical = _canonical_text(line)
+        if canonical_note and canonical_note in line_canonical:
+            if found:
+                continue
+            found = True
+        output_lines.append(line)
+
+    merged = "\n".join(output_lines).strip()
+    if found:
+        return merged
+    return f"{merged}\n\n{note}".strip()
+
+
 def _normalize_turkish_stay_quote_reply(reply_text: str, user_text: str) -> str:
     """Apply deterministic Turkish pricing wording and required notes."""
     normalized_reply = (
@@ -176,12 +203,9 @@ def _normalize_turkish_stay_quote_reply(reply_text: str, user_text: str) -> str:
         filtered_lines.append(raw_line)
 
     text = "\n".join(filtered_lines).strip()
-    if TR_FREE_CANCEL_NOTE not in text:
-        text = f"{text}\n\n{TR_FREE_CANCEL_NOTE}"
-    if TR_NON_REFUNDABLE_NOTE not in text:
-        text = f"{text}\n\n{TR_NON_REFUNDABLE_NOTE}"
-    if TR_ROOM_NUMBER_NOTE not in text:
-        text = f"{text}\n\n{TR_ROOM_NUMBER_NOTE}"
+    text = _ensure_single_note(text, TR_FREE_CANCEL_NOTE)
+    text = _ensure_single_note(text, TR_NON_REFUNDABLE_NOTE)
+    text = _ensure_single_note(text, TR_ROOM_NUMBER_NOTE)
     return text.strip()
 
 
