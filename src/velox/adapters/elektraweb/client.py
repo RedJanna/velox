@@ -52,21 +52,28 @@ class ElektrawebClient:
 
         for candidate in candidates:
             try:
-                response = await client.post("/login", json={"apiKey": candidate})
-                if response.status_code >= 400:
-                    last_response = response
-                    continue
-                data = response.json()
-                token = str(data.get("token") or "")
-                if not token:
-                    last_response = response
-                    continue
+                login_attempts = (
+                    {"headers": {"Authorization": f"Bearer {candidate}"}},
+                    {"headers": {"Authorization": f"Bearer {candidate}"}, "json": {}},
+                    {"json": {"apiKey": candidate}},
+                )
+                for payload in login_attempts:
+                    response = await client.post("/login", **payload)
+                    if response.status_code >= 400:
+                        last_response = response
+                        continue
 
-                self._token = token
-                expires_in = int(data.get("expiresIn", 3600))
-                self._token_expires_at = datetime.now() + timedelta(seconds=expires_in - 60)
-                logger.info("elektraweb_auth_success", expires_in=expires_in)
-                return self._token
+                    data = response.json()
+                    token = str(data.get("token") or "")
+                    if not token:
+                        last_response = response
+                        continue
+
+                    self._token = token
+                    expires_in = int(data.get("expiresIn", 3600))
+                    self._token_expires_at = datetime.now() + timedelta(seconds=expires_in - 60)
+                    logger.info("elektraweb_auth_success", expires_in=expires_in)
+                    return self._token
             except Exception as error:
                 logger.warning("elektraweb_auth_attempt_failed", error_type=type(error).__name__)
 
