@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import datetime, timedelta
+import os
 
 import httpx
 import structlog
@@ -20,7 +21,8 @@ class ElektrawebClient:
 
     def __init__(self) -> None:
         self._base_url = settings.elektra_api_base_url.rstrip("/")
-        self._api_key = settings.elektra_api_key
+        self._api_key = settings.elektra_api_key.strip()
+        self._raw_booking_credential = os.getenv("Elektra_Booking", "").strip() or os.getenv("ELEKTRA_BOOKING", "").strip()
         self._token: str | None = None
         self._token_expires_at: datetime | None = None
         self._client: httpx.AsyncClient | None = None
@@ -45,16 +47,52 @@ class ElektrawebClient:
         """Authenticate with Elektraweb API and get JWT token."""
         client = await self._get_client()
         logger.info("elektraweb_auth_start")
+        candidates = self._build_auth_candidates()
+        last_response: httpx.Response | None = None
 
-        response = await client.post("/login", json={"apiKey": self._api_key})
-        response.raise_for_status()
-        data = response.json()
+        for candidate in candidates:
+            try:
+                response = await client.post("/login", json={"apiKey": candidate})
+                if response.status_code >= 400:
+                    last_response = response
+                    continue
+                data = response.json()
+                token = str(data.get("token") or "")
+                if not token:
+                    last_response = response
+                    continue
 
-        self._token = data["token"]
-        expires_in = data.get("expiresIn", 3600)
-        self._token_expires_at = datetime.now() + timedelta(seconds=expires_in - 60)
-        logger.info("elektraweb_auth_success", expires_in=expires_in)
-        return self._token
+                self._token = token
+                expires_in = int(data.get("expiresIn", 3600))
+                self._token_expires_at = datetime.now() + timedelta(seconds=expires_in - 60)
+                logger.info("elektraweb_auth_success", expires_in=expires_in)
+                return self._token
+            except Exception as error:
+                logger.warning("elektraweb_auth_attempt_failed", error_type=type(error).__name__)
+
+        status_code = last_response.status_code if last_response is not None else None
+        body_preview = (last_response.text[:300] if last_response is not None else "")
+        logger.error("elektraweb_auth_failed", status_code=status_code, body_preview=body_preview)
+        raise RuntimeError("Elektraweb authentication failed. Check ELEKTRA_API_KEY/Elektra_Booking credentials.")
+
+    def _build_auth_candidates(self) -> list[str]:
+        """Build possible credential shapes accepted by Elektra login endpoint."""
+        candidates: list[str] = []
+        if self._api_key:
+            candidates.append(self._api_key)
+            if "$" not in self._api_key:
+                candidates.append(f"booking#{settings.elektra_hotel_id}${self._api_key}")
+        if self._raw_booking_credential:
+            candidates.append(self._raw_booking_credential)
+
+        # Preserve order while removing duplicates.
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for value in candidates:
+            if value not in seen:
+                seen.add(value)
+                deduped.append(value)
+        return deduped
 
     async def _get_token(self) -> str:
         """Get a valid token, refreshing it when expired or missing."""

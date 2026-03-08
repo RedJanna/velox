@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, status
+from fastapi.responses import PlainTextResponse
 import orjson
 import structlog
 
@@ -16,6 +17,11 @@ from velox.adapters.whatsapp.webhook import IncomingMessage, WhatsAppWebhook
 from velox.config.settings import settings
 from velox.core.pipeline import post_process_escalation
 from velox.db.repositories.conversation import ConversationRepository
+from velox.llm.client import LLMUnavailableError, get_llm_client
+from velox.llm.function_registry import get_tool_definitions
+from velox.llm.mock_tool_executor import mock_tool_executor
+from velox.llm.prompt_builder import get_prompt_builder
+from velox.llm.response_parser import ResponseParser
 from velox.models.conversation import Conversation, InternalJSON, LLMResponse, Message
 
 logger = structlog.get_logger(__name__)
@@ -125,7 +131,11 @@ def _default_reply_message() -> str:
     )
 
 
-async def _run_message_pipeline(_conversation: Conversation, normalized_text: str) -> LLMResponse:
+async def _run_message_pipeline(
+    conversation: Conversation,
+    normalized_text: str,
+    dispatcher: Any | None = None,
+) -> LLMResponse:
     """Run message pipeline and return structured LLM response."""
     if PAYMENT_DATA_PATTERN.search(normalized_text):
         return LLMResponse(
@@ -137,16 +147,64 @@ async def _run_message_pipeline(_conversation: Conversation, normalized_text: st
                 next_step="handoff_to_sales",
             ),
         )
-    # Task 06 will replace this fallback with LLM + tools pipeline.
-    return LLMResponse(
-        user_message=_default_reply_message(),
-        internal_json=InternalJSON(
-            intent="other",
-            state="INTENT_DETECTED",
-            risk_flags=[],
-            next_step="await_user_input",
-        ),
-    )
+
+    try:
+        prompt_builder = get_prompt_builder()
+        llm_client = get_llm_client()
+        messages = prompt_builder.build_messages(conversation, normalized_text)
+        tools = get_tool_definitions()
+        tool_executor = mock_tool_executor
+        if dispatcher is not None:
+            tool_executor = _build_dispatcher_executor(dispatcher)
+        else:
+            logger.warning("tool_dispatcher_missing_fallback_to_mock")
+
+        content, executed_calls = await llm_client.run_tool_call_loop(
+            messages=messages,
+            tools=tools,
+            tool_executor=tool_executor,
+            max_iterations=5,
+        )
+
+        if executed_calls:
+            logger.info(
+                "llm_tool_calls_executed",
+                tools=[c["name"] for c in executed_calls],
+                count=len(executed_calls),
+            )
+
+        return ResponseParser.parse(content)
+    except LLMUnavailableError:
+        logger.warning("llm_unavailable_fallback")
+        return LLMResponse(
+            user_message=_default_reply_message(),
+            internal_json=InternalJSON(
+                intent="other",
+                state="INTENT_DETECTED",
+                risk_flags=[],
+                next_step="await_user_input",
+            ),
+        )
+
+
+def _build_dispatcher_executor(dispatcher: Any) -> Any:
+    """Wrap ToolDispatcher into the executor signature expected by LLMClient."""
+
+    async def _execute(tool_name: str, tool_args: str | dict[str, Any]) -> str:
+        if isinstance(tool_args, str):
+            try:
+                parsed_args: dict[str, Any] = orjson.loads(tool_args)
+            except orjson.JSONDecodeError:
+                parsed_args = {}
+        elif isinstance(tool_args, dict):
+            parsed_args = tool_args
+        else:
+            parsed_args = {}
+
+        result = await dispatcher.dispatch(tool_name, **parsed_args)
+        return orjson.dumps(result).decode()
+
+    return _execute
 
 
 class _HandoffToolAdapter:
@@ -189,6 +247,7 @@ async def _create_or_get_conversation(repository: ConversationRepository, incomi
 
 async def _process_incoming_message(
     incoming: IncomingMessage,
+    dispatcher: Any,
     escalation_engine: Any,
     tools: dict[str, Any],
     db_pool: Any,
@@ -214,7 +273,11 @@ async def _process_incoming_message(
 
         await whatsapp_client.mark_as_read(incoming.message_id)
 
-        llm_response = await _run_message_pipeline(conversation, normalized_text)
+        llm_response = await _run_message_pipeline(
+            conversation=conversation,
+            normalized_text=normalized_text,
+            dispatcher=dispatcher,
+        )
         reply_text = formatter.truncate(llm_response.user_message)
         await whatsapp_client.send_text_message(to=incoming.phone, body=reply_text)
 
@@ -255,25 +318,26 @@ async def _process_incoming_message(
 def _schedule_background_task(
     background_tasks: BackgroundTasks,
     incoming: IncomingMessage,
+    dispatcher: Any,
     escalation_engine: Any,
     tools: dict[str, Any],
     db_pool: Any,
 ) -> None:
     """Add incoming message task to FastAPI background worker."""
-    background_tasks.add_task(_process_incoming_message, incoming, escalation_engine, tools, db_pool)
+    background_tasks.add_task(_process_incoming_message, incoming, dispatcher, escalation_engine, tools, db_pool)
 
 
-@router.get("")
+@router.get("", response_class=PlainTextResponse)
 async def verify_webhook(
     hub_mode: str = Query(alias="hub.mode"),
     hub_verify_token: str = Query(alias="hub.verify_token"),
     hub_challenge: str = Query(alias="hub.challenge"),
-) -> str:
+) -> PlainTextResponse:
     """Meta webhook verification endpoint."""
     challenge = webhook_handler.verify_subscription(hub_mode, hub_verify_token, hub_challenge)
     if challenge is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
-    return challenge
+    return PlainTextResponse(content=challenge)
 
 
 @router.post("")
@@ -326,7 +390,7 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
     if tools["handoff"] is None or tools["notify"] is None:
         tools = {}
 
-    _schedule_background_task(background_tasks, incoming, escalation_engine, tools, db_pool)
+    _schedule_background_task(background_tasks, incoming, dispatcher, escalation_engine, tools, db_pool)
     logger.info(
         "whatsapp_webhook_message_accepted",
         phone=_mask_phone(incoming.phone),
