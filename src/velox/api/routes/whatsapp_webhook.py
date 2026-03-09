@@ -14,6 +14,7 @@ import structlog
 from velox.adapters.whatsapp.client import get_whatsapp_client
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.adapters.whatsapp.webhook import IncomingMessage, WhatsAppWebhook
+from velox.adapters.elektraweb.endpoints import CHILD_OCCUPANCY_UNVERIFIED
 from velox.config.settings import settings
 from velox.core.pipeline import post_process_escalation
 from velox.db.repositories.conversation import ConversationRepository
@@ -46,6 +47,10 @@ TR_NON_REFUNDABLE_NOTE = (
 TR_ROOM_NUMBER_NOTE = (
     "Nazik bilgilendirme: Oda numarası için önceden garanti veremiyoruz; ancak girişiniz sırasında "
     "uygunluk doğrultusunda size memnuniyetle yardımcı oluruz."
+)
+TR_CHILD_OCCUPANCY_NOTE = (
+    "Çocuklu konaklamalarda yanlış fiyat vermemek için resmi fiyatınızı manuel olarak "
+    "kontrol edip size ileteceğiz."
 )
 
 
@@ -178,6 +183,67 @@ def _ensure_single_note(text: str, note: str) -> str:
     return f"{merged}\n\n{note}".strip()
 
 
+def _loads_tool_payload(value: Any) -> dict[str, Any]:
+    """Parse a tool result/arguments payload into a dict when possible."""
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            loaded = orjson.loads(value)
+        except orjson.JSONDecodeError:
+            return {}
+        if isinstance(loaded, dict):
+            return loaded
+    return {}
+
+
+def _extract_requested_occupancy(executed_calls: list[dict[str, Any]]) -> dict[str, Any]:
+    """Extract stay quote occupancy from executed booking tool arguments."""
+    for call in executed_calls:
+        if str(call.get("name") or "") not in {"booking_quote", "booking_availability"}:
+            continue
+        args = _loads_tool_payload(call.get("arguments"))
+        if args:
+            return {
+                "checkin_date": args.get("checkin_date"),
+                "checkout_date": args.get("checkout_date"),
+                "adults": args.get("adults"),
+                "chd_count": args.get("chd_count", 0),
+                "chd_ages": args.get("chd_ages", []),
+                "currency": args.get("currency", "EUR"),
+                "nationality": args.get("nationality", "TR"),
+            }
+    return {}
+
+
+def _has_child_quote_mismatch(executed_calls: list[dict[str, Any]]) -> bool:
+    """Return True when booking quote failed because child occupancy was ignored."""
+    for call in executed_calls:
+        if str(call.get("name") or "") != "booking_quote":
+            continue
+        result = _loads_tool_payload(call.get("result"))
+        error_text = str(result.get("error") or "")
+        if CHILD_OCCUPANCY_UNVERIFIED in error_text:
+            return True
+    return False
+
+
+def _build_child_quote_handoff_response(executed_calls: list[dict[str, Any]]) -> LLMResponse:
+    """Create a deterministic fallback when PMS ignores requested child occupancy."""
+    entities = _extract_requested_occupancy(executed_calls)
+    return LLMResponse(
+        user_message=TR_CHILD_OCCUPANCY_NOTE,
+        internal_json=InternalJSON(
+            language="tr",
+            intent="stay_quote",
+            state="HANDOFF",
+            entities=entities,
+            handoff={"needed": True, "reason": "child_quote_manual_verification"},
+            next_step="manual_child_quote_verification",
+        ),
+    )
+
+
 def _normalize_turkish_stay_quote_reply(reply_text: str, user_text: str) -> str:
     """Apply deterministic Turkish pricing wording and required notes."""
     normalized_reply = (
@@ -250,6 +316,10 @@ async def _run_message_pipeline(
                 tools=[c["name"] for c in executed_calls],
                 count=len(executed_calls),
             )
+
+        if _has_child_quote_mismatch(executed_calls):
+            logger.warning("stay_quote_child_occupancy_manual_verification")
+            return _build_child_quote_handoff_response(executed_calls)
 
         parsed = ResponseParser.parse(content)
         intent = str(parsed.internal_json.intent or "").lower()

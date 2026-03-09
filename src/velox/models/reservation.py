@@ -1,10 +1,12 @@
 """Stay reservation data models."""
 
+from __future__ import annotations
+
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from velox.config.constants import CancelPolicyType, HoldStatus
 
@@ -55,6 +57,16 @@ class BookingAvailabilityRequest(BaseModel):
     chd_ages: list[int] = Field(default_factory=list)
     currency: str = "EUR"
 
+    @model_validator(mode="after")
+    def sync_child_fields(self) -> "BookingAvailabilityRequest":
+        """Keep child count aligned with provided ages."""
+        if self.chd_ages:
+            age_count = len(self.chd_ages)
+            if self.chd_count not in (0, age_count):
+                raise ValueError("chd_count must match number of chd_ages")
+            self.chd_count = age_count
+        return self
+
 
 class BookingQuoteRequest(BaseModel):
     hotel_id: int
@@ -68,6 +80,16 @@ class BookingQuoteRequest(BaseModel):
     nationality: str = "TR"
     only_best_offer: bool = False
     cancel_policy_type: CancelPolicyType | None = None
+
+    @model_validator(mode="after")
+    def sync_child_fields(self) -> "BookingQuoteRequest":
+        """Keep child count aligned with provided ages."""
+        if self.chd_ages:
+            age_count = len(self.chd_ages)
+            if self.chd_count not in (0, age_count):
+                raise ValueError("chd_count must match number of chd_ages")
+            self.chd_count = age_count
+        return self
 
 
 class BookingOffer(BaseModel):

@@ -130,3 +130,18 @@ def test_deduplication_of_repeated_webhooks(
     assert first.json() == {"status": "accepted"}
     assert second.status_code == 200
     assert second.json() == {"status": "ok"}
+
+
+def test_child_quote_mismatch_creates_manual_verification_response() -> None:
+    """Child occupancy mismatch should force manual quote verification."""
+    executed_calls = [
+        {
+            "name": "booking_quote",
+            "arguments": '{"checkin_date":"2026-08-03","checkout_date":"2026-08-04","adults":2,"chd_count":1,"chd_ages":[7],"currency":"EUR"}',
+            "result": '{"error":"CHILD_OCCUPANCY_UNVERIFIED: PMS quote did not reflect requested child occupancy.","tool":"booking_quote"}',
+        }
+    ]
+    response = whatsapp_webhook._build_child_quote_handoff_response(executed_calls)
+    assert response.internal_json.state == "HANDOFF"
+    assert response.internal_json.entities["chd_count"] == 1
+    assert "Çocuklu konaklamalarda" in response.user_message

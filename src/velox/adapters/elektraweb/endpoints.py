@@ -10,6 +10,7 @@ from velox.adapters.elektraweb.mapper import (
     QuoteResponse,
     ReservationDetailResponse,
     ReservationResponse,
+    normalize_keys,
     parse_availability,
     parse_quote,
     parse_reservation_create,
@@ -17,6 +18,43 @@ from velox.adapters.elektraweb.mapper import (
 )
 
 logger = structlog.get_logger(__name__)
+CHILD_OCCUPANCY_UNVERIFIED = "CHILD_OCCUPANCY_UNVERIFIED"
+
+
+def _requested_child_count(chd_count: int, chd_ages: list[int] | None) -> int:
+    """Return the requested child count using ages when present."""
+    if chd_ages:
+        return len(chd_ages)
+    return chd_count
+
+
+def _quote_response_matches_requested_occupancy(
+    raw: dict | list,
+    *,
+    adults: int,
+    requested_children: int,
+) -> bool:
+    """Return True when at least one offer reflects the requested occupancy."""
+    if requested_children <= 0:
+        return True
+
+    normalized = normalize_keys(raw)
+    if not isinstance(normalized, list) or not normalized:
+        return False
+
+    for item in normalized:
+        pax_count = item.get("pax_count")
+        if not isinstance(pax_count, dict):
+            continue
+        actual_adults = int(pax_count.get("adult", 0) or 0)
+        actual_children = (
+            int(pax_count.get("elder_child_count", 0) or 0)
+            + int(pax_count.get("younger_child_count", 0) or 0)
+            + int(pax_count.get("baby_count", 0) or 0)
+        )
+        if actual_adults == adults and actual_children == requested_children:
+            return True
+    return False
 
 
 async def availability(
@@ -30,11 +68,12 @@ async def availability(
 ) -> AvailabilityResponse:
     """Check room availability for given dates."""
     client = get_elektraweb_client()
+    requested_children = _requested_child_count(chd_count, chd_ages)
     params: dict[str, str | int] = {
         "fromdate": checkin.isoformat(),
         "todate": checkout.isoformat(),
         "adult": adults,
-        "chdCount": chd_count,
+        "chdCount": requested_children,
         "currency": currency,
     }
     if chd_ages:
@@ -60,11 +99,12 @@ async def quote(
 ) -> QuoteResponse:
     """Get price quotes/offers for given dates and room configuration."""
     client = get_elektraweb_client()
+    requested_children = _requested_child_count(chd_count, chd_ages)
     params: dict[str, str | int | bool] = {
         "fromdate": checkin.isoformat(),
         "todate": checkout.isoformat(),
         "adult": adults,
-        "chdCount": chd_count,
+        "chdCount": requested_children,
         "currency": currency,
         "language": language,
         "nationality": nationality,
@@ -77,6 +117,20 @@ async def quote(
 
     logger.info("elektraweb_quote_request", hotel_id=hotel_id, checkin=str(checkin), checkout=str(checkout))
     raw = await client.get(f"/hotel/{hotel_id}/price/", params=params)
+    if not _quote_response_matches_requested_occupancy(
+        raw,
+        adults=adults,
+        requested_children=requested_children,
+    ):
+        logger.warning(
+            "elektraweb_quote_child_occupancy_mismatch",
+            hotel_id=hotel_id,
+            adults=adults,
+            requested_children=requested_children,
+        )
+        raise RuntimeError(
+            f"{CHILD_OCCUPANCY_UNVERIFIED}: PMS quote did not reflect requested child occupancy."
+        )
     return parse_quote(raw)
 
 

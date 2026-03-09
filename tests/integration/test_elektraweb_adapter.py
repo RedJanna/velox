@@ -68,6 +68,41 @@ async def test_successful_quote_with_offers(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 @pytest.mark.asyncio
+async def test_quote_raises_when_child_occupancy_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Child quote requests must fail if PMS returns adult-only occupancy."""
+    mock_client = AsyncMock()
+    mock_client.get.return_value = [
+        {
+            "id": "of1",
+            "room-type-id": 66,
+            "board-type-id": 2,
+            "rate-type-id": 10,
+            "rate-code-id": 101,
+            "price-agency-id": 1,
+            "currency": "EUR",
+            "price": "120.0",
+            "discounted-price": "100.0",
+            "pax-count": {
+                "adult": 2,
+                "elder-child-count": 0,
+                "younger-child-count": 0,
+                "baby-count": 0,
+            },
+            "cancellation-penalty": {},
+        }
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    with pytest.raises(RuntimeError, match="CHILD_OCCUPANCY_UNVERIFIED"):
+        await endpoints.quote(
+            hotel_id=21966,
+            checkin=date(2026, 8, 10),
+            checkout=date(2026, 8, 12),
+            adults=2,
+            chd_ages=[7],
+        )
+
+
+@pytest.mark.asyncio
 async def test_auth_token_refresh_on_401(monkeypatch: pytest.MonkeyPatch) -> None:
     """Client should refresh token when first response is 401."""
     client = ElektrawebClient()
