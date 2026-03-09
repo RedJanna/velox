@@ -74,6 +74,16 @@ class RestaurantConfig(BaseModel):
     external_guests_allowed: bool = True
 
 
+class FAQEntry(BaseModel):
+    topic: str
+    question_tr: str = ""
+    question_en: str = ""
+    question_variants_tr: list[str] = Field(default_factory=list)
+    question_variants_en: list[str] = Field(default_factory=list)
+    answer_tr: str = ""
+    answer_en: str = ""
+
+
 class HotelProfile(BaseModel):
     hotel_id: int
     hotel_name: LocalizedText
@@ -91,5 +101,5 @@ class HotelProfile(BaseModel):
     transfer_routes: list[TransferRouteConfig] = Field(default_factory=list)
     restaurant: RestaurantConfig | None = None
     facility_policies: dict = Field(default_factory=dict)
-    faq_data: list[dict] = Field(default_factory=list)
+    faq_data: list[FAQEntry] = Field(default_factory=list)
     payment: dict = Field(default_factory=dict)

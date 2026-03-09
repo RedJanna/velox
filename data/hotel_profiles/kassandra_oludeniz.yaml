@@ -370,166 +370,265 @@ facility_policies:
 faq_data:
   - topic: "check_in_time"
     question_tr: "Check-in saati kac?"
+    question_variants_tr: ["Giris saati kac?"]
+    question_en: "What time is check-in?"
+    question_variants_en: ["When can we check in?"]
     answer_tr: "Check-in saat 14:00'den itibaren mumkundur."
     answer_en: "Check-in is available from 14:00 onwards."
 
   - topic: "check_out_time"
     question_tr: "Check-out saati kac?"
+    question_variants_tr: ["Cikis saati kac?"]
+    question_en: "What time is check-out?"
+    question_variants_en: ["When do we need to check out?"]
     answer_tr: "Check-out saat 12:00'ye kadar yapilmalidir."
     answer_en: "Check-out must be done by 12:00."
 
   - topic: "beach_distance"
     question_tr: "Denize ne kadar uzak?"
+    question_variants_tr: ["Plaja yuruyerek kac dakika?"]
+    question_en: "How far is the beach?"
+    question_variants_en: ["How far are you from the sea?"]
     answer_tr: "Belcekiz Plaji'na sadece 300 metre mesafedeyiz."
     answer_en: "We are just 300 meters from Belcekiz Beach."
 
   - topic: "breakfast_hours"
     question_tr: "Kahvalti saatleri?"
+    question_variants_tr: ["Kahvalti kacta basliyor ve bitiyor?"]
+    question_en: "What are the breakfast hours?"
+    question_variants_en: ["When is breakfast served?"]
     answer_tr: "Kahvalti 08:00-10:30 arasi acik buyfe olarak sunulmaktadir."
     answer_en: "Breakfast is served as open buffet between 08:00-10:30."
 
   - topic: "wifi"
     question_tr: "WiFi var mi?"
+    question_variants_tr: ["Internet ucretsiz mi?"]
+    question_en: "Do you have WiFi?"
+    question_variants_en: ["Is the internet free?"]
     answer_tr: "Evet, 7/24 ucretsiz WiFi mevcuttur."
     answer_en: "Yes, free WiFi is available 24/7."
 
   - topic: "parking"
     question_tr: "Otopark var mi?"
+    question_variants_tr: ["Arac icin park yeri var mi?"]
+    question_en: "Do you have parking?"
+    question_variants_en: ["Is there a place to park a car?"]
     answer_tr: "Aracınız için park yeri ayarlayabiliriz. Ücretsiz cadde park yerleri mevcuttur, ayrıca otelin karşısında özel bir otopark da bulunmaktadır. Varışınızda sizi park alanına yönlendireceğiz."
     answer_en: "We can help arrange parking for your vehicle. Free street parking is available, and there is also a private parking lot across from the hotel. On arrival, we will guide you to the parking area."
 
   - topic: "pool"
     question_tr: "Havuz var mi?"
+    question_variants_tr: ["Acik havuzunuz var mi?"]
+    question_en: "Do you have a pool?"
+    question_variants_en: ["Is there a swimming pool at the hotel?"]
     answer_tr: "Evet, acik havuzumuz 08:00-19:00 saatleri arasinda otel misafirlerimize ucretsizdir."
     answer_en: "Yes, our open pool is free for hotel guests between 08:00-19:00."
 
   - topic: "airport_transfer"
     question_tr: "Havalimani transferi var mi?"
+    question_variants_tr: ["Transfer hizmetiniz var mi?"]
+    question_en: "Do you offer airport transfer?"
+    question_variants_en: ["Is airport transportation available?"]
     answer_tr: "Evet, Dalaman Havalimani transferi tek yon 75 EUR (max 7 kisi). Antalya Havalimani transferi tek yon 220 EUR."
     answer_en: "Yes, Dalaman Airport transfer is 75 EUR one way (max 7 persons). Antalya Airport transfer is 220 EUR one way."
 
   - topic: "child_policy"
     question_tr: "Cocuk politikasi nedir?"
+    question_variants_tr: ["Cocuklu aileler icin kurallar nedir?"]
+    question_en: "What is your child policy?"
+    question_variants_en: ["Are children allowed at the hotel?"]
     answer_tr: "Tüm yaşlardaki çocuklar kabul edilir. Ekstra yatak ve bebek beşiği ücretsizdir (Penthouse Land hariç). 2 çocuklu konaklamalarda oda tipine ve uygunluğa göre 2 ek yatak veya 1 ek yatak + 1 sofa hazırlanabilir."
     answer_en: "Children of all ages are welcome. Extra bed and baby crib are free (except Penthouse Land). For stays with 2 children, depending on room type and availability, 2 extra beds or 1 extra bed plus 1 sofa can be prepared."
 
   - topic: "elevator"
     question_tr: "Asansor var mi?"
+    question_variants_tr: ["Otelde lift bulunuyor mu?"]
+    question_en: "Do you have an elevator?"
+    question_variants_en: ["Is there a lift in the hotel?"]
     answer_tr: "Otelimizde asansör bulunmamaktadır. Giriş katında erişime uygun oda seçeneklerimiz mevcuttur."
     answer_en: "Our hotel does not have an elevator. We have accessible room options on the ground floor."
 
   - topic: "total_rooms"
     question_tr: "Kac oda var?"
+    question_variants_tr: ["Oteliniz toplam kac odali?"]
+    question_en: "How many rooms do you have?"
+    question_variants_en: ["What is the total number of rooms?"]
     answer_tr: "Otelimizde toplam 24 oda bulunmaktadir."
     answer_en: "Our hotel has a total of 24 rooms."
 
   - topic: "family_suitability"
     question_tr: "Aile icin uygun mu?"
+    question_variants_tr: ["Aileler icin uygun bir otel mi?"]
+    question_en: "Is it suitable for families?"
+    question_variants_en: ["Is the hotel family-friendly?"]
     answer_tr: "Evet, otelimiz ailelere cok uygundur. Cocuk dostu odalarimiz ve hizmetlerimiz mevcuttur."
     answer_en: "Yes, our hotel is very suitable for families. We have child-friendly rooms and services."
 
   - topic: "fethiye_distance"
     question_tr: "Fethiye merkeze ne kadar?"
+    question_variants_tr: ["Fethiye merkeze uzakliginiz nedir?"]
+    question_en: "How far is Fethiye center?"
+    question_variants_en: ["What is the distance to Fethiye town center?"]
     answer_tr: "Fethiye merkeze yaklasik 12 km, arac ile 20 dakika mesafededir."
     answer_en: "It's approximately 12 km to Fethiye center, about 20 minutes by car."
 
   - topic: "private_beach"
     question_tr: "Ozel plajiniz var mi?"
+    question_variants_tr: ["Size ait ozel plaj bulunuyor mu?"]
+    question_en: "Do you have a private beach?"
+    question_variants_en: ["Is there a private beach for hotel guests?"]
     answer_tr: "Ozel plajimiz bulunmamaktadir, ancak Belcekiz Plaji'na sadece 300 metre mesafedeyiz."
     answer_en: "We don't have a private beach, but we are just 300 meters from Belcekiz Beach."
 
   - topic: "room_amenities"
     question_tr: "Odalarda ne var?"
+    question_variants_tr: ["Oda icerisindeki imkanlar neler?"]
+    question_en: "What is included in the rooms?"
+    question_variants_en: ["What room amenities do you provide?"]
     answer_tr: "Tum odalarimizda klima, ucretsiz su bulunan minibar, TV (Digiturk), kasa, sac kurutma makinesi, banyo urunleri, su isitici ve self-servis icecekler bulunmaktadir."
     answer_en: "All rooms include AC, a minibar with complimentary water, TV, safe, hairdryer, toiletries, kettle, and self-service beverages."
 
   - topic: "spa_hamam"
     question_tr: "Spa, hamam veya sauna var mi?"
+    question_variants_tr: ["Wellness alani bulunuyor mu?"]
+    question_en: "Do you have a spa, hammam, or sauna?"
+    question_variants_en: ["Is there any wellness area at the hotel?"]
     answer_tr: "Otelimizde spa, hamam, sauna, masaj veya wellness alani bulunmamaktadir. Dilerseniz yakin secenekler icin resepsiyonumuz yardimci olabilir."
     answer_en: "We do not have a spa, Turkish bath, sauna, massage, or wellness area on site. If you wish, our reception can help guide you to nearby options."
 
   - topic: "nearest_pharmacy_hospital"
     question_tr: "En yakin eczane veya hastane nerede?"
+    question_variants_tr: ["Yakinda eczane ya da hastane var mi?"]
+    question_en: "Where is the nearest pharmacy or hospital?"
+    question_variants_en: ["Is there a pharmacy or hospital nearby?"]
     answer_tr: "Oludeniz ana carsisinin arka sokaginda, otele yaklasik 200 metre mesafede eczane bulunmaktadir. Hastane veya daha detayli yonlendirme icin lutfen resepsiyonumuzla iletisime geciniz."
     answer_en: "There is a pharmacy about 200 meters from the hotel, on the back street of Oludeniz main bazaar. For hospital guidance or more detailed directions, please contact our reception."
 
   - topic: "tour_excursion"
     question_tr: "Tur veya aktivite oneriniz var mi?"
+    question_variants_tr: ["Bolgede hangi aktiviteleri onerirsiniz?"]
+    question_en: "Do you have tour or activity recommendations?"
+    question_variants_en: ["What activities do you recommend nearby?"]
     answer_tr: "Babadağ yamaç paraşütü, günlük tekne turları, jeep safari, tüplü dalış, plaj su sporları, ATV veya buggy safari ve Likya Yolu yürüyüşleri bölgede en çok tercih edilen aktiviteler arasındadır. Size uygun seçenekler için resepsiyonumuz yardımcı olabilir."
     answer_en: "Babadağ paragliding, daily boat tours, jeep safari, scuba diving, beach water sports, ATV or buggy safari, and Lycian Way walks are among the most popular activities in the area. Our reception can help you choose the best option."
 
   - topic: "currency_exchange"
     question_tr: "Doviz bozdurma yapiliyor mu?"
+    question_variants_tr: ["Resepsiyonda doviz bozabilir miyim?"]
+    question_en: "Do you offer currency exchange?"
+    question_variants_en: ["Can I exchange money at the hotel?"]
     answer_tr: "Evet, resepsiyonumuzda doviz bozdurma islemleri yapilabilmektedir."
     answer_en: "Yes, currency exchange can be handled at our reception."
 
   - topic: "late_arrival"
     question_tr: "Gec varis yaparsam ne olmali?"
+    question_variants_tr: ["Gece gec saatte gelirsem ne yapmaliyim?"]
+    question_en: "What if I arrive late?"
+    question_variants_en: ["What should I do for a late arrival?"]
     answer_tr: "Check-in 14:00'ten sonra yapilabilir ve resepsiyonumuz 7/24 aciktir. Otele gece 00:00'dan sonra varacaksaniz lutfen onceden bilgi veriniz; ilgili ekibimiz girisinizi planlasin."
     answer_en: "Check-in is available after 14:00 and our reception is open 24/7. If you will arrive after midnight, please let us know in advance so our team can plan your arrival."
 
   - topic: "birthday_honeymoon_surprise"
     question_tr: "Dogum gunu veya balayi surprizi yapabilir misiniz?"
+    question_variants_tr: ["Balayi ya da dogum gunu icin ozel bir hazirlik yapiliyor mu?"]
+    question_en: "Can you arrange a birthday or honeymoon surprise?"
+    question_variants_en: ["Do you offer honeymoon or birthday setup?"]
     answer_tr: "Dogum gunu veya balayi surprizi talepleriniz icin detaylari bizimle paylasabilirsiniz. Uygun secenekler icin ilgili ekibimiz size yardimci olacaktir."
     answer_en: "You may share the details of your birthday or honeymoon surprise request with us. Our team will help you with the available options."
 
   - topic: "laundry_service"
     question_tr: "Camasir hizmeti var mi?"
+    question_variants_tr: ["Camasir yikama servisi sunuyor musunuz?"]
+    question_en: "Do you have laundry service?"
+    question_variants_en: ["Can you wash and dry clothes?"]
     answer_tr: "Camasir hizmetimiz mevcuttur. Yikama ve kurutma yapilir; teslim suresi genellikle 1 gundur. Kirli camasirlar resepsiyona birakilir, temiz camasirlar resepsiyondan teslim alinir. Hizli teslim ve ucret bilgisi icin lutfen resepsiyonla gorusunuz."
     answer_en: "Laundry service is available. Washing and drying are provided, and the usual turnaround time is 1 day. Dirty laundry is left at reception and clean laundry is collected from reception. Please contact reception for express requests and pricing details."
 
   - topic: "minibar_prices"
     question_tr: "Mini bar fiyatlari nedir?"
+    question_variants_tr: ["Odada ucretli minibar urunleri var mi?"]
+    question_en: "What are the minibar prices?"
+    question_variants_en: ["Are there any paid minibar items in the room?"]
     answer_tr: "Odalarimizda ucretli minibar urunleri bulunmamaktadir; sadece ucretsiz su sunulmaktadir."
     answer_en: "There are no paid minibar items in the rooms; only complimentary water is provided."
 
   - topic: "smoking_policy_details"
     question_tr: "Sigara hangi alanlarda icebiliriz?"
+    question_variants_tr: ["Sigara icilebilen yerler nereler?"]
+    question_en: "Where can we smoke?"
+    question_variants_en: ["Which areas allow smoking?"]
     answer_tr: "Balkon, bahce, havuz cevresi ve restoranin acik alaninda sigara icebilirsiniz. Odalarimizda temiz hava ve konfor icin kesinlikle sigara icilmez."
     answer_en: "You may smoke on the balcony, in the garden, around the pool, and in the restaurant's outdoor area. Smoking is strictly not allowed in the rooms for comfort and fresh air."
 
   - topic: "pet_policy"
     question_tr: "Evcil hayvan kabul ediyor musunuz?"
+    question_variants_tr: ["Evcil hayvanla gelebilir miyim?"]
+    question_en: "Do you accept pets?"
+    question_variants_en: ["Can I stay with my pet?"]
     answer_tr: "Hayir, otelimizde evcil hayvan kabul edilmemektedir."
     answer_en: "No, pets are not allowed at our hotel."
 
   - topic: "early_checkin"
     question_tr: "Erken check-in yapabilir miyim?"
+    question_variants_tr: ["Odaya erken giris mumkun mu?"]
+    question_en: "Can I check in early?"
+    question_variants_en: ["Is early check-in possible?"]
     answer_tr: "Erken giris talepleri musaitlige gore degerlendirilir. Planladiginiz varis saatini paylasirsaniz ilgili ekibimiz size yardimci olur."
     answer_en: "Early check-in requests are evaluated subject to availability. If you share your planned arrival time, our team will be happy to assist you."
 
   - topic: "late_checkout"
     question_tr: "Gec check-out yapabilir miyim?"
+    question_variants_tr: ["Gec cikis mumkun mu?"]
+    question_en: "Can I check out late?"
+    question_variants_en: ["Is late check-out available?"]
     answer_tr: "Gec cikis talepleri musaitlige baglidir ve ucretlidir. Planladiginiz cikis saatini paylasirsaniz ekibimiz uygunlugu kontrol ederek size yardimci olur."
     answer_en: "Late check-out requests are subject to availability and are charged. If you share your planned departure time, our team can check availability and assist you."
 
   - topic: "room_service"
     question_tr: "Oda servisi var mi?"
+    question_variants_tr: ["Yemek oda servisi sunuyor musunuz?"]
+    question_en: "Do you have room service?"
+    question_variants_en: ["Can food be delivered to the room?"]
     answer_tr: "Oda servisi 08:00-21:00 saatleri arasinda sunulur ve teslim suresi yaklasik 30-45 dakikadir. Kahvaltida oda servisi yalnizca istisnai durumlarda degerlendirilir."
     answer_en: "Room service is available between 08:00 and 21:00, with an approximate delivery time of 30-45 minutes. Breakfast room service is considered only in exceptional cases."
 
   - topic: "heated_pool"
     question_tr: "Havuz isitilmali mi?"
+    question_variants_tr: ["Havuzunuz isitiliyor mu?"]
+    question_en: "Is the pool heated?"
+    question_variants_en: ["Do you have a heated pool?"]
     answer_tr: "Hayir, havuzumuz isitilmali degildir."
     answer_en: "No, our pool is not heated."
 
   - topic: "restaurant_external_guests"
     question_tr: "Restorani disaridan misafirler kullanabilir mi?"
+    question_variants_tr: ["Disaridan gelenler restorana gelebilir mi?"]
+    question_en: "Can outside guests use the restaurant?"
+    question_variants_en: ["Do you accept non-staying guests at the restaurant?"]
     answer_tr: "Evet, a la carte restoranimiz her ogunde disaridan misafir kabul eder. Hizmet ucretlidir ve rezervasyon gereklidir."
     answer_en: "Yes, our a la carte restaurant welcomes outside guests for every meal. The service is paid and a reservation is required."
 
   - topic: "pool_bar_hours"
     question_tr: "Pool bar saatleri nedir?"
+    question_variants_tr: ["Havuz bar kactan kaca acik?"]
+    question_en: "What are the pool bar hours?"
+    question_variants_en: ["When is the pool bar open?"]
     answer_tr: "Pool barimiz 12:00-18:00 saatleri arasinda ucretli hizmet vermektedir."
     answer_en: "Our pool bar operates as a paid service between 12:00 and 18:00."
 
   - topic: "a_la_carte_bar_hours"
     question_tr: "A la carte bar saatleri nedir?"
+    question_variants_tr: ["Bar kactan kaca acik?"]
+    question_en: "What are the a la carte bar hours?"
+    question_variants_en: ["When is the a la carte bar open?"]
     answer_tr: "A la carte barimiz 12:00-22:00 saatleri arasinda ucretli hizmet vermektedir."
     answer_en: "Our a la carte bar operates as a paid service between 12:00 and 22:00."
 
   - topic: "accessible_room"
     question_tr: "Erisime uygun oda var mi?"
+    question_variants_tr: ["Engelli erisimine uygun oda mevcut mu?"]
+    question_en: "Do you have an accessible room?"
+    question_variants_en: ["Are there mobility-friendly rooms?"]
     answer_tr: "Otelimizde asansor bulunmamaktadir. Deluxe ve bazi Superior odalar erisime daha uygun seceneklerimiz arasindadir. Ihtiyaciniza uygun oda icin resepsiyonumuz yardimci olabilir."
     answer_en: "Our hotel does not have an elevator. Deluxe and some Superior rooms are among our more accessible options. Our reception can help you choose the most suitable room."
 

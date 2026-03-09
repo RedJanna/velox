@@ -72,7 +72,7 @@ class PromptBuilder:
         else:
             profile_dump = profile.model_dump()
             facility_policies = profile.facility_policies
-            faq_data = profile.faq_data
+            faq_data = [entry.model_dump() for entry in profile.faq_data]
 
         escalation_summary = [
             {
@@ -232,7 +232,7 @@ class PromptBuilder:
                     intents.append(intent)
                 entities = message.internal_json.get("entities")
                 if isinstance(entities, dict):
-                    entity_keys.update(str(key) for key in entities.keys())
+                    entity_keys.update(str(key) for key in entities)
 
         unique_intents = list(dict.fromkeys(intents))
         summary_parts = [
