@@ -289,6 +289,10 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
 .header-controls label{font-size:12px;color:var(--gray-400)}
 .header-controls input[type=text]{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:6px;color:var(--white);padding:6px 10px;font-size:13px;width:140px;outline:none;transition:border .2s}
 .header-controls input[type=text]:focus{border-color:var(--teal-light)}
+.header-select{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:6px;color:var(--white);padding:6px 8px;font-size:12px;outline:none;cursor:pointer}
+.header-select:focus{border-color:var(--teal-light)}
+.header-select-model{min-width:160px}
+.header-select option{color:#111;background:#fff}
 .btn{border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
 .btn-reset{background:var(--red);color:var(--white)}
 .btn-reset:hover{background:#dc2626}
@@ -377,14 +381,14 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
     </div>
     <div class="header-controls">
       <label>Model</label>
-      <select id="model-select" onchange="changeModel(this.value)" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#fff;padding:6px 8px;font-size:12px;min-width:160px;outline:none;cursor:pointer">
+      <select id="model-select" class="header-select header-select-model" onchange="changeModel(this.value)">
         <option>Loading...</option>
       </select>
       <label>Phone</label>
       <input type="text" id="phone-input" value="test_user_123">
       <button class="btn btn-reset" onclick="resetConversation()">Reset</button>
       <label>Save</label>
-      <select id="save-format" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#fff;padding:6px 8px;font-size:12px;outline:none;cursor:pointer">
+      <select id="save-format" class="header-select">
         <option value="md">.md</option>
         <option value="txt">.txt</option>
         <option value="json">.json</option>
@@ -634,6 +638,8 @@ async function loadModels() {
     (data.models || []).forEach(m => {
       const opt = document.createElement('option');
       opt.value = m; opt.textContent = m;
+      opt.style.color = '#111';
+      opt.style.backgroundColor = '#fff';
       if (m === data.current) opt.selected = true;
       sel.appendChild(opt);
     });
