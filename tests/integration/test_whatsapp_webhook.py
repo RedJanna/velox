@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from velox.adapters.whatsapp.webhook import IncomingMessage
 from velox.api.routes import whatsapp_webhook
+from velox.models.conversation import Conversation
 
 
 @pytest.fixture
@@ -249,6 +250,53 @@ def test_elevator_detection_matches_russian_and_turkish() -> None:
     """Elevator detector should catch both Russian and Turkish variants."""
     assert whatsapp_webhook._is_elevator_question("В вашем отеле есть лифт?") is True
     assert whatsapp_webhook._is_elevator_question("Otelde asansör var mı?") is True
+
+
+def test_detect_message_language_for_english_sentence() -> None:
+    """Language detector should classify English reservation text as EN."""
+    detected = whatsapp_webhook._detect_message_language(
+        "I need airport transfer + dinner reservation + late checkout in one package.",
+        fallback="tr",
+    )
+    assert detected == "en"
+
+
+def test_detect_message_language_for_russian_sentence() -> None:
+    """Language detector should classify Cyrillic reservation text as RU."""
+    detected = whatsapp_webhook._detect_message_language(
+        "В вашем отеле есть лифт?",
+        fallback="tr",
+    )
+    assert detected == "ru"
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_locks_expected_language(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pipeline should lock internal language to detected guest input language."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Hello there\nINTERNAL_JSON: "
+            '{"language":"tr","intent":"other","state":"INTENT_DETECTED","entities":{},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"await_user_input"}',
+            [],
+        )
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    conversation = Conversation(hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="I need airport transfer",
+        expected_language="en",
+    )
+    assert result.internal_json.language == "en"
 
 
 def test_parking_detection_does_not_match_havale() -> None:

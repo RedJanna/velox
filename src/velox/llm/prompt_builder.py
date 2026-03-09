@@ -149,6 +149,16 @@ class PromptBuilder:
             for event in system_events:
                 messages.append({"role": "system", "content": f"SYSTEM_EVENT: {event}"})
 
+        response_language = (conversation.language or "tr").upper()
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    f"RESPONSE_LANGUAGE_LOCK: {response_language}. "
+                    "Guest-facing reply must be in this language unless the guest explicitly asks to switch."
+                ),
+            }
+        )
         messages.append({"role": "user", "content": new_user_message})
         messages.append(
             {

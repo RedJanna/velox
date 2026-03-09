@@ -101,6 +101,18 @@ class ConversationRepository:
             conversation_id,
         )
 
+    async def update_language(self, conversation_id: UUID, language: str) -> None:
+        """Update conversation language preference."""
+        await execute(
+            """
+            UPDATE conversations
+            SET language = $2, updated_at = now()
+            WHERE id = $1
+            """,
+            conversation_id,
+            language,
+        )
+
     async def add_message(self, msg: Message) -> Message:
         """Insert a message into a conversation."""
         row = await fetchrow(

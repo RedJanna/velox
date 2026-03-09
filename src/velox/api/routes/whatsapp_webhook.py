@@ -55,6 +55,31 @@ TR_CHILD_OCCUPANCY_NOTE = (
     "kontrol edip size ileteceğiz."
 )
 PRICE_ROUNDING_INCREMENT = Decimal("5")
+SUPPORTED_LANGUAGE_CODES = {"tr", "en", "ru"}
+TURKISH_LANGUAGE_HINTS = (
+    "ve",
+    "için",
+    "lutfen",
+    "lütfen",
+    "merhaba",
+    "rezervasyon",
+    "otel",
+    "fiyat",
+    "kisi",
+    "kişi",
+)
+ENGLISH_LANGUAGE_HINTS = (
+    "i",
+    "need",
+    "please",
+    "hotel",
+    "booking",
+    "price",
+    "checkin",
+    "checkout",
+    "airport",
+    "transfer",
+)
 
 
 class SlidingWindowRateLimiter:
@@ -130,16 +155,50 @@ def _normalize_text(text: str) -> str:
     return formatter.truncate(sanitized, MAX_TEXT_LENGTH)
 
 
-def _payment_warning_message() -> str:
+def _payment_warning_message(language: str = "tr") -> str:
     """Security warning for card/OTP data sharing."""
+    if language == "en":
+        return (
+            "For your security, please do not share card/OTP payment details here. "
+            "I am forwarding you to the relevant team."
+        )
+    if language == "ru":
+        return (
+            "В целях вашей безопасности, пожалуйста, не отправляйте здесь данные карты/OTP. "
+            "Я передаю ваш запрос профильной команде."
+        )
     return (
         "Guvenliginiz icin lutfen kart/OTP gibi odeme bilgilerinizi buradan paylasmayiniz. "
         "Sizi ilgili ekibe yonlendiriyorum."
     )
 
 
-def _default_reply_message() -> str:
+def _default_reply_message(language: str = "tr") -> str:
     """Fallback response before LLM pipeline is integrated."""
+    if language == "en":
+        return (
+            "I have received your message. Your request has been forwarded to the relevant team, "
+            "and we will assist you as soon as possible.\n\n"
+            + formatter.format_options(
+                [
+                    "Stay",
+                    "Restaurant",
+                    "Transfer",
+                ]
+            )
+        )
+    if language == "ru":
+        return (
+            "Я получил(а) ваше сообщение. Ваш запрос передан профильной команде, "
+            "и мы поможем вам в кратчайшие сроки.\n\n"
+            + formatter.format_options(
+                [
+                    "Проживание",
+                    "Ресторан",
+                    "Трансфер",
+                ]
+            )
+        )
     return (
         "Mesajinizi aldim. Talebiniz ilgili ekibe iletildi; en kisa surede yardimci olacagiz.\n\n"
         + formatter.format_options(
@@ -313,6 +372,30 @@ def _contains_keyword(text: str, keyword: str) -> bool:
     if " " in keyword:
         return keyword in text
     return re.search(rf"\b{re.escape(keyword)}\b", text) is not None
+
+
+def _detect_message_language(text: str, fallback: str = "tr") -> str:
+    """Detect guest message language with lightweight heuristics."""
+    normalized = text.casefold().strip()
+    if not normalized:
+        return fallback if fallback in SUPPORTED_LANGUAGE_CODES else "tr"
+
+    if re.search(r"[\u0400-\u04FF]", normalized):
+        return "ru"
+
+    turkish_score = sum(1 for keyword in TURKISH_LANGUAGE_HINTS if _contains_keyword(normalized, keyword))
+    english_score = sum(1 for keyword in ENGLISH_LANGUAGE_HINTS if _contains_keyword(normalized, keyword))
+
+    if re.search(r"[çğıöşü]", normalized):
+        turkish_score += 2
+
+    if english_score > turkish_score and english_score > 0:
+        return "en"
+    if turkish_score > english_score and turkish_score > 0:
+        return "tr"
+    if fallback in SUPPORTED_LANGUAGE_CODES:
+        return fallback
+    return "tr"
 
 
 def _build_elevator_reply(hotel_id: int, language: str) -> str:
@@ -650,12 +733,19 @@ async def _run_message_pipeline(
     conversation: Conversation,
     normalized_text: str,
     dispatcher: Any | None = None,
+    expected_language: str | None = None,
 ) -> LLMResponse:
     """Run message pipeline and return structured LLM response."""
+    target_language = (
+        expected_language
+        if expected_language in SUPPORTED_LANGUAGE_CODES
+        else conversation.language if conversation.language in SUPPORTED_LANGUAGE_CODES else "tr"
+    )
     if PAYMENT_DATA_PATTERN.search(normalized_text):
         return LLMResponse(
-            user_message=_payment_warning_message(),
+            user_message=_payment_warning_message(target_language),
             internal_json=InternalJSON(
+                language=target_language,
                 intent="payment_inquiry",
                 state="HANDOFF",
                 risk_flags=["PAYMENT_CONFUSION"],
@@ -694,7 +784,12 @@ async def _run_message_pipeline(
 
         parsed = ResponseParser.parse(content)
         intent = str(parsed.internal_json.intent or "").lower()
-        language = str(parsed.internal_json.language or "tr").lower()
+        language = (
+            target_language
+            if target_language in SUPPORTED_LANGUAGE_CODES
+            else str(parsed.internal_json.language or "tr").lower()
+        )
+        parsed.internal_json.language = language
         entities = parsed.internal_json.entities if isinstance(parsed.internal_json.entities, dict) else {}
         if _is_elevator_question(normalized_text):
             parsed.user_message = _build_elevator_reply(conversation.hotel_id, language)
@@ -720,8 +815,9 @@ async def _run_message_pipeline(
     except LLMUnavailableError:
         logger.warning("llm_unavailable_fallback")
         return LLMResponse(
-            user_message=_default_reply_message(),
+            user_message=_default_reply_message(target_language),
             internal_json=InternalJSON(
+                language=target_language,
                 intent="other",
                 state="INTENT_DETECTED",
                 risk_flags=[],
@@ -779,11 +875,12 @@ async def _create_or_get_conversation(repository: ConversationRepository, incomi
     if conversation is not None:
         return conversation
 
+    initial_language = _detect_message_language(incoming.text, "tr")
     new_conversation = Conversation(
         hotel_id=settings.elektra_hotel_id,
         phone_hash=phone_hash,
         phone_display=_mask_phone(incoming.phone),
-        language="tr",
+        language=initial_language,
     )
     return await repository.create(new_conversation)
 
@@ -805,6 +902,10 @@ async def _process_incoming_message(
             raise RuntimeError("Conversation id is missing.")
 
         normalized_text = _normalize_text(incoming.text)
+        detected_language = _detect_message_language(normalized_text, conversation.language)
+        if conversation.language != detected_language:
+            conversation.language = detected_language
+            await conversation_repository.update_language(conversation.id, detected_language)
 
         user_msg = Message(
             conversation_id=conversation.id,
@@ -820,6 +921,7 @@ async def _process_incoming_message(
             conversation=conversation,
             normalized_text=normalized_text,
             dispatcher=dispatcher,
+            expected_language=detected_language,
         )
         reply_text = formatter.truncate(llm_response.user_message)
         await whatsapp_client.send_text_message(to=incoming.phone, body=reply_text)

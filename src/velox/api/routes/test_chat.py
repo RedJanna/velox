@@ -18,6 +18,7 @@ from velox.api.routes.test_chat_export import (
 
 # Cross-module imports for reusing core pipeline logic (no WhatsApp API calls).
 from velox.api.routes.whatsapp_webhook import (
+    _detect_message_language,
     _hash_phone,
     _mask_phone,
     _normalize_text,
@@ -115,15 +116,22 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
 
     conversation = await repo.get_active_by_phone(settings.elektra_hotel_id, phone_hash)
     if conversation is None:
+        initial_language = _detect_message_language(body.message, "tr")
         conversation = Conversation(
             hotel_id=settings.elektra_hotel_id,
             phone_hash=phone_hash,
             phone_display=_mask_phone(phone),
-            language="tr",
+            language=initial_language,
         )
         conversation = await repo.create(conversation)
+    if conversation.id is None:
+        raise HTTPException(status_code=500, detail="Conversation id is missing")
 
     normalized = _normalize_text(body.message)
+    detected_language = _detect_message_language(normalized, conversation.language)
+    if conversation.language != detected_language:
+        conversation.language = detected_language
+        await repo.update_language(conversation.id, detected_language)
 
     user_msg = Message(conversation_id=conversation.id, role="user", content=normalized)
     await repo.add_message(user_msg)
@@ -136,6 +144,7 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
         conversation=conversation,
         normalized_text=normalized,
         dispatcher=getattr(request.app.state, "tool_dispatcher", None),
+        expected_language=detected_language,
     )
     reply_text = formatter.truncate(llm_response.user_message)
 
