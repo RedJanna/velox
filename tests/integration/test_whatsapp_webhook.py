@@ -3,9 +3,9 @@
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-import pytest
 
 from velox.adapters.whatsapp.webhook import IncomingMessage
 from velox.api.routes import whatsapp_webhook
@@ -226,6 +226,29 @@ def test_payment_reply_uses_profile_policy(monkeypatch: pytest.MonkeyPatch) -> N
     reply = whatsapp_webhook._build_turkish_payment_methods_reply(21966)
 
     assert "nakit ve havale kabul ediyoruz" in reply
+
+
+def test_elevator_reply_uses_profile_policy_for_russian(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Elevator questions should use profile-driven accessibility policy."""
+    profile = SimpleNamespace(
+        facility_policies={
+            "accessibility": {
+                "elevator_available": False,
+                "reply_ru": "В нашем отеле лифта нет. На первом этаже есть доступные варианты номеров.",
+            }
+        }
+    )
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: profile)
+
+    reply = whatsapp_webhook._build_elevator_reply(21966, "ru")
+
+    assert "лифта нет" in reply
+
+
+def test_elevator_detection_matches_russian_and_turkish() -> None:
+    """Elevator detector should catch both Russian and Turkish variants."""
+    assert whatsapp_webhook._is_elevator_question("В вашем отеле есть лифт?") is True
+    assert whatsapp_webhook._is_elevator_question("Otelde asansör var mı?") is True
 
 
 def test_parking_detection_does_not_match_havale() -> None:

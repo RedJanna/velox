@@ -317,6 +317,11 @@ facility_policies:
     available: true
     free: true
     hours: "24/7"
+  accessibility:
+    elevator_available: false
+    reply_tr: "Otelimizde asansör bulunmamaktadır. Giriş katında erişime uygun oda seçeneklerimiz mevcuttur; isterseniz size en uygun odayı birlikte belirleyebiliriz."
+    reply_en: "Our hotel does not have an elevator. We do have accessible room options on the ground floor; if you wish, we can help you choose the most suitable room."
+    reply_ru: "В нашем отеле лифта нет. На первом этаже есть доступные варианты номеров; при желании поможем подобрать наиболее удобный вариант."
   room_service:
     hours: "08:00-21:00"
     delivery_time_min: "30-45"
@@ -376,6 +381,11 @@ faq_data:
     question_tr: "Cocuk politikasi nedir?"
     answer_tr: "Tüm yaşlardaki çocuklar kabul edilir. Ekstra yatak ve bebek beşiği ücretsizdir (Penthouse Land hariç). 2 çocuklu konaklamalarda oda tipine ve uygunluğa göre 2 ek yatak veya 1 ek yatak + 1 sofa hazırlanabilir."
     answer_en: "Children of all ages are welcome. Extra bed and baby crib are free (except Penthouse Land). For stays with 2 children, depending on room type and availability, 2 extra beds or 1 extra bed plus 1 sofa can be prepared."
+
+  - topic: "elevator"
+    question_tr: "Asansor var mi?"
+    answer_tr: "Otelimizde asansör bulunmamaktadır. Giriş katında erişime uygun oda seçeneklerimiz mevcuttur."
+    answer_en: "Our hotel does not have an elevator. We have accessible room options on the ground floor."
 
   - topic: "total_rooms"
     question_tr: "Kac oda var?"

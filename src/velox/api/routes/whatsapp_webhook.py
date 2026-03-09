@@ -1,21 +1,21 @@
 """WhatsApp webhook routes for verification and incoming messages."""
 
-from collections import defaultdict, deque
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
 import re
 import time
+from collections import defaultdict, deque
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, status
-from fastapi.responses import PlainTextResponse
 import orjson
 import structlog
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, status
+from fastapi.responses import PlainTextResponse
 
+from velox.adapters.elektraweb.endpoints import CHILD_OCCUPANCY_UNVERIFIED
 from velox.adapters.whatsapp.client import get_whatsapp_client
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.adapters.whatsapp.webhook import IncomingMessage, WhatsAppWebhook
-from velox.adapters.elektraweb.endpoints import CHILD_OCCUPANCY_UNVERIFIED
 from velox.config.settings import settings
 from velox.core.hotel_profile_loader import get_profile
 from velox.core.pipeline import post_process_escalation
@@ -295,11 +295,61 @@ def _is_payment_method_question(user_text: str) -> bool:
     return any(_contains_keyword(normalized, keyword) for keyword in keywords)
 
 
+def _is_elevator_question(user_text: str) -> bool:
+    """Return True when the guest asks whether the hotel has an elevator/lift."""
+    normalized = user_text.casefold()
+    keywords = (
+        "asansör",
+        "asansor",
+        "elevator",
+        "lift",
+        "лифт",
+    )
+    return any(_contains_keyword(normalized, keyword) for keyword in keywords)
+
+
 def _contains_keyword(text: str, keyword: str) -> bool:
     """Match single words by boundary and phrases by substring."""
     if " " in keyword:
         return keyword in text
     return re.search(rf"\b{re.escape(keyword)}\b", text) is not None
+
+
+def _build_elevator_reply(hotel_id: int, language: str) -> str:
+    """Build deterministic elevator reply from HOTEL_PROFILE accessibility policy."""
+    language_code = language if language in {"tr", "en", "ru"} else "en"
+    profile = get_profile(hotel_id)
+    if profile is not None:
+        accessibility = profile.facility_policies.get("accessibility", {})
+        reply = accessibility.get(f"reply_{language_code}")
+        if isinstance(reply, str) and reply.strip():
+            return reply.strip()
+
+        elevator_available = accessibility.get("elevator_available")
+        if isinstance(elevator_available, bool):
+            if language_code == "tr":
+                return (
+                    "Evet, otelimizde asansör bulunmaktadır."
+                    if elevator_available
+                    else "Otelimizde asansör bulunmamaktadır."
+                )
+            if language_code == "ru":
+                return (
+                    "Да, в нашем отеле есть лифт."
+                    if elevator_available
+                    else "В нашем отеле лифта нет."
+                )
+            return (
+                "Yes, our hotel has an elevator."
+                if elevator_available
+                else "Our hotel does not have an elevator."
+            )
+
+    if language_code == "tr":
+        return "Asansör bilgisi için hızlıca kontrol edip size net bilgi paylaşayım."
+    if language_code == "ru":
+        return "Сейчас быстро уточню информацию по лифту и вернусь к вам с точным ответом."
+    return "I will quickly verify the elevator information and get back to you with the exact answer."
 
 
 def _build_turkish_parking_reply(hotel_id: int) -> str:
@@ -646,6 +696,9 @@ async def _run_message_pipeline(
         intent = str(parsed.internal_json.intent or "").lower()
         language = str(parsed.internal_json.language or "tr").lower()
         entities = parsed.internal_json.entities if isinstance(parsed.internal_json.entities, dict) else {}
+        if _is_elevator_question(normalized_text):
+            parsed.user_message = _build_elevator_reply(conversation.hotel_id, language)
+            return parsed
         if language == "tr" and _is_payment_method_question(normalized_text):
             parsed.user_message = _build_turkish_payment_methods_reply(conversation.hotel_id)
             return parsed
