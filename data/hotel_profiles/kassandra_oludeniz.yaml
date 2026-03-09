@@ -412,6 +412,8 @@ payment:
     - "POS"
     - "CASH"
     - "MAIL_ORDER"
+  reply_tr: "Evet, kredi kartı dışında nakit ve havale kabul ediyoruz. İsterseniz rezervasyon aşamasında size uygun ödeme yöntemini birlikte netleştirebiliriz."
+  reply_en: "Yes, in addition to credit card, we also accept cash and bank transfer. If you wish, we can confirm the most suitable payment method together during the reservation process."
   eur_bank:
     bank: "Turkiye Halk Bankasi"
     account_holder: "Mehmet Can Unsal"

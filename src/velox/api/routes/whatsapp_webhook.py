@@ -260,7 +260,32 @@ def _is_parking_question(user_text: str) -> bool:
     """Return True when the guest asks about parking or valet availability."""
     normalized = user_text.casefold()
     keywords = ("otopark", "park yeri", "vale", "parking", "aracımızla", "aracimizla", "arabamızla", "arabamizla")
-    return any(keyword in normalized for keyword in keywords)
+    return any(_contains_keyword(normalized, keyword) for keyword in keywords)
+
+
+def _is_payment_method_question(user_text: str) -> bool:
+    """Return True when the guest asks which payment methods are accepted."""
+    normalized = user_text.casefold()
+    keywords = (
+        "nakit",
+        "havale",
+        "banka havalesi",
+        "bank transfer",
+        "ödeme yöntemi",
+        "odeme yontemi",
+        "kredi kartı dışında",
+        "kredi karti disinda",
+        "mail order",
+        "pos",
+    )
+    return any(_contains_keyword(normalized, keyword) for keyword in keywords)
+
+
+def _contains_keyword(text: str, keyword: str) -> bool:
+    """Match single words by boundary and phrases by substring."""
+    if " " in keyword:
+        return keyword in text
+    return re.search(rf"\b{re.escape(keyword)}\b", text) is not None
 
 
 def _build_turkish_parking_reply(hotel_id: int) -> str:
@@ -281,6 +306,25 @@ def _build_turkish_parking_reply(hotel_id: int) -> str:
         "Aracınız için park yeri ayarlayabiliriz. Ücretsiz cadde park yerleri mevcuttur, "
         "ayrıca otelin karşısında özel bir otopark da bulunmaktadır. Varışınızda sizi park "
         "alanına yönlendireceğiz."
+    )
+
+
+def _build_turkish_payment_methods_reply(hotel_id: int) -> str:
+    """Build deterministic Turkish payment-method guidance from HOTEL_PROFILE."""
+    profile = get_profile(hotel_id)
+    if profile is None:
+        return (
+            "Evet, kredi kartı dışında nakit ve havale kabul ediyoruz. İsterseniz rezervasyon "
+            "aşamasında size uygun ödeme yöntemini birlikte netleştirebiliriz."
+        )
+
+    payment_policy = profile.model_dump().get("payment", {})
+    reply = payment_policy.get("reply_tr")
+    if isinstance(reply, str) and reply.strip():
+        return reply.strip()
+    return (
+        "Evet, kredi kartı dışında nakit ve havale kabul ediyoruz. İsterseniz rezervasyon "
+        "aşamasında size uygun ödeme yöntemini birlikte netleştirebiliriz."
     )
 
 
@@ -408,6 +452,9 @@ async def _run_message_pipeline(
         intent = str(parsed.internal_json.intent or "").lower()
         language = str(parsed.internal_json.language or "tr").lower()
         entities = parsed.internal_json.entities if isinstance(parsed.internal_json.entities, dict) else {}
+        if language == "tr" and _is_payment_method_question(normalized_text):
+            parsed.user_message = _build_turkish_payment_methods_reply(conversation.hotel_id)
+            return parsed
         if language == "tr" and _is_parking_question(normalized_text):
             parsed.user_message = _build_turkish_parking_reply(conversation.hotel_id)
             return parsed

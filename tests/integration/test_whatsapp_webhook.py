@@ -206,3 +206,29 @@ def test_parking_reply_uses_profile_policy(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert "Ücretsiz cadde park yerleri" in reply
     assert "Varışınızda sizi park alanına yönlendireceğiz." in reply
+
+
+def test_payment_reply_uses_profile_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Payment-method questions should use the exact profile-driven payment reply."""
+    profile = SimpleNamespace(
+        model_dump=lambda: {
+            "payment": {
+                "reply_tr": (
+                    "Evet, kredi kartı dışında nakit ve havale kabul ediyoruz. "
+                    "İsterseniz rezervasyon aşamasında size uygun ödeme yöntemini "
+                    "birlikte netleştirebiliriz."
+                )
+            }
+        }
+    )
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: profile)
+
+    reply = whatsapp_webhook._build_turkish_payment_methods_reply(21966)
+
+    assert "nakit ve havale kabul ediyoruz" in reply
+
+
+def test_parking_detection_does_not_match_havale() -> None:
+    """Parking detection must not confuse 'havale' with 'vale'."""
+    assert whatsapp_webhook._is_parking_question("Kredi kartı dışında havale kabul ediyor musunuz?") is False
+    assert whatsapp_webhook._is_payment_method_question("Kredi kartı dışında havale kabul ediyor musunuz?") is True

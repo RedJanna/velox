@@ -92,3 +92,4 @@ class HotelProfile(BaseModel):
     restaurant: RestaurantConfig | None = None
     facility_policies: dict = Field(default_factory=dict)
     faq_data: list[dict] = Field(default_factory=list)
+    payment: dict = Field(default_factory=dict)
