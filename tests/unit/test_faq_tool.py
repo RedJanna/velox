@@ -19,6 +19,8 @@ def _build_profile() -> HotelProfile:
                     "question_en": "Do you have a spa or sauna?",
                     "question_variants_tr": ["Hamam var mi?", "Spa mevcut mu?"],
                     "question_variants_en": ["Do you have spa?", "Is there a Turkish bath?"],
+                    "question_variants_ru": ["Есть ли хамам?"],
+                    "question_variants_de": ["Gibt es ein Spa im Hotel?"],
                     "answer_tr": "Spa, hamam ve sauna bulunmamaktadir.",
                     "answer_en": "There is no spa, Turkish bath, or sauna.",
                 },
@@ -88,3 +90,39 @@ async def test_faq_lookup_preserves_existing_question_matching(
     assert result["found"] is True
     assert result["topic"] == "late_arrival"
     assert result["answer"] == "Please inform us in advance for arrivals after midnight."
+
+
+@pytest.mark.asyncio
+async def test_faq_lookup_matches_russian_question_variant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Russian question variants should be matched when present in FAQ data."""
+    monkeypatch.setattr("velox.tools.faq.get_profile", lambda _hotel_id: _build_profile())
+
+    result = await FAQLookupTool().execute(
+        hotel_id=21966,
+        query="Есть ли хамам?",
+        language="RU",
+    )
+
+    assert result["found"] is True
+    assert result["topic"] == "spa_hamam"
+    assert result["answer"] == "There is no spa, Turkish bath, or sauna."
+
+
+@pytest.mark.asyncio
+async def test_faq_lookup_matches_german_question_variant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """German question variants should be matched via dynamic language fields."""
+    monkeypatch.setattr("velox.tools.faq.get_profile", lambda _hotel_id: _build_profile())
+
+    result = await FAQLookupTool().execute(
+        hotel_id=21966,
+        query="Gibt es ein Spa im Hotel?",
+        language="DE",
+    )
+
+    assert result["found"] is True
+    assert result["topic"] == "spa_hamam"
+    assert result["answer"] == "There is no spa, Turkish bath, or sauna."

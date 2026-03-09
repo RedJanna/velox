@@ -373,6 +373,14 @@ faq_data:
     question_variants_tr: ["Giris saati kac?"]
     question_en: "What time is check-in?"
     question_variants_en: ["When can we check in?"]
+    question_variants_ru: ["Во сколько заезд?"]
+    question_variants_de: ["Wann ist Check-in?"]
+    question_variants_ar: ["ما وقت تسجيل الوصول؟"]
+    question_variants_es: ["A que hora es el check-in?"]
+    question_variants_fr: ["A quelle heure est le check-in ?"]
+    question_variants_zh: ["几点可以办理入住？"]
+    question_variants_hi: ["चेक-इन कितने बजे है?"]
+    question_variants_pt: ["Que horas e o check-in?"]
     answer_tr: "Check-in saat 14:00'den itibaren mumkundur."
     answer_en: "Check-in is available from 14:00 onwards."
 
@@ -381,6 +389,14 @@ faq_data:
     question_variants_tr: ["Cikis saati kac?"]
     question_en: "What time is check-out?"
     question_variants_en: ["When do we need to check out?"]
+    question_variants_ru: ["Во сколько выезд?"]
+    question_variants_de: ["Wann ist Check-out?"]
+    question_variants_ar: ["ما وقت تسجيل المغادرة؟"]
+    question_variants_es: ["A que hora es el check-out?"]
+    question_variants_fr: ["A quelle heure est le check-out ?"]
+    question_variants_zh: ["几点退房？"]
+    question_variants_hi: ["चेक-आउट कितने बजे है?"]
+    question_variants_pt: ["Que horas e o check-out?"]
     answer_tr: "Check-out saat 12:00'ye kadar yapilmalidir."
     answer_en: "Check-out must be done by 12:00."
 
@@ -389,6 +405,14 @@ faq_data:
     question_variants_tr: ["Plaja yuruyerek kac dakika?"]
     question_en: "How far is the beach?"
     question_variants_en: ["How far are you from the sea?"]
+    question_variants_ru: ["Далеко ли до пляжа?"]
+    question_variants_de: ["Wie weit ist der Strand entfernt?"]
+    question_variants_ar: ["كم يبعد الشاطئ؟"]
+    question_variants_es: ["A que distancia esta la playa?"]
+    question_variants_fr: ["La plage est a quelle distance ?"]
+    question_variants_zh: ["离海滩有多远？"]
+    question_variants_hi: ["समुद्र तट कितनी दूर है?"]
+    question_variants_pt: ["Qual e a distancia ate a praia?"]
     answer_tr: "Belcekiz Plaji'na sadece 300 metre mesafedeyiz."
     answer_en: "We are just 300 meters from Belcekiz Beach."
 
@@ -397,6 +421,14 @@ faq_data:
     question_variants_tr: ["Kahvalti kacta basliyor ve bitiyor?"]
     question_en: "What are the breakfast hours?"
     question_variants_en: ["When is breakfast served?"]
+    question_variants_ru: ["Во сколько завтрак?"]
+    question_variants_de: ["Wann ist das Fruhstuck?"]
+    question_variants_ar: ["ما مواعيد الافطار؟"]
+    question_variants_es: ["A que hora es el desayuno?"]
+    question_variants_fr: ["A quelle heure est le petit-dejeuner ?"]
+    question_variants_zh: ["早餐几点开始？"]
+    question_variants_hi: ["नाश्ता कितने बजे है?"]
+    question_variants_pt: ["Qual e o horario do cafe da manha?"]
     answer_tr: "Kahvalti 08:00-10:30 arasi acik buyfe olarak sunulmaktadir."
     answer_en: "Breakfast is served as open buffet between 08:00-10:30."
 
@@ -405,6 +437,14 @@ faq_data:
     question_variants_tr: ["Internet ucretsiz mi?"]
     question_en: "Do you have WiFi?"
     question_variants_en: ["Is the internet free?"]
+    question_variants_ru: ["Wi-Fi бесплатный?"]
+    question_variants_de: ["Ist WLAN kostenlos?"]
+    question_variants_ar: ["هل الواي فاي مجاني؟"]
+    question_variants_es: ["El wifi es gratis?"]
+    question_variants_fr: ["Le Wi-Fi est gratuit ?"]
+    question_variants_zh: ["无线网络免费吗？"]
+    question_variants_hi: ["क्या वाई-फाई मुफ्त है?"]
+    question_variants_pt: ["O Wi-Fi e gratuito?"]
     answer_tr: "Evet, 7/24 ucretsiz WiFi mevcuttur."
     answer_en: "Yes, free WiFi is available 24/7."
 
@@ -413,6 +453,14 @@ faq_data:
     question_variants_tr: ["Arac icin park yeri var mi?"]
     question_en: "Do you have parking?"
     question_variants_en: ["Is there a place to park a car?"]
+    question_variants_ru: ["Есть парковка?"]
+    question_variants_de: ["Gibt es Parkplatze?"]
+    question_variants_ar: ["هل يوجد موقف سيارات؟"]
+    question_variants_es: ["Hay estacionamiento?"]
+    question_variants_fr: ["Y a-t-il un parking ?"]
+    question_variants_zh: ["有停车位吗？"]
+    question_variants_hi: ["क्या पार्किंग है?"]
+    question_variants_pt: ["Ha estacionamento?"]
     answer_tr: "Aracınız için park yeri ayarlayabiliriz. Ücretsiz cadde park yerleri mevcuttur, ayrıca otelin karşısında özel bir otopark da bulunmaktadır. Varışınızda sizi park alanına yönlendireceğiz."
     answer_en: "We can help arrange parking for your vehicle. Free street parking is available, and there is also a private parking lot across from the hotel. On arrival, we will guide you to the parking area."
 
@@ -421,6 +469,14 @@ faq_data:
     question_variants_tr: ["Acik havuzunuz var mi?"]
     question_en: "Do you have a pool?"
     question_variants_en: ["Is there a swimming pool at the hotel?"]
+    question_variants_ru: ["Есть бассейн?"]
+    question_variants_de: ["Gibt es einen Pool?"]
+    question_variants_ar: ["هل يوجد مسبح؟"]
+    question_variants_es: ["Hay piscina?"]
+    question_variants_fr: ["Y a-t-il une piscine ?"]
+    question_variants_zh: ["有游泳池吗？"]
+    question_variants_hi: ["क्या पूल है?"]
+    question_variants_pt: ["Ha piscina?"]
     answer_tr: "Evet, acik havuzumuz 08:00-19:00 saatleri arasinda otel misafirlerimize ucretsizdir."
     answer_en: "Yes, our open pool is free for hotel guests between 08:00-19:00."
 
@@ -429,6 +485,14 @@ faq_data:
     question_variants_tr: ["Transfer hizmetiniz var mi?"]
     question_en: "Do you offer airport transfer?"
     question_variants_en: ["Is airport transportation available?"]
+    question_variants_ru: ["Есть трансфер из аэропорта?"]
+    question_variants_de: ["Bieten Sie einen Flughafentransfer an?"]
+    question_variants_ar: ["هل لديكم خدمة نقل من المطار؟"]
+    question_variants_es: ["Tienen traslado desde el aeropuerto?"]
+    question_variants_fr: ["Proposez-vous un transfert aeroport ?"]
+    question_variants_zh: ["提供机场接送吗？"]
+    question_variants_hi: ["क्या एयरपोर्ट ट्रांसफर है?"]
+    question_variants_pt: ["Voces oferecem transfer do aeroporto?"]
     answer_tr: "Evet, Dalaman Havalimani transferi tek yon 75 EUR (max 7 kisi). Antalya Havalimani transferi tek yon 220 EUR."
     answer_en: "Yes, Dalaman Airport transfer is 75 EUR one way (max 7 persons). Antalya Airport transfer is 220 EUR one way."
 
@@ -437,6 +501,14 @@ faq_data:
     question_variants_tr: ["Cocuklu aileler icin kurallar nedir?"]
     question_en: "What is your child policy?"
     question_variants_en: ["Are children allowed at the hotel?"]
+    question_variants_ru: ["Какие у вас правила для детей?"]
+    question_variants_de: ["Wie ist Ihre Kinderregelung?"]
+    question_variants_ar: ["ما هي سياسة الاطفال؟"]
+    question_variants_es: ["Cual es su politica para ninos?"]
+    question_variants_fr: ["Quelle est votre politique pour les enfants ?"]
+    question_variants_zh: ["儿童政策是什么？"]
+    question_variants_hi: ["बच्चों की नीति क्या है?"]
+    question_variants_pt: ["Qual e a politica para criancas?"]
     answer_tr: "Tüm yaşlardaki çocuklar kabul edilir. Ekstra yatak ve bebek beşiği ücretsizdir (Penthouse Land hariç). 2 çocuklu konaklamalarda oda tipine ve uygunluğa göre 2 ek yatak veya 1 ek yatak + 1 sofa hazırlanabilir."
     answer_en: "Children of all ages are welcome. Extra bed and baby crib are free (except Penthouse Land). For stays with 2 children, depending on room type and availability, 2 extra beds or 1 extra bed plus 1 sofa can be prepared."
 
@@ -445,6 +517,14 @@ faq_data:
     question_variants_tr: ["Otelde lift bulunuyor mu?"]
     question_en: "Do you have an elevator?"
     question_variants_en: ["Is there a lift in the hotel?"]
+    question_variants_ru: ["Есть лифт?"]
+    question_variants_de: ["Gibt es einen Aufzug?"]
+    question_variants_ar: ["هل يوجد مصعد؟"]
+    question_variants_es: ["Hay ascensor?"]
+    question_variants_fr: ["Y a-t-il un ascenseur ?"]
+    question_variants_zh: ["有电梯吗？"]
+    question_variants_hi: ["क्या लिफ्ट है?"]
+    question_variants_pt: ["Ha elevador?"]
     answer_tr: "Otelimizde asansör bulunmamaktadır. Giriş katında erişime uygun oda seçeneklerimiz mevcuttur."
     answer_en: "Our hotel does not have an elevator. We have accessible room options on the ground floor."
 
@@ -453,6 +533,14 @@ faq_data:
     question_variants_tr: ["Oteliniz toplam kac odali?"]
     question_en: "How many rooms do you have?"
     question_variants_en: ["What is the total number of rooms?"]
+    question_variants_ru: ["Сколько у вас номеров?"]
+    question_variants_de: ["Wie viele Zimmer haben Sie?"]
+    question_variants_ar: ["كم عدد الغرف لديكم؟"]
+    question_variants_es: ["Cuantas habitaciones tienen?"]
+    question_variants_fr: ["Combien de chambres avez-vous ?"]
+    question_variants_zh: ["酒店有多少间客房？"]
+    question_variants_hi: ["आपके पास कितने कमरे हैं?"]
+    question_variants_pt: ["Quantos quartos voces tem?"]
     answer_tr: "Otelimizde toplam 24 oda bulunmaktadir."
     answer_en: "Our hotel has a total of 24 rooms."
 
@@ -461,6 +549,14 @@ faq_data:
     question_variants_tr: ["Aileler icin uygun bir otel mi?"]
     question_en: "Is it suitable for families?"
     question_variants_en: ["Is the hotel family-friendly?"]
+    question_variants_ru: ["Отель подходит для семьи?"]
+    question_variants_de: ["Ist das Hotel familienfreundlich?"]
+    question_variants_ar: ["هل الفندق مناسب للعائلات؟"]
+    question_variants_es: ["Es adecuado para familias?"]
+    question_variants_fr: ["Lhotel convient-il aux familles ?"]
+    question_variants_zh: ["适合家庭入住吗？"]
+    question_variants_hi: ["क्या यह परिवारों के लिए उपयुक्त है?"]
+    question_variants_pt: ["O hotel e adequado para familias?"]
     answer_tr: "Evet, otelimiz ailelere cok uygundur. Cocuk dostu odalarimiz ve hizmetlerimiz mevcuttur."
     answer_en: "Yes, our hotel is very suitable for families. We have child-friendly rooms and services."
 
@@ -469,6 +565,14 @@ faq_data:
     question_variants_tr: ["Fethiye merkeze uzakliginiz nedir?"]
     question_en: "How far is Fethiye center?"
     question_variants_en: ["What is the distance to Fethiye town center?"]
+    question_variants_ru: ["Далеко ли центр Фетхие?"]
+    question_variants_de: ["Wie weit ist das Zentrum von Fethiye?"]
+    question_variants_ar: ["كم يبعد مركز فتحية؟"]
+    question_variants_es: ["A que distancia esta el centro de Fethiye?"]
+    question_variants_fr: ["A quelle distance est le centre de Fethiye ?"]
+    question_variants_zh: ["距离费特希耶市中心多远？"]
+    question_variants_hi: ["फेथिये केंद्र कितनी दूर है?"]
+    question_variants_pt: ["Qual e a distancia ate o centro de Fethiye?"]
     answer_tr: "Fethiye merkeze yaklasik 12 km, arac ile 20 dakika mesafededir."
     answer_en: "It's approximately 12 km to Fethiye center, about 20 minutes by car."
 
@@ -477,6 +581,14 @@ faq_data:
     question_variants_tr: ["Size ait ozel plaj bulunuyor mu?"]
     question_en: "Do you have a private beach?"
     question_variants_en: ["Is there a private beach for hotel guests?"]
+    question_variants_ru: ["У вас есть частный пляж?"]
+    question_variants_de: ["Haben Sie einen Privatstrand?"]
+    question_variants_ar: ["هل لديكم شاطئ خاص؟"]
+    question_variants_es: ["Tienen playa privada?"]
+    question_variants_fr: ["Avez-vous une plage privee ?"]
+    question_variants_zh: ["有私人海滩吗？"]
+    question_variants_hi: ["क्या आपका निजी समुद्र तट है?"]
+    question_variants_pt: ["Voces tem praia privativa?"]
     answer_tr: "Ozel plajimiz bulunmamaktadir, ancak Belcekiz Plaji'na sadece 300 metre mesafedeyiz."
     answer_en: "We don't have a private beach, but we are just 300 meters from Belcekiz Beach."
 
@@ -485,6 +597,14 @@ faq_data:
     question_variants_tr: ["Oda icerisindeki imkanlar neler?"]
     question_en: "What is included in the rooms?"
     question_variants_en: ["What room amenities do you provide?"]
+    question_variants_ru: ["Что есть в номере?"]
+    question_variants_de: ["Welche Ausstattung gibt es im Zimmer?"]
+    question_variants_ar: ["ما المرافق الموجودة في الغرفة؟"]
+    question_variants_es: ["Que hay en la habitacion?"]
+    question_variants_fr: ["Quels equipements y a-t-il dans la chambre ?"]
+    question_variants_zh: ["房间里有什么设施？"]
+    question_variants_hi: ["कमरे में कौन-कौन सी सुविधाएं हैं?"]
+    question_variants_pt: ["O que ha no quarto?"]
     answer_tr: "Tum odalarimizda klima, ucretsiz su bulunan minibar, TV (Digiturk), kasa, sac kurutma makinesi, banyo urunleri, su isitici ve self-servis icecekler bulunmaktadir."
     answer_en: "All rooms include AC, a minibar with complimentary water, TV, safe, hairdryer, toiletries, kettle, and self-service beverages."
 
@@ -493,6 +613,14 @@ faq_data:
     question_variants_tr: ["Wellness alani bulunuyor mu?"]
     question_en: "Do you have a spa, hammam, or sauna?"
     question_variants_en: ["Is there any wellness area at the hotel?"]
+    question_variants_ru: ["Есть ли спа или хамам?"]
+    question_variants_de: ["Gibt es ein Spa oder Hammam?"]
+    question_variants_ar: ["هل يوجد سبا او حمام تركي؟"]
+    question_variants_es: ["Hay spa o hammam?"]
+    question_variants_fr: ["Y a-t-il un spa ou un hammam ?"]
+    question_variants_zh: ["有水疗或土耳其浴吗？"]
+    question_variants_hi: ["क्या स्पा या हमाम है?"]
+    question_variants_pt: ["Ha spa ou hamam?"]
     answer_tr: "Otelimizde spa, hamam, sauna, masaj veya wellness alani bulunmamaktadir. Dilerseniz yakin secenekler icin resepsiyonumuz yardimci olabilir."
     answer_en: "We do not have a spa, Turkish bath, sauna, massage, or wellness area on site. If you wish, our reception can help guide you to nearby options."
 
@@ -501,6 +629,14 @@ faq_data:
     question_variants_tr: ["Yakinda eczane ya da hastane var mi?"]
     question_en: "Where is the nearest pharmacy or hospital?"
     question_variants_en: ["Is there a pharmacy or hospital nearby?"]
+    question_variants_ru: ["Где ближайшая аптека или больница?"]
+    question_variants_de: ["Wo ist die nachste Apotheke oder das nachste Krankenhaus?"]
+    question_variants_ar: ["اين اقرب صيدلية او مستشفى؟"]
+    question_variants_es: ["Donde esta la farmacia o el hospital mas cercano?"]
+    question_variants_fr: ["Ou se trouvent la pharmacie ou lhopital le plus proche ?"]
+    question_variants_zh: ["最近的药店或医院在哪里？"]
+    question_variants_hi: ["सबसे नजदीकी फार्मेसी या अस्पताल कहां है?"]
+    question_variants_pt: ["Onde fica a farmacia ou hospital mais proximo?"]
     answer_tr: "Oludeniz ana carsisinin arka sokaginda, otele yaklasik 200 metre mesafede eczane bulunmaktadir. Hastane veya daha detayli yonlendirme icin lutfen resepsiyonumuzla iletisime geciniz."
     answer_en: "There is a pharmacy about 200 meters from the hotel, on the back street of Oludeniz main bazaar. For hospital guidance or more detailed directions, please contact our reception."
 
@@ -509,6 +645,14 @@ faq_data:
     question_variants_tr: ["Bolgede hangi aktiviteleri onerirsiniz?"]
     question_en: "Do you have tour or activity recommendations?"
     question_variants_en: ["What activities do you recommend nearby?"]
+    question_variants_ru: ["Какие экскурсии вы рекомендуете?"]
+    question_variants_de: ["Welche Touren empfehlen Sie?"]
+    question_variants_ar: ["ما الجولات او الانشطة التي تنصحون بها؟"]
+    question_variants_es: ["Que tours o actividades recomiendan?"]
+    question_variants_fr: ["Quelles excursions recommandez-vous ?"]
+    question_variants_zh: ["你们推荐哪些游览项目？"]
+    question_variants_hi: ["आप कौन-सी टूर या गतिविधियां सुझाते हैं?"]
+    question_variants_pt: ["Quais passeios ou atividades voces recomendam?"]
     answer_tr: "Babadağ yamaç paraşütü, günlük tekne turları, jeep safari, tüplü dalış, plaj su sporları, ATV veya buggy safari ve Likya Yolu yürüyüşleri bölgede en çok tercih edilen aktiviteler arasındadır. Size uygun seçenekler için resepsiyonumuz yardımcı olabilir."
     answer_en: "Babadağ paragliding, daily boat tours, jeep safari, scuba diving, beach water sports, ATV or buggy safari, and Lycian Way walks are among the most popular activities in the area. Our reception can help you choose the best option."
 
@@ -517,6 +661,14 @@ faq_data:
     question_variants_tr: ["Resepsiyonda doviz bozabilir miyim?"]
     question_en: "Do you offer currency exchange?"
     question_variants_en: ["Can I exchange money at the hotel?"]
+    question_variants_ru: ["Можно обменять валюту в отеле?"]
+    question_variants_de: ["Kann ich im Hotel Geld wechseln?"]
+    question_variants_ar: ["هل يمكن تبديل العملة في الفندق؟"]
+    question_variants_es: ["Puedo cambiar divisas en el hotel?"]
+    question_variants_fr: ["Peut-on changer de la monnaie a lhotel ?"]
+    question_variants_zh: ["酒店可以兑换货币吗？"]
+    question_variants_hi: ["क्या होटल में मुद्रा विनिमय हो सकता है?"]
+    question_variants_pt: ["Posso trocar moeda no hotel?"]
     answer_tr: "Evet, resepsiyonumuzda doviz bozdurma islemleri yapilabilmektedir."
     answer_en: "Yes, currency exchange can be handled at our reception."
 
@@ -525,6 +677,14 @@ faq_data:
     question_variants_tr: ["Gece gec saatte gelirsem ne yapmaliyim?"]
     question_en: "What if I arrive late?"
     question_variants_en: ["What should I do for a late arrival?"]
+    question_variants_ru: ["Что делать при позднем заезде?"]
+    question_variants_de: ["Was soll ich bei spater Anreise tun?"]
+    question_variants_ar: ["ماذا افعل اذا وصلت متاخرا؟"]
+    question_variants_es: ["Que debo hacer si llego tarde?"]
+    question_variants_fr: ["Que dois-je faire en cas darrivee tardive ?"]
+    question_variants_zh: ["如果我晚到该怎么办？"]
+    question_variants_hi: ["अगर मैं देर से पहुंचूं तो क्या करूं?"]
+    question_variants_pt: ["O que devo fazer se chegar tarde?"]
     answer_tr: "Check-in 14:00'ten sonra yapilabilir ve resepsiyonumuz 7/24 aciktir. Otele gece 00:00'dan sonra varacaksaniz lutfen onceden bilgi veriniz; ilgili ekibimiz girisinizi planlasin."
     answer_en: "Check-in is available after 14:00 and our reception is open 24/7. If you will arrive after midnight, please let us know in advance so our team can plan your arrival."
 
@@ -533,6 +693,14 @@ faq_data:
     question_variants_tr: ["Balayi ya da dogum gunu icin ozel bir hazirlik yapiliyor mu?"]
     question_en: "Can you arrange a birthday or honeymoon surprise?"
     question_variants_en: ["Do you offer honeymoon or birthday setup?"]
+    question_variants_ru: ["Можно организовать сюрприз на день рождения или медовый месяц?"]
+    question_variants_de: ["Konnen Sie eine Geburtstags- oder Honeymoon-Uberraschung vorbereiten?"]
+    question_variants_ar: ["هل يمكنكم ترتيب مفاجاة لعيد ميلاد او شهر عسل؟"]
+    question_variants_es: ["Pueden organizar una sorpresa de cumpleanos o luna de miel?"]
+    question_variants_fr: ["Pouvez-vous organiser une surprise pour un anniversaire ou une lune de miel ?"]
+    question_variants_zh: ["可以安排生日或蜜月惊喜吗？"]
+    question_variants_hi: ["क्या आप जन्मदिन या हनीमून सरप्राइज की व्यवस्था कर सकते हैं?"]
+    question_variants_pt: ["Voces podem organizar uma surpresa de aniversario ou lua de mel?"]
     answer_tr: "Dogum gunu veya balayi surprizi talepleriniz icin detaylari bizimle paylasabilirsiniz. Uygun secenekler icin ilgili ekibimiz size yardimci olacaktir."
     answer_en: "You may share the details of your birthday or honeymoon surprise request with us. Our team will help you with the available options."
 
@@ -541,6 +709,14 @@ faq_data:
     question_variants_tr: ["Camasir yikama servisi sunuyor musunuz?"]
     question_en: "Do you have laundry service?"
     question_variants_en: ["Can you wash and dry clothes?"]
+    question_variants_ru: ["Есть ли прачечная?"]
+    question_variants_de: ["Gibt es einen Waschservice?"]
+    question_variants_ar: ["هل توجد خدمة غسيل ملابس؟"]
+    question_variants_es: ["Tienen servicio de lavanderia?"]
+    question_variants_fr: ["Y a-t-il un service de blanchisserie ?"]
+    question_variants_zh: ["有洗衣服务吗？"]
+    question_variants_hi: ["क्या लॉन्ड्री सेवा है?"]
+    question_variants_pt: ["Ha servico de lavanderia?"]
     answer_tr: "Camasir hizmetimiz mevcuttur. Yikama ve kurutma yapilir; teslim suresi genellikle 1 gundur. Kirli camasirlar resepsiyona birakilir, temiz camasirlar resepsiyondan teslim alinir. Hizli teslim ve ucret bilgisi icin lutfen resepsiyonla gorusunuz."
     answer_en: "Laundry service is available. Washing and drying are provided, and the usual turnaround time is 1 day. Dirty laundry is left at reception and clean laundry is collected from reception. Please contact reception for express requests and pricing details."
 
@@ -549,6 +725,14 @@ faq_data:
     question_variants_tr: ["Odada ucretli minibar urunleri var mi?"]
     question_en: "What are the minibar prices?"
     question_variants_en: ["Are there any paid minibar items in the room?"]
+    question_variants_ru: ["Есть ли платный мини-бар?"]
+    question_variants_de: ["Gibt es kostenpflichtige Minibar-Produkte?"]
+    question_variants_ar: ["هل توجد منتجات ميني بار مدفوعة؟"]
+    question_variants_es: ["Hay productos de minibar de pago?"]
+    question_variants_fr: ["Y a-t-il des produits payants dans le minibar ?"]
+    question_variants_zh: ["迷你吧有收费商品吗？"]
+    question_variants_hi: ["क्या मिनीबार में भुगतान वाले सामान हैं?"]
+    question_variants_pt: ["Ha itens pagos no minibar?"]
     answer_tr: "Odalarimizda ucretli minibar urunleri bulunmamaktadir; sadece ucretsiz su sunulmaktadir."
     answer_en: "There are no paid minibar items in the rooms; only complimentary water is provided."
 
@@ -557,6 +741,14 @@ faq_data:
     question_variants_tr: ["Sigara icilebilen yerler nereler?"]
     question_en: "Where can we smoke?"
     question_variants_en: ["Which areas allow smoking?"]
+    question_variants_ru: ["Где можно курить?"]
+    question_variants_de: ["Wo darf man rauchen?"]
+    question_variants_ar: ["اين يمكن التدخين؟"]
+    question_variants_es: ["Donde se puede fumar?"]
+    question_variants_fr: ["Ou peut-on fumer ?"]
+    question_variants_zh: ["哪里可以吸烟？"]
+    question_variants_hi: ["कहां धूम्रपान कर सकते हैं?"]
+    question_variants_pt: ["Onde e permitido fumar?"]
     answer_tr: "Balkon, bahce, havuz cevresi ve restoranin acik alaninda sigara icebilirsiniz. Odalarimizda temiz hava ve konfor icin kesinlikle sigara icilmez."
     answer_en: "You may smoke on the balcony, in the garden, around the pool, and in the restaurant's outdoor area. Smoking is strictly not allowed in the rooms for comfort and fresh air."
 
@@ -565,6 +757,14 @@ faq_data:
     question_variants_tr: ["Evcil hayvanla gelebilir miyim?"]
     question_en: "Do you accept pets?"
     question_variants_en: ["Can I stay with my pet?"]
+    question_variants_ru: ["Можно с животными?"]
+    question_variants_de: ["Sind Haustiere erlaubt?"]
+    question_variants_ar: ["هل الحيوانات الاليفة مسموحة؟"]
+    question_variants_es: ["Se aceptan mascotas?"]
+    question_variants_fr: ["Les animaux sont-ils acceptes ?"]
+    question_variants_zh: ["可以带宠物吗？"]
+    question_variants_hi: ["क्या पालतू जानवरों की अनुमति है?"]
+    question_variants_pt: ["Animais de estimacao sao permitidos?"]
     answer_tr: "Hayir, otelimizde evcil hayvan kabul edilmemektedir."
     answer_en: "No, pets are not allowed at our hotel."
 
@@ -573,6 +773,14 @@ faq_data:
     question_variants_tr: ["Odaya erken giris mumkun mu?"]
     question_en: "Can I check in early?"
     question_variants_en: ["Is early check-in possible?"]
+    question_variants_ru: ["Можно раннее заселение?"]
+    question_variants_de: ["Ist ein fruher Check-in moglich?"]
+    question_variants_ar: ["هل يمكن تسجيل الوصول مبكرا؟"]
+    question_variants_es: ["Es posible hacer early check-in?"]
+    question_variants_fr: ["Un check-in anticipe est-il possible ?"]
+    question_variants_zh: ["可以提前入住吗？"]
+    question_variants_hi: ["क्या अर्ली चेक-इन संभव है?"]
+    question_variants_pt: ["E possivel fazer check-in antecipado?"]
     answer_tr: "Erken giris talepleri musaitlige gore degerlendirilir. Planladiginiz varis saatini paylasirsaniz ilgili ekibimiz size yardimci olur."
     answer_en: "Early check-in requests are evaluated subject to availability. If you share your planned arrival time, our team will be happy to assist you."
 
@@ -581,6 +789,14 @@ faq_data:
     question_variants_tr: ["Gec cikis mumkun mu?"]
     question_en: "Can I check out late?"
     question_variants_en: ["Is late check-out available?"]
+    question_variants_ru: ["Возможен поздний выезд?"]
+    question_variants_de: ["Ist ein spater Check-out moglich?"]
+    question_variants_ar: ["هل يمكن تسجيل المغادرة المتاخر؟"]
+    question_variants_es: ["Es posible hacer late check-out?"]
+    question_variants_fr: ["Un depart tardif est-il possible ?"]
+    question_variants_zh: ["可以延迟退房吗？"]
+    question_variants_hi: ["क्या लेट चेक-आउट संभव है?"]
+    question_variants_pt: ["E possivel fazer check-out tardio?"]
     answer_tr: "Gec cikis talepleri musaitlige baglidir ve ucretlidir. Planladiginiz cikis saatini paylasirsaniz ekibimiz uygunlugu kontrol ederek size yardimci olur."
     answer_en: "Late check-out requests are subject to availability and are charged. If you share your planned departure time, our team can check availability and assist you."
 
@@ -589,6 +805,14 @@ faq_data:
     question_variants_tr: ["Yemek oda servisi sunuyor musunuz?"]
     question_en: "Do you have room service?"
     question_variants_en: ["Can food be delivered to the room?"]
+    question_variants_ru: ["Есть обслуживание в номер?"]
+    question_variants_de: ["Gibt es Zimmerservice?"]
+    question_variants_ar: ["هل توجد خدمة الغرف؟"]
+    question_variants_es: ["Hay servicio a la habitacion?"]
+    question_variants_fr: ["Y a-t-il un service en chambre ?"]
+    question_variants_zh: ["有客房送餐服务吗？"]
+    question_variants_hi: ["क्या रूम सर्विस है?"]
+    question_variants_pt: ["Ha servico de quarto?"]
     answer_tr: "Oda servisi 08:00-21:00 saatleri arasinda sunulur ve teslim suresi yaklasik 30-45 dakikadir. Kahvaltida oda servisi yalnizca istisnai durumlarda degerlendirilir."
     answer_en: "Room service is available between 08:00 and 21:00, with an approximate delivery time of 30-45 minutes. Breakfast room service is considered only in exceptional cases."
 
@@ -597,6 +821,14 @@ faq_data:
     question_variants_tr: ["Havuzunuz isitiliyor mu?"]
     question_en: "Is the pool heated?"
     question_variants_en: ["Do you have a heated pool?"]
+    question_variants_ru: ["Бассейн подогревается?"]
+    question_variants_de: ["Ist der Pool beheizt?"]
+    question_variants_ar: ["هل المسبح مدفا؟"]
+    question_variants_es: ["La piscina es climatizada?"]
+    question_variants_fr: ["La piscine est-elle chauffee ?"]
+    question_variants_zh: ["泳池是恒温的吗？"]
+    question_variants_hi: ["क्या पूल गर्म है?"]
+    question_variants_pt: ["A piscina e aquecida?"]
     answer_tr: "Hayir, havuzumuz isitilmali degildir."
     answer_en: "No, our pool is not heated."
 
@@ -605,6 +837,14 @@ faq_data:
     question_variants_tr: ["Disaridan gelenler restorana gelebilir mi?"]
     question_en: "Can outside guests use the restaurant?"
     question_variants_en: ["Do you accept non-staying guests at the restaurant?"]
+    question_variants_ru: ["Могут ли внешние гости пользоваться рестораном?"]
+    question_variants_de: ["Konnen externe Gaste das Restaurant nutzen?"]
+    question_variants_ar: ["هل يمكن للضيوف من خارج الفندق استخدام المطعم؟"]
+    question_variants_es: ["Pueden los visitantes externos usar el restaurante?"]
+    question_variants_fr: ["Le restaurant accepte-t-il des clients externes ?"]
+    question_variants_zh: ["外来客人可以使用餐厅吗？"]
+    question_variants_hi: ["क्या बाहरी मेहमान रेस्टोरेंट का उपयोग कर सकते हैं?"]
+    question_variants_pt: ["Clientes externos podem usar o restaurante?"]
     answer_tr: "Evet, a la carte restoranimiz her ogunde disaridan misafir kabul eder. Hizmet ucretlidir ve rezervasyon gereklidir."
     answer_en: "Yes, our a la carte restaurant welcomes outside guests for every meal. The service is paid and a reservation is required."
 
@@ -613,6 +853,14 @@ faq_data:
     question_variants_tr: ["Havuz bar kactan kaca acik?"]
     question_en: "What are the pool bar hours?"
     question_variants_en: ["When is the pool bar open?"]
+    question_variants_ru: ["Во сколько работает бар у бассейна?"]
+    question_variants_de: ["Wann ist die Poolbar geoffnet?"]
+    question_variants_ar: ["ما ساعات عمل بار المسبح؟"]
+    question_variants_es: ["Cual es el horario del pool bar?"]
+    question_variants_fr: ["Quels sont les horaires du bar de la piscine ?"]
+    question_variants_zh: ["泳池吧几点营业？"]
+    question_variants_hi: ["पूल बार कितने बजे खुलता है?"]
+    question_variants_pt: ["Qual e o horario do pool bar?"]
     answer_tr: "Pool barimiz 12:00-18:00 saatleri arasinda ucretli hizmet vermektedir."
     answer_en: "Our pool bar operates as a paid service between 12:00 and 18:00."
 
@@ -621,6 +869,14 @@ faq_data:
     question_variants_tr: ["Bar kactan kaca acik?"]
     question_en: "What are the a la carte bar hours?"
     question_variants_en: ["When is the a la carte bar open?"]
+    question_variants_ru: ["Во сколько работает бар a la carte?"]
+    question_variants_de: ["Wann ist die A-la-carte-Bar geoffnet?"]
+    question_variants_ar: ["ما ساعات عمل بار الا لا كارت؟"]
+    question_variants_es: ["Cual es el horario del bar a la carte?"]
+    question_variants_fr: ["Quels sont les horaires du bar a la carte ?"]
+    question_variants_zh: ["单点酒吧几点营业？"]
+    question_variants_hi: ["आ ला कार्ट बार कितने बजे खुलता है?"]
+    question_variants_pt: ["Qual e o horario do bar a la carte?"]
     answer_tr: "A la carte barimiz 12:00-22:00 saatleri arasinda ucretli hizmet vermektedir."
     answer_en: "Our a la carte bar operates as a paid service between 12:00 and 22:00."
 
@@ -629,6 +885,14 @@ faq_data:
     question_variants_tr: ["Engelli erisimine uygun oda mevcut mu?"]
     question_en: "Do you have an accessible room?"
     question_variants_en: ["Are there mobility-friendly rooms?"]
+    question_variants_ru: ["Есть ли номер с удобным доступом?"]
+    question_variants_de: ["Gibt es ein barrierearmes Zimmer?"]
+    question_variants_ar: ["هل توجد غرفة مناسبة لسهولة الوصول؟"]
+    question_variants_es: ["Tienen habitacion accesible?"]
+    question_variants_fr: ["Avez-vous une chambre accessible ?"]
+    question_variants_zh: ["有无障碍房间吗？"]
+    question_variants_hi: ["क्या सुलभ कमरा उपलब्ध है?"]
+    question_variants_pt: ["Voces tem quarto acessivel?"]
     answer_tr: "Otelimizde asansor bulunmamaktadir. Deluxe ve bazi Superior odalar erisime daha uygun seceneklerimiz arasindadir. Ihtiyaciniza uygun oda icin resepsiyonumuz yardimci olabilir."
     answer_en: "Our hotel does not have an elevator. Deluxe and some Superior rooms are among our more accessible options. Our reception can help you choose the most suitable room."
 

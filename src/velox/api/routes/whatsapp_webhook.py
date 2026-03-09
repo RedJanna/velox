@@ -3,6 +3,7 @@
 import hashlib
 import re
 import time
+import unicodedata
 from collections import defaultdict, deque
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
@@ -16,6 +17,7 @@ from velox.adapters.elektraweb.endpoints import CHILD_OCCUPANCY_UNVERIFIED
 from velox.adapters.whatsapp.client import get_whatsapp_client
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.adapters.whatsapp.webhook import IncomingMessage, WhatsAppWebhook
+from velox.config.constants import SUPPORTED_LANGUAGES
 from velox.config.settings import settings
 from velox.core.hotel_profile_loader import get_profile
 from velox.core.pipeline import post_process_escalation
@@ -55,12 +57,11 @@ TR_CHILD_OCCUPANCY_NOTE = (
     "kontrol edip size ileteceğiz."
 )
 PRICE_ROUNDING_INCREMENT = Decimal("5")
-SUPPORTED_LANGUAGE_CODES = {"tr", "en", "ru"}
+SUPPORTED_LANGUAGE_CODES = set(SUPPORTED_LANGUAGES)
 TURKISH_LANGUAGE_HINTS = (
     "ve",
-    "için",
+    "icin",
     "lutfen",
-    "lütfen",
     "merhaba",
     "rezervasyon",
     "otel",
@@ -79,6 +80,83 @@ ENGLISH_LANGUAGE_HINTS = (
     "checkout",
     "airport",
     "transfer",
+)
+GERMAN_LANGUAGE_HINTS = (
+    "hallo",
+    "bitte",
+    "zimmer",
+    "preis",
+    "buchung",
+    "flughafen",
+    "transfer",
+    "fruhstuck",
+)
+ARABIC_LANGUAGE_HINTS = (
+    "حجز",
+    "غرفة",
+    "سعر",
+    "مطار",
+    "نقل",
+)
+SPANISH_LANGUAGE_HINTS = (
+    "hola",
+    "por favor",
+    "habitacion",
+    "precio",
+    "reserva",
+    "aeropuerto",
+    "traslado",
+    "desayuno",
+)
+FRENCH_LANGUAGE_HINTS = (
+    "bonjour",
+    "chambre",
+    "prix",
+    "reservation",
+    "aeroport",
+    "transfert",
+    "petit dejeuner",
+)
+CHINESE_LANGUAGE_HINTS = (
+    "酒店",
+    "房间",
+    "价格",
+    "机场",
+    "接送",
+)
+HINDI_LANGUAGE_HINTS = (
+    "होटल",
+    "कमरा",
+    "कीमत",
+    "बुकिंग",
+    "एयरपोर्ट",
+)
+PORTUGUESE_LANGUAGE_HINTS = (
+    "ola",
+    "por favor",
+    "quarto",
+    "preco",
+    "reserva",
+    "aeroporto",
+    "transfer",
+    "cafe da manha",
+)
+LANGUAGE_HINTS = {
+    "tr": TURKISH_LANGUAGE_HINTS,
+    "en": ENGLISH_LANGUAGE_HINTS,
+    "de": GERMAN_LANGUAGE_HINTS,
+    "ar": ARABIC_LANGUAGE_HINTS,
+    "es": SPANISH_LANGUAGE_HINTS,
+    "fr": FRENCH_LANGUAGE_HINTS,
+    "zh": CHINESE_LANGUAGE_HINTS,
+    "hi": HINDI_LANGUAGE_HINTS,
+    "pt": PORTUGUESE_LANGUAGE_HINTS,
+}
+SCRIPT_LANGUAGE_PATTERNS = (
+    (re.compile(r"[\u0400-\u04FF]"), "ru"),
+    (re.compile(r"[\u0600-\u06FF]"), "ar"),
+    (re.compile(r"[\u0900-\u097F]"), "hi"),
+    (re.compile(r"[\u4E00-\u9FFF]"), "zh"),
 )
 
 
@@ -374,25 +452,37 @@ def _contains_keyword(text: str, keyword: str) -> bool:
     return re.search(rf"\b{re.escape(keyword)}\b", text) is not None
 
 
+def _normalize_language_text(text: str) -> str:
+    """Normalize free text for lightweight language hint matching."""
+    folded = text.casefold().strip().replace("ı", "i")
+    decomposed = unicodedata.normalize("NFKD", folded)
+    stripped = "".join(char for char in decomposed if not unicodedata.combining(char))
+    return " ".join(stripped.split())
+
+
 def _detect_message_language(text: str, fallback: str = "tr") -> str:
     """Detect guest message language with lightweight heuristics."""
-    normalized = text.casefold().strip()
+    normalized = _normalize_language_text(text)
     if not normalized:
         return fallback if fallback in SUPPORTED_LANGUAGE_CODES else "tr"
 
-    if re.search(r"[\u0400-\u04FF]", normalized):
-        return "ru"
+    for pattern, language_code in SCRIPT_LANGUAGE_PATTERNS:
+        if pattern.search(text):
+            return language_code
 
-    turkish_score = sum(1 for keyword in TURKISH_LANGUAGE_HINTS if _contains_keyword(normalized, keyword))
-    english_score = sum(1 for keyword in ENGLISH_LANGUAGE_HINTS if _contains_keyword(normalized, keyword))
+    scores = {
+        language_code: sum(1 for keyword in keywords if _contains_keyword(normalized, keyword))
+        for language_code, keywords in LANGUAGE_HINTS.items()
+    }
+    if re.search(r"[çğış]", text.casefold()):
+        scores["tr"] += 2
 
-    if re.search(r"[çğıöşü]", normalized):
-        turkish_score += 2
-
-    if english_score > turkish_score and english_score > 0:
-        return "en"
-    if turkish_score > english_score and turkish_score > 0:
-        return "tr"
+    best_language = max(scores, key=scores.get)
+    best_score = scores[best_language]
+    if best_score > 0:
+        top_languages = [language_code for language_code, score in scores.items() if score == best_score]
+        if len(top_languages) == 1:
+            return best_language
     if fallback in SUPPORTED_LANGUAGE_CODES:
         return fallback
     return "tr"
@@ -572,7 +662,10 @@ def _find_profile_room(profile: Any, offer: dict[str, Any]) -> Any | None:
             _canonical_text(getattr(localized_name, "tr", "")),
             _canonical_text(getattr(localized_name, "en", "")),
         }
-        if any(candidate and (offer_name == candidate or offer_name in candidate or candidate in offer_name) for candidate in candidates):
+        if any(
+            candidate and (offer_name == candidate or offer_name in candidate or candidate in offer_name)
+            for candidate in candidates
+        ):
             return room
     return None
 
@@ -654,7 +747,10 @@ def _build_deterministic_turkish_stay_quote_reply(
             bucket["profile_room"] = profile_room
 
         current_offer = bucket["offers"].get(policy_key)
-        if current_offer is None or _decimal_from_value(offer.get("price")) < _decimal_from_value(current_offer.get("price")):
+        if current_offer is None or (
+            _decimal_from_value(offer.get("price"))
+            < _decimal_from_value(current_offer.get("price"))
+        ):
             bucket["offers"][policy_key] = offer
             bucket["sample_offer"] = offer
 

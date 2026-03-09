@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from velox.config.constants import SUPPORTED_LANGUAGES
+
 
 def _def(name: str, description: str, parameters: dict[str, Any]) -> dict[str, Any]:
     """Build a function definition item."""
@@ -422,7 +424,11 @@ def get_tool_definitions() -> list[dict[str, Any]]:
                 "properties": {
                     "hotel_id": {"type": "integer"},
                     "query": {"type": "string"},
-                    "language": {"type": "string", "enum": ["TR", "EN"], "default": "EN"},
+                    "language": {
+                        "type": "string",
+                        "enum": [language.upper() for language in SUPPORTED_LANGUAGES],
+                        "default": "EN",
+                    },
                 },
                 "required": ["hotel_id", "query", "language"],
             },

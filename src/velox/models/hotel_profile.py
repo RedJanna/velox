@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel, Field
 
+from velox.config.constants import SUPPORTED_LANGUAGES
+
 
 class LocalizedText(BaseModel):
     tr: str = ""
@@ -80,8 +82,37 @@ class FAQEntry(BaseModel):
     question_en: str = ""
     question_variants_tr: list[str] = Field(default_factory=list)
     question_variants_en: list[str] = Field(default_factory=list)
+    question_variants_ru: list[str] = Field(default_factory=list)
+    question_variants_de: list[str] = Field(default_factory=list)
+    question_variants_ar: list[str] = Field(default_factory=list)
+    question_variants_es: list[str] = Field(default_factory=list)
+    question_variants_fr: list[str] = Field(default_factory=list)
+    question_variants_zh: list[str] = Field(default_factory=list)
+    question_variants_hi: list[str] = Field(default_factory=list)
+    question_variants_pt: list[str] = Field(default_factory=list)
     answer_tr: str = ""
     answer_en: str = ""
+
+    def question_variants_for_language(self, language: str) -> list[str]:
+        """Return question variants for the requested language code."""
+        language_code = language.casefold()
+        if language_code not in SUPPORTED_LANGUAGES:
+            return []
+        return list(getattr(self, f"question_variants_{language_code}", []))
+
+    def question_candidates_for_language(self, language: str) -> list[str]:
+        """Return the primary question plus variants for a language when available."""
+        language_code = language.casefold()
+        candidates: list[str] = []
+        primary_question = getattr(self, f"question_{language_code}", "")
+        if isinstance(primary_question, str) and primary_question.strip():
+            candidates.append(primary_question.strip())
+        candidates.extend(
+            variant.strip()
+            for variant in self.question_variants_for_language(language_code)
+            if isinstance(variant, str) and variant.strip()
+        )
+        return candidates
 
 
 class HotelProfile(BaseModel):
