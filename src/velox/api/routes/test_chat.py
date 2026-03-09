@@ -1,25 +1,32 @@
 """Test chat endpoints and web UI — disabled in production."""
 
-from datetime import datetime
+from datetime import UTC, datetime
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Request
+import structlog
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
-import structlog
 
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
+from velox.api.routes.test_chat_export import (
+    ConversationExportPayload,
+    ExportFormat,
+    build_export_file_content,
+    build_export_filename,
+)
+
+# Cross-module imports for reusing core pipeline logic (no WhatsApp API calls).
+from velox.api.routes.whatsapp_webhook import (
+    _hash_phone,
+    _mask_phone,
+    _normalize_text,
+    _run_message_pipeline,
+)
 from velox.config.settings import settings
 from velox.db.repositories.conversation import ConversationRepository
 from velox.llm.client import get_llm_client
 from velox.models.conversation import Conversation, Message
-
-# Cross-module imports for reusing core pipeline logic (no WhatsApp API calls).
-from velox.api.routes.whatsapp_webhook import (
-    _run_message_pipeline,
-    _normalize_text,
-    _hash_phone,
-    _mask_phone,
-)
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/test", tags=["test-chat"])
@@ -53,6 +60,42 @@ def _ensure_test_phone(phone: str) -> str:
     if phone.startswith(TEST_PHONE_PREFIX):
         return phone
     return f"{TEST_PHONE_PREFIX}{phone}"
+
+
+def _serialize_message(message: Message) -> dict[str, Any]:
+    return {
+        "id": str(message.id),
+        "role": message.role,
+        "content": message.content,
+        "internal_json": message.internal_json,
+        "created_at": message.created_at.isoformat(),
+    }
+
+
+def _conversation_state_value(conversation: Conversation) -> str:
+    if hasattr(conversation.current_state, "value"):
+        return str(conversation.current_state.value)
+    return str(conversation.current_state)
+
+
+def _conversation_intent_value(conversation: Conversation) -> str | None:
+    if conversation.current_intent is None:
+        return None
+    if hasattr(conversation.current_intent, "value"):
+        return str(conversation.current_intent.value)
+    return str(conversation.current_intent)
+
+
+def _serialize_conversation(conversation: Conversation) -> dict[str, Any]:
+    return {
+        "id": str(conversation.id),
+        "state": _conversation_state_value(conversation),
+        "intent": _conversation_intent_value(conversation),
+        "language": conversation.language,
+        "entities": conversation.entities_json,
+        "risk_flags": conversation.risk_flags,
+        "is_active": conversation.is_active,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -107,15 +150,7 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
     return TestChatResponse(
         reply=reply_text,
         internal_json=llm_response.internal_json.model_dump(mode="json"),
-        conversation={
-            "id": str(conversation.id),
-            "state": conversation.current_state.value if hasattr(conversation.current_state, "value") else str(conversation.current_state),
-            "intent": conversation.current_intent.value if conversation.current_intent and hasattr(conversation.current_intent, "value") else str(conversation.current_intent) if conversation.current_intent else None,
-            "language": conversation.language,
-            "entities": conversation.entities_json,
-            "risk_flags": conversation.risk_flags,
-            "is_active": conversation.is_active,
-        },
+        conversation=_serialize_conversation(conversation),
         timestamp=datetime.now().isoformat(),
     )
 
@@ -137,25 +172,8 @@ async def test_chat_history(request: Request, phone: str = "test_user_123") -> d
 
     messages = await repo.get_messages(conversation.id, limit=100, offset=0)
     return {
-        "messages": [
-            {
-                "id": str(m.id),
-                "role": m.role,
-                "content": m.content,
-                "internal_json": m.internal_json,
-                "created_at": m.created_at.isoformat(),
-            }
-            for m in messages
-        ],
-        "conversation": {
-            "id": str(conversation.id),
-            "state": conversation.current_state.value if hasattr(conversation.current_state, "value") else str(conversation.current_state),
-            "intent": conversation.current_intent.value if conversation.current_intent and hasattr(conversation.current_intent, "value") else str(conversation.current_intent) if conversation.current_intent else None,
-            "language": conversation.language,
-            "entities": conversation.entities_json,
-            "risk_flags": conversation.risk_flags,
-            "is_active": conversation.is_active,
-        },
+        "messages": [_serialize_message(message) for message in messages],
+        "conversation": _serialize_conversation(conversation),
     }
 
 
@@ -176,6 +194,38 @@ async def test_chat_reset(request: Request, phone: str = "test_user_123") -> dic
 
     await repo.close(conversation.id)
     return {"status": "reset", "closed_conversation_id": str(conversation.id)}
+
+
+@router.get("/chat/export")
+async def test_chat_export(
+    request: Request,
+    phone: str = "test_user_123",
+    export_format: Annotated[ExportFormat, Query(alias="format")] = "md",
+) -> Response:
+    """Export active test conversation as json/pdf/md/txt."""
+    phone = _ensure_test_phone(phone)
+    db_pool = getattr(request.app.state, "db_pool", None)
+    if db_pool is None:
+        raise HTTPException(status_code=503, detail="Database not available")
+
+    repository = ConversationRepository()
+    phone_hash = _hash_phone(phone)
+    conversation = await repository.get_active_by_phone(settings.elektra_hotel_id, phone_hash)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="No active conversation for this phone")
+
+    messages = await repository.get_messages(conversation.id, limit=500, offset=0)
+    exported_at = datetime.now(UTC)
+    payload = ConversationExportPayload(
+        phone=phone,
+        conversation=_serialize_conversation(conversation),
+        messages=[_serialize_message(message) for message in messages],
+        exported_at=exported_at,
+    )
+    content, media_type, extension = build_export_file_content(export_format, payload)
+    filename = build_export_filename(phone=phone, extension=extension, exported_at=exported_at)
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return Response(content=content, media_type=media_type, headers=headers)
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +292,8 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
 .btn{border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
 .btn-reset{background:var(--red);color:var(--white)}
 .btn-reset:hover{background:#dc2626}
+.btn-save{background:var(--gold);color:var(--navy)}
+.btn-save:hover{background:#d1a238}
 .btn-toggle{background:rgba(255,255,255,.12);color:var(--white);display:none}
 .btn-toggle:hover{background:rgba(255,255,255,.2)}
 
@@ -331,6 +383,14 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
       <label>Phone</label>
       <input type="text" id="phone-input" value="test_user_123">
       <button class="btn btn-reset" onclick="resetConversation()">Reset</button>
+      <label>Save</label>
+      <select id="save-format" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#fff;padding:6px 8px;font-size:12px;outline:none;cursor:pointer">
+        <option value="md">.md</option>
+        <option value="txt">.txt</option>
+        <option value="json">.json</option>
+        <option value="pdf">.pdf</option>
+      </select>
+      <button class="btn btn-save" onclick="downloadConversation()">Farkli Kaydet</button>
       <button class="btn btn-toggle" id="toggle-debug" onclick="toggleDebug()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V6a2 2 0 00-2-2zm0 14H4V6h16v12z"/></svg>
         Debug
@@ -537,6 +597,13 @@ async function resetConversation() {
   document.getElementById('d-next').textContent = '-';
   document.getElementById('d-full').textContent = '{}';
   addBubble('system', 'Konusma sifirlandi. Yeni bir mesaj gonderin.');
+}
+
+function downloadConversation() {
+  const phone = document.getElementById('phone-input').value.trim() || 'test_user_123';
+  const format = document.getElementById('save-format').value || 'md';
+  const url = API + '/chat/export?phone=' + encodeURIComponent(phone) + '&format=' + encodeURIComponent(format);
+  window.open(url, '_blank');
 }
 
 function toggleDebug() {
