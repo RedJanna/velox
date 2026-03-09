@@ -117,6 +117,48 @@ async def test_quote_sends_child_alias_params(monkeypatch: pytest.MonkeyPatch) -
 
 
 @pytest.mark.asyncio
+async def test_quote_parses_live_room_and_rate_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Live Elektra list responses should preserve room/rate labels used by quote formatting."""
+    mock_client = AsyncMock()
+    mock_client.get.return_value = [
+        {
+            "room-type-id": 396094,
+            "room-type": "DELUXE",
+            "board-type-id": 44512,
+            "board-type": "Kahvaltı Dahil",
+            "rate-type-id": 24178,
+            "rate-type": "Ücretsiz İptal",
+            "RATECODEID": 183666,
+            "currency": "EUR",
+            "price": "546.7",
+            "room-area": 25,
+            "cancel-possible": True,
+            "pax-count": {
+                "adult": 1,
+                "elder-child-count": 1,
+                "younger-child-count": 0,
+                "baby-count": 0,
+            },
+        }
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+
+    result = await endpoints.quote(
+        hotel_id=21966,
+        checkin=date(2026, 8, 3),
+        checkout=date(2026, 8, 5),
+        adults=1,
+        chd_ages=[8],
+    )
+
+    assert result.offers[0].room_type == "DELUXE"
+    assert result.offers[0].rate_type == "Ücretsiz İptal"
+    assert result.offers[0].rate_code_id == 183666
+    assert result.offers[0].room_area == 25
+    assert result.offers[0].cancel_possible is True
+
+
+@pytest.mark.asyncio
 async def test_quote_raises_when_child_occupancy_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
     """Child quote requests must fail if PMS returns adult-only occupancy."""
     mock_client = AsyncMock()

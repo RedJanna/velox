@@ -1,6 +1,7 @@
 """WhatsApp webhook routes for verification and incoming messages."""
 
 from collections import defaultdict, deque
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
 import re
 import time
@@ -53,6 +54,7 @@ TR_CHILD_OCCUPANCY_NOTE = (
     "Çocuklu konaklamalarda yanlış fiyat vermemek için resmi fiyatınızı manuel olarak "
     "kontrol edip size ileteceğiz."
 )
+PRICE_ROUNDING_INCREMENT = Decimal("5")
 
 
 class SlidingWindowRateLimiter:
@@ -196,6 +198,18 @@ def _loads_tool_payload(value: Any) -> dict[str, Any]:
         if isinstance(loaded, dict):
             return loaded
     return {}
+
+
+def _extract_quote_offers(executed_calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return normalized booking quote offers from the latest executed tool result."""
+    for call in reversed(executed_calls):
+        if str(call.get("name") or "") != "booking_quote":
+            continue
+        result = _loads_tool_payload(call.get("result"))
+        offers = result.get("offers")
+        if isinstance(offers, list):
+            return [item for item in offers if isinstance(item, dict)]
+    return []
 
 
 def _extract_requested_occupancy(executed_calls: list[dict[str, Any]]) -> dict[str, Any]:
@@ -366,6 +380,186 @@ def _build_turkish_child_bedding_reply(hotel_id: int, entities: dict[str, Any]) 
     return "\n\n".join(lines).strip()
 
 
+def _decimal_from_value(value: Any) -> Decimal:
+    """Convert arbitrary numeric payload values into Decimal safely."""
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal("0")
+
+
+def _round_price_for_display(value: Any) -> int:
+    """Round prices to the nearest 5 units for guest-facing display."""
+    amount = _decimal_from_value(value)
+    rounded = (amount / PRICE_ROUNDING_INCREMENT).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return int(rounded * PRICE_ROUNDING_INCREMENT)
+
+
+def _profile_rate_type_id(profile: Any, policy_key: str) -> int:
+    """Read configured PMS rate_type_id for a cancellation policy."""
+    if profile is None:
+        return 0
+    mapping = getattr(profile, "rate_mapping", {}).get(policy_key)
+    return int(getattr(mapping, "rate_type_id", 0) or 0)
+
+
+def _resolve_quote_policy_key(offer: dict[str, Any], profile: Any) -> str | None:
+    """Map an Elektra offer row to FREE_CANCEL or NON_REFUNDABLE."""
+    rate_type_id = int(offer.get("rate_type_id", 0) or 0)
+    free_cancel_rate_type_id = _profile_rate_type_id(profile, "FREE_CANCEL")
+    non_refundable_rate_type_id = _profile_rate_type_id(profile, "NON_REFUNDABLE")
+    normalized_rate = _canonical_text(str(offer.get("rate_type") or ""))
+    cancel_possible = bool(offer.get("cancel_possible"))
+
+    if rate_type_id and rate_type_id == free_cancel_rate_type_id:
+        return "FREE_CANCEL"
+    if rate_type_id and rate_type_id == non_refundable_rate_type_id:
+        return "NON_REFUNDABLE"
+    if normalized_rate in {"ucretsiziptal", "freecancel"} or cancel_possible:
+        return "FREE_CANCEL"
+    if normalized_rate in {"iptaledilemez", "iadeyapilmaz", "nonrefundable"}:
+        return "NON_REFUNDABLE"
+    return None
+
+
+def _find_profile_room(profile: Any, offer: dict[str, Any]) -> Any | None:
+    """Resolve a live PMS offer row to the configured hotel profile room."""
+    if profile is None:
+        return None
+
+    room_type_id = int(offer.get("room_type_id", 0) or 0)
+    for room in getattr(profile, "room_types", []):
+        if room_type_id and int(getattr(room, "pms_room_type_id", 0) or 0) == room_type_id:
+            return room
+
+    offer_name = _canonical_text(str(offer.get("room_type") or ""))
+    for room in getattr(profile, "room_types", []):
+        localized_name = getattr(room, "name", None)
+        candidates = {
+            _canonical_text(getattr(localized_name, "tr", "")),
+            _canonical_text(getattr(localized_name, "en", "")),
+        }
+        if any(candidate and (offer_name == candidate or offer_name in candidate or candidate in offer_name) for candidate in candidates):
+            return room
+    return None
+
+
+def _display_room_name(profile_room: Any | None, offer: dict[str, Any]) -> str:
+    """Build the Turkish room label expected in guest-facing quote replies."""
+    localized_name = getattr(profile_room, "name", None)
+    base_name = str(
+        getattr(localized_name, "tr", "")
+        or offer.get("room_type")
+        or ""
+    ).strip()
+    normalized_name = _canonical_text(base_name)
+    mapped_names = {
+        "deluxe": "Deluxe",
+        "superior": "Superior",
+        "exclusiveland": "Exclusive Sokak Manzaralı",
+        "exclusivepool": "Exclusive Havuz Manzaralı",
+        "penthouseland": "Penthouse Land - Jakuzili",
+        "penthouse": "Penthouse - Jakuzili",
+        "premium": "Premium - Jakuzili",
+    }
+    if normalized_name in mapped_names:
+        return mapped_names[normalized_name]
+    return base_name.title() if base_name else "Oda"
+
+
+def _resolve_room_size(profile_room: Any | None, offer: dict[str, Any]) -> int | None:
+    """Return room size using profile data first and PMS payload as fallback."""
+    profile_size = int(getattr(profile_room, "size_m2", 0) or 0)
+    if profile_size > 0:
+        return profile_size
+    offer_size = int(offer.get("room_area", 0) or 0)
+    return offer_size or None
+
+
+def _format_offer_price(offer: dict[str, Any]) -> str:
+    """Format a single offer price for guest display."""
+    price_value = offer.get("discounted_price")
+    if price_value in (None, "", 0, "0"):
+        price_value = offer.get("price", 0)
+    rounded_amount = _round_price_for_display(price_value)
+    currency_code = str(offer.get("currency_code") or offer.get("currency") or "EUR").upper()
+    if currency_code == "EUR":
+        return f"{rounded_amount} €"
+    return f"{rounded_amount} {currency_code}"
+
+
+def _build_deterministic_turkish_stay_quote_reply(
+    hotel_id: int,
+    executed_calls: list[dict[str, Any]],
+) -> str | None:
+    """Format Turkish quote replies directly from booking_quote tool output."""
+    offers = _extract_quote_offers(executed_calls)
+    if not offers:
+        return None
+
+    profile = get_profile(hotel_id)
+    room_order: dict[int, int] = {}
+    if profile is not None:
+        room_order = {
+            int(getattr(room, "pms_room_type_id", 0) or 0): index
+            for index, room in enumerate(getattr(profile, "room_types", []))
+        }
+
+    grouped_offers: dict[Any, dict[str, Any]] = {}
+    for offer in offers:
+        policy_key = _resolve_quote_policy_key(offer, profile)
+        if policy_key is None:
+            continue
+
+        profile_room = _find_profile_room(profile, offer)
+        room_key = int(offer.get("room_type_id", 0) or 0) or _canonical_text(str(offer.get("room_type") or ""))
+        bucket = grouped_offers.setdefault(
+            room_key,
+            {"profile_room": profile_room, "offers": {}, "sample_offer": offer},
+        )
+        if bucket["profile_room"] is None and profile_room is not None:
+            bucket["profile_room"] = profile_room
+
+        current_offer = bucket["offers"].get(policy_key)
+        if current_offer is None or _decimal_from_value(offer.get("price")) < _decimal_from_value(current_offer.get("price")):
+            bucket["offers"][policy_key] = offer
+            bucket["sample_offer"] = offer
+
+    if not grouped_offers:
+        return None
+
+    ordered_groups = sorted(
+        grouped_offers.values(),
+        key=lambda group: (
+            room_order.get(int(group["sample_offer"].get("room_type_id", 0) or 0), 9999),
+            _display_room_name(group.get("profile_room"), group["sample_offer"]),
+        ),
+    )
+
+    blocks: list[str] = []
+    for group in ordered_groups:
+        sample_offer = group["sample_offer"]
+        profile_room = group.get("profile_room")
+        size_m2 = _resolve_room_size(profile_room, sample_offer)
+        header = _display_room_name(profile_room, sample_offer)
+        if size_m2 is not None:
+            header = f"{header} ({size_m2}m2)"
+
+        room_lines = [header]
+        non_refundable_offer = group["offers"].get("NON_REFUNDABLE")
+        free_cancel_offer = group["offers"].get("FREE_CANCEL")
+        if non_refundable_offer is not None:
+            room_lines.append(f"İptal edilemez: {_format_offer_price(non_refundable_offer)}")
+        if free_cancel_offer is not None:
+            room_lines.append(f"Ücretsiz İptal: {_format_offer_price(free_cancel_offer)}")
+        if len(room_lines) > 1:
+            blocks.append("\n".join(room_lines))
+
+    if not blocks:
+        return None
+    return "\n\n".join(blocks)
+
+
 def _normalize_turkish_stay_quote_reply(reply_text: str, user_text: str) -> str:
     """Apply deterministic Turkish pricing wording and required notes."""
     normalized_reply = (
@@ -462,6 +656,12 @@ async def _run_message_pipeline(
             parsed.user_message = _build_turkish_child_bedding_reply(conversation.hotel_id, entities)
             return parsed
         if intent == "stay_quote" and language == "tr" and _executed_booking_quote(executed_calls):
+            deterministic_reply = _build_deterministic_turkish_stay_quote_reply(
+                conversation.hotel_id,
+                executed_calls,
+            )
+            if deterministic_reply:
+                parsed.user_message = deterministic_reply
             parsed.user_message = _normalize_turkish_stay_quote_reply(parsed.user_message, normalized_text)
         return parsed
     except LLMUnavailableError:

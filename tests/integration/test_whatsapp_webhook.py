@@ -37,7 +37,7 @@ def test_get_verification_correct_and_incorrect_tokens(
         params={"hub.mode": "subscribe", "hub.verify_token": "wrong", "hub.challenge": "abc"},
     )
     assert ok.status_code == 200
-    assert ok.json() == "abc"
+    assert ok.text == "abc"
     assert bad.status_code == 403
 
 
@@ -232,3 +232,69 @@ def test_parking_detection_does_not_match_havale() -> None:
     """Parking detection must not confuse 'havale' with 'vale'."""
     assert whatsapp_webhook._is_parking_question("Kredi kartı dışında havale kabul ediyor musunuz?") is False
     assert whatsapp_webhook._is_payment_method_question("Kredi kartı dışında havale kabul ediyor musunuz?") is True
+
+
+def test_deterministic_turkish_quote_reply_uses_live_rate_types(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stay quote replies should be built from live FREE_CANCEL/NON_REFUNDABLE offers only."""
+    profile = SimpleNamespace(
+        rate_mapping={
+            "FREE_CANCEL": SimpleNamespace(rate_type_id=24178),
+            "NON_REFUNDABLE": SimpleNamespace(rate_type_id=24171),
+        },
+        room_types=[
+            SimpleNamespace(
+                pms_room_type_id=396094,
+                name=SimpleNamespace(tr="Deluxe"),
+                size_m2=25,
+            ),
+            SimpleNamespace(
+                pms_room_type_id=396097,
+                name=SimpleNamespace(tr="Superior"),
+                size_m2=30,
+            ),
+            SimpleNamespace(
+                pms_room_type_id=397738,
+                name=SimpleNamespace(tr="Exclusive Land"),
+                size_m2=40,
+            ),
+        ],
+    )
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: profile)
+    executed_calls = [
+        {
+            "name": "booking_quote",
+            "result": (
+                '{"offers":['
+                '{"room_type_id":396094,"room_type":"DELUXE","rate_type_id":24169,"rate_type":"Kontrat","price":"710","discounted_price":"497","currency_code":"EUR","room_area":25,"cancel_possible":false},'
+                '{"room_type_id":396094,"room_type":"DELUXE","rate_type_id":24171,"rate_type":"İptal Edilemez","price":"710","discounted_price":"496.9","currency_code":"EUR","room_area":25,"cancel_possible":false},'
+                '{"room_type_id":396094,"room_type":"DELUXE","rate_type_id":24178,"rate_type":"Ücretsiz İptal","price":"781","discounted_price":"546.7","currency_code":"EUR","room_area":25,"cancel_possible":true},'
+                '{"room_type_id":396097,"room_type":"SUPERIOR","rate_type_id":24171,"rate_type":"İptal Edilemez","price":"729","discounted_price":"510.3","currency_code":"EUR","room_area":30,"cancel_possible":false},'
+                '{"room_type_id":396097,"room_type":"SUPERIOR","rate_type_id":24178,"rate_type":"Ücretsiz İptal","price":"801.9","discounted_price":"561.3","currency_code":"EUR","room_area":30,"cancel_possible":true},'
+                '{"room_type_id":397738,"room_type":"EXCLUSIVE LAND","rate_type_id":24171,"rate_type":"İptal Edilemez","price":"748","discounted_price":"523.6","currency_code":"EUR","room_area":40,"cancel_possible":false},'
+                '{"room_type_id":397738,"room_type":"EXCLUSIVE LAND","rate_type_id":24178,"rate_type":"Ücretsiz İptal","price":"822.8","discounted_price":"575.9","currency_code":"EUR","room_area":40,"cancel_possible":true}'
+                ']}'
+            ),
+        }
+    ]
+
+    reply = whatsapp_webhook._build_deterministic_turkish_stay_quote_reply(21966, executed_calls)
+
+    assert reply is not None
+    assert "Deluxe (25m2)" in reply
+    assert "İptal edilemez: 495 €" in reply
+    assert "Ücretsiz İptal: 545 €" in reply
+    assert "Superior (30m2)" in reply
+    assert "Exclusive Sokak Manzaralı (40m2)" in reply
+    assert "Kontrat" not in reply
+
+
+def test_normalized_turkish_quote_reply_keeps_notes_single() -> None:
+    """Deterministic quote text should receive the required notes exactly once."""
+    reply = whatsapp_webhook._normalize_turkish_stay_quote_reply(
+        "Deluxe (25m2)\nİptal edilemez: 495 €\nÜcretsiz İptal: 545 €",
+        "3 Ağustos ile 5 Ağustos arasında 1 yetişkin + 1 çocuk (8 yaş) için fiyat alabilir miyim?",
+    )
+
+    assert reply.count(whatsapp_webhook.TR_FREE_CANCEL_NOTE) == 1
+    assert reply.count(whatsapp_webhook.TR_NON_REFUNDABLE_NOTE) == 1
+    assert reply.count(whatsapp_webhook.TR_ROOM_NUMBER_NOTE) == 1

@@ -46,13 +46,18 @@ class BookingOffer(BaseModel):
 
     id: str = ""
     room_type_id: int
+    room_type: str = ""
     board_type_id: int
+    board_type: str = ""
     rate_type_id: int
+    rate_type: str = ""
     rate_code_id: int
     price_agency_id: int | None = None
     currency_code: str = "EUR"
     price: Decimal
     discounted_price: Decimal
+    room_area: int | None = None
+    cancel_possible: bool = False
     cancellation_penalty: dict = Field(default_factory=dict)
 
 
@@ -115,13 +120,18 @@ def parse_quote(raw: dict | list) -> QuoteResponse:
                 BookingOffer(
                     id=str(item.get("id", "")),
                     room_type_id=int(item.get("room_type_id", 0) or 0),
+                    room_type=str(item.get("room_type", "")),
                     board_type_id=int(item.get("board_type_id", 0) or 0),
+                    board_type=str(item.get("board_type", "")),
                     rate_type_id=int(item.get("rate_type_id", 0) or 0),
-                    rate_code_id=int(item.get("rate_code_id", 0) or 0),
+                    rate_type=str(item.get("rate_type", "")),
+                    rate_code_id=int(item.get("rate_code_id", item.get("ratecodeid", 0)) or 0),
                     price_agency_id=item.get("price_agency_id"),
-                    currency_code=str(item.get("currency", "EUR")),
+                    currency_code=str(item.get("currency_code", item.get("currency", "EUR"))),
                     price=item.get("price", 0),
                     discounted_price=item.get("discounted_price", item.get("price", 0)),
+                    room_area=int(item.get("room_area", 0) or 0) or None,
+                    cancel_possible=bool(item.get("cancel_possible", item.get("cancelpossible", False))),
                     cancellation_penalty=item.get("cancellation_penalty") or {},
                 )
             )
