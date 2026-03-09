@@ -68,6 +68,55 @@ async def test_successful_quote_with_offers(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 @pytest.mark.asyncio
+async def test_quote_sends_child_alias_params(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Quote request should send Elektra's child occupancy aliases and buckets."""
+    mock_client = AsyncMock()
+    mock_client.get.return_value = [
+        {
+            "id": "of1",
+            "room-type-id": 66,
+            "board-type-id": 2,
+            "rate-type-id": 10,
+            "rate-code-id": 101,
+            "price-agency-id": 1,
+            "currency": "EUR",
+            "price": "120.0",
+            "discounted-price": "100.0",
+            "pax-count": {
+                "adult": 2,
+                "elder-child-count": 1,
+                "younger-child-count": 1,
+                "baby-count": 0,
+            },
+            "cancellation-penalty": {},
+        }
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+
+    await endpoints.quote(
+        hotel_id=21966,
+        checkin=date(2026, 7, 1),
+        checkout=date(2026, 7, 5),
+        adults=2,
+        chd_ages=[10, 3],
+        currency="EUR",
+        nationality="TR",
+    )
+
+    _, kwargs = mock_client.get.await_args
+    params = kwargs["params"]
+    assert params["childage"] == "10,3"
+    assert params["child-age"] == "10,3"
+    assert params["child-ages"] == "10,3"
+    assert params["child"] == 2
+    assert params["child-count"] == 2
+    assert params["children-count"] == 2
+    assert params["elder-child-count"] == 1
+    assert params["younger-child-count"] == 1
+    assert params["baby-count"] == 0
+
+
+@pytest.mark.asyncio
 async def test_quote_raises_when_child_occupancy_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
     """Child quote requests must fail if PMS returns adult-only occupancy."""
     mock_client = AsyncMock()
@@ -99,6 +148,41 @@ async def test_quote_raises_when_child_occupancy_is_ignored(monkeypatch: pytest.
             checkout=date(2026, 8, 12),
             adults=2,
             chd_ages=[7],
+        )
+
+
+@pytest.mark.asyncio
+async def test_quote_raises_when_child_buckets_do_not_match(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Child quote requests must fail when PMS echoes wrong younger/elder buckets."""
+    mock_client = AsyncMock()
+    mock_client.get.return_value = [
+        {
+            "id": "of1",
+            "room-type-id": 66,
+            "board-type-id": 2,
+            "rate-type-id": 10,
+            "rate-code-id": 101,
+            "price-agency-id": 1,
+            "currency": "EUR",
+            "price": "120.0",
+            "discounted-price": "100.0",
+            "pax-count": {
+                "adult": 2,
+                "elder-child-count": 0,
+                "younger-child-count": 2,
+                "baby-count": 0,
+            },
+            "cancellation-penalty": {},
+        }
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    with pytest.raises(RuntimeError, match="CHILD_OCCUPANCY_UNVERIFIED"):
+        await endpoints.quote(
+            hotel_id=21966,
+            checkin=date(2026, 7, 1),
+            checkout=date(2026, 7, 5),
+            adults=2,
+            chd_ages=[10, 3],
         )
 
 

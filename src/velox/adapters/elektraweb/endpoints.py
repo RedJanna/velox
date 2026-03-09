@@ -21,20 +21,66 @@ logger = structlog.get_logger(__name__)
 CHILD_OCCUPANCY_UNVERIFIED = "CHILD_OCCUPANCY_UNVERIFIED"
 
 
+def _requested_child_ages(chd_count: int, chd_ages: list[int] | None) -> list[int]:
+    """Return normalized child ages for request construction."""
+    if chd_ages:
+        return list(chd_ages)
+    return [0] * chd_count
+
+
+def _child_bucket_counts(chd_ages: list[int]) -> dict[str, int]:
+    """Map child ages to Elektra's younger/elder/baby buckets."""
+    counts = {
+        "elder_child_count": 0,
+        "younger_child_count": 0,
+        "baby_count": 0,
+    }
+    for age in chd_ages:
+        if age <= 0:
+            counts["baby_count"] += 1
+        elif age <= 5:
+            counts["younger_child_count"] += 1
+        else:
+            counts["elder_child_count"] += 1
+    return counts
+
+
 def _requested_child_count(chd_count: int, chd_ages: list[int] | None) -> int:
     """Return the requested child count using ages when present."""
-    if chd_ages:
-        return len(chd_ages)
-    return chd_count
+    return len(_requested_child_ages(chd_count, chd_ages))
+
+
+def _apply_child_quote_params(params: dict[str, str | int | bool], chd_count: int, chd_ages: list[int] | None) -> None:
+    """Populate Elektra quote params for child occupancy using supported aliases."""
+    ages = _requested_child_ages(chd_count, chd_ages)
+    if not ages:
+        return
+
+    requested_children = len(ages)
+    age_csv = ",".join(str(age) for age in ages)
+    bucket_counts = _child_bucket_counts(ages)
+
+    params["chdCount"] = requested_children
+    params["chdAges"] = age_csv
+    params["childage"] = age_csv
+    params["child-age"] = age_csv
+    params["child-ages"] = age_csv
+    params["child"] = requested_children
+    params["child-count"] = requested_children
+    params["children-count"] = requested_children
+    params["elder-child-count"] = bucket_counts["elder_child_count"]
+    params["younger-child-count"] = bucket_counts["younger_child_count"]
+    params["baby-count"] = bucket_counts["baby_count"]
 
 
 def _quote_response_matches_requested_occupancy(
     raw: dict | list,
     *,
     adults: int,
-    requested_children: int,
+    requested_buckets: dict[str, int],
 ) -> bool:
     """Return True when at least one offer reflects the requested occupancy."""
+    requested_children = sum(requested_buckets.values())
     if requested_children <= 0:
         return True
 
@@ -47,12 +93,17 @@ def _quote_response_matches_requested_occupancy(
         if not isinstance(pax_count, dict):
             continue
         actual_adults = int(pax_count.get("adult", 0) or 0)
-        actual_children = (
-            int(pax_count.get("elder_child_count", 0) or 0)
-            + int(pax_count.get("younger_child_count", 0) or 0)
-            + int(pax_count.get("baby_count", 0) or 0)
-        )
-        if actual_adults == adults and actual_children == requested_children:
+        actual_buckets = {
+            "elder_child_count": int(pax_count.get("elder_child_count", 0) or 0),
+            "younger_child_count": int(pax_count.get("younger_child_count", 0) or 0),
+            "baby_count": int(pax_count.get("baby_count", 0) or 0),
+        }
+        actual_children = sum(actual_buckets.values())
+        if (
+            actual_adults == adults
+            and actual_children == requested_children
+            and actual_buckets == requested_buckets
+        ):
             return True
     return False
 
@@ -68,16 +119,13 @@ async def availability(
 ) -> AvailabilityResponse:
     """Check room availability for given dates."""
     client = get_elektraweb_client()
-    requested_children = _requested_child_count(chd_count, chd_ages)
     params: dict[str, str | int] = {
         "fromdate": checkin.isoformat(),
         "todate": checkout.isoformat(),
         "adult": adults,
-        "chdCount": requested_children,
         "currency": currency,
     }
-    if chd_ages:
-        params["chdAges"] = ",".join(str(age) for age in chd_ages)
+    _apply_child_quote_params(params, chd_count, chd_ages)
 
     logger.info("elektraweb_availability_request", hotel_id=hotel_id, checkin=str(checkin), checkout=str(checkout))
     raw = await client.get(f"/hotel/{hotel_id}/availability", params=params)
@@ -99,19 +147,19 @@ async def quote(
 ) -> QuoteResponse:
     """Get price quotes/offers for given dates and room configuration."""
     client = get_elektraweb_client()
-    requested_children = _requested_child_count(chd_count, chd_ages)
+    requested_ages = _requested_child_ages(chd_count, chd_ages)
+    requested_children = len(requested_ages)
+    requested_buckets = _child_bucket_counts(requested_ages)
     params: dict[str, str | int | bool] = {
         "fromdate": checkin.isoformat(),
         "todate": checkout.isoformat(),
         "adult": adults,
-        "chdCount": requested_children,
         "currency": currency,
         "language": language,
         "nationality": nationality,
         "onlyBestOffer": only_best_offer,
     }
-    if chd_ages:
-        params["chdAges"] = ",".join(str(age) for age in chd_ages)
+    _apply_child_quote_params(params, chd_count, chd_ages)
     if cancel_policy_type:
         params["cancelPolicyType"] = cancel_policy_type
 
@@ -120,13 +168,14 @@ async def quote(
     if not _quote_response_matches_requested_occupancy(
         raw,
         adults=adults,
-        requested_children=requested_children,
+        requested_buckets=requested_buckets,
     ):
         logger.warning(
             "elektraweb_quote_child_occupancy_mismatch",
             hotel_id=hotel_id,
             adults=adults,
             requested_children=requested_children,
+            requested_buckets=requested_buckets,
         )
         raise RuntimeError(
             f"{CHILD_OCCUPANCY_UNVERIFIED}: PMS quote did not reflect requested child occupancy."
