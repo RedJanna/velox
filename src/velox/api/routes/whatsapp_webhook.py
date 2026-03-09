@@ -16,6 +16,7 @@ from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.adapters.whatsapp.webhook import IncomingMessage, WhatsAppWebhook
 from velox.adapters.elektraweb.endpoints import CHILD_OCCUPANCY_UNVERIFIED
 from velox.config.settings import settings
+from velox.core.hotel_profile_loader import get_profile
 from velox.core.pipeline import post_process_escalation
 from velox.db.repositories.conversation import ConversationRepository
 from velox.llm.client import LLMUnavailableError, get_llm_client
@@ -244,6 +245,55 @@ def _build_child_quote_handoff_response(executed_calls: list[dict[str, Any]]) ->
     )
 
 
+def _is_child_bedding_question(user_text: str, entities: dict[str, Any]) -> bool:
+    """Return True when the guest asks about bedding for multiple children."""
+    normalized = user_text.casefold()
+    bed_keywords = ("ek yatak", "ekstra yatak", "yatak", "sofa", "extra bed")
+    child_keywords = ("2 çocuk", "2 cocuk", "iki çocuk", "iki cocuk")
+    child_count = int(entities.get("chd_count", 0) or 0)
+    return any(keyword in normalized for keyword in bed_keywords) and (
+        child_count >= 2 or any(keyword in normalized for keyword in child_keywords)
+    )
+
+
+def _build_turkish_child_bedding_reply(hotel_id: int, entities: dict[str, Any]) -> str:
+    """Build deterministic Turkish guidance for 2-child bedding questions."""
+    profile = get_profile(hotel_id)
+    if profile is None:
+        return (
+            "2 çocuklu konaklamalarda oda tipine ve uygunluğa göre 2 ek yatak veya "
+            "1 ek yatak + 1 sofa hazırlanabilir."
+        )
+
+    adults = int(entities.get("adults", 2) or 2)
+    child_count = max(int(entities.get("chd_count", 0) or 0), 2)
+    total_guests = adults + child_count
+    suitable_rooms = [
+        room_type.name.tr
+        for room_type in profile.room_types
+        if room_type.max_pax >= total_guests and room_type.extra_bed
+    ]
+    children_policy = profile.facility_policies.get("children", {})
+    bedding_note = str(
+        children_policy.get(
+            "bedding_note_tr",
+            "2 çocuklu konaklamalarda oda tipine ve uygunluğa göre 2 ek yatak veya "
+            "1 ek yatak + 1 sofa hazırlanabilir.",
+        )
+    )
+
+    lines = [
+        "2 çocuk için tek ek yatak bilgisi doğru değildir.",
+        bedding_note,
+    ]
+    if suitable_rooms:
+        room_names = ", ".join(f"**{room_name}**" for room_name in suitable_rooms)
+        lines.append(f"{adults} yetişkin + {child_count} çocuk için uygun oda tiplerimiz: {room_names}.")
+    if not entities.get("chd_ages"):
+        lines.append("Çocukların yaşlarını paylaşırsanız size en uygun oda tipini netleştirebilirim.")
+    return "\n\n".join(lines).strip()
+
+
 def _normalize_turkish_stay_quote_reply(reply_text: str, user_text: str) -> str:
     """Apply deterministic Turkish pricing wording and required notes."""
     normalized_reply = (
@@ -273,6 +323,11 @@ def _normalize_turkish_stay_quote_reply(reply_text: str, user_text: str) -> str:
     text = _ensure_single_note(text, TR_NON_REFUNDABLE_NOTE)
     text = _ensure_single_note(text, TR_ROOM_NUMBER_NOTE)
     return text.strip()
+
+
+def _executed_booking_quote(executed_calls: list[dict[str, Any]]) -> bool:
+    """Return True when the pipeline actually fetched stay pricing."""
+    return any(str(call.get("name") or "") == "booking_quote" for call in executed_calls)
 
 
 async def _run_message_pipeline(
@@ -324,7 +379,11 @@ async def _run_message_pipeline(
         parsed = ResponseParser.parse(content)
         intent = str(parsed.internal_json.intent or "").lower()
         language = str(parsed.internal_json.language or "tr").lower()
-        if intent == "stay_quote" and language == "tr":
+        entities = parsed.internal_json.entities if isinstance(parsed.internal_json.entities, dict) else {}
+        if language == "tr" and _is_child_bedding_question(normalized_text, entities):
+            parsed.user_message = _build_turkish_child_bedding_reply(conversation.hotel_id, entities)
+            return parsed
+        if intent == "stay_quote" and language == "tr" and _executed_booking_quote(executed_calls):
             parsed.user_message = _normalize_turkish_stay_quote_reply(parsed.user_message, normalized_text)
         return parsed
     except LLMUnavailableError:

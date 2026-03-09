@@ -294,6 +294,8 @@ facility_policies:
     policy: "Tum yaslar kabul edilir"
     extra_bed: "Ucretsiz"
     baby_crib: "Ucretsiz (Penthouse Land haric)"
+    bedding_note_tr: "2 çocuklu konaklamalarda oda tipine ve uygunluğa göre 2 ek yatak veya 1 ek yatak + 1 sofa hazırlanabilir."
+    bedding_note_en: "For stays with 2 children, depending on room type and availability, 2 extra beds or 1 extra bed plus 1 sofa can be prepared. Do not assume a single extra bed by default."
   pets:
     allowed: false
   smoking:
@@ -370,8 +372,8 @@ faq_data:
 
   - topic: "child_policy"
     question_tr: "Cocuk politikasi nedir?"
-    answer_tr: "Tum yaslardaki cocuklar kabul edilir. Ekstra yatak ve bebek besigi ucretsizdir (Penthouse Land haric)."
-    answer_en: "Children of all ages are welcome. Extra bed and baby crib are free (except Penthouse Land)."
+    answer_tr: "Tüm yaşlardaki çocuklar kabul edilir. Ekstra yatak ve bebek beşiği ücretsizdir (Penthouse Land hariç). 2 çocuklu konaklamalarda oda tipine ve uygunluğa göre 2 ek yatak veya 1 ek yatak + 1 sofa hazırlanabilir."
+    answer_en: "Children of all ages are welcome. Extra bed and baby crib are free (except Penthouse Land). For stays with 2 children, depending on room type and availability, 2 extra beds or 1 extra bed plus 1 sofa can be prepared."
 
   - topic: "total_rooms"
     question_tr: "Kac oda var?"

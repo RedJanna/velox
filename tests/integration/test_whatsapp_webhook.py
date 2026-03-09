@@ -1,5 +1,6 @@
 """Integration tests for WhatsApp webhook routes."""
 
+from types import SimpleNamespace
 from typing import Any
 
 from fastapi import FastAPI
@@ -145,3 +146,42 @@ def test_child_quote_mismatch_creates_manual_verification_response() -> None:
     assert response.internal_json.state == "HANDOFF"
     assert response.internal_json.entities["chd_count"] == 1
     assert "Çocuklu konaklamalarda" in response.user_message
+
+
+def test_quote_notes_only_added_when_booking_quote_was_executed() -> None:
+    """Policy notes should not be appended to non-price follow-up messages."""
+    no_quote_calls = [{"name": "faq_lookup"}]
+    with_quote_calls = [{"name": "booking_quote"}]
+
+    assert whatsapp_webhook._executed_booking_quote(no_quote_calls) is False
+    assert whatsapp_webhook._executed_booking_quote(with_quote_calls) is True
+
+
+def test_child_bedding_reply_uses_profile_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Two-child bedding replies should not claim a single extra bed."""
+    profile = SimpleNamespace(
+        facility_policies={
+            "children": {
+                "bedding_note_tr": (
+                    "2 çocuklu konaklamalarda oda tipine ve uygunluğa göre 2 ek yatak "
+                    "veya 1 ek yatak + 1 sofa hazırlanabilir."
+                )
+            }
+        },
+        room_types=[
+            SimpleNamespace(name=SimpleNamespace(tr="Deluxe"), max_pax=3, extra_bed=True),
+            SimpleNamespace(name=SimpleNamespace(tr="Premium"), max_pax=4, extra_bed=True),
+            SimpleNamespace(name=SimpleNamespace(tr="Penthouse"), max_pax=4, extra_bed=True),
+        ],
+    )
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: profile)
+
+    reply = whatsapp_webhook._build_turkish_child_bedding_reply(
+        21966,
+        {"adults": 2, "chd_count": 2},
+    )
+
+    assert "tek ek yatak bilgisi doğru değildir" in reply
+    assert "2 ek yatak veya 1 ek yatak + 1 sofa" in reply
+    assert "**Premium**" in reply
+    assert "**Penthouse**" in reply
