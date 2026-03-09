@@ -185,3 +185,24 @@ def test_child_bedding_reply_uses_profile_policy(monkeypatch: pytest.MonkeyPatch
     assert "2 ek yatak veya 1 ek yatak + 1 sofa" in reply
     assert "**Premium**" in reply
     assert "**Penthouse**" in reply
+
+
+def test_parking_reply_uses_profile_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Parking questions should use the exact profile-driven parking reply."""
+    profile = SimpleNamespace(
+        facility_policies={
+            "parking": {
+                "reply_tr": (
+                    "Aracınız için park yeri ayarlayabiliriz. Ücretsiz cadde park yerleri "
+                    "mevcuttur, ayrıca otelin karşısında özel bir otopark da bulunmaktadır. "
+                    "Varışınızda sizi park alanına yönlendireceğiz."
+                )
+            }
+        }
+    )
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: profile)
+
+    reply = whatsapp_webhook._build_turkish_parking_reply(21966)
+
+    assert "Ücretsiz cadde park yerleri" in reply
+    assert "Varışınızda sizi park alanına yönlendireceğiz." in reply

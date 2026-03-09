@@ -256,6 +256,34 @@ def _is_child_bedding_question(user_text: str, entities: dict[str, Any]) -> bool
     )
 
 
+def _is_parking_question(user_text: str) -> bool:
+    """Return True when the guest asks about parking or valet availability."""
+    normalized = user_text.casefold()
+    keywords = ("otopark", "park yeri", "vale", "parking", "aracımızla", "aracimizla", "arabamızla", "arabamizla")
+    return any(keyword in normalized for keyword in keywords)
+
+
+def _build_turkish_parking_reply(hotel_id: int) -> str:
+    """Build deterministic Turkish parking guidance from HOTEL_PROFILE."""
+    profile = get_profile(hotel_id)
+    if profile is None:
+        return (
+            "Aracınız için park yeri ayarlayabiliriz. Ücretsiz cadde park yerleri mevcuttur, "
+            "ayrıca otelin karşısında özel bir otopark da bulunmaktadır. Varışınızda sizi park "
+            "alanına yönlendireceğiz."
+        )
+
+    parking_policy = profile.facility_policies.get("parking", {})
+    reply = parking_policy.get("reply_tr")
+    if isinstance(reply, str) and reply.strip():
+        return reply.strip()
+    return (
+        "Aracınız için park yeri ayarlayabiliriz. Ücretsiz cadde park yerleri mevcuttur, "
+        "ayrıca otelin karşısında özel bir otopark da bulunmaktadır. Varışınızda sizi park "
+        "alanına yönlendireceğiz."
+    )
+
+
 def _build_turkish_child_bedding_reply(hotel_id: int, entities: dict[str, Any]) -> str:
     """Build deterministic Turkish guidance for 2-child bedding questions."""
     profile = get_profile(hotel_id)
@@ -380,6 +408,9 @@ async def _run_message_pipeline(
         intent = str(parsed.internal_json.intent or "").lower()
         language = str(parsed.internal_json.language or "tr").lower()
         entities = parsed.internal_json.entities if isinstance(parsed.internal_json.entities, dict) else {}
+        if language == "tr" and _is_parking_question(normalized_text):
+            parsed.user_message = _build_turkish_parking_reply(conversation.hotel_id)
+            return parsed
         if language == "tr" and _is_child_bedding_question(normalized_text, entities):
             parsed.user_message = _build_turkish_child_bedding_reply(conversation.hotel_id, entities)
             return parsed

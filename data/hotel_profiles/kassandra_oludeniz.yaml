@@ -305,6 +305,8 @@ facility_policies:
     street_parking: "Ucretsiz sokak parklanmasi"
     private_parking: "Karsida ucretli ozel otopark"
     ai_note: "Misafire 'otoparkimiz yok' deme! Sokak parklanmasi mevcut de."
+    reply_tr: "Aracınız için park yeri ayarlayabiliriz. Ücretsiz cadde park yerleri mevcuttur, ayrıca otelin karşısında özel bir otopark da bulunmaktadır. Varışınızda sizi park alanına yönlendireceğiz."
+    reply_en: "We can help arrange parking for your vehicle. Free street parking is available, and there is also a private parking lot across from the hotel. On arrival, we will guide you to the parking area."
   pool:
     type: "open"
     hours: "08:00-19:00"
@@ -357,8 +359,8 @@ faq_data:
 
   - topic: "parking"
     question_tr: "Otopark var mi?"
-    answer_tr: "Otelimizin onunde ucretsiz sokak parklanmasi mevcuttur. Ayrica karsida ucretli ozel otopark bulunmaktadir."
-    answer_en: "Free street parking is available in front of the hotel. There is also a paid private parking lot across the street."
+    answer_tr: "Aracınız için park yeri ayarlayabiliriz. Ücretsiz cadde park yerleri mevcuttur, ayrıca otelin karşısında özel bir otopark da bulunmaktadır. Varışınızda sizi park alanına yönlendireceğiz."
+    answer_en: "We can help arrange parking for your vehicle. Free street parking is available, and there is also a private parking lot across from the hotel. On arrival, we will guide you to the parking area."
 
   - topic: "pool"
     question_tr: "Havuz var mi?"
