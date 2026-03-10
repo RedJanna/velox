@@ -107,6 +107,16 @@ async def test_feedback_service_saves_bad_feedback_to_rating_category_path(tmp_p
 
 
 @pytest.mark.asyncio
+async def test_feedback_catalog_includes_eksik_bilgi_category(tmp_path: Path) -> None:
+    conversation, messages, _assistant_id = _conversation_with_messages()
+    service = _build_service(tmp_path, conversation, messages)
+
+    response = await service.get_catalog()
+
+    assert any(item.key == "eksik_bilgi" for item in response.categories)
+
+
+@pytest.mark.asyncio
 async def test_feedback_service_saves_non_approved_five_rating_under_reviewed(tmp_path: Path) -> None:
     conversation, messages, assistant_id = _conversation_with_messages()
     service = _build_service(tmp_path, conversation, messages)

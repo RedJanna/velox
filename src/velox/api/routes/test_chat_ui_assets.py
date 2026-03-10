@@ -81,6 +81,11 @@ body{overflow:hidden}
 .debug-textarea{min-height:96px;resize:vertical}
 .field-stack{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .field-stack label{font-size:12px;font-weight:700;color:rgba(255,255,255,.8)}
+.helper-card{padding:10px 12px;border-radius:14px;background:rgba(2,6,23,.24);border:1px solid rgba(255,255,255,.08);font-size:12px;line-height:1.5;color:rgba(255,255,255,.72)}
+.helper-card strong{display:block;color:#fff;margin-bottom:3px}
+.tag-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}
+.tag-toolbar .feedback-muted{flex:1}
+.btn-mini{height:30px;padding:0 12px;font-size:12px;border-radius:10px}
 .checkbox-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .check-item{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:14px;background:rgba(2,6,23,.24);border:1px solid rgba(255,255,255,.08)}
 .check-item input{margin-top:2px}.check-copy strong{display:block;font-size:12px;color:#fff}.check-copy span{display:block;font-size:11px;color:rgba(255,255,255,.6);margin-top:2px}
@@ -109,17 +114,17 @@ const DEFAULT_FEEDBACK_SCALES = [
   {rating: 5, label: 'Mukemmel', summary: 'Yanit dogru ve onayli ornek olmaya uygun.', tooltip: 'Yanit dogruysa bunu secin; onayli ornek havuzuna eklenir.', correction_required: false},
 ];
 const DEFAULT_FEEDBACK_CATEGORIES = [
-  {key: 'yanlis_bilgi', label: 'Yanlis Bilgi', description: 'Net olarak yanlis bilgi verilmesi.'},
-  {key: 'alakasiz_yanit', label: 'Alakasiz Yanit', description: 'Sorudan kopuk veya konu disi cevap.'},
-  {key: 'baglam_kopuklugu', label: 'Baglam Kopuklugu', description: 'Sohbet akisina uyumsuz cevap.'},
-  {key: 'uydurma_bilgi', label: 'Asiri Ozyguvenli Uydurma', description: 'Kaynaksiz bilgi uydurulmasi.'},
-  {key: 'gevezelik', label: 'Gevezelik / Uzunluk', description: 'Gereksiz uzun veya daginik cevap.'},
-  {key: 'intent_iskalama', label: 'Intent Iskalama', description: 'Asil talebi kaciran cevap.'},
-  {key: 'tekrar_loop', label: 'Tekrara Dusme', description: 'Ayni kalibi tekrar eden cevap.'},
-  {key: 'format_ihlali', label: 'Format Ihlali', description: 'Istenen sunum bicimine uymayan cevap.'},
-  {key: 'mantik_celiskisi', label: 'Eksik / Celiskili Mantik', description: 'Tutarsiz veya eksik mantik.'},
-  {key: 'ton_politika_ihlali', label: 'Ton / Politika Ihlali', description: 'Uslup veya politika ihlali.'},
-  {key: 'ozel_kategori', label: 'Ozel Kategori', description: 'Hazir listeye sigmayan durum.'},
+  {key: 'yanlis_bilgi', label: 'Yanlis Bilgi', description: 'Net olarak yanlis bilgi verilmesi.', tooltip: 'Ornek: EUR yerine USD yazmak.'},
+  {key: 'eksik_bilgi', label: 'Eksik Bilgi', description: 'Temel cevap dogru ama kritik detaylar eksik.', tooltip: 'Cevap yarim kaliyor veya gerekli bilgi tamamlanmiyor.'},
+  {key: 'alakasiz_yanit', label: 'Alakasiz Yanit', description: 'Sorudan kopuk veya konu disi cevap.', tooltip: 'Kullanici niyetini kaciran cevaplar.'},
+  {key: 'baglam_kopuklugu', label: 'Baglam Kopuklugu', description: 'Sohbet akisina uyumsuz cevap.', tooltip: 'Hafiza kaybi gibi davranan cevaplar.'},
+  {key: 'uydurma_bilgi', label: 'Asiri Ozyguvenli Uydurma', description: 'Kaynaksiz bilgi uydurulmasi.', tooltip: 'Bilmiyorum demek yerine uydurma bilgi verilmesi.'},
+  {key: 'gevezelik', label: 'Gevezelik / Uzunluk', description: 'Gereksiz uzun veya daginik cevap.', tooltip: 'Kisa istek icin asiri uzun mesaj.'},
+  {key: 'intent_iskalama', label: 'Intent Iskalama', description: 'Asil talebi kaciran cevap.', tooltip: 'Kelimeyi anlayip amaci gormeyen cevap.'},
+  {key: 'format_ihlali', label: 'Format Ihlali', description: 'Istenen sunum bicimine uymayan cevap.', tooltip: 'Liste yerine duz metin gibi.'},
+  {key: 'mantik_celiskisi', label: 'Eksik / Celiskili Mantik', description: 'Tutarsiz veya eksik mantik.', tooltip: 'Bir adim digerini bozuyor.'},
+  {key: 'ton_politika_ihlali', label: 'Ton / Politika Ihlali', description: 'Uslup veya politika ihlali.', tooltip: 'Kaba uslup ya da yetkisiz taahhut.'},
+  {key: 'ozel_kategori', label: 'Ozel Kategori', description: 'Hazir listeye sigmayan durum.', tooltip: 'Aciklamayi admin manuel yazar.'},
 ];
 const DEFAULT_FEEDBACK_TAGS = [
   {key: 'yanlis_bilgi', label: 'Yanlis Bilgi', description: 'Net bilgi hatasi.'},
@@ -160,6 +165,20 @@ const state = {
   },
   feedbackStates: new Map(),
   selectedFeedback: null,
+  manualTagTouched: false,
+};
+const CATEGORY_PRIORITY = ['yanlis_bilgi', 'eksik_bilgi', 'baglam_kopuklugu', 'intent_iskalama', 'mantik_celiskisi', 'format_ihlali', 'gevezelik', 'alakasiz_yanit', 'uydurma_bilgi', 'ton_politika_ihlali', 'ozel_kategori'];
+const CATEGORY_TAG_SUGGESTIONS = {
+  yanlis_bilgi: ['yanlis_bilgi', 'tool_output_celiskisi'],
+  eksik_bilgi: ['eksik_bilgi', 'eksik_dogrulama_sorusu'],
+  alakasiz_yanit: ['alakasiz_yanit', 'niyet_iskalama'],
+  baglam_kopuklugu: ['baglam_kopuklugu', 'mantik_celiskisi'],
+  uydurma_bilgi: ['uydurma_bilgi', 'guncel_olmayan_bilgi'],
+  gevezelik: ['asiri_uzun_yanit'],
+  intent_iskalama: ['niyet_iskalama', 'eksik_dogrulama_sorusu'],
+  format_ihlali: ['format_ihlali'],
+  mantik_celiskisi: ['mantik_celiskisi'],
+  ton_politika_ihlali: ['ton_uyumsuzlugu', 'politika_ihlali'],
 };
 
 const L3_FLAGS = ['LEGAL_REQUEST','SECURITY_INCIDENT','THREAT_SELF_HARM','MEDICAL_EMERGENCY'];
@@ -195,6 +214,76 @@ function flagLevel(flag) {
 
 function feedbackMeta(rating) {
   return state.catalog.scales.find(item => item.rating === rating) || null;
+}
+
+function categoryMeta(categoryKey) {
+  return state.catalog.categories.find(item => item.key === categoryKey) || null;
+}
+
+function sortedCategories() {
+  return [...state.catalog.categories].sort((left, right) => {
+    const leftPriority = CATEGORY_PRIORITY.indexOf(left.key);
+    const rightPriority = CATEGORY_PRIORITY.indexOf(right.key);
+    const normalizedLeft = leftPriority === -1 ? 999 : leftPriority;
+    const normalizedRight = rightPriority === -1 ? 999 : rightPriority;
+    if (normalizedLeft !== normalizedRight) return normalizedLeft - normalizedRight;
+    return String(left.label || '').localeCompare(String(right.label || ''), 'tr');
+  });
+}
+
+function selectedTagKeys() {
+  return Array.from(document.querySelectorAll('#feedback-tags input[type=checkbox]:checked')).map(input => input.value);
+}
+
+function setCheckedTags(tagKeys) {
+  const tagSet = new Set(tagKeys);
+  document.querySelectorAll('#feedback-tags input[type=checkbox]').forEach(input => {
+    input.checked = tagSet.has(input.value);
+  });
+}
+
+function updateCategoryGuidance() {
+  const selectedCategory = el('feedback-category').value;
+  const helper = el('feedback-category-help');
+  const recommendation = el('feedback-tags-note');
+  const recommendedTags = CATEGORY_TAG_SUGGESTIONS[selectedCategory] || [];
+  const meta = categoryMeta(selectedCategory);
+
+  if (!selectedCategory) {
+    helper.innerHTML = '<strong>Secim Yardimi</strong>Ana problem turunu secin; buna gore etiket onerileri hazirlanir.';
+    recommendation.textContent = 'Kategori secince ilgili etiketler otomatik onerilir.';
+    return;
+  }
+
+  const tooltip = meta?.tooltip ? ` ${meta.tooltip}` : '';
+  helper.innerHTML = `<strong>${escapeHtml(meta?.label || selectedCategory)}</strong>${escapeHtml((meta?.description || '') + tooltip)}`;
+  if (!recommendedTags.length) {
+    recommendation.textContent = 'Bu kategori icin hazir etiket onerisi yok.';
+    return;
+  }
+
+  const recommendationText = recommendedTags
+    .map(tagKey => state.catalog.tags.find(item => item.key === tagKey)?.label || tagKey)
+    .join(', ');
+  recommendation.textContent = state.manualTagTouched
+    ? `Onerilen etiketler: ${recommendationText}. Mevcut manuel secim korunuyor.`
+    : `Onerilen etiketler otomatik uygulandi: ${recommendationText}.`;
+}
+
+function applyCategorySuggestions(force = false) {
+  const selectedCategory = el('feedback-category').value;
+  const recommendedTags = CATEGORY_TAG_SUGGESTIONS[selectedCategory] || [];
+  if (!selectedCategory || !recommendedTags.length) {
+    updateCategoryGuidance();
+    return;
+  }
+  if (!force && state.manualTagTouched) {
+    updateCategoryGuidance();
+    return;
+  }
+  setCheckedTags(recommendedTags);
+  state.manualTagTouched = false;
+  updateCategoryGuidance();
 }
 
 async function apiFetch(path, options = {}) {
@@ -364,19 +453,26 @@ function renderFeedbackStudio() {
     ? 'Daha sade ve kisa onayli cevabi yazin...'
     : 'Dogru bilgiyi veya Altin Standart cevabi yazin...';
   customCategory.classList.toggle('hidden', el('feedback-category').value !== 'ozel_kategori');
+  updateCategoryGuidance();
 }
 
 function renderCategoryOptions() {
+  const selectedValue = el('feedback-category').value;
   el('feedback-category').innerHTML = '<option value="">Kategori secin</option>' +
-    state.catalog.categories.map(item => `<option value="${escapeHtml(item.key)}">${escapeHtml(item.label)}</option>`).join('');
+    sortedCategories().map(item => `<option value="${escapeHtml(item.key)}">${escapeHtml(item.label)}</option>`).join('');
+  el('feedback-category').value = selectedValue || '';
+  updateCategoryGuidance();
 }
 
 function renderTagOptions() {
+  const checkedValues = selectedTagKeys();
   el('feedback-tags').innerHTML = state.catalog.tags.map(item => `
     <label class="check-item">
       <input type="checkbox" value="${escapeHtml(item.key)}">
       <span class="check-copy"><strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(item.description)}</span></span>
     </label>`).join('');
+  if (checkedValues.length) setCheckedTags(checkedValues);
+  updateCategoryGuidance();
 }
 
 function renderImportOptions(items) {
@@ -586,6 +682,7 @@ async function loadSelectedImport(roleMapping = {}) {
 
 function selectFeedback(messageId, rating) {
   state.selectedFeedback = {messageId: String(messageId), rating: rating};
+  state.manualTagTouched = false;
   const defaultApproved = el('feedback-approved-example');
   defaultApproved.checked = true;
   el('feedback-gold-standard').value = '';
@@ -746,7 +843,15 @@ function wireEvents() {
   el('refresh-imports').addEventListener('click', refreshImportFiles);
   el('import-select').addEventListener('change', () => loadSelectedImport());
   el('role-mapping-submit').addEventListener('click', () => loadSelectedImport(currentRoleMapping()));
-  el('feedback-category').addEventListener('change', renderFeedbackStudio);
+  el('feedback-category').addEventListener('change', () => {
+    if (!state.manualTagTouched) applyCategorySuggestions(true);
+    renderFeedbackStudio();
+  });
+  el('feedback-tags').addEventListener('change', () => {
+    state.manualTagTouched = true;
+    updateCategoryGuidance();
+  });
+  el('apply-tag-suggestions').addEventListener('click', () => applyCategorySuggestions(true));
   el('feedback-submit').addEventListener('click', submitFeedback);
   el('report-submit').addEventListener('click', generateReport);
   el('model-select').addEventListener('change', changeModel);

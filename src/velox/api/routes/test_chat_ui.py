@@ -136,6 +136,7 @@ TEST_CHAT_HTML = (
             <div class="field-stack">
               <label for="feedback-category">Hata Kategorizasyonu</label>
               <select id="feedback-category" class="debug-select"></select>
+              <div class="helper-card" id="feedback-category-help"><strong>Secim Yardimi</strong>Ana problem turunu secin; buna gore etiket onerileri hazirlanir.</div>
             </div>
             <div class="field-stack hidden" id="feedback-custom-category-row">
               <label for="feedback-custom-category">Ozel Kategori</label>
@@ -143,6 +144,10 @@ TEST_CHAT_HTML = (
             </div>
             <div class="field-stack">
               <label>Hata Etiketleri</label>
+              <div class="tag-toolbar">
+                <div class="feedback-muted" id="feedback-tags-note">Kategori secince ilgili etiketler otomatik onerilir.</div>
+                <button class="btn btn-ghost btn-mini" id="apply-tag-suggestions" type="button">Onerileri Uygula</button>
+              </div>
               <div class="checkbox-grid" id="feedback-tags"></div>
             </div>
             <div class="field-stack">

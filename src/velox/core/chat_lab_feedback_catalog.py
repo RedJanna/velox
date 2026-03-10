@@ -48,6 +48,12 @@ CATEGORY_ITEMS: tuple[FeedbackOptionItem, ...] = (
         tooltip="Ornek: EUR yerine USD yazmak.",
     ),
     FeedbackOptionItem(
+        key="eksik_bilgi",
+        label="Eksik Bilgi",
+        description="Temel cevap dogru ama kritik detaylar eksik.",
+        tooltip="Cevap yarim kaliyor veya gerekli bilgi tamamlanmiyor.",
+    ),
+    FeedbackOptionItem(
         key="alakasiz_yanit",
         label="Alakasiz Yanit",
         description="Sorudan kopuk veya konu disi cevap.",
@@ -76,12 +82,6 @@ CATEGORY_ITEMS: tuple[FeedbackOptionItem, ...] = (
         label="Intent Iskalama",
         description="Kelimeyi anlayip amaci kaciran cevap.",
         tooltip="Asil talebi gormeyen cevap.",
-    ),
-    FeedbackOptionItem(
-        key="tekrar_loop",
-        label="Tekrara Dusme",
-        description="Ayni kalibi tekrar eden cevap.",
-        tooltip="Ayni cumleleri donduren dongu durumu.",
     ),
     FeedbackOptionItem(
         key="format_ihlali",
