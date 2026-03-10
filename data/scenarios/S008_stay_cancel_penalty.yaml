@@ -1,0 +1,34 @@
+code: "S008"
+name: "Konaklama Iptal - Cezali Iptal"
+description: "Girise 5 gunden az kala iptal talebi. Ceza uygulanir (full_stay)."
+category: "stay"
+language: "tr"
+tags: ["stay", "cancel", "penalty", "policy"]
+
+steps:
+  - user: "Yarin girisli rezervasyonumu iptal etmem lazim"
+    expect_intent: "stay_cancel"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["rezervasyon"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Rezervasyon ID sorulmali."
+
+  - user: "KAS-20250712-008"
+    expect_intent: "stay_cancel"
+    expect_state: "NEEDS_CONFIRMATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["iptal", "ceza"]
+    expect_reply_must_not: ["ucretsiz"]
+    expect_risk_flags: []
+    note: "Son 5 gun icinde. Ceza bilgisi (full_stay) acikca bildirilmeli. 'Ucretsiz' denmemeli."
+
+  - user: "Anliyorum, yine de iptal edin"
+    expect_intent: "stay_cancel"
+    expect_state: "PENDING_APPROVAL"
+    expect_tool_calls: ["stay_cancel_hold"]
+    expect_reply_contains: ["onay"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Misafir cezayi kabul etti. Admin onayina gider."

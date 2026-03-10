@@ -1,0 +1,25 @@
+code: "S035"
+name: "Sikayet - Gurultu"
+description: "Misafir normal tonda gurultu sikayeti."
+category: "general"
+language: "tr"
+tags: ["complaint", "noise"]
+
+steps:
+  - user: "Yandaki odadan cok ses geliyor, uyuyamiyoruz"
+    expect_intent: "complaint"
+    expect_state: "INTENT_DETECTED"
+    expect_tool_calls: []
+    expect_reply_contains: ["ozur"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Normal sikayet (kizgin degil). Ozur dilenmeli, cozum onerilmeli (resepsiyon bilgilendirilecek)."
+
+  - user: "Biran once cozulebilir mi?"
+    expect_intent: "complaint"
+    expect_state: "HANDOFF"
+    expect_tool_calls: ["handoff_to_human"]
+    expect_reply_contains: ["ekip"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Operasyonel cozum gerektiriyor. OPS'a handoff."

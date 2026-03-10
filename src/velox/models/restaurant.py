@@ -1,5 +1,7 @@
 """Restaurant booking data models."""
 
+from __future__ import annotations
+
 from datetime import date, datetime, time
 from uuid import UUID
 

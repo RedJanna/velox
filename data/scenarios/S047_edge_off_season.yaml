@@ -1,0 +1,30 @@
+code: "S047"
+name: "Edge Case - Sezon Disi"
+description: "Misafir sezon disi tarih icin oda soruyor. Sezon: 04-20 ~ 11-10."
+category: "edge_case"
+language: "tr"
+tags: ["edge_case", "off_season", "date_validation"]
+
+steps:
+  - user: "Ocak ayinda 5 gun kalmak istiyoruz"
+    expect_intent: "stay_availability"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["sezon"]
+    expect_reply_must_not: ["musaitlik", "€"]
+    expect_risk_flags: ["DATE_INVALID"]
+    note: >
+      Ocak sezon disi (sezon: 20 Nisan - 10 Kasim).
+      Sistem musaitlik sorgusu YAPMAMALI.
+      Fiyat GOSTERMEMELI.
+      Sezonun ne zaman oldugunu bildirmeli.
+      DATE_INVALID tetiklenmeli.
+
+  - user: "Peki en erken ne zaman gelebiliriz?"
+    expect_intent: "stay_availability"
+    expect_state: "INTENT_DETECTED"
+    expect_tool_calls: []
+    expect_reply_contains: ["nisan", "20"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Sezon acilis tarihi bildirilmeli: 20 Nisan."

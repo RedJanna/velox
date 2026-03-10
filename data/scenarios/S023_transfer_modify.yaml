@@ -1,0 +1,34 @@
+code: "S023"
+name: "Transfer Degisiklik"
+description: "Transfer tarih/saat degisikligi talebi."
+category: "transfer"
+language: "tr"
+tags: ["transfer", "modify"]
+
+steps:
+  - user: "Transfer rezervasyonumun tarihini degistirmem gerekiyor"
+    expect_intent: "transfer_modify"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["transfer"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Mevcut rezervasyon bilgisi ve yeni tarih sorulmali."
+
+  - user: "15 Temmuz yerine 17 Temmuz olsun, ucus saati 16:00"
+    expect_intent: "transfer_modify"
+    expect_state: "NEEDS_CONFIRMATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["17"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Yeni tarih/saat ozeti gosterilip teyit istenmeli."
+
+  - user: "Evet degistirin"
+    expect_intent: "transfer_modify"
+    expect_state: "PENDING_APPROVAL"
+    expect_tool_calls: ["transfer_modify_hold"]
+    expect_reply_contains: ["onay"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Degisiklik admin onayina gider."

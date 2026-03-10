@@ -12,8 +12,15 @@ from velox.models.conversation import InternalJSON, LLMResponse
 logger = structlog.get_logger(__name__)
 
 JSON_BLOCK_PATTERN = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL | re.IGNORECASE)
-INTERNAL_JSON_PATTERN = re.compile(r"INTERNAL_JSON\s*:\s*(\{.*\})", re.DOTALL | re.IGNORECASE)
-USER_MESSAGE_PATTERN = re.compile(r"USER_MESSAGE\s*:\s*(.+?)(?:\nINTERNAL_JSON\s*:|$)", re.DOTALL | re.IGNORECASE)
+# Handle markdown bold/stars around the marker: **INTERNAL_JSON:** or *INTERNAL_JSON:* etc.
+INTERNAL_JSON_PATTERN = re.compile(
+    r"\*{0,2}INTERNAL_JSON\*{0,2}\s*:?\s*\*{0,2}\s*(\{.*\})",
+    re.DOTALL | re.IGNORECASE,
+)
+USER_MESSAGE_PATTERN = re.compile(
+    r"USER_MESSAGE\s*:\s*(.+?)(?:\n\*{0,2}INTERNAL_JSON|$)",
+    re.DOTALL | re.IGNORECASE,
+)
 
 
 class ResponseParser:
@@ -67,11 +74,26 @@ class ResponseParser:
 
     @staticmethod
     def _extract_user_message(text: str) -> str:
-        """Try explicit USER_MESSAGE field extraction."""
+        """Try explicit USER_MESSAGE field extraction.
+
+        Falls back to grabbing everything before the INTERNAL_JSON marker
+        when the LLM does not emit an explicit ``USER_MESSAGE:`` label.
+        """
         match = USER_MESSAGE_PATTERN.search(text)
-        if not match:
-            return ""
-        return match.group(1).strip()
+        if match:
+            return match.group(1).strip()
+
+        # Fallback: split on INTERNAL_JSON marker (with optional markdown bold)
+        split = re.split(
+            r"\n\s*\*{0,2}INTERNAL_JSON\*{0,2}\s*:?\s*\*{0,2}",
+            text,
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )
+        if len(split) >= 2 and split[0].strip():
+            return split[0].strip()
+
+        return ""
 
     @staticmethod
     def _try_parse_json_block(text: str) -> dict[str, Any] | None:

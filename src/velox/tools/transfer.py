@@ -1,5 +1,8 @@
 """Transfer information and hold management tools."""
 
+from __future__ import annotations
+
+import datetime as _dt
 from datetime import date, datetime, time
 from decimal import Decimal
 import re
@@ -21,8 +24,8 @@ FLIGHT_DELAY_PATTERN = re.compile(
 
 
 class _TransferHoldUpdates(BaseModel):
-    date: date | None = None
-    time: time | None = None
+    date: _dt.date | None = None
+    time: _dt.time | None = None
     pax_count: int | None = None
     guest_name: str | None = None
     phone: str | None = None

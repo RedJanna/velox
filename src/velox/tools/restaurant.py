@@ -1,5 +1,8 @@
 """Restaurant availability and hold management tools."""
 
+from __future__ import annotations
+
+import datetime as _dt
 from datetime import date, time
 import re
 from typing import Any
@@ -23,8 +26,8 @@ ALLERGY_PATTERN = re.compile(
 
 
 class _RestaurantHoldUpdates(BaseModel):
-    date: date | None = None
-    time: time | None = None
+    date: _dt.date | None = None
+    time: _dt.time | None = None
     party_size: int | None = None
     guest_name: str | None = None
     phone: str | None = None

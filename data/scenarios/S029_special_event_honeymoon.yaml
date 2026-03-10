@@ -1,0 +1,25 @@
+code: "S029"
+name: "Ozel Etkinlik - Balayi"
+description: "Balayi surprizi talebi. SPECIAL_EVENT risk flag tetiklenmeli."
+category: "guest_ops"
+language: "tr"
+tags: ["guest", "special_event", "honeymoon", "risk_flag"]
+
+steps:
+  - user: "Balayi icin gelecegiz, odada ozel bir hazirlik yapabilir misiniz?"
+    expect_intent: "special_event_request"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["balayi"]
+    expect_reply_must_not: []
+    expect_risk_flags: ["SPECIAL_EVENT"]
+    note: "SPECIAL_EVENT tetiklenmeli (L2). Detaylar sorulmali (tarih, istekler)."
+
+  - user: "20 Temmuz girisimiz var, cicek ve mum olsa guzel olur"
+    expect_intent: "special_event_request"
+    expect_state: "HANDOFF"
+    expect_tool_calls: ["handoff_to_human"]
+    expect_reply_contains: ["ekip"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Detaylar alindi. Ilgili ekibe (OPS) iletilir."

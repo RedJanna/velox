@@ -1,0 +1,16 @@
+code: "S018"
+name: "Restoran - Kahvalti Saati Sorgusu"
+description: "Misafir kahvalti saatlerini soruyor. FAQ yaniti donmeli."
+category: "restaurant"
+language: "tr"
+tags: ["restaurant", "faq", "breakfast"]
+
+steps:
+  - user: "Kahvalti saat kacta basliyor?"
+    expect_intent: "faq_info"
+    expect_state: "INTENT_DETECTED"
+    expect_tool_calls: ["faq_lookup"]
+    expect_reply_contains: ["08:00", "10:30"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "FAQ'dan cevap donmeli: 08:00-10:30, acik buyfe. Hotel profile ile tutarli olmali."

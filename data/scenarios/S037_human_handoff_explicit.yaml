@@ -1,0 +1,18 @@
+code: "S037"
+name: "Insan Talebi - Acik"
+description: "Misafir acikca yetkili/mudur ile gorusmek istiyor."
+category: "general"
+language: "tr"
+tags: ["handoff", "explicit"]
+
+steps:
+  - user: "Mudurle gorusmek istiyorum"
+    expect_intent: "human_handoff"
+    expect_state: "HANDOFF"
+    expect_tool_calls: ["handoff_to_human"]
+    expect_reply_contains: ["ekip"]
+    expect_reply_must_not: ["neden", "sorun nedir"]
+    expect_risk_flags: []
+    note: >
+      Acik handoff talebi. Sistem SORGULAMAMALI (neden? sorun nedir?).
+      Direkt handoff yapilmali. Misafire baglanacagi bildirilmeli.

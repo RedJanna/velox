@@ -1,0 +1,25 @@
+code: "S030"
+name: "Ozel Etkinlik - Dogum Gunu"
+description: "Dogum gunu surprizi talebi."
+category: "guest_ops"
+language: "tr"
+tags: ["guest", "special_event", "birthday", "risk_flag"]
+
+steps:
+  - user: "Esimin dogum gunu otelde olacak, surpriz pasta ayarlayabilir misiniz?"
+    expect_intent: "special_event_request"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["dogum"]
+    expect_reply_must_not: []
+    expect_risk_flags: ["SPECIAL_EVENT"]
+    note: "SPECIAL_EVENT tetiklenmeli. Tarih ve detaylar sorulmali."
+
+  - user: "25 Temmuz, cikolatali pasta olursa sevinirim"
+    expect_intent: "special_event_request"
+    expect_state: "HANDOFF"
+    expect_tool_calls: ["handoff_to_human"]
+    expect_reply_contains: ["ekip"]
+    expect_reply_must_not: ["fiyat", "€"]
+    expect_risk_flags: []
+    note: "Fiyat/detay AI'da yok. Ekibe iletilir. AI fiyat uydurmamali."

@@ -1,0 +1,25 @@
+code: "S027"
+name: "Erken Check-in Talebi"
+description: "Misafir 14:00 oncesi erken giris istiyor. availability_handoff."
+category: "guest_ops"
+language: "tr"
+tags: ["guest", "early_checkin", "handoff"]
+
+steps:
+  - user: "Yarin sabah 08:00 gibi otele varacagiz, erken giris yapabilir miyiz?"
+    expect_intent: "early_checkin_request"
+    expect_state: "NEEDS_CONFIRMATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["erken", "musaitlik"]
+    expect_reply_must_not: ["kesinlikle", "garanti"]
+    expect_risk_flags: []
+    note: "early_checkin=availability_handoff. Garanti verilemez. Musaitlige bagli oldugu soylenmeli."
+
+  - user: "Tamam musaitlige gore olsun"
+    expect_intent: "early_checkin_request"
+    expect_state: "PENDING_APPROVAL"
+    expect_tool_calls: ["handoff_to_human"]
+    expect_reply_contains: ["ekip"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Talep admin/ops'a iletilir."

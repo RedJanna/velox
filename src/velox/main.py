@@ -103,6 +103,11 @@ app.include_router(admin.router, prefix="/api/v1")
 app.include_router(whatsapp_webhook.router, prefix="/api/v1")
 app.include_router(admin_webhook.router, prefix="/api/v1")
 
+if settings.app_env != "production":
+    from velox.api.routes import test_chat
+    app.include_router(test_chat.router, prefix="/api/v1")
+    app.include_router(test_chat.ui_router)
+
 
 @app.get("/")
 async def root() -> dict[str, str]:

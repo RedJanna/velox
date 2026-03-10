@@ -1,0 +1,74 @@
+# S003: Konaklama Rezervasyon - Tam Akis (End-to-End)
+# Selamlama'dan CONFIRMED'a kadar tum state gecisleri.
+
+code: "S003"
+name: "Konaklama Rezervasyon - Tam Akis"
+description: "Tam rezervasyon akisi: GREETING -> INTENT_DETECTED -> NEEDS_VERIFICATION -> READY_FOR_TOOL -> NEEDS_CONFIRMATION -> PENDING_APPROVAL -> CONFIRMED"
+category: "stay"
+language: "tr"
+tags: ["stay", "booking", "full_flow", "e2e"]
+
+steps:
+  - user: "Merhaba"
+    expect_intent: "other"
+    expect_state: "GREETING"
+    expect_tool_calls: []
+    expect_reply_contains: ["hos geldiniz", "kassandra"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Selamlama. Otel adi gecmeli. Tarih/kisi sorulmali."
+
+  - user: "Oda bakmak istiyorum"
+    expect_intent: "stay_availability"
+    expect_state: "INTENT_DETECTED"
+    expect_tool_calls: []
+    expect_reply_contains: ["tarih"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Intent algilandi ama slotlar eksik. Tarih ve kisi sayisi sorulmali."
+
+  - user: "10-15 Agustos, 2 yetiskin 1 cocuk"
+    expect_intent: "stay_availability"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["booking_availability"]
+    expect_reply_contains: ["musaitlik"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Slotlar doldu: checkin=08-10, checkout=08-15, adults=2, chd=1. Tool cagrilmali."
+
+  - user: "Premium oda icin fiyat teklifi alin"
+    expect_intent: "stay_quote"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["booking_quote"]
+    expect_reply_contains: ["premium", "€"]
+    expect_reply_must_not: ["dolar", "TL"]
+    expect_risk_flags: []
+    note: "Misafir spesifik oda tipi secti. Quote alinmali."
+
+  - user: "Evet, ucretsiz iptal secenegi ile rezervasyon yapin"
+    expect_intent: "stay_booking_create"
+    expect_state: "NEEDS_CONFIRMATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["onay"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Misafir secimini yapti. Sistem ozet gosterip teyit istemeli."
+
+  - user: "Evet onayliyorum"
+    expect_intent: "stay_booking_create"
+    expect_state: "PENDING_APPROVAL"
+    expect_tool_calls: ["stay_create_hold"]
+    expect_reply_contains: ["onay"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Kullanici teyit verdi. Hold olusturulur, admin onayina gider."
+
+  # Bu adim admin webhook'tan gelir (simule edilir)
+  - user: "[SYSTEM] admin_approved"
+    expect_intent: "other"
+    expect_state: "CONFIRMED"
+    expect_tool_calls: []
+    expect_reply_contains: ["kesinlesti", "rezervasyon"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Admin onayi geldi. Misafire 'rezervasyonunuz kesinlesti' mesaji gitmeli."

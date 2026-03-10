@@ -1,0 +1,16 @@
+code: "S013"
+name: "Restoran - 9+ Kisi Handoff"
+description: "9 kisilik grup restoran rezervasyonu. max_ai_party_size=8 asilir, handoff yapilir."
+category: "restaurant"
+language: "tr"
+tags: ["restaurant", "group", "handoff", "capacity"]
+
+steps:
+  - user: "12 kisilik bir grup icin yarin aksam yemegi ayirtmak istiyoruz"
+    expect_intent: "restaurant_booking_create"
+    expect_state: "HANDOFF"
+    expect_tool_calls: ["handoff_to_human"]
+    expect_reply_contains: ["ekip"]
+    expect_reply_must_not: ["musaitlik", "saat"]
+    expect_risk_flags: ["CAPACITY_LIMIT"]
+    note: "12 > max_ai_party_size (8). Fiyat/musaitlik gostermeden direkt handoff."

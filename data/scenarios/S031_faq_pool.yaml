@@ -1,0 +1,16 @@
+code: "S031"
+name: "FAQ - Havuz Bilgisi"
+description: "Misafir havuz saatlerini soruyor."
+category: "general"
+language: "tr"
+tags: ["faq", "pool"]
+
+steps:
+  - user: "Havuz kacta aciliyor?"
+    expect_intent: "faq_info"
+    expect_state: "INTENT_DETECTED"
+    expect_tool_calls: ["faq_lookup"]
+    expect_reply_contains: ["08:00", "19:00"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "FAQ'dan cevap: acik havuz 08:00-19:00, otel misafirlerine ucretsiz."

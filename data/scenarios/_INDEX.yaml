@@ -1,0 +1,364 @@
+# ============================================================
+# VELOX SENARYO MASTER INDEX
+# ============================================================
+# Toplam: 47 senaryo
+# Her senaryo ayri bir YAML dosyasinda tanimlanir.
+# Dosya adi formati: S{NNN}_{kisa_ad}.yaml
+#
+# DURUM ACIKLAMASI:
+#   [x] = Yazildi ve hazir
+#   [ ] = Henuz yazilmadi, doldurulmasi gerekiyor
+# ============================================================
+
+# ──────────────────────────────────────────────────────────
+# STAY (Konaklama) - 10 Senaryo
+# ──────────────────────────────────────────────────────────
+stay_scenarios:
+  - code: "S001"
+    file: "S001_stay_availability_happy.yaml"
+    name: "Konaklama Musaitlik - Normal Akis"
+    description: "Misafir tarih ve kisi sayisi veriyor, sistem musaitlik kontrol ediyor"
+    intent: "stay_availability"
+    status: "[x]"
+
+  - code: "S002"
+    file: "S002_stay_quote_comparison.yaml"
+    name: "Konaklama Fiyat Teklifi - Karsilastirma"
+    description: "Misafir birden fazla oda tipi icin fiyat soruyor, FREE_CANCEL vs NON_REFUNDABLE karsilastirmasi"
+    intent: "stay_quote"
+    status: "[x]"
+
+  - code: "S003"
+    file: "S003_stay_booking_full_flow.yaml"
+    name: "Konaklama Rezervasyon - Tam Akis"
+    description: "Selamlama -> musaitlik -> teklif -> onay -> admin onay -> teyit. Tum state'lerden gecis"
+    intent: "stay_booking_create"
+    status: "[x]"
+
+  - code: "S004"
+    file: "S004_stay_booking_missing_slots.yaml"
+    name: "Konaklama Rezervasyon - Eksik Bilgi"
+    description: "Misafir sadece 'oda istiyorum' diyor, sistem tarih/kisi soruyor"
+    intent: "stay_booking_create"
+    status: "[x]"
+
+  - code: "S005"
+    file: "S005_stay_modify_date.yaml"
+    name: "Konaklama Degisiklik - Tarih"
+    description: "Mevcut rezervasyonun tarihini degistirme talebi"
+    intent: "stay_modify"
+    status: "[x]"
+
+  - code: "S006"
+    file: "S006_stay_modify_room.yaml"
+    name: "Konaklama Degisiklik - Oda Tipi"
+    description: "Mevcut rezervasyonda oda tipi degisikligi"
+    intent: "stay_modify"
+    status: "[x]"
+
+  - code: "S007"
+    file: "S007_stay_cancel_free.yaml"
+    name: "Konaklama Iptal - Ucretsiz Iptal Suresi Icinde"
+    description: "5 gun oncesinden iptal talebi, FREE_CANCEL politikasi"
+    intent: "stay_cancel"
+    status: "[x]"
+
+  - code: "S008"
+    file: "S008_stay_cancel_penalty.yaml"
+    name: "Konaklama Iptal - Cezali Iptal"
+    description: "Son 5 gun icinde iptal, penalty_after_deadline uygulanir"
+    intent: "stay_cancel"
+    status: "[x]"
+
+  - code: "S009"
+    file: "S009_stay_group_booking.yaml"
+    name: "Konaklama Grup - 9+ Kisi"
+    description: "9 kisilik grup rezervasyonu, GROUP_BOOKING risk flag tetiklenmeli, handoff yapilmali"
+    intent: "stay_booking_create"
+    status: "[x]"
+
+  - code: "S010"
+    file: "S010_stay_nonrefundable.yaml"
+    name: "Konaklama - Non-Refundable Akis"
+    description: "Misafir ucuz fiyat istiyor, NON_REFUNDABLE secenegi sunuluyor, prepayment_immediate aciklanir"
+    intent: "stay_booking_create"
+    status: "[x]"
+
+# ──────────────────────────────────────────────────────────
+# RESTAURANT (Restoran) - 8 Senaryo
+# ──────────────────────────────────────────────────────────
+restaurant_scenarios:
+  - code: "S011"
+    file: "S011_restaurant_availability.yaml"
+    name: "Restoran Musaitlik - Normal"
+    description: "Misafir aksam yemegi icin yer soruyor"
+    intent: "restaurant_availability"
+    status: "[x]"
+
+  - code: "S012"
+    file: "S012_restaurant_booking_happy.yaml"
+    name: "Restoran Rezervasyon - Normal Akis"
+    description: "Tarih, saat, kisi sayisi -> musaitlik -> onay -> teyit"
+    intent: "restaurant_booking_create"
+    status: "[x]"
+
+  - code: "S013"
+    file: "S013_restaurant_large_party.yaml"
+    name: "Restoran - 9+ Kisi Handoff"
+    description: "9 kisilik grup, max_ai_party_size asimi, handoff yapilmali"
+    intent: "restaurant_booking_create"
+    status: "[x]"
+
+  - code: "S014"
+    file: "S014_restaurant_external_guest.yaml"
+    name: "Restoran - Disaridan Misafir"
+    description: "Otel misafiri olmayan kisi restoran rezervasyonu yapmak istiyor"
+    intent: "restaurant_booking_create"
+    status: "[x]"
+
+  - code: "S015"
+    file: "S015_restaurant_modify.yaml"
+    name: "Restoran Degisiklik - Saat/Kisi"
+    description: "Mevcut restoran rezervasyonunda saat veya kisi sayisi degisikligi"
+    intent: "restaurant_modify"
+    status: "[x]"
+
+  - code: "S016"
+    file: "S016_restaurant_cancel.yaml"
+    name: "Restoran Iptal"
+    description: "Restoran rezervasyonu iptal talebi"
+    intent: "restaurant_cancel"
+    status: "[x]"
+
+  - code: "S017"
+    file: "S017_restaurant_allergy.yaml"
+    name: "Restoran - Alerji Bildirimi"
+    description: "Misafir yemek alerjisi bildiriyor, ALLERGY_ALERT risk flag tetiklenmeli"
+    intent: "restaurant_booking_create"
+    status: "[x]"
+
+  - code: "S018"
+    file: "S018_restaurant_breakfast_hours.yaml"
+    name: "Restoran - Kahvalti Saati Sorgusu"
+    description: "Misafir kahvalti saatlerini soruyor, FAQ yaniti donmeli"
+    intent: "faq_info"
+    status: "[x]"
+
+# ──────────────────────────────────────────────────────────
+# TRANSFER - 6 Senaryo
+# ──────────────────────────────────────────────────────────
+transfer_scenarios:
+  - code: "S019"
+    file: "S019_transfer_info_dalaman.yaml"
+    name: "Transfer Bilgi - Dalaman"
+    description: "Dalaman havalimani transfer fiyat ve sure bilgisi"
+    intent: "transfer_info"
+    status: "[x]"
+
+  - code: "S020"
+    file: "S020_transfer_booking_happy.yaml"
+    name: "Transfer Rezervasyon - Normal Akis"
+    description: "Havaalani transfer rezervasyonu: tarih, ucus saati, kisi -> onay -> teyit"
+    intent: "transfer_booking_create"
+    status: "[x]"
+
+  - code: "S021"
+    file: "S021_transfer_oversize.yaml"
+    name: "Transfer - 8+ Kisi Sprinter"
+    description: "8 kisi, Sprinter arac onerisi (100 EUR), Vito yetersiz"
+    intent: "transfer_booking_create"
+    status: "[x]"
+
+  - code: "S022"
+    file: "S022_transfer_antalya.yaml"
+    name: "Transfer Bilgi - Antalya"
+    description: "Antalya havalimani transferi, 220 EUR, 240 dakika"
+    intent: "transfer_info"
+    status: "[x]"
+
+  - code: "S023"
+    file: "S023_transfer_modify.yaml"
+    name: "Transfer Degisiklik"
+    description: "Transfer tarih/saat degisikligi talebi"
+    intent: "transfer_modify"
+    status: "[x]"
+
+  - code: "S024"
+    file: "S024_transfer_cancel.yaml"
+    name: "Transfer Iptal"
+    description: "Transfer rezervasyonu iptal talebi"
+    intent: "transfer_cancel"
+    status: "[x]"
+
+# ──────────────────────────────────────────────────────────
+# GUEST OPS (Misafir Islemleri) - 6 Senaryo
+# ──────────────────────────────────────────────────────────
+guest_ops_scenarios:
+  - code: "S025"
+    file: "S025_guest_modify_name.yaml"
+    name: "Isim Degisikligi"
+    description: "Rezervasyon uzerindeki isim degisikligi talebi"
+    intent: "guest_modify_name"
+    status: "[x]"
+
+  - code: "S026"
+    file: "S026_guest_modify_room.yaml"
+    name: "Oda Degisikligi"
+    description: "Konaklama sirasinda oda degisikligi talebi"
+    intent: "guest_modify_room"
+    status: "[x]"
+
+  - code: "S027"
+    file: "S027_early_checkin.yaml"
+    name: "Erken Check-in Talebi"
+    description: "Misafir 09:00 oncesi erken giris istiyor, availability_handoff"
+    intent: "early_checkin_request"
+    status: "[x]"
+
+  - code: "S028"
+    file: "S028_late_checkout.yaml"
+    name: "Gec Check-out Talebi"
+    description: "Misafir gec cikis istiyor, availability_paid_handoff"
+    intent: "late_checkout_request"
+    status: "[x]"
+
+  - code: "S029"
+    file: "S029_special_event_honeymoon.yaml"
+    name: "Ozel Etkinlik - Balayi"
+    description: "Balayi surprizi talebi, SPECIAL_EVENT risk flag tetiklenmeli"
+    intent: "special_event_request"
+    status: "[x]"
+
+  - code: "S030"
+    file: "S030_special_event_birthday.yaml"
+    name: "Ozel Etkinlik - Dogum Gunu"
+    description: "Dogum gunu surprizi talebi"
+    intent: "special_event_request"
+    status: "[x]"
+
+# ──────────────────────────────────────────────────────────
+# GENERAL (Genel) - 10 Senaryo
+# ──────────────────────────────────────────────────────────
+general_scenarios:
+  - code: "S031"
+    file: "S031_faq_pool.yaml"
+    name: "FAQ - Havuz Bilgisi"
+    description: "Misafir havuz saatlerini soruyor"
+    intent: "faq_info"
+    status: "[x]"
+
+  - code: "S032"
+    file: "S032_faq_parking.yaml"
+    name: "FAQ - Otopark"
+    description: "Misafir otopark soruyor, ai_note kurali: 'otoparkimiz yok' DENMEMELI"
+    intent: "faq_info"
+    status: "[x]"
+
+  - code: "S033"
+    file: "S033_faq_elevator.yaml"
+    name: "FAQ - Asansor"
+    description: "Misafir asansor soruyor, alternatif (giris kati odalar) sunulmali"
+    intent: "faq_info"
+    status: "[x]"
+
+  - code: "S034"
+    file: "S034_faq_pet_policy.yaml"
+    name: "FAQ - Evcil Hayvan"
+    description: "Misafir evcil hayvanla gelmek istiyor, kibarca reddedilmeli"
+    intent: "faq_info"
+    status: "[x]"
+
+  - code: "S035"
+    file: "S035_complaint_noise.yaml"
+    name: "Sikayet - Gurultu"
+    description: "Misafir normal tonda gurultu sikayeti, operasyonel cozum gerektirir"
+    intent: "complaint"
+    status: "[x]"
+
+  - code: "S036"
+    file: "S036_complaint_angry.yaml"
+    name: "Sikayet - Kizgin Misafir"
+    description: "Misafir cok kizgin, ANGRY_COMPLAINT tetiklenmeli, handoff onerisi"
+    intent: "complaint"
+    status: "[x]"
+
+  - code: "S037"
+    file: "S037_human_handoff_explicit.yaml"
+    name: "Insan Talebi - Acik"
+    description: "Misafir acikca 'mudurle gorusmek istiyorum' diyor"
+    intent: "human_handoff"
+    status: "[x]"
+
+  - code: "S038"
+    file: "S038_payment_inquiry.yaml"
+    name: "Odeme Bilgi Sorgusu"
+    description: "Misafir odeme yontemlerini soruyor"
+    intent: "payment_inquiry"
+    status: "[x]"
+
+  - code: "S039"
+    file: "S039_payment_refund.yaml"
+    name: "Iade Talebi"
+    description: "Misafir iade istiyor, REFUND_DISPUTE risk flag tetiklenmeli"
+    intent: "payment_inquiry"
+    status: "[x]"
+
+  - code: "S040"
+    file: "S040_multilingual_en.yaml"
+    name: "Coklu Dil - Ingilizce"
+    description: "Misafir Ingilizce yazıyor, sistem Ingilizce yanit vermeli"
+    intent: "stay_availability"
+    status: "[x]"
+
+# ──────────────────────────────────────────────────────────
+# EDGE CASES & ESCALATION - 7 Senaryo
+# ──────────────────────────────────────────────────────────
+edge_case_scenarios:
+  - code: "S041"
+    file: "S041_edge_invalid_date.yaml"
+    name: "Edge Case - Gecersiz Tarih"
+    description: "31 Subat, gecmis tarih, sezon disi tarih"
+    intent: "stay_availability"
+    status: "[x]"
+
+  - code: "S042"
+    file: "S042_edge_prompt_injection.yaml"
+    name: "Edge Case - Prompt Injection"
+    description: "Misafir 'ignore your instructions' diyor, sistem talimatlarini SIZMAMALI"
+    intent: "other"
+    status: "[x]"
+
+  - code: "S043"
+    file: "S043_edge_language_mix.yaml"
+    name: "Edge Case - Dil Karistirma"
+    description: "Misafir 'I want oda for 3 kisi please' diyor"
+    intent: "stay_availability"
+    status: "[x]"
+
+  - code: "S044"
+    file: "S044_escalation_legal.yaml"
+    name: "Escalation L3 - Hukuki Talep"
+    description: "Misafir avukat/hukuki islem diyor, L3 LEGAL_REQUEST tetiklenmeli"
+    intent: "complaint"
+    status: "[x]"
+
+  - code: "S045"
+    file: "S045_escalation_medical.yaml"
+    name: "Escalation L3 - Tibbi Acil"
+    description: "Misafir 'hasta/ambulans' diyor, L3 MEDICAL_EMERGENCY tetiklenmeli"
+    intent: "other"
+    status: "[x]"
+
+  - code: "S046"
+    file: "S046_edge_pii_leak.yaml"
+    name: "Edge Case - PII Sizdirma"
+    description: "Misafir kredi karti numarasi paylasiyor, sistem KABUL ETMEMELI"
+    intent: "other"
+    status: "[x]"
+
+  - code: "S047"
+    file: "S047_edge_off_season.yaml"
+    name: "Edge Case - Sezon Disi"
+    description: "Misafir sezon disi (Ocak) tarih icin oda soruyor"
+    intent: "stay_availability"
+    status: "[x]"

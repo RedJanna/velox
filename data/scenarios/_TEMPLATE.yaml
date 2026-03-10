@@ -1,0 +1,59 @@
+# ============================================================
+# VELOX SENARYO SABLONU
+# ============================================================
+# Bu dosya senaryo yazim rehberidir. Kopyalayip kullan.
+#
+# KURALLAR:
+#   1. Her senaryo YAML dosyasi tek bir senaryo icerir
+#   2. Dosya adi: S{NNN}_{kisa_ad}.yaml  (ornek: S001_stay_availability.yaml)
+#   3. Her adim (step) bir misafir mesaji + beklenen sistem davranisi
+#   4. expect_reply_contains: Yanit icinde OLMASI GEREKEN kelimeler (kucuk harf)
+#   5. expect_reply_must_not: Yanit icinde OLMAMASI GEREKEN kelimeler
+#   6. expect_risk_flags: Tetiklenmesi gereken risk bayraklari
+#
+# INTENT LISTESI (23 adet):
+#   Stay:       stay_availability, stay_quote, stay_booking_create, stay_modify, stay_cancel
+#   Restaurant: restaurant_availability, restaurant_booking_create, restaurant_modify, restaurant_cancel
+#   Transfer:   transfer_info, transfer_booking_create, transfer_modify, transfer_cancel
+#   Guest:      guest_modify_name, guest_modify_room, early_checkin_request, late_checkout_request, special_event_request
+#   General:    faq_info, complaint, human_handoff, payment_inquiry, other
+#
+# STATE LISTESI (11 adet):
+#   GREETING, INTENT_DETECTED, NEEDS_VERIFICATION, READY_FOR_TOOL, TOOL_RUNNING,
+#   NEEDS_CONFIRMATION, PENDING_APPROVAL, PENDING_PAYMENT, CONFIRMED, HANDOFF, CLOSED
+#
+# RISK FLAG LISTESI (30 adet):
+#   L3: LEGAL_REQUEST, SECURITY_INCIDENT, THREAT_SELF_HARM, MEDICAL_EMERGENCY
+#   L2: PAYMENT_CONFUSION, CHARGEBACK_MENTION, REFUND_DISPUTE, ANGRY_COMPLAINT,
+#       HARASSMENT_HATE, FRAUD_SIGNAL, TOOL_UNAVAILABLE, TOOL_ERROR_REPEAT,
+#       DATA_INCONSISTENCY, RATE_MAPPING_MISSING, GROUP_BOOKING, SPECIAL_EVENT, PII_OVERREQUEST
+#   L1: VIP_REQUEST, ALLERGY_ALERT, ACCESSIBILITY_NEED, NO_SHOW_RISK,
+#       CAPACITY_LIMIT, OVERBOOK_RISK, POLICY_MISSING, LOST_ITEM
+#   L0: TEMPLATE_MISSING, LANGUAGE_UNSUPPORTED, RESERVATION_ID_MISSING, DATE_INVALID,
+#       CURRENCY_CONVERSION_REQUEST
+# ============================================================
+
+code: "S000"
+name: "Senaryo Adi Buraya"
+description: "Bu senaryonun ne test ettigini kisa acikla"
+category: "stay | restaurant | transfer | guest_ops | general | edge_case | escalation"
+language: "tr"
+tags: ["ornek_tag"]
+
+steps:
+  - user: "Misafirin mesaji buraya yazilir"
+    expect_intent: "stay_availability"
+    expect_state: "INTENT_DETECTED"
+    expect_tool_calls: []
+    expect_reply_contains: ["yanit icinde olmasi gereken kelime"]
+    expect_reply_must_not: ["yanit icinde olmamasi gereken kelime"]
+    expect_risk_flags: []
+    note: "Bu adimda ne bekledigimizi aciklayan not (opsiyonel)"
+
+  - user: "Ikinci mesaj"
+    expect_intent: "stay_availability"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["booking_availability"]
+    expect_reply_contains: []
+    expect_reply_must_not: []
+    expect_risk_flags: []

@@ -1,0 +1,34 @@
+code: "S010"
+name: "Konaklama - Non-Refundable Akis"
+description: "Misafir ucuz fiyat istiyor. NON_REFUNDABLE secenegi sunulur, prepayment_immediate kurali aciklanir."
+category: "stay"
+language: "tr"
+tags: ["stay", "booking", "non_refundable", "prepayment"]
+
+steps:
+  - user: "En uygun fiyatli odaniz hangisi? 5-10 Temmuz 2 kisi"
+    expect_intent: "stay_quote"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["booking_quote"]
+    expect_reply_contains: ["€"]
+    expect_reply_must_not: ["TL"]
+    expect_risk_flags: []
+    note: "Her iki iptal politikasi da sunulmali: FREE_CANCEL ve NON_REFUNDABLE."
+
+  - user: "Iade edilemeyen ucuz olan secenegi istiyorum"
+    expect_intent: "stay_booking_create"
+    expect_state: "NEEDS_CONFIRMATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["iade", "odeme"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "NON_REFUNDABLE secildi. prepayment_immediate=true oldugu aciklanmali: hemen 1 gece odeme."
+
+  - user: "Tamam kabul ediyorum"
+    expect_intent: "stay_booking_create"
+    expect_state: "PENDING_APPROVAL"
+    expect_tool_calls: ["stay_create_hold"]
+    expect_reply_contains: ["onay"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Hold olusturulur. Admin onayina gider."

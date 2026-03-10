@@ -1,0 +1,45 @@
+# S041: Edge Case - Gecersiz Tarih
+# Sistem gecersiz tarihleri yakalamali ve kibarca duzeltme istemeli.
+
+code: "S041"
+name: "Edge Case - Gecersiz Tarih"
+description: "Misafir gecersiz/gecmis/sezon disi tarih veriyor. Sistem DATE_INVALID risk flag tetiklemeli ve duzeltme istemeli."
+category: "edge_case"
+language: "tr"
+tags: ["edge_case", "validation", "date", "risk_flag"]
+
+steps:
+  - user: "31 Subat'ta oda var mi?"
+    expect_intent: "stay_availability"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["tarih"]
+    expect_reply_must_not: ["musaitlik", "€"]
+    expect_risk_flags: ["DATE_INVALID"]
+    note: >
+      31 Subat gecersiz bir tarih.
+      Sistem tool CAGIRMAMALI (gecersiz tarihi Elektraweb'e gonderme!).
+      Kibarca gecerli bir tarih istemeli.
+      DATE_INVALID risk flag tetiklenmeli (L0).
+
+  - user: "1 Ocak icin oda istiyorum"
+    expect_intent: "stay_availability"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["sezon"]
+    expect_reply_must_not: ["musaitlik", "€"]
+    expect_risk_flags: ["DATE_INVALID"]
+    note: >
+      1 Ocak sezon disi (sezon: 04-20 ~ 11-10).
+      Sistem musaitlik kontrol etmeden 'sezon disinda' bilgisi vermeli.
+
+  - user: "Gecen hafta icin oda var miydi?"
+    expect_intent: "stay_availability"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["tarih"]
+    expect_reply_must_not: ["musaitlik"]
+    expect_risk_flags: ["DATE_INVALID"]
+    note: >
+      Gecmis tarih. Rezervasyon gecmis tarih icin yapilamaz.
+      Sistem gelecek bir tarih istemeli.

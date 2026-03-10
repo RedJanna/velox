@@ -1,0 +1,34 @@
+code: "S021"
+name: "Transfer - 8+ Kisi Sprinter"
+description: "8 kisi, Vito yetersiz. Sprinter arac onerisi (100 EUR)."
+category: "transfer"
+language: "tr"
+tags: ["transfer", "oversize", "sprinter"]
+
+steps:
+  - user: "10 kisilik grubumuz icin havalimanindan transfer lazim"
+    expect_intent: "transfer_booking_create"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["tarih"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "10 kisi > max_pax 7 (Vito). Tarih sorulmali."
+
+  - user: "20 Temmuz, ucus 15:30'da iniyor"
+    expect_intent: "transfer_booking_create"
+    expect_state: "NEEDS_CONFIRMATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["sprinter", "100", "€"]
+    expect_reply_must_not: ["75"]
+    expect_risk_flags: []
+    note: "10 kisi >= min_pax 8 icin Sprinter. 100 EUR (75 degil!). Sprinter bilgisi sunulmali."
+
+  - user: "Tamam Sprinter ile ayarlayin"
+    expect_intent: "transfer_booking_create"
+    expect_state: "PENDING_APPROVAL"
+    expect_tool_calls: ["transfer_create_hold"]
+    expect_reply_contains: ["onay"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Sprinter ile hold olusturulur."

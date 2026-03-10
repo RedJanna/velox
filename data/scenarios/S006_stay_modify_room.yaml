@@ -1,0 +1,43 @@
+code: "S006"
+name: "Konaklama Degisiklik - Oda Tipi"
+description: "Mevcut rezervasyonda oda tipi degisikligi talebi."
+category: "stay"
+language: "tr"
+tags: ["stay", "modify", "room_change"]
+
+steps:
+  - user: "Rezervasyonumdaki oda tipini degistirmek istiyorum"
+    expect_intent: "stay_modify"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["rezervasyon"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Rezervasyon ID ve yeni oda tipi tercihi sorulmali."
+
+  - user: "KAS-20250715-003, Penthouse odaya gecmek istiyorum"
+    expect_intent: "stay_modify"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["booking_availability"]
+    expect_reply_contains: ["penthouse", "musaitlik"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Penthouse musaitligi kontrol edilmeli. Fiyat farki varsa bildirilmeli."
+
+  - user: "Fark ne kadar?"
+    expect_intent: "stay_quote"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["booking_quote"]
+    expect_reply_contains: ["€"]
+    expect_reply_must_not: ["TL", "dolar"]
+    expect_risk_flags: []
+    note: "Fiyat farki EUR cinsinden gosterilmeli."
+
+  - user: "Tamam degistirin"
+    expect_intent: "stay_modify"
+    expect_state: "PENDING_APPROVAL"
+    expect_tool_calls: ["stay_modify_hold"]
+    expect_reply_contains: ["onay"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Degisiklik admin onayina gonderilir."

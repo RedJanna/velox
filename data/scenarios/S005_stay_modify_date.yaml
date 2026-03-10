@@ -1,0 +1,43 @@
+code: "S005"
+name: "Konaklama Degisiklik - Tarih"
+description: "Mevcut rezervasyonun tarihini degistirme talebi. Rezervasyon ID dogrulama, yeni tarih musaitlik kontrolu."
+category: "stay"
+language: "tr"
+tags: ["stay", "modify", "date_change"]
+
+steps:
+  - user: "Merhaba, rezervasyonumun tarihini degistirmek istiyorum"
+    expect_intent: "stay_modify"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["rezervasyon"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Rezervasyon ID eksik. Sistem sormali."
+
+  - user: "Rezervasyon numaram KAS-20250801-001"
+    expect_intent: "stay_modify"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["tarih"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "ID alindi. Simdi yeni tarihler sorulmali."
+
+  - user: "10-15 Agustos olarak degistirmek istiyorum"
+    expect_intent: "stay_modify"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["booking_availability"]
+    expect_reply_contains: ["musaitlik"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Yeni tarihler alindi. Musaitlik kontrolu yapilmali."
+
+  - user: "Evet degisikligi onayla"
+    expect_intent: "stay_modify"
+    expect_state: "PENDING_APPROVAL"
+    expect_tool_calls: ["stay_modify_hold"]
+    expect_reply_contains: ["onay"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Kullanici onayladi. Admin onayina gonder."

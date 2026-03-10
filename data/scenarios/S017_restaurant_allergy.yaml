@@ -1,0 +1,25 @@
+code: "S017"
+name: "Restoran - Alerji Bildirimi"
+description: "Misafir yemek alerjisi bildiriyor. ALLERGY_ALERT risk flag tetiklenmeli."
+category: "restaurant"
+language: "tr"
+tags: ["restaurant", "allergy", "risk_flag", "safety"]
+
+steps:
+  - user: "Yarin aksam 4 kisi icin masa ayirtmak istiyorum ama esimin ciddi findik alerjisi var"
+    expect_intent: "restaurant_booking_create"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["alerji", "saat"]
+    expect_reply_must_not: []
+    expect_risk_flags: ["ALLERGY_ALERT"]
+    note: "ALLERGY_ALERT tetiklenmeli (L1). Alerji bilgisi mutfaga iletilecegi bildirilmeli. Saat sorulmali."
+
+  - user: "Saat 20:00 olsun"
+    expect_intent: "restaurant_booking_create"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["restaurant_availability"]
+    expect_reply_contains: ["musait"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Normal akis devam eder. Alerji bilgisi rezervasyona not olarak eklenmeli."

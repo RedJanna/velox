@@ -1,0 +1,25 @@
+code: "S028"
+name: "Gec Check-out Talebi"
+description: "Misafir 12:00 sonrasi gec cikis istiyor. availability_paid_handoff."
+category: "guest_ops"
+language: "tr"
+tags: ["guest", "late_checkout", "handoff", "paid"]
+
+steps:
+  - user: "Yarin gec cikis yapabilir miyiz? Ucusumuz aksamustu"
+    expect_intent: "late_checkout_request"
+    expect_state: "NEEDS_CONFIRMATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["gec", "musaitlik", "ucret"]
+    expect_reply_must_not: ["ucretsiz", "garanti"]
+    expect_risk_flags: []
+    note: "late_checkout=availability_paid_handoff. Ucretli ve musaitlige bagli oldugu soylenmeli."
+
+  - user: "Ne kadar ucret var?"
+    expect_intent: "late_checkout_request"
+    expect_state: "HANDOFF"
+    expect_tool_calls: ["handoff_to_human"]
+    expect_reply_contains: ["ekip"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Fiyat bilgisi AI'da yok. Handoff yapilmali."

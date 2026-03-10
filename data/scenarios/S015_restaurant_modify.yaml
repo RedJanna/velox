@@ -1,0 +1,34 @@
+code: "S015"
+name: "Restoran Degisiklik - Saat/Kisi"
+description: "Mevcut restoran rezervasyonunda saat veya kisi sayisi degisikligi."
+category: "restaurant"
+language: "tr"
+tags: ["restaurant", "modify"]
+
+steps:
+  - user: "Restoran rezervasyonumuzun saatini degistirmek istiyorum"
+    expect_intent: "restaurant_modify"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["rezervasyon"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Rezervasyon bilgisi ve yeni saat sorulmali."
+
+  - user: "20:00 yerine 21:00 olsun, ayni gun ayni kisi sayisi"
+    expect_intent: "restaurant_modify"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["restaurant_availability"]
+    expect_reply_contains: ["musait"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "21:00 dinner saatleri icinde (18:00-22:00). Musaitlik kontrol."
+
+  - user: "Evet degistirin"
+    expect_intent: "restaurant_modify"
+    expect_state: "PENDING_APPROVAL"
+    expect_tool_calls: ["restaurant_modify_hold"]
+    expect_reply_contains: ["onay"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Degisiklik admin/chef onayina gider."

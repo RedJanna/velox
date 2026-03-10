@@ -1,0 +1,25 @@
+code: "S014"
+name: "Restoran - Disaridan Misafir"
+description: "Otel misafiri olmayan kisi restoran rezervasyonu yapmak istiyor. external_guests_allowed=true."
+category: "restaurant"
+language: "tr"
+tags: ["restaurant", "external_guest", "booking"]
+
+steps:
+  - user: "Merhaba, otelinizde kalmiyorum ama restoranda yemek yemek istiyorum. Masa ayirtabilir miyim?"
+    expect_intent: "restaurant_booking_create"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["tarih", "kisi"]
+    expect_reply_must_not: ["olmaz", "sadece"]
+    expect_risk_flags: []
+    note: "external_guests_allowed=true. Reddedilmemeli. Tarih/saat/kisi sorulmali."
+
+  - user: "15 Temmuz aksam 20:00, 4 kisi"
+    expect_intent: "restaurant_booking_create"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["restaurant_availability"]
+    expect_reply_contains: ["musait"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Normal akis. Disaridan misafir icin ucretli oldugu bildirilmeli."

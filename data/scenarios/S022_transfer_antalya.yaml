@@ -1,0 +1,16 @@
+code: "S022"
+name: "Transfer Bilgi - Antalya"
+description: "Antalya havalimani transferi, 220 EUR, 240 dakika."
+category: "transfer"
+language: "tr"
+tags: ["transfer", "info", "antalya"]
+
+steps:
+  - user: "Antalya havalimanindan transfer yapiliyor mu?"
+    expect_intent: "transfer_info"
+    expect_state: "INTENT_DETECTED"
+    expect_tool_calls: ["transfer_info"]
+    expect_reply_contains: ["antalya", "220", "€"]
+    expect_reply_must_not: ["75"]
+    expect_risk_flags: []
+    note: "Antalya rotasi: 220 EUR, 240 dakika (~4 saat). 75 EUR Dalaman fiyati gosterilmemeli."

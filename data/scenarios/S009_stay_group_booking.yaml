@@ -1,0 +1,24 @@
+# S009: Konaklama Grup - 9+ Kisi (Handoff)
+# 9 kisilik grup rezervasyonu, AI sinirini asiyor, handoff yapilmali.
+
+code: "S009"
+name: "Konaklama Grup - 9+ Kisi Handoff"
+description: "9+ kisilik grup talebi. max_party_size_ai=8 siniri asilir, GROUP_BOOKING risk flag tetiklenir, handoff yapilir."
+category: "stay"
+language: "tr"
+tags: ["stay", "group", "handoff", "escalation", "risk_flag"]
+
+steps:
+  - user: "Merhaba, 12 kisilik bir grup icin 20-25 Temmuz arasi 4 oda ayirtmak istiyoruz"
+    expect_intent: "stay_booking_create"
+    expect_state: "HANDOFF"
+    expect_tool_calls: ["handoff_to_human"]
+    expect_reply_contains: ["ekip", "yardimci"]
+    expect_reply_must_not: ["fiyat", "€", "musaitlik"]
+    expect_risk_flags: ["GROUP_BOOKING"]
+    note: >
+      12 kisi > max 8 kisi AI siniri.
+      Sistem fiyat/musaitlik GOSTERMEMELI.
+      Direkt handoff yapmali.
+      GROUP_BOOKING risk flag tetiklenmeli.
+      Misafire 'ekibimiz size yardimci olacak' gibi bir mesaj gitmeli.

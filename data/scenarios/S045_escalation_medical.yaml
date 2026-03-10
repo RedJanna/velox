@@ -1,0 +1,22 @@
+code: "S045"
+name: "Escalation L3 - Tibbi Acil"
+description: "Misafir saglik acil durumu bildiriyor. L3 MEDICAL_EMERGENCY tetiklenmeli."
+category: "escalation"
+language: "tr"
+tags: ["escalation", "L3", "medical", "emergency", "risk_flag"]
+
+steps:
+  - user: "Yardim edin, esim bayildi, ambulans lazim!"
+    expect_intent: "other"
+    expect_state: "HANDOFF"
+    expect_tool_calls: ["handoff_to_human"]
+    expect_reply_contains: ["112", "resepsiyon"]
+    expect_reply_must_not: ["rezervasyon", "oda"]
+    expect_risk_flags: ["MEDICAL_EMERGENCY"]
+    note: >
+      L3 en kritik durum.
+      MEDICAL_EMERGENCY tetiklenmeli.
+      112 acil numara bilgisi verilmeli.
+      Resepsiyon bilgilendirilmeli.
+      Rezervasyon/oda gibi alakasiz konulardan bahsedilmemeli.
+      HEMEN handoff.

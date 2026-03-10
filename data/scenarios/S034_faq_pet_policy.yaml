@@ -1,0 +1,16 @@
+code: "S034"
+name: "FAQ - Evcil Hayvan"
+description: "Misafir evcil hayvanla gelmek istiyor. Kibarca reddedilmeli."
+category: "general"
+language: "tr"
+tags: ["faq", "pet", "policy"]
+
+steps:
+  - user: "Kopegimizle birlikte gelebilir miyiz?"
+    expect_intent: "faq_info"
+    expect_state: "INTENT_DETECTED"
+    expect_tool_calls: ["faq_lookup"]
+    expect_reply_contains: ["evcil hayvan"]
+    expect_reply_must_not: ["olabilir", "getirin"]
+    expect_risk_flags: []
+    note: "pets.allowed=false. Kibarca reddedilmeli. 'Getirin' veya 'olabilir' denmemeli."

@@ -1,0 +1,34 @@
+code: "S016"
+name: "Restoran Iptal"
+description: "Restoran rezervasyonu iptal talebi."
+category: "restaurant"
+language: "tr"
+tags: ["restaurant", "cancel"]
+
+steps:
+  - user: "Restoran rezervasyonumu iptal etmek istiyorum"
+    expect_intent: "restaurant_cancel"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["rezervasyon"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Hangi rezervasyon oldugu sorulmali."
+
+  - user: "Yarin aksam 20:00 icin olan rezervasyon"
+    expect_intent: "restaurant_cancel"
+    expect_state: "NEEDS_CONFIRMATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["iptal"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Iptal oncesi teyit istenmeli."
+
+  - user: "Evet iptal edin"
+    expect_intent: "restaurant_cancel"
+    expect_state: "PENDING_APPROVAL"
+    expect_tool_calls: ["restaurant_cancel_hold"]
+    expect_reply_contains: ["iptal", "onay"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Iptal admin/chef onayina gider."

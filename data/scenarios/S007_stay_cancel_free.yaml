@@ -1,0 +1,34 @@
+code: "S007"
+name: "Konaklama Iptal - Ucretsiz Iptal Suresi Icinde"
+description: "Girise 5+ gun kala iptal talebi. FREE_CANCEL politikasi gecerli, ceza yok."
+category: "stay"
+language: "tr"
+tags: ["stay", "cancel", "free_cancel", "policy"]
+
+steps:
+  - user: "Rezervasyonumu iptal etmek istiyorum"
+    expect_intent: "stay_cancel"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["rezervasyon"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Rezervasyon ID sorulmali."
+
+  - user: "Numaram KAS-20250820-007"
+    expect_intent: "stay_cancel"
+    expect_state: "NEEDS_CONFIRMATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["iptal", "ucretsiz"]
+    expect_reply_must_not: ["ceza", "kesinti"]
+    expect_risk_flags: []
+    note: "Girise 5+ gun var. FREE_CANCEL gecerli. Ucretsiz iptal bilgisi verilmeli."
+
+  - user: "Evet iptal edin"
+    expect_intent: "stay_cancel"
+    expect_state: "PENDING_APPROVAL"
+    expect_tool_calls: ["stay_cancel_hold"]
+    expect_reply_contains: ["iptal", "onay"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Iptal islemi admin onayina gider."

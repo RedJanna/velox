@@ -1,0 +1,16 @@
+code: "S038"
+name: "Odeme Bilgi Sorgusu"
+description: "Misafir odeme yontemlerini soruyor."
+category: "general"
+language: "tr"
+tags: ["payment", "inquiry", "faq"]
+
+steps:
+  - user: "Odeme nasil yapilir? Kredi karti disinda secenek var mi?"
+    expect_intent: "payment_inquiry"
+    expect_state: "INTENT_DETECTED"
+    expect_tool_calls: []
+    expect_reply_contains: ["havale", "nakit"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Odeme yontemleri: BANK_TRANSFER, PAYMENT_LINK, POS, CASH, MAIL_ORDER. Hotel profile reply kullanilmali."

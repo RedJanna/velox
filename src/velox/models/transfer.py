@@ -1,5 +1,7 @@
 """Transfer booking data models."""
 
+from __future__ import annotations
+
 from datetime import date, datetime, time
 from decimal import Decimal
 from uuid import UUID

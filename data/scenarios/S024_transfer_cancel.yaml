@@ -1,0 +1,34 @@
+code: "S024"
+name: "Transfer Iptal"
+description: "Transfer rezervasyonu iptal talebi."
+category: "transfer"
+language: "tr"
+tags: ["transfer", "cancel"]
+
+steps:
+  - user: "Transfer rezervasyonumu iptal etmek istiyorum"
+    expect_intent: "transfer_cancel"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["transfer"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Hangi transfer oldugu dogrulanmali."
+
+  - user: "15 Temmuz Dalaman transferi"
+    expect_intent: "transfer_cancel"
+    expect_state: "NEEDS_CONFIRMATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["iptal"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Iptal oncesi teyit istenmeli."
+
+  - user: "Evet iptal edin"
+    expect_intent: "transfer_cancel"
+    expect_state: "PENDING_APPROVAL"
+    expect_tool_calls: ["transfer_cancel_hold"]
+    expect_reply_contains: ["iptal", "onay"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Admin onayina gider."

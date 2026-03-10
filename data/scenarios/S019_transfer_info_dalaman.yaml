@@ -1,0 +1,16 @@
+code: "S019"
+name: "Transfer Bilgi - Dalaman"
+description: "Dalaman havalimani transfer fiyat ve sure bilgisi."
+category: "transfer"
+language: "tr"
+tags: ["transfer", "info", "dalaman"]
+
+steps:
+  - user: "Havalimanindan otele nasil gelirim?"
+    expect_intent: "transfer_info"
+    expect_state: "INTENT_DETECTED"
+    expect_tool_calls: ["transfer_info"]
+    expect_reply_contains: ["dalaman", "75", "€"]
+    expect_reply_must_not: ["TL", "dolar"]
+    expect_risk_flags: []
+    note: "Dalaman default rota. 75 EUR, 75 dakika, Vito (max 7 kisi). EUR cinsinden."

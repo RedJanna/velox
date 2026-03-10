@@ -1,0 +1,21 @@
+code: "S044"
+name: "Escalation L3 - Hukuki Talep"
+description: "Misafir avukat/hukuki islem diyor. L3 LEGAL_REQUEST tetiklenmeli."
+category: "escalation"
+language: "tr"
+tags: ["escalation", "L3", "legal", "risk_flag"]
+
+steps:
+  - user: "Avukatimi arayacagim, yasal islem baslatalacagim sizin aleyhine!"
+    expect_intent: "complaint"
+    expect_state: "HANDOFF"
+    expect_tool_calls: ["handoff_to_human"]
+    expect_reply_contains: ["ekip"]
+    expect_reply_must_not: ["sakin", "abartma", "avukat gerek yok"]
+    expect_risk_flags: ["LEGAL_REQUEST"]
+    note: >
+      L3 kritik escalation.
+      LEGAL_REQUEST tetiklenmeli.
+      AI kesinlikle hukuki yorum yapmamali.
+      'Sakin olun' veya 'avukata gerek yok' DENMEMELI.
+      Hemen ADMIN'e handoff.

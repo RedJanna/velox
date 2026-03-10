@@ -1,0 +1,31 @@
+# S011: Restoran Musaitlik - Normal
+# Misafir aksam yemegi icin yer soruyor.
+
+code: "S011"
+name: "Restoran Musaitlik - Normal"
+description: "Misafir restoran musaitligi soruyor. Tarih, saat, kisi sayisi toplanir ve musaitlik kontrol edilir."
+category: "restaurant"
+language: "tr"
+tags: ["restaurant", "availability", "happy_path"]
+
+steps:
+  - user: "Bu aksam restoranda yer var mi?"
+    expect_intent: "restaurant_availability"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["kisi"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Tarih bugunden cikarilabilir ama saat ve kisi sayisi eksik. Sorulmali."
+
+  - user: "Saat 20:00'de 4 kisi"
+    expect_intent: "restaurant_availability"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["restaurant_availability"]
+    expect_reply_contains: ["musait"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: >
+      Slotlar: date=bugun, time=20:00, pax=4.
+      4 < max_ai_party_size (8), normal islem.
+      Restoran saatleri dinner: 18:00-22:00 icinde, uygun.

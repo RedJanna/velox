@@ -1,0 +1,34 @@
+code: "S020"
+name: "Transfer Rezervasyon - Normal Akis"
+description: "Havalimani transfer rezervasyonu: tarih, ucus saati, kisi -> onay -> teyit."
+category: "transfer"
+language: "tr"
+tags: ["transfer", "booking", "happy_path"]
+
+steps:
+  - user: "Dalaman havalimanindan otele transfer ayarlar misiniz?"
+    expect_intent: "transfer_booking_create"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["tarih"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Varis tarihi, ucus saati/numarasi ve kisi sayisi sorulmali."
+
+  - user: "15 Temmuz, ucusumuz 14:00'te iniyor, 3 kisi"
+    expect_intent: "transfer_booking_create"
+    expect_state: "NEEDS_CONFIRMATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["75", "€", "dalaman"]
+    expect_reply_must_not: ["TL"]
+    expect_risk_flags: []
+    note: "3 kisi < 7 max, Vito yeterli. 75 EUR gosterilmeli. Ozet ve teyit istenmeli."
+
+  - user: "Evet onayliyorum"
+    expect_intent: "transfer_booking_create"
+    expect_state: "PENDING_APPROVAL"
+    expect_tool_calls: ["transfer_create_hold"]
+    expect_reply_contains: ["onay"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Hold olusturulur. Admin onayina gider."

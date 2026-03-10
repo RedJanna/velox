@@ -1,0 +1,27 @@
+code: "S040"
+name: "Coklu Dil - Ingilizce"
+description: "Misafir Ingilizce yaziyor. Sistem Ingilizce yanit vermeli."
+category: "general"
+language: "en"
+tags: ["multilingual", "english"]
+
+steps:
+  - user: "Hello, do you have any rooms available for July 15-20?"
+    expect_intent: "stay_availability"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["booking_availability"]
+    expect_reply_contains: ["availability", "room"]
+    expect_reply_must_not: ["musaitlik", "oda"]
+    expect_risk_flags: []
+    note: >
+      Misafir Ingilizce yazdi. Yanit INGILIZCE olmali.
+      Turkce kelimeler (musaitlik, oda) yanit icinde OLMAMALI.
+
+  - user: "What about pool view rooms?"
+    expect_intent: "stay_availability"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["booking_availability"]
+    expect_reply_contains: ["pool"]
+    expect_reply_must_not: ["havuz"]
+    expect_risk_flags: []
+    note: "Ingilizce devam etmeli. 'Havuz' degil 'pool' kullanilmali."

@@ -1,0 +1,37 @@
+# S004: Konaklama Rezervasyon - Eksik Bilgi
+# Misafir belirsiz bilgi veriyor, sistem dogru sekilde slot toplamali.
+
+code: "S004"
+name: "Konaklama Rezervasyon - Eksik Bilgi"
+description: "Misafir eksik veya belirsiz bilgi verir. Sistem tek mesajda tum eksik slotlari sormali."
+category: "stay"
+language: "tr"
+tags: ["stay", "booking", "missing_slots", "slot_filling"]
+
+steps:
+  - user: "Oda ayirtmak istiyorum"
+    expect_intent: "stay_booking_create"
+    expect_state: "INTENT_DETECTED"
+    expect_tool_calls: []
+    expect_reply_contains: ["tarih", "kisi"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Intent var ama 3 kritik slot eksik: checkin, checkout, adults. Hepsi TEK mesajda sorulmali."
+
+  - user: "Temmuz'da gelecegiz"
+    expect_intent: "stay_booking_create"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["tarih"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "'Temmuz' belirsiz. Kesin giris/cikis tarihleri ve kisi sayisi sorulmali."
+
+  - user: "5-10 Temmuz, 2 kisi"
+    expect_intent: "stay_availability"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["booking_availability"]
+    expect_reply_contains: ["musaitlik"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Artik tum slotlar dolu. checkin=07-05, checkout=07-10, adults=2. Tool cagrilabilir."

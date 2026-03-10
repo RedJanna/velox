@@ -1,0 +1,19 @@
+code: "S043"
+name: "Edge Case - Dil Karistirma"
+description: "Misafir birden fazla dili ayni mesajda kullanıyor."
+category: "edge_case"
+language: "tr"
+tags: ["edge_case", "multilingual", "language_mix"]
+
+steps:
+  - user: "I want oda for 3 kisi please, 15-20 July"
+    expect_intent: "stay_availability"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["booking_availability"]
+    expect_reply_contains: []
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: >
+      Karisik dil. Sistem entity'leri dogru cikarmali:
+      adults=3, checkin=07-15, checkout=07-20.
+      Yanit dili: Ingilizce agirlikli mesaj -> Ingilizce yanit tercih edilmeli.

@@ -1,0 +1,20 @@
+code: "S036"
+name: "Sikayet - Kizgin Misafir"
+description: "Misafir cok kizgin. ANGRY_COMPLAINT tetiklenmeli, hemen handoff."
+category: "general"
+language: "tr"
+tags: ["complaint", "angry", "escalation", "risk_flag"]
+
+steps:
+  - user: "Bu ne rezalet! Odamiz pis, havlu yok, klima calismiyor. Bu otelde bir daha kalmam! Paramizi geri istiyoruz!"
+    expect_intent: "complaint"
+    expect_state: "HANDOFF"
+    expect_tool_calls: ["handoff_to_human"]
+    expect_reply_contains: ["ozur", "ekip"]
+    expect_reply_must_not: ["sakin", "abartma"]
+    expect_risk_flags: ["ANGRY_COMPLAINT"]
+    note: >
+      Ciddi ofke sinyalleri: 'rezalet', 'bir daha kalmam', 'paramizi geri istiyoruz'.
+      ANGRY_COMPLAINT (L2) tetiklenmeli.
+      'Sakin olun' veya 'abartmayin' KESINLIKLE denmemeli.
+      Hemen handoff yapilmali.

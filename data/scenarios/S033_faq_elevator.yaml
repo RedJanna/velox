@@ -1,0 +1,19 @@
+code: "S033"
+name: "FAQ - Asansor"
+description: "Misafir asansor soruyor. Asansor yok ama alternatif sunulmali."
+category: "general"
+language: "tr"
+tags: ["faq", "elevator", "accessibility"]
+
+steps:
+  - user: "Otelde asansor var mi? Annem yurume guclugu cekiyor"
+    expect_intent: "faq_info"
+    expect_state: "INTENT_DETECTED"
+    expect_tool_calls: ["faq_lookup"]
+    expect_reply_contains: ["giris kat"]
+    expect_reply_must_not: []
+    expect_risk_flags: ["ACCESSIBILITY_NEED"]
+    note: >
+      Asansor yok. Ama sadece 'yok' demek yetmez.
+      Giris katinda erisime uygun odalar (Deluxe, bazi Superior) onerilmeli.
+      ACCESSIBILITY_NEED risk flag tetiklenmeli (L1).

@@ -1,0 +1,20 @@
+code: "S039"
+name: "Iade Talebi"
+description: "Misafir iade istiyor. REFUND_DISPUTE risk flag tetiklenmeli."
+category: "general"
+language: "tr"
+tags: ["payment", "refund", "escalation", "risk_flag"]
+
+steps:
+  - user: "Iptal ettim ama param hala geri gelmedi, iade istiyorum!"
+    expect_intent: "payment_inquiry"
+    expect_state: "HANDOFF"
+    expect_tool_calls: ["handoff_to_human"]
+    expect_reply_contains: ["ekip"]
+    expect_reply_must_not: ["geri iade edildi", "hesabiniza"]
+    expect_risk_flags: ["REFUND_DISPUTE"]
+    note: >
+      REFUND_DISPUTE (L2) tetiklenmeli.
+      AI iade yaptigini veya yapacagini SOYLEYEMEZ.
+      Direkt handoff yapilmali.
+      'Geri iade edildi' veya 'hesabiniza yatirildi' gibi halusin ifadeler OLMAMALI.

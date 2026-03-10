@@ -45,3 +45,5 @@ desktop.ini
 *.pem
 *.key
 credentials.json
+sensitive_environment_variables.txt
+sensitive_environment_variables*.txt

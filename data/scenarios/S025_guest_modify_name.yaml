@@ -1,0 +1,34 @@
+code: "S025"
+name: "Isim Degisikligi"
+description: "Rezervasyon uzerindeki misafir isim degisikligi talebi."
+category: "guest_ops"
+language: "tr"
+tags: ["guest", "modify", "name"]
+
+steps:
+  - user: "Rezervasyondaki ismi degistirmem lazim"
+    expect_intent: "guest_modify_name"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["rezervasyon", "isim"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Rezervasyon ID, mevcut isim ve yeni isim sorulmali."
+
+  - user: "KAS-20250715-003, Ahmet Yilmaz yerine Mehmet Yilmaz olacak"
+    expect_intent: "guest_modify_name"
+    expect_state: "NEEDS_CONFIRMATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["mehmet"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Degisiklik ozeti gosterilip teyit istenmeli."
+
+  - user: "Evet dogru"
+    expect_intent: "guest_modify_name"
+    expect_state: "PENDING_APPROVAL"
+    expect_tool_calls: ["guest_modify_name"]
+    expect_reply_contains: ["onay"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Admin onayina gider."

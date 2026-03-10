@@ -1,0 +1,37 @@
+# S002: Konaklama Fiyat Teklifi - Karsilastirma
+# Misafir birden fazla secenek icin fiyat soruyor.
+
+code: "S002"
+name: "Konaklama Fiyat Teklifi - Karsilastirma"
+description: "Misafir fiyat soruyor. Sistem FREE_CANCEL ve NON_REFUNDABLE seceneklerini sunar. Fiyat EUR olmali."
+category: "stay"
+language: "tr"
+tags: ["stay", "quote", "comparison", "cancel_policy"]
+
+steps:
+  - user: "15-18 Temmuz 2 yetiskin icin fiyat ne kadar?"
+    expect_intent: "stay_quote"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["booking_quote"]
+    expect_reply_contains: ["€"]
+    expect_reply_must_not: ["dolar", "TL", "$"]
+    expect_risk_flags: []
+    note: "Fiyat MUTLAKA EUR (€) cinsinden olmali. TL veya dolar gosterilmemeli."
+
+  - user: "Ucretsiz iptal secenegi var mi?"
+    expect_intent: "stay_quote"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["booking_quote"]
+    expect_reply_contains: ["iptal"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "FREE_CANCEL politikasi aciklanmali: 5 gun oncesine kadar ucretsiz iptal."
+
+  - user: "En ucuz secenegi goster"
+    expect_intent: "stay_quote"
+    expect_state: "NEEDS_CONFIRMATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["€"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "NON_REFUNDABLE genelde daha ucuz. Prepayment_immediate kurali aciklanmali."

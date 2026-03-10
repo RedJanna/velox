@@ -16,6 +16,11 @@ LLM_TIMEOUT_SECONDS = 30.0
 PRIMARY_RETRY_COUNT = 2
 FALLBACK_RETRY_COUNT = 2
 
+# Models that do NOT support the legacy `temperature` parameter or `max_tokens`.
+# They require `max_completion_tokens` and only accept temperature=1.
+_FIXED_TEMPERATURE_MODEL_PREFIXES = ("o1", "o3", "gpt-5")
+
+
 
 class LLMUnavailableError(RuntimeError):
     """Raised when both primary and fallback models are unavailable."""
@@ -142,17 +147,26 @@ class LLMClient:
         max_attempts = PRIMARY_RETRY_COUNT + 1 if model_name == self.primary_model else FALLBACK_RETRY_COUNT + 1
         last_error: Exception | None = None
 
+        # Build call kwargs; newer models (o1, o3, gpt-5.*) do not support
+        # legacy `max_tokens` or custom `temperature`.
+        is_fixed_temp = any(model_name.startswith(p) for p in _FIXED_TEMPERATURE_MODEL_PREFIXES)
+        call_kwargs: dict[str, Any] = {
+            "model": model_name,
+            "messages": messages,
+            "timeout": LLM_TIMEOUT_SECONDS,
+        }
+        if tools:
+            call_kwargs["tools"] = tools
+        if is_fixed_temp:
+            call_kwargs["max_completion_tokens"] = self.max_tokens
+        else:
+            call_kwargs["max_tokens"] = self.max_tokens
+            call_kwargs["temperature"] = self.temperature
+
         for attempt in range(1, max_attempts + 1):
             start = time.perf_counter()
             try:
-                response = await self.client.chat.completions.create(
-                    model=model_name,
-                    messages=messages,
-                    tools=tools,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                    timeout=LLM_TIMEOUT_SECONDS,
-                )
+                response = await self.client.chat.completions.create(**call_kwargs)
                 response_dict = response.model_dump()
                 usage = response_dict.get("usage", {})
                 duration_ms = int((time.perf_counter() - start) * 1000)

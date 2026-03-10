@@ -1,0 +1,28 @@
+# S001: Konaklama Musaitlik - Normal (Mutlu) Akis
+# Misafir tarih ve kisi sayisi veriyor, sistem musaitlik kontrol ediyor.
+
+code: "S001"
+name: "Konaklama Musaitlik - Normal Akis"
+description: "Misafir acik tarih ve kisi bilgisi veriyor. Sistem musaitlik sorgusu yapar ve sonuclari sunar."
+category: "stay"
+language: "tr"
+tags: ["stay", "availability", "happy_path"]
+
+steps:
+  - user: "Merhaba, 15-20 Temmuz arasi 2 kisi icin oda var mi?"
+    expect_intent: "stay_availability"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["booking_availability"]
+    expect_reply_contains: ["musaitlik"]
+    expect_reply_must_not: ["dolar", "TL", "tl"]
+    expect_risk_flags: []
+    note: "Tum slotlar dolu (tarih + kisi). Direkt tool cagrilmali."
+
+  - user: "Havuz manzarali oda var mi bunlarin icinde?"
+    expect_intent: "stay_availability"
+    expect_state: "READY_FOR_TOOL"
+    expect_tool_calls: ["booking_availability"]
+    expect_reply_contains: ["havuz"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Misafir room_preference ekliyor. Superior veya Exclusive Pool onerilmeli."

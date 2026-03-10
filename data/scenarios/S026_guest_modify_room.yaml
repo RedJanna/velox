@@ -1,0 +1,25 @@
+code: "S026"
+name: "Oda Degisikligi (Konaklama Sirasinda)"
+description: "Misafir konaklama sirasinda oda degisikligi talep ediyor."
+category: "guest_ops"
+language: "tr"
+tags: ["guest", "modify", "room", "in_house"]
+
+steps:
+  - user: "Odamiz cok gurultulu, baska bir oda istiyoruz"
+    expect_intent: "guest_modify_room"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["oda"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "Mevcut oda ve tercih edilen oda tipi/ozelligi sorulmali."
+
+  - user: "215 numarali odadayiz, daha sessiz bir oda olsun"
+    expect_intent: "guest_modify_room"
+    expect_state: "PENDING_APPROVAL"
+    expect_tool_calls: ["handoff_to_human"]
+    expect_reply_contains: ["ekip"]
+    expect_reply_must_not: []
+    expect_risk_flags: []
+    note: "In-house oda degisikligi admin/ops karari. Handoff yapilmali."

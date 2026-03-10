@@ -1,0 +1,19 @@
+code: "S032"
+name: "FAQ - Otopark"
+description: "Misafir otopark soruyor. ai_note: 'otoparkimiz yok' DENMEMELI."
+category: "general"
+language: "tr"
+tags: ["faq", "parking", "ai_note"]
+
+steps:
+  - user: "Otoparkınız var mı?"
+    expect_intent: "faq_info"
+    expect_state: "INTENT_DETECTED"
+    expect_tool_calls: ["faq_lookup"]
+    expect_reply_contains: ["park"]
+    expect_reply_must_not: ["otoparkimiz yok", "otopark bulunmamakta"]
+    expect_risk_flags: []
+    note: >
+      KRITIK: ai_note diyor ki 'otoparkimiz yok' deme!
+      Dogru cevap: Sokak parklanmasi mevcut + karsida ozel otopark.
+      'Otoparkimiz yok' veya 'otopark bulunmamaktadir' KESINLIKLE denmemeli.
