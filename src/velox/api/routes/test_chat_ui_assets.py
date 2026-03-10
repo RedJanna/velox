@@ -101,6 +101,14 @@ body{overflow:hidden}
 
 TEST_CHAT_SCRIPT = """\
 const API = '/api/v1/test';
+const DEFAULT_FEEDBACK_SCALES = [
+  {rating: 1, label: 'Kesinlikle Yanlis', summary: 'Yanit tamamen hatali.', tooltip: 'Bilgi tamamen yanlis mi? Burayi sec ve dogruyu sisteme ogret.', correction_required: true},
+  {rating: 2, label: 'Hatali Anlatim', summary: 'Bilgi ozunde dogru ama anlatim bozuk.', tooltip: 'Bilgi dogru ama anlatim bozuk mu?', correction_required: true},
+  {rating: 3, label: 'Eksik Bilgi', summary: 'Temel cevap dogru ama kritik detay eksik.', tooltip: 'Cevap yetersiz mi? Eksikleri tamamla.', correction_required: true},
+  {rating: 4, label: 'Gereksiz Ayrinti', summary: 'Bilgi dogru ama fazla uzun.', tooltip: 'Cok mu laf kalabaligi var? Sadelestirilmis halini onayla.', correction_required: true},
+  {rating: 5, label: 'Mukemmel', summary: 'Yanit dogru ve onayli ornek olmaya uygun.', tooltip: 'Yanit dogruysa bunu secin; onayli ornek havuzuna eklenir.', correction_required: false},
+];
+
 const state = {
   sourceType: 'live_test_chat',
   importFile: '',
@@ -108,7 +116,7 @@ const state = {
   messages: [],
   conversation: null,
   importMetadata: {},
-  catalog: {scales: [], categories: [], tags: [], default_report_start: null, default_report_end: null},
+  catalog: {scales: DEFAULT_FEEDBACK_SCALES, categories: [], tags: [], default_report_start: null, default_report_end: null},
   feedbackStates: new Map(),
   selectedFeedback: null,
 };
@@ -234,7 +242,7 @@ function buildFeedbackBar(messageId) {
 
   const status = document.createElement('span');
   status.className = 'feedback-status';
-  status.textContent = saved?.status || 'Henuz puan verilmedi';
+  status.textContent = saved?.status || 'Puan secin';
   wrapper.appendChild(status);
   return wrapper;
 }
@@ -631,12 +639,25 @@ async function generateReport() {
 }
 
 async function loadCatalog() {
-  const data = await apiFetch('/chat/feedback-catalog');
-  state.catalog = data;
+  try {
+    const data = await apiFetch('/chat/feedback-catalog');
+    state.catalog = {
+      ...data,
+      scales: Array.isArray(data.scales) && data.scales.length ? data.scales : DEFAULT_FEEDBACK_SCALES,
+    };
+    el('report-date-from').value = isoToLocalInput(data.default_report_start);
+    el('report-date-to').value = isoToLocalInput(data.default_report_end);
+  } catch (error) {
+    state.catalog = {
+      ...state.catalog,
+      scales: DEFAULT_FEEDBACK_SCALES,
+    };
+    el('source-banner').textContent = error.message || 'Feedback katalogu alinamadi; varsayilan puanlar kullaniliyor.';
+  }
   renderCategoryOptions();
   renderTagOptions();
-  el('report-date-from').value = isoToLocalInput(data.default_report_start);
-  el('report-date-to').value = isoToLocalInput(data.default_report_end);
+  renderMessages();
+  renderFeedbackStudio();
 }
 
 async function loadModels() {
