@@ -108,6 +108,41 @@ const DEFAULT_FEEDBACK_SCALES = [
   {rating: 4, label: 'Gereksiz Ayrinti', summary: 'Bilgi dogru ama fazla uzun.', tooltip: 'Cok mu laf kalabaligi var? Sadelestirilmis halini onayla.', correction_required: true},
   {rating: 5, label: 'Mukemmel', summary: 'Yanit dogru ve onayli ornek olmaya uygun.', tooltip: 'Yanit dogruysa bunu secin; onayli ornek havuzuna eklenir.', correction_required: false},
 ];
+const DEFAULT_FEEDBACK_CATEGORIES = [
+  {key: 'yanlis_bilgi', label: 'Yanlis Bilgi', description: 'Net olarak yanlis bilgi verilmesi.'},
+  {key: 'alakasiz_yanit', label: 'Alakasiz Yanit', description: 'Sorudan kopuk veya konu disi cevap.'},
+  {key: 'baglam_kopuklugu', label: 'Baglam Kopuklugu', description: 'Sohbet akisina uyumsuz cevap.'},
+  {key: 'uydurma_bilgi', label: 'Asiri Ozyguvenli Uydurma', description: 'Kaynaksiz bilgi uydurulmasi.'},
+  {key: 'gevezelik', label: 'Gevezelik / Uzunluk', description: 'Gereksiz uzun veya daginik cevap.'},
+  {key: 'intent_iskalama', label: 'Intent Iskalama', description: 'Asil talebi kaciran cevap.'},
+  {key: 'tekrar_loop', label: 'Tekrara Dusme', description: 'Ayni kalibi tekrar eden cevap.'},
+  {key: 'format_ihlali', label: 'Format Ihlali', description: 'Istenen sunum bicimine uymayan cevap.'},
+  {key: 'mantik_celiskisi', label: 'Eksik / Celiskili Mantik', description: 'Tutarsiz veya eksik mantik.'},
+  {key: 'ton_politika_ihlali', label: 'Ton / Politika Ihlali', description: 'Uslup veya politika ihlali.'},
+  {key: 'ozel_kategori', label: 'Ozel Kategori', description: 'Hazir listeye sigmayan durum.'},
+];
+const DEFAULT_FEEDBACK_TAGS = [
+  {key: 'yanlis_bilgi', label: 'Yanlis Bilgi', description: 'Net bilgi hatasi.'},
+  {key: 'eksik_bilgi', label: 'Eksik Bilgi', description: 'Kritik detay eksik.'},
+  {key: 'alakasiz_yanit', label: 'Alakasiz Yanit', description: 'Sorudan kopuk cevap.'},
+  {key: 'baglam_kopuklugu', label: 'Baglam Kopuklugu', description: 'Onceki konusma unutuluyor.'},
+  {key: 'niyet_iskalama', label: 'Niyet Iskalama', description: 'Asil amac anlasilmiyor.'},
+  {key: 'asiri_uzun_yanit', label: 'Asiri Uzun Yanit', description: 'Gereksiz uzun mesaj.'},
+  {key: 'asiri_kisa_yanit', label: 'Asiri Kisa Yanit', description: 'Eksik aciklama iceren kisa cevap.'},
+  {key: 'tekrar_loop', label: 'Tekrar / Loop', description: 'Ayni kalip tekrar ediyor.'},
+  {key: 'format_ihlali', label: 'Format Ihlali', description: 'Istenen format bozuluyor.'},
+  {key: 'ton_uyumsuzlugu', label: 'Ton Uyumsuzlugu', description: 'Duruma uygun olmayan uslup.'},
+  {key: 'kaba_uslup', label: 'Kaba Uslup', description: 'Premium sicak ton bozuluyor.'},
+  {key: 'politika_ihlali', label: 'Politika Ihlali', description: 'Kurallarin disina cikiliyor.'},
+  {key: 'uydurma_bilgi', label: 'Uydurma Bilgi', description: 'Kaynaksiz bilgi uyduruluyor.'},
+  {key: 'guncel_olmayan_bilgi', label: 'Guncel Olmayan Bilgi', description: 'Eski bilgi kullaniliyor.'},
+  {key: 'hotel_profile_celiskisi', label: 'Hotel Profile Celiskisi', description: 'Hotel profile ile uyumsuz cevap.'},
+  {key: 'tool_output_celiskisi', label: 'Tool Output Celiskisi', description: 'Tool sonucu ile uyumsuz cevap.'},
+  {key: 'mantik_celiskisi', label: 'Mantik Celiskisi', description: 'Cevap kendi icinde tutarsiz.'},
+  {key: 'eksik_dogrulama_sorusu', label: 'Eksik Dogrulama Sorusu', description: 'Gerekli netlestirme sorusu yok.'},
+  {key: 'gereksiz_pii_talebi', label: 'Gereksiz PII Talebi', description: 'Gereksiz kisisel veri istendi.'},
+  {key: 'gereksiz_escalation', label: 'Gereksiz Escalation', description: 'Gereksiz insan devri yapildi.'},
+];
 
 const state = {
   sourceType: 'live_test_chat',
@@ -116,7 +151,13 @@ const state = {
   messages: [],
   conversation: null,
   importMetadata: {},
-  catalog: {scales: DEFAULT_FEEDBACK_SCALES, categories: [], tags: [], default_report_start: null, default_report_end: null},
+  catalog: {
+    scales: DEFAULT_FEEDBACK_SCALES,
+    categories: DEFAULT_FEEDBACK_CATEGORIES,
+    tags: DEFAULT_FEEDBACK_TAGS,
+    default_report_start: null,
+    default_report_end: null,
+  },
   feedbackStates: new Map(),
   selectedFeedback: null,
 };
@@ -644,6 +685,8 @@ async function loadCatalog() {
     state.catalog = {
       ...data,
       scales: Array.isArray(data.scales) && data.scales.length ? data.scales : DEFAULT_FEEDBACK_SCALES,
+      categories: Array.isArray(data.categories) && data.categories.length ? data.categories : DEFAULT_FEEDBACK_CATEGORIES,
+      tags: Array.isArray(data.tags) && data.tags.length ? data.tags : DEFAULT_FEEDBACK_TAGS,
     };
     el('report-date-from').value = isoToLocalInput(data.default_report_start);
     el('report-date-to').value = isoToLocalInput(data.default_report_end);
@@ -651,6 +694,8 @@ async function loadCatalog() {
     state.catalog = {
       ...state.catalog,
       scales: DEFAULT_FEEDBACK_SCALES,
+      categories: DEFAULT_FEEDBACK_CATEGORIES,
+      tags: DEFAULT_FEEDBACK_TAGS,
     };
     el('source-banner').textContent = error.message || 'Feedback katalogu alinamadi; varsayilan puanlar kullaniliyor.';
   }
@@ -713,6 +758,8 @@ function wireEvents() {
 
 async function boot() {
   wireEvents();
+  renderCategoryOptions();
+  renderTagOptions();
   await Promise.all([loadCatalog(), loadModels(), refreshImportFiles()]);
   setComposerMode(true);
   await loadHistory();
