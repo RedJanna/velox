@@ -29,6 +29,13 @@ Topladığın hassas bilgiyi:
 - mümkünse **hiç saklama**
 - saklanacaksa **maskeli** ya da **geri döndürülemez** şekilde sakla
 
+**Dar istisna (sadece Chat Lab / admin import):**
+- Yalnızca **admin tarafından manuel analiz** için kullanılan **Chat Lab import klasöründe**,
+  konuşma geçmişi `.json` dosya adında **gerçek telefon numarası** görünebilir.
+- Bu istisna sadece **yerel/admin kullanımına** yöneliktir.
+- Bu istisna **veritabanı**, **uygulama logları**, **webhook kayıtları**, **genel API çıktıları**
+  ve **production çalışma akışı** için **geçerli değildir**.
+
 **Benzetme:** Anahtarı masada bırakmak yerine kasaya koymak.
 
 ### 1.3 “Misafire mutfak gösterme”
@@ -88,6 +95,9 @@ Loglar düzenli tutulur ama:
 - gerekiyorsa maskeli / hash’li hali yazılır
 - misafirle ilişkilendirilebilecek “hassas kimlik” alanları korunur
 
+> Not: Chat Lab import istisnası **loglar** için geçerli değildir.
+> Gerçek telefon numarası sadece adminin yerel import dosya adı/görünümü için kullanılabilir.
+
 **Benzetme:** Olay defterine “Ali Veli, telefon 05xx…” yazmak yerine “Misafir #A12” yazmak.
 
 ### 2.7 Kapıdaki mühür (Webhook signature validation)
@@ -126,6 +136,11 @@ Admin panelde:
 - Misafire iç hata detayları gösterilmez (stack trace, DB hatası vb.)
 - Dış orkestrasyon aracı (örn. n8n) kullanılmaz; tüm mantık FastAPI içinde çalışır
 
+**Tek istisna:**
+- Admin-only Chat Lab import klasöründeki `.json` dosya adında ve admin ekranındaki import seçim
+  listesinde gerçek telefon numarası gösterilebilir.
+- Bu istisna ham telefonun DB/log/webhook içine yayılmasına izin vermez.
+
 ---
 
 ## 4) Eklemeyi önerdiğim (gerçekten faydalı) yeni kurallar
@@ -161,6 +176,7 @@ Admin panelde:
 
 - [ ] DB’de ham PII yok (telefon `phone_hash`)
 - [ ] Loglarda ham telefon/e-posta/isim yok (mask/hash var)
+- [ ] Chat Lab import istisnası varsa sadece admin-only yerel dosya adı/görünümü ile sınırlı
 - [ ] Kart/CVV/OTP yakalanınca misafire uyarı + insan devri var
 - [ ] Tüm webhooks imza kontrolünden geçiyor
 - [ ] Rate limit aktif (numara + IP)
