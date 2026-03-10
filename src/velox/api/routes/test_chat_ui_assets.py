@@ -234,7 +234,7 @@ function buildFeedbackBar(messageId) {
 
   const status = document.createElement('span');
   status.className = 'feedback-status';
-  status.textContent = saved?.status || 'Degerlendirme bekliyor';
+  status.textContent = saved?.status || 'Henuz puan verilmedi';
   wrapper.appendChild(status);
   return wrapper;
 }
