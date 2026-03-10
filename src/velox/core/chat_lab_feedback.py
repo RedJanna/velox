@@ -36,6 +36,7 @@ from velox.models.chat_lab_feedback import (
     ChatLabParticipantOption,
 )
 from velox.models.conversation import Message
+from velox.utils.project_paths import get_project_root
 
 logger = structlog.get_logger(__name__)
 
@@ -85,7 +86,7 @@ class ChatLabFeedbackService:
         feedback_root: Path | None = None,
         imports_root: Path | None = None,
     ) -> None:
-        project_root = Path(__file__).resolve().parents[3]
+        project_root = get_project_root(__file__)
         self._repository = repository or ConversationRepository()
         self._feedback_root = feedback_root or (project_root / settings.chat_lab_feedback_dir)
         self._imports_root = imports_root or (project_root / settings.chat_lab_imports_dir)
@@ -308,8 +309,7 @@ class ChatLabFeedbackService:
 
 
 def _feedback_root() -> Path:
-    project_root = Path(__file__).resolve().parents[3]
-    return project_root / settings.chat_lab_feedback_dir
+    return get_project_root(__file__) / settings.chat_lab_feedback_dir
 
 
 def _load_last_report_end(reports_dir: Path) -> datetime | None:

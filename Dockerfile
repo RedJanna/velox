@@ -21,7 +21,9 @@ COPY src/ src/
 COPY data/ data/
 COPY docs/ docs/
 
-RUN useradd --create-home velox
+RUN useradd --create-home velox \
+    && mkdir -p /app/data/chat_lab_feedback /app/data/chat_lab_imports \
+    && chown -R velox:velox /app
 USER velox
 
 EXPOSE 8001

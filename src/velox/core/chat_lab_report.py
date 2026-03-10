@@ -21,6 +21,7 @@ from velox.models.chat_lab_feedback import (
     ChatLabReportRequest,
     ChatLabReportResponse,
 )
+from velox.utils.project_paths import get_project_root
 
 logger = structlog.get_logger(__name__)
 
@@ -40,7 +41,7 @@ class ChatLabReportService:
         feedback_root: Path | None = None,
         llm_client: Any | None = None,
     ) -> None:
-        project_root = Path(__file__).resolve().parents[3]
+        project_root = get_project_root(__file__)
         self._feedback_root = feedback_root or (project_root / settings.chat_lab_feedback_dir)
         self._reports_root = self._feedback_root / "reports"
         self._llm_client = llm_client

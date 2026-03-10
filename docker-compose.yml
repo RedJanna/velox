@@ -3,6 +3,9 @@ services:
     build: .
     ports:
       - "${APP_PORT:-8001}:8001"
+    volumes:
+      - ./data/chat_lab_feedback:/app/data/chat_lab_feedback
+      - ./data/chat_lab_imports:/app/data/chat_lab_imports
     env_file:
       - .env
     depends_on:
