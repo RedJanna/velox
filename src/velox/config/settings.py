@@ -69,6 +69,8 @@ class Settings(BaseSettings):
     escalation_matrix_path: str = "data/escalation_matrix.yaml"
     templates_dir: str = "data/templates"
     scenarios_dir: str = "data/scenarios"
+    chat_lab_feedback_dir: str = "data/chat_lab_feedback"
+    chat_lab_imports_dir: str = "data/chat_lab_imports"
 
 
 settings = Settings()

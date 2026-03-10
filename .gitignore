@@ -47,3 +47,7 @@ desktop.ini
 credentials.json
 sensitive_environment_variables.txt
 sensitive_environment_variables*.txt
+
+# Chat Lab imports
+data/chat_lab_imports/*.json
+!data/chat_lab_imports/.gitkeep

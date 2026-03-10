@@ -25,15 +25,25 @@ from velox.api.routes.whatsapp_webhook import (
 )
 from velox.config.settings import settings
 from velox.core.chat_lab_feedback import (
-    FEEDBACK_SCALE,
     ChatLabFeedbackError,
     ChatLabFeedbackService,
+    ChatLabImportError,
     FeedbackConversationNotFoundError,
     FeedbackMessageNotFoundError,
 )
+from velox.core.chat_lab_report import ChatLabReportError, ChatLabReportService
 from velox.db.repositories.conversation import ConversationRepository
 from velox.llm.client import get_llm_client
-from velox.models.chat_lab_feedback import ChatLabFeedbackRequest, ChatLabFeedbackResponse
+from velox.models.chat_lab_feedback import (
+    ChatLabCatalogResponse,
+    ChatLabFeedbackRequest,
+    ChatLabFeedbackResponse,
+    ChatLabImportListResponse,
+    ChatLabImportRequest,
+    ChatLabImportResponse,
+    ChatLabReportRequest,
+    ChatLabReportResponse,
+)
 from velox.models.conversation import Conversation, Message
 
 logger = structlog.get_logger(__name__)
@@ -237,10 +247,11 @@ async def test_chat_export(
     return Response(content=content, media_type=media_type, headers=headers)
 
 
-@router.get("/chat/feedback-scale")
-async def get_feedback_scale() -> dict[str, list[dict[str, Any]]]:
-    """Return admin-facing rating definitions for the Chat Lab UI."""
-    return {"items": [item.model_dump(mode="json") for item in FEEDBACK_SCALE]}
+@router.get("/chat/feedback-catalog", response_model=ChatLabCatalogResponse)
+async def get_feedback_catalog() -> ChatLabCatalogResponse:
+    """Return catalog data for feedback forms, imports, and reports."""
+    service = ChatLabFeedbackService()
+    return await service.get_catalog()
 
 
 @router.post("/chat/feedback", response_model=ChatLabFeedbackResponse)
@@ -248,8 +259,8 @@ async def test_chat_feedback(
     body: ChatLabFeedbackRequest,
     request: Request,
 ) -> ChatLabFeedbackResponse:
-    """Rate one assistant message and optionally create a new scenario file."""
-    if getattr(request.app.state, "db_pool", None) is None:
+    """Persist one admin review for a selected assistant reply."""
+    if body.source_type == "live_test_chat" and getattr(request.app.state, "db_pool", None) is None:
         raise HTTPException(status_code=503, detail="Veritabani kullanilamiyor")
 
     service = ChatLabFeedbackService()
@@ -259,7 +270,36 @@ async def test_chat_feedback(
         raise HTTPException(status_code=404, detail=str(error)) from error
     except FeedbackMessageNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+    except ChatLabImportError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     except ChatLabFeedbackError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.get("/chat/import-files", response_model=ChatLabImportListResponse)
+async def list_chat_import_files() -> ChatLabImportListResponse:
+    """List available admin transcript imports."""
+    service = ChatLabFeedbackService()
+    return await service.list_import_files()
+
+
+@router.post("/chat/import-load", response_model=ChatLabImportResponse)
+async def load_chat_import(body: ChatLabImportRequest) -> ChatLabImportResponse:
+    """Preview or confirm one transcript import file."""
+    service = ChatLabFeedbackService()
+    try:
+        return await service.load_import(body)
+    except ChatLabImportError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/chat/report", response_model=ChatLabReportResponse)
+async def generate_chat_lab_report(body: ChatLabReportRequest) -> ChatLabReportResponse:
+    """Generate one aggregate bad-feedback report."""
+    service = ChatLabReportService()
+    try:
+        return await service.generate_report(body)
+    except ChatLabReportError as error:
         raise HTTPException(status_code=500, detail=str(error)) from error
 
 

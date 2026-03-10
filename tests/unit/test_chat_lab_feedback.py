@@ -1,8 +1,8 @@
-"""Unit tests for Chat Lab feedback service."""
+"""Unit tests for Chat Lab feedback and import services."""
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
-from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -10,7 +10,7 @@ import yaml
 from pydantic import ValidationError
 
 from velox.core.chat_lab_feedback import ChatLabFeedbackService
-from velox.models.chat_lab_feedback import ChatLabFeedbackRequest
+from velox.models.chat_lab_feedback import ChatLabFeedbackRequest, ChatLabImportRequest
 from velox.models.conversation import Conversation, Message
 
 
@@ -28,61 +28,19 @@ class _FakeConversationRepository:
         return self._messages
 
 
-class _FakeModelsAPI:
-    async def list(self) -> SimpleNamespace:
-        return SimpleNamespace(
-            data=[
-                SimpleNamespace(id="gpt-4o-mini"),
-                SimpleNamespace(id="gpt-4o"),
-                SimpleNamespace(id="gpt-5"),
-            ]
-        )
-
-
-class _FakeLLMClient:
-    def __init__(self) -> None:
-        self.client = SimpleNamespace(models=_FakeModelsAPI())
-        self.primary_model = "gpt-4o-mini"
-
-    async def chat_completion(self, messages, tools=None, model=None) -> dict:
-        _ = (messages, tools, model)
-        return {
-            "choices": [
-                {
-                    "message": {
-                        "content": (
-                            "Erken giris talebinizi not aldim. "
-                            "Musaitlik kesinlestiginde size net bilgi verebilirim."
-                        )
-                    }
-                }
-            ]
-        }
-
-
-def _template_file(directory: Path) -> Path:
-    template_path = directory / "_TEMPLATE.yaml"
-    template_path.write_text(
-        (
-            'code: "S000"\n'
-            'name: "Template"\n'
-            'description: "Template"\n'
-            'category: "general"\n'
-            'language: "tr"\n'
-            "tags: []\n"
-            "steps: []\n"
-        ),
-        encoding="utf-8",
+def _build_service(
+    tmp_path: Path,
+    conversation: Conversation,
+    messages: list[Message],
+) -> ChatLabFeedbackService:
+    return ChatLabFeedbackService(
+        repository=_FakeConversationRepository(conversation, messages),
+        feedback_root=tmp_path / "chat_lab_feedback",
+        imports_root=tmp_path / "chat_lab_imports",
     )
-    return template_path
 
 
-@pytest.mark.asyncio
-async def test_feedback_service_generates_scenario_with_best_model(tmp_path: Path) -> None:
-    scenarios_dir = tmp_path / "scenarios"
-    scenarios_dir.mkdir()
-    template_path = _template_file(scenarios_dir)
-
+def _conversation_with_messages() -> tuple[Conversation, list[Message], str]:
     conversation = Conversation(
         id=uuid4(),
         hotel_id=21966,
@@ -90,98 +48,195 @@ async def test_feedback_service_generates_scenario_with_best_model(tmp_path: Pat
         phone_display="test_user_123",
         language="tr",
     )
-    assistant_message_id = uuid4()
+    assistant_uuid = uuid4()
     messages = [
         Message(
             id=uuid4(),
             conversation_id=conversation.id,
             role="user",
-            content="Yarin sabah otele erken girebilir miyim?",
+            content="Restoran menusu nedir?",
             created_at=datetime(2026, 3, 10, 10, 0, tzinfo=UTC),
         ),
         Message(
-            id=assistant_message_id,
+            id=assistant_uuid,
             conversation_id=conversation.id,
             role="assistant",
-            content="Evet, erken giris her zaman garanti edilir.",
+            content="Menuyu daha sonra paylasirim.",
             internal_json={
-                "intent": "early_checkin_request",
-                "state": "INTENT_DETECTED",
+                "intent": "faq_menu",
+                "state": "NEEDS_VERIFICATION",
                 "risk_flags": [],
-                "tool_calls": [],
+                "tool_calls": [{"name": "faq.lookup_menu"}],
             },
-            created_at=datetime(2026, 3, 10, 10, 0, 1, tzinfo=UTC),
+            created_at=datetime(2026, 3, 10, 10, 1, tzinfo=UTC),
         ),
     ]
-    service = ChatLabFeedbackService(
-        repository=_FakeConversationRepository(conversation, messages),
-        llm_client=_FakeLLMClient(),
-        scenarios_dir=scenarios_dir,
-        template_path=template_path,
-    )
-
-    response = await service.submit_feedback(
-        ChatLabFeedbackRequest(
-            phone="test_user_123",
-            assistant_message_id=assistant_message_id,
-            rating=3,
-            correction="Erken giris musaitlige gore teyit edilir; garanti verilemez.",
-        )
-    )
-
-    assert response.status == "scenario_created"
-    assert response.selected_model == "gpt-5"
-    assert response.scenario_code == "S048"
-    assert response.corrected_reply is not None
-
-    scenario_files = sorted(scenarios_dir.glob("S*.yaml"))
-    assert len(scenario_files) == 1
-    scenario_data = yaml.safe_load(scenario_files[0].read_text(encoding="utf-8"))
-    assert scenario_data["code"] == "S048"
-    assert scenario_data["category"] == "guest_ops"
-    assert scenario_data["feedback"]["selected_model"] == "gpt-5"
-    assert scenario_data["steps"][0]["expect_intent"] == "early_checkin_request"
-    assert scenario_data["steps"][0]["expect_reply_contains"]
+    return conversation, messages, str(assistant_uuid)
 
 
 @pytest.mark.asyncio
-async def test_feedback_service_acknowledges_perfect_rating_without_file_write(tmp_path: Path) -> None:
-    scenarios_dir = tmp_path / "scenarios"
-    scenarios_dir.mkdir()
-    template_path = _template_file(scenarios_dir)
-
-    conversation = Conversation(
-        id=uuid4(),
-        hotel_id=21966,
-        phone_hash="hash",
-        phone_display="test_user_123",
-        language="tr",
-    )
-    service = ChatLabFeedbackService(
-        repository=_FakeConversationRepository(conversation, []),
-        llm_client=_FakeLLMClient(),
-        scenarios_dir=scenarios_dir,
-        template_path=template_path,
-    )
+async def test_feedback_service_saves_bad_feedback_to_rating_category_path(tmp_path: Path) -> None:
+    conversation, messages, assistant_id = _conversation_with_messages()
+    service = _build_service(tmp_path, conversation, messages)
 
     response = await service.submit_feedback(
         ChatLabFeedbackRequest(
             phone="test_user_123",
-            assistant_message_id=uuid4(),
-            rating=5,
+            assistant_message_id=assistant_id,
+            rating=2,
+            category="yanlis_bilgi",
+            tags=["eksik_bilgi", "tool_output_celiskisi"],
+            gold_standard="Menunun guncel fiyati icin once hangi bolum soruldugu netlestirilmelidir.",
+            notes="Admin notu",
         )
     )
 
-    assert response.status == "acknowledged"
-    assert response.scenario_code is None
-    assert list(scenarios_dir.glob("S*.yaml")) == []
+    assert response.status == "saved"
+    assert response.storage_group == "bad_feedback"
+    assert response.category == "yanlis_bilgi"
+    saved_files = sorted((tmp_path / "chat_lab_feedback").rglob("*.yaml"))
+    assert len(saved_files) == 1
+    assert "rating_2" in str(saved_files[0])
+    assert "yanlis_bilgi" in str(saved_files[0])
+
+    payload = yaml.safe_load(saved_files[0].read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "chat_lab_feedback.v1"
+    assert payload["input"] == "Restoran menusu nedir?"
+    assert payload["output"] == "Menuyu daha sonra paylasirim."
+    assert payload["tags"] == ["eksik_bilgi", "tool_output_celiskisi"]
 
 
-def test_feedback_request_requires_correction_for_low_ratings() -> None:
+@pytest.mark.asyncio
+async def test_feedback_service_saves_non_approved_five_rating_under_reviewed(tmp_path: Path) -> None:
+    conversation, messages, assistant_id = _conversation_with_messages()
+    service = _build_service(tmp_path, conversation, messages)
+
+    response = await service.submit_feedback(
+        ChatLabFeedbackRequest(
+            phone="test_user_123",
+            assistant_message_id=assistant_id,
+            rating=5,
+            approved_example=False,
+            notes="Dogru cevap",
+        )
+    )
+
+    assert response.status == "saved"
+    assert response.storage_group == "good_feedback"
+    assert response.approved_example is False
+    saved_files = sorted((tmp_path / "chat_lab_feedback").rglob("*.yaml"))
+    assert len(saved_files) == 1
+    assert "good_feedback" in str(saved_files[0])
+    assert "reviewed" in str(saved_files[0])
+
+
+@pytest.mark.asyncio
+async def test_list_import_files_only_returns_json(tmp_path: Path) -> None:
+    conversation, messages, _assistant_id = _conversation_with_messages()
+    service = _build_service(tmp_path, conversation, messages)
+    imports_root = tmp_path / "chat_lab_imports"
+    imports_root.mkdir()
+    (imports_root / "alpha.json").write_text('{"messages":[]}', encoding="utf-8")
+    (imports_root / "ignore.txt").write_text("x", encoding="utf-8")
+
+    response = await service.list_import_files()
+
+    assert [item.filename for item in response.items] == ["alpha.json"]
+
+
+@pytest.mark.asyncio
+async def test_load_import_requires_role_mapping_when_roles_missing(tmp_path: Path) -> None:
+    conversation, messages, _assistant_id = _conversation_with_messages()
+    service = _build_service(tmp_path, conversation, messages)
+    imports_root = tmp_path / "chat_lab_imports"
+    imports_root.mkdir()
+    (imports_root / "905332227788__sample.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "chat_lab_import.v1",
+                "source_type": "imported_test",
+                "participants": [
+                    {"phone": "905332227788", "label": "Musteri"},
+                    {"phone": "velox_bot", "label": "Asistan"},
+                ],
+                "messages": [
+                    {
+                        "id": "m1",
+                        "from": "905332227788",
+                        "content": "Merhaba",
+                        "timestamp": "2026-03-10T10:00:00+00:00",
+                    },
+                    {
+                        "id": "m2",
+                        "from": "velox_bot",
+                        "content": "Merhaba",
+                        "timestamp": "2026-03-10T10:01:00+00:00",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    response = await service.load_import(ChatLabImportRequest(filename="905332227788__sample.json"))
+
+    assert response.status == "role_mapping_required"
+    assert response.source_type == "imported_test"
+    assert [item.phone for item in response.participants] == ["905332227788", "velox_bot"]
+
+
+@pytest.mark.asyncio
+async def test_load_import_returns_ready_when_role_mapping_supplied(tmp_path: Path) -> None:
+    conversation, messages, _assistant_id = _conversation_with_messages()
+    service = _build_service(tmp_path, conversation, messages)
+    imports_root = tmp_path / "chat_lab_imports"
+    imports_root.mkdir()
+    (imports_root / "sample.json").write_text(
+        """
+{
+  "schema_version": "chat_lab_import.v1",
+  "source_type": "imported_real",
+  "messages": [
+    {
+      "id": "m1",
+      "from": "905332227788",
+      "content": "Merhaba",
+      "timestamp": "2026-03-10T10:00:00+00:00"
+    },
+    {
+      "id": "m2",
+      "from": "velox_bot",
+      "content": "Hos geldiniz",
+      "timestamp": "2026-03-10T10:01:00+00:00",
+      "internal_json": {"intent": "greeting"}
+    }
+  ]
+}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    response = await service.load_import(
+        ChatLabImportRequest(
+            filename="sample.json",
+            role_mapping={
+                "905332227788": "user",
+                "velox_bot": "assistant",
+            },
+        )
+    )
+
+    assert response.status == "ready"
+    assert response.source_type == "imported_real"
+    assert [message.role for message in response.messages] == ["user", "assistant"]
+    assert response.messages[1].internal_json == {"intent": "greeting"}
+
+
+def test_feedback_request_requires_gold_standard_and_category_for_low_ratings() -> None:
     with pytest.raises(ValidationError):
         ChatLabFeedbackRequest(
             phone="test_user_123",
-            assistant_message_id=uuid4(),
+            assistant_message_id=str(uuid4()),
             rating=2,
-            correction="   ",
+            gold_standard="   ",
         )

@@ -1,79 +1,47 @@
-"""Chat Lab feedback service for corrected replies and scenario generation."""
+"""Chat Lab feedback storage and transcript import services."""
 
 from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import re
 import unicodedata
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from uuid import UUID
 
 import structlog
 import yaml
 
-from velox.config.constants import TOOL_RETRY_BACKOFF_SECONDS
 from velox.config.settings import settings
-from velox.core.intent_engine import detect_intent
+from velox.core.chat_lab_feedback_catalog import (
+    CATEGORY_BY_KEY,
+    CATEGORY_ITEMS,
+    FEEDBACK_SCALE,
+    TAG_ITEMS,
+)
 from velox.db.repositories.conversation import ConversationRepository
-from velox.llm.client import LLMClient, get_llm_client
+from velox.llm.client import get_llm_client
 from velox.models.chat_lab_feedback import (
+    ChatLabCatalogResponse,
     ChatLabFeedbackRequest,
     ChatLabFeedbackResponse,
-    FeedbackScaleItem,
+    ChatLabImportFileItem,
+    ChatLabImportListResponse,
+    ChatLabImportRequest,
+    ChatLabImportResponse,
+    ChatLabMessageView,
+    ChatLabParticipantOption,
 )
-from velox.models.conversation import Conversation, Message
+from velox.models.conversation import Message
 
 logger = structlog.get_logger(__name__)
 
-_SCENARIO_WRITE_LOCK = asyncio.Lock()
-_SCENARIO_STOP_WORDS = {
-    "acaba",
-    "ama",
-    "ancak",
-    "artik",
-    "bana",
-    "bence",
-    "bir",
-    "bize",
-    "bunu",
-    "burada",
-    "cok",
-    "daha",
-    "degil",
-    "gibi",
-    "gore",
-    "icin",
-    "ile",
-    "ilgili",
-    "isterseniz",
-    "kadar",
-    "lutfen",
-    "nasil",
-    "olan",
-    "olarak",
-    "olsun",
-    "sonra",
-    "sizin",
-    "size",
-    "tekrar",
-    "ve",
-    "veya",
-    "yani",
-}
-_MODEL_TIMEOUT_SECONDS = 10.0
-_MODEL_VARIANT_PENALTIES = {
-    "mini": 220,
-    "nano": 260,
-    "preview": 40,
-    "audio": 500,
-    "realtime": 500,
-    "transcribe": 500,
-    "search": 500,
-}
+_FILE_WRITE_LOCK = asyncio.Lock()
+_FEEDBACK_SCHEMA_VERSION = "chat_lab_feedback.v1"
+_TRANSCRIPT_SCHEMA_VERSION = "chat_lab_import.v1"
 
 
 class ChatLabFeedbackError(RuntimeError):
@@ -81,380 +49,374 @@ class ChatLabFeedbackError(RuntimeError):
 
 
 class FeedbackConversationNotFoundError(ChatLabFeedbackError):
-    """Raised when no active test conversation exists."""
+    """Raised when no active live test conversation exists."""
 
 
 class FeedbackMessageNotFoundError(ChatLabFeedbackError):
-    """Raised when the selected assistant message is missing."""
+    """Raised when the selected assistant message cannot be found."""
 
 
-FEEDBACK_SCALE: tuple[FeedbackScaleItem, ...] = (
-    FeedbackScaleItem(
-        rating=1,
-        label="Kesinlikle Yanlis",
-        summary="Yanit tamamen hatali.",
-        tooltip="Bilgi tamamen yanlis mi? Burayi sec ve dogruyu sisteme ogret.",
-        correction_required=True,
-    ),
-    FeedbackScaleItem(
-        rating=2,
-        label="Hatali Anlatim",
-        summary="Bilgi dogru ama anlatim yaniltici.",
-        tooltip="Bilgi dogru ama anlatim bozuk mu?",
-        correction_required=True,
-    ),
-    FeedbackScaleItem(
-        rating=3,
-        label="Eksik Bilgi",
-        summary="Temel cevap dogru ama kritik detay eksik.",
-        tooltip="Cevap yetersiz mi? Eksikleri tamamla.",
-        correction_required=True,
-    ),
-    FeedbackScaleItem(
-        rating=4,
-        label="Gereksiz Ayrinti",
-        summary="Bilgi dogru ama fazla uzun.",
-        tooltip="Cok mu laf kalabaligi var? Sadelestirilmis halini onayla.",
-        correction_required=True,
-    ),
-    FeedbackScaleItem(
-        rating=5,
-        label="Mukemmel",
-        summary="Yanit dogru ve yeterli.",
-        tooltip="Yanit dogruysa bunu secin; ek islem yapilmaz.",
-        correction_required=False,
-    ),
-)
+class ChatLabImportError(ChatLabFeedbackError):
+    """Raised when transcript import data is invalid."""
+
+
 _FEEDBACK_BY_RATING = {item.rating: item for item in FEEDBACK_SCALE}
 
 
+def build_feedback_catalog() -> ChatLabCatalogResponse:
+    """Return static catalog plus dynamic report defaults."""
+    now = datetime.now(UTC).replace(microsecond=0)
+    last_report_end = _load_last_report_end(_feedback_root() / "reports")
+    return ChatLabCatalogResponse(
+        scales=list(FEEDBACK_SCALE),
+        categories=list(CATEGORY_ITEMS),
+        tags=list(TAG_ITEMS),
+        default_report_start=last_report_end.isoformat() if last_report_end else None,
+        default_report_end=now.isoformat(),
+    )
+
+
 class ChatLabFeedbackService:
-    """Coordinate reply feedback, correction synthesis, and scenario export."""
+    """Persist feedback records and normalize transcript imports."""
 
     def __init__(
         self,
         repository: ConversationRepository | None = None,
-        llm_client: LLMClient | None = None,
-        scenarios_dir: Path | None = None,
-        template_path: Path | None = None,
+        feedback_root: Path | None = None,
+        imports_root: Path | None = None,
     ) -> None:
-        self._repository = repository or ConversationRepository()
-        self._llm_client = llm_client or get_llm_client()
         project_root = Path(__file__).resolve().parents[3]
-        self._scenarios_dir = scenarios_dir or (project_root / settings.scenarios_dir)
-        self._template_path = template_path or (self._scenarios_dir / "_TEMPLATE.yaml")
+        self._repository = repository or ConversationRepository()
+        self._feedback_root = feedback_root or (project_root / settings.chat_lab_feedback_dir)
+        self._imports_root = imports_root or (project_root / settings.chat_lab_imports_dir)
+
+    async def get_catalog(self) -> ChatLabCatalogResponse:
+        """Return catalog metadata for the Chat Lab UI."""
+        await asyncio.to_thread(self._imports_root.mkdir, parents=True, exist_ok=True)
+        await asyncio.to_thread(self._feedback_root.mkdir, parents=True, exist_ok=True)
+        return build_feedback_catalog()
 
     async def submit_feedback(self, payload: ChatLabFeedbackRequest) -> ChatLabFeedbackResponse:
-        """Process one feedback event and optionally generate a new scenario file."""
-        scale_item = _FEEDBACK_BY_RATING[payload.rating]
-        if payload.rating == 5:
-            return ChatLabFeedbackResponse(
-                status="acknowledged",
-                rating=payload.rating,
-                rating_label=scale_item.label,
-            )
-
-        conversation = await self._load_active_conversation(payload.phone)
-        messages = await self._repository.get_messages(conversation.id, limit=500, offset=0)
-        relevant_messages = _messages_until_target(messages, payload.assistant_message_id)
-        assistant_message = relevant_messages[-1]
-        if assistant_message.role != "assistant":
-            raise FeedbackMessageNotFoundError("The selected message is not an assistant reply.")
-
-        selected_model = await self._select_best_model()
-        corrected_reply = await self._build_corrected_reply(
-            conversation=conversation,
-            messages=relevant_messages,
+        """Persist one feedback file under the correct folder structure."""
+        source = await self._load_source(payload)
+        feedback_id = _build_feedback_id()
+        category_key = _resolve_category_key(payload)
+        tags = _resolve_tags(payload)
+        rating_item = _FEEDBACK_BY_RATING[payload.rating]
+        message_timestamp = source["assistant_created_at"]
+        approved_example = payload.approved_example if payload.approved_example is not None else payload.rating == 5
+        storage_group = "good_feedback" if payload.rating == 5 else "bad_feedback"
+        storage_path = _build_feedback_path(
+            feedback_root=self._feedback_root,
+            feedback_id=feedback_id,
+            storage_group=storage_group,
             rating=payload.rating,
-            correction=str(payload.correction or ""),
-            selected_model=selected_model,
+            category_key=category_key,
+            message_timestamp=message_timestamp,
+            approved_example=approved_example,
         )
 
-        scenario_path = await self._save_feedback_scenario(
-            conversation=conversation,
-            messages=relevant_messages,
-            rating=payload.rating,
-            correction=str(payload.correction or ""),
-            corrected_reply=corrected_reply,
-            selected_model=selected_model,
-        )
-        scenario_code = scenario_path.stem.split("_", 1)[0]
+        record = {
+            "schema_version": _FEEDBACK_SCHEMA_VERSION,
+            "feedback_id": feedback_id,
+            "status": "new",
+            "approved_example": approved_example,
+            "created_at": datetime.now(UTC).isoformat(),
+            "rating": payload.rating,
+            "rating_label": rating_item.label,
+            "category": category_key,
+            "category_label": CATEGORY_BY_KEY.get(category_key, CATEGORY_BY_KEY["ozel_kategori"]).label,
+            "tags": tags,
+            "gold_standard": payload.gold_standard,
+            "notes": payload.notes,
+            "source_type": payload.source_type,
+            "storage_group": storage_group,
+            "input": source["input_text"],
+            "output": source["output_text"],
+            "conversation_id": source["conversation_id"],
+            "assistant_message_id": payload.assistant_message_id,
+            "timestamp": source["assistant_created_at"].isoformat(),
+            "language": source["language"],
+            "intent": source["intent"],
+            "state": source["state"],
+            "risk_flags": source["risk_flags"],
+            "tool_calls": source["tool_calls"],
+            "model": source["model"],
+            "excerpt": source["excerpt"],
+            "source_file": source["source_file"],
+        }
+
+        async with _FILE_WRITE_LOCK:
+            await asyncio.to_thread(storage_path.parent.mkdir, parents=True, exist_ok=True)
+            await asyncio.to_thread(_write_yaml_file, storage_path, record)
 
         logger.info(
             "chat_lab_feedback_saved",
+            feedback_id=feedback_id,
             rating=payload.rating,
-            scenario_code=scenario_code,
-            model=selected_model,
-            message_id=str(payload.assistant_message_id),
+            category=category_key,
+            path=str(storage_path),
         )
         return ChatLabFeedbackResponse(
-            status="scenario_created",
+            status="saved",
+            feedback_id=feedback_id,
             rating=payload.rating,
-            rating_label=scale_item.label,
-            corrected_reply=corrected_reply,
-            selected_model=selected_model,
-            scenario_code=scenario_code,
-            scenario_path=_display_path(scenario_path),
+            rating_label=rating_item.label,
+            storage_group=storage_group,
+            category=category_key,
+            tags=tags,
+            storage_path=_display_path(storage_path),
+            source_type=payload.source_type,
+            approved_example=approved_example,
         )
 
-    async def _load_active_conversation(self, phone: str) -> Conversation:
-        hashed_phone = _hash_phone(_ensure_test_phone(phone))
+    async def list_import_files(self) -> ChatLabImportListResponse:
+        """List available transcript JSON files in the admin-only imports folder."""
+        await asyncio.to_thread(self._imports_root.mkdir, parents=True, exist_ok=True)
+        files = await asyncio.to_thread(lambda: sorted(self._imports_root.glob("*.json")))
+        items = [
+            ChatLabImportFileItem(
+                filename=file_path.name,
+                modified_at=datetime.fromtimestamp(file_path.stat().st_mtime, tz=UTC).isoformat(),
+                size_bytes=file_path.stat().st_size,
+            )
+            for file_path in files
+        ]
+        return ChatLabImportListResponse(items=items)
+
+    async def load_import(self, payload: ChatLabImportRequest) -> ChatLabImportResponse:
+        """Load one transcript import file and normalize it for the Chat Lab UI."""
+        raw_transcript = await asyncio.to_thread(self._load_import_json, payload.filename)
+        role_result = _resolve_import_roles(raw_transcript, payload.role_mapping)
+        source_type = _resolve_import_source_type(raw_transcript)
+        if role_result["status"] == "role_mapping_required":
+            return ChatLabImportResponse(
+                status="role_mapping_required",
+                source_type=source_type,
+                file_name=payload.filename,
+                participants=role_result["participants"],
+                metadata=role_result["metadata"],
+            )
+
+        messages = _normalize_import_messages(raw_transcript, role_result["role_mapping"])
+        return ChatLabImportResponse(
+            status="ready",
+            source_type=source_type,
+            file_name=payload.filename,
+            conversation_id=str(raw_transcript.get("conversation_id") or payload.filename.removesuffix(".json")),
+            source_label=str(raw_transcript.get("source_label") or payload.filename),
+            messages=messages,
+            participants=role_result["participants"],
+            metadata=role_result["metadata"],
+        )
+
+    async def _load_source(self, payload: ChatLabFeedbackRequest) -> dict[str, Any]:
+        if payload.source_type in {"imported_real", "imported_test"}:
+            return await self._load_import_source(payload)
+        return await self._load_live_source(payload)
+
+    async def _load_live_source(self, payload: ChatLabFeedbackRequest) -> dict[str, Any]:
+        phone = _ensure_test_phone(payload.phone)
+        hashed_phone = hashlib.sha256(phone.encode()).hexdigest()
         conversation = await self._repository.get_active_by_phone(settings.elektra_hotel_id, hashed_phone)
         if conversation is None or conversation.id is None:
             raise FeedbackConversationNotFoundError("No active test conversation found for this phone.")
-        return conversation
 
-    async def _select_best_model(self) -> str:
-        available_models = await self._list_available_models()
-        if not available_models:
-            return self._llm_client.primary_model
-        return max(available_models, key=_model_rank)
+        messages = await self._repository.get_messages(conversation.id, limit=500, offset=0)
+        excerpt = _messages_until_target(messages, payload.assistant_message_id)
+        assistant_message = excerpt[-1]
+        if assistant_message.role != "assistant":
+            raise FeedbackMessageNotFoundError("The selected message is not an assistant reply.")
 
-    async def _list_available_models(self) -> list[str]:
-        last_error: Exception | None = None
-        for attempt in range(1, 4):
-            try:
-                models_page = await asyncio.wait_for(
-                    self._llm_client.client.models.list(),
-                    timeout=_MODEL_TIMEOUT_SECONDS,
-                )
-                model_ids = [
-                    str(model.id)
-                    for model in getattr(models_page, "data", [])
-                    if _is_feedback_model_candidate(str(model.id))
-                ]
-                if model_ids:
-                    return sorted(set(model_ids))
-                return []
-            except Exception as error:
-                last_error = error
-                logger.warning(
-                    "chat_lab_model_list_failed",
-                    attempt_number=attempt,
-                    error_type=type(error).__name__,
-                )
-                if attempt < 3:
-                    await asyncio.sleep(TOOL_RETRY_BACKOFF_SECONDS[attempt - 1])
-        if last_error is not None:
-            logger.warning("chat_lab_model_list_fallback", fallback_model=self._llm_client.primary_model)
-        return []
+        assistant_internal = assistant_message.internal_json or {}
+        return {
+            "conversation_id": str(conversation.id),
+            "input_text": _latest_user_message(excerpt),
+            "output_text": assistant_message.content,
+            "assistant_created_at": assistant_message.created_at.astimezone(UTC),
+            "language": conversation.language,
+            "intent": str(assistant_internal.get("intent") or conversation.current_intent or ""),
+            "state": str(assistant_internal.get("state") or conversation.current_state),
+            "risk_flags": [str(flag) for flag in assistant_internal.get("risk_flags") or conversation.risk_flags],
+            "tool_calls": _tool_call_names(assistant_internal.get("tool_calls") or assistant_message.tool_calls),
+            "model": str(assistant_internal.get("model") or get_llm_client().primary_model),
+            "excerpt": _serialize_excerpt(excerpt),
+            "source_file": None,
+        }
 
-    async def _build_corrected_reply(
-        self,
-        conversation: Conversation,
-        messages: Sequence[Message],
-        rating: int,
-        correction: str,
-        selected_model: str,
-    ) -> str:
-        user_message = _latest_user_message(messages)
-        wrong_reply = str(messages[-1].content)
-        scale_item = _FEEDBACK_BY_RATING[rating]
-        prompt_messages = [
-            {
-                "role": "system",
-                "content": (
-                    "You rewrite one hotel assistant reply for internal QA. "
-                    "Return only the final guest-facing reply. "
-                    "Use the admin correction as the source of truth. "
-                    "If the old answer conflicts with the admin correction, ignore the old answer. "
-                    "Keep the response in a single WhatsApp-style message, concise, and in the requested language."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"Language: {conversation.language}\n"
-                    f"Rating: {rating} - {scale_item.label}\n"
-                    f"Guest message: {user_message}\n"
-                    f"Wrong assistant reply: {wrong_reply}\n"
-                    f"Admin correction: {correction}\n"
-                    "Produce the ideal corrected reply."
-                ),
-            },
-        ]
+    async def _load_import_source(self, payload: ChatLabFeedbackRequest) -> dict[str, Any]:
+        if not payload.import_file:
+            raise ChatLabImportError("Import file is required for imported transcript feedback.")
+
+        raw_transcript = await asyncio.to_thread(self._load_import_json, payload.import_file)
+        role_result = _resolve_import_roles(raw_transcript, payload.role_mapping)
+        if role_result["status"] != "ready":
+            raise ChatLabImportError("Role mapping is required before saving imported transcript feedback.")
+
+        messages = _normalize_import_messages(raw_transcript, role_result["role_mapping"])
+        excerpt = _message_views_until_target(messages, payload.assistant_message_id)
+        assistant_message = excerpt[-1]
+        if assistant_message.role != "assistant":
+            raise FeedbackMessageNotFoundError("The selected imported message is not an assistant reply.")
+
+        assistant_internal = assistant_message.internal_json or {}
+        return {
+            "conversation_id": str(raw_transcript.get("conversation_id") or payload.import_file.removesuffix(".json")),
+            "input_text": _latest_user_message_view(excerpt),
+            "output_text": assistant_message.content,
+            "assistant_created_at": datetime.fromisoformat(assistant_message.created_at),
+            "language": str(raw_transcript.get("language") or assistant_internal.get("language") or "tr"),
+            "intent": str(assistant_internal.get("intent") or raw_transcript.get("intent") or ""),
+            "state": str(assistant_internal.get("state") or raw_transcript.get("state") or ""),
+            "risk_flags": [
+                str(flag)
+                for flag in assistant_internal.get("risk_flags")
+                or raw_transcript.get("risk_flags")
+                or []
+            ],
+            "tool_calls": _tool_call_names(
+                assistant_internal.get("tool_calls") or raw_transcript.get("tool_calls")
+            ),
+            "model": str(assistant_message.model or raw_transcript.get("model") or ""),
+            "excerpt": [message.model_dump(mode="json") for message in excerpt[-8:]],
+            "source_file": payload.import_file,
+        }
+
+    def _load_import_json(self, filename: str) -> dict[str, Any]:
+        safe_name = Path(filename).name
+        if safe_name != filename or not safe_name.endswith(".json"):
+            raise ChatLabImportError("Invalid import file name.")
+
+        file_path = self._imports_root / safe_name
+        if not file_path.exists():
+            raise ChatLabImportError("Import file not found.")
+
         try:
-            response = await self._llm_client.chat_completion(
-                messages=prompt_messages,
-                model=selected_model,
-            )
-            corrected_reply = _extract_response_text(response).strip()
-            if corrected_reply:
-                return corrected_reply
-        except Exception as error:
-            logger.warning(
-                "chat_lab_reply_synthesis_failed",
-                error_type=type(error).__name__,
-                model=selected_model,
-            )
-        return correction.strip()
+            with file_path.open(encoding="utf-8") as file_obj:
+                data = json.load(file_obj)
+        except json.JSONDecodeError as error:
+            raise ChatLabImportError("Import file is not valid JSON.") from error
 
-    async def _save_feedback_scenario(
-        self,
-        conversation: Conversation,
-        messages: Sequence[Message],
-        rating: int,
-        correction: str,
-        corrected_reply: str,
-        selected_model: str,
-    ) -> Path:
-        async with _SCENARIO_WRITE_LOCK:
-            scenario_template = await asyncio.to_thread(_load_template_data, self._template_path)
-            scenario_code = await asyncio.to_thread(_next_scenario_code, self._scenarios_dir)
-            scenario_data = _build_scenario_document(
-                template_data=scenario_template,
-                code=scenario_code,
-                conversation=conversation,
-                messages=messages,
-                rating=rating,
-                correction=correction,
-                corrected_reply=corrected_reply,
-                selected_model=selected_model,
-            )
-            await asyncio.to_thread(self._scenarios_dir.mkdir, parents=True, exist_ok=True)
-            filename = f"{scenario_code}_{_slugify(_latest_user_message(messages))}.yaml"
-            scenario_path = self._scenarios_dir / filename
-            await asyncio.to_thread(_write_yaml_file, scenario_path, scenario_data)
-            return scenario_path
+        if not isinstance(data, dict):
+            raise ChatLabImportError("Import file must contain a JSON object.")
+        if not isinstance(data.get("messages"), list):
+            raise ChatLabImportError("Import file must contain a messages list.")
+        schema_version = data.get("schema_version")
+        if schema_version is not None and schema_version != _TRANSCRIPT_SCHEMA_VERSION:
+            logger.warning("chat_lab_import_schema_mismatch", filename=safe_name, schema_version=schema_version)
+        return data
 
 
-def _ensure_test_phone(phone: str) -> str:
-    clean_phone = phone.strip()
-    if clean_phone.startswith("test_"):
-        return clean_phone
-    return f"test_{clean_phone}"
+def _feedback_root() -> Path:
+    project_root = Path(__file__).resolve().parents[3]
+    return project_root / settings.chat_lab_feedback_dir
 
 
-def _hash_phone(phone: str) -> str:
-    return hashlib.sha256(phone.encode()).hexdigest()
+def _load_last_report_end(reports_dir: Path) -> datetime | None:
+    if not reports_dir.exists():
+        return None
+    report_files = sorted(reports_dir.glob("report_*.yaml"))
+    if not report_files:
+        return None
+    try:
+        with report_files[-1].open(encoding="utf-8") as file_obj:
+            data = yaml.safe_load(file_obj) or {}
+    except Exception:
+        return None
+    period = data.get("period", {})
+    if not isinstance(period, dict) or not period.get("date_to"):
+        return None
+    try:
+        return datetime.fromisoformat(str(period["date_to"]))
+    except ValueError:
+        return None
 
 
-def _messages_until_target(messages: Sequence[Message], message_id: UUID) -> list[Message]:
-    collected: list[Message] = []
+def _build_feedback_path(
+    feedback_root: Path,
+    feedback_id: str,
+    storage_group: str,
+    rating: int,
+    category_key: str,
+    message_timestamp: datetime,
+    approved_example: bool,
+) -> Path:
+    month_bucket = message_timestamp.astimezone(UTC).strftime("%Y-%m")
+    if storage_group == "good_feedback":
+        good_bucket = "approved_examples" if approved_example else "reviewed"
+        return feedback_root / "good_feedback" / good_bucket / month_bucket / f"{feedback_id}.yaml"
+    return feedback_root / "bad_feedback" / f"rating_{rating}" / category_key / month_bucket / f"{feedback_id}.yaml"
+
+
+def _build_feedback_id() -> str:
+    return datetime.now(UTC).strftime("fb_%Y%m%d_%H%M%S_%f")
+
+
+def _resolve_category_key(payload: ChatLabFeedbackRequest) -> str:
+    category = (payload.category or "").strip().lower()
+    if category and category != "ozel_kategori":
+        return category
+    custom_category = (payload.custom_category or "").strip()
+    if custom_category:
+        return _slugify(custom_category)
+    if payload.rating == 5:
+        return "approved_example"
+    return "ozel_kategori"
+
+
+def _resolve_tags(payload: ChatLabFeedbackRequest) -> list[str]:
+    tags = [tag.strip().lower() for tag in payload.tags if tag.strip()]
+    tags.extend(_slugify(tag) for tag in payload.custom_tags if tag.strip())
+    unique_tags: list[str] = []
+    for tag in tags:
+        if tag not in unique_tags:
+            unique_tags.append(tag)
+    return unique_tags
+
+
+def _messages_until_target(messages: Sequence[Message], target_id: str) -> list[Message]:
+    excerpt: list[Message] = []
     for message in messages:
-        collected.append(message)
-        if message.id == message_id:
-            return collected
+        excerpt.append(message)
+        if str(message.id) == target_id:
+            return excerpt
     raise FeedbackMessageNotFoundError("The selected assistant reply could not be found.")
+
+
+def _message_views_until_target(messages: Sequence[ChatLabMessageView], target_id: str) -> list[ChatLabMessageView]:
+    excerpt: list[ChatLabMessageView] = []
+    for message in messages:
+        excerpt.append(message)
+        if message.id == target_id:
+            return excerpt
+    raise FeedbackMessageNotFoundError("The selected imported reply could not be found.")
 
 
 def _latest_user_message(messages: Sequence[Message]) -> str:
     for message in reversed(messages):
         if message.role == "user":
-            return str(message.content)
+            return message.content
     return ""
 
 
-def _load_template_data(template_path: Path) -> dict[str, Any]:
-    with template_path.open(encoding="utf-8") as file_obj:
-        data = yaml.safe_load(file_obj) or {}
-    if not isinstance(data, dict):
-        raise ChatLabFeedbackError("Scenario template is invalid.")
-    return data
-
-
-def _next_scenario_code(scenarios_dir: Path) -> str:
-    existing = sorted(scenarios_dir.glob("S*.yaml"))
-    if not existing:
-        return "S048"
-    last_code = existing[-1].stem.split("_", 1)[0]
-    next_value = int(last_code.removeprefix("S")) + 1
-    return f"S{next_value:03d}"
-
-
-def _write_yaml_file(path: Path, payload: dict[str, Any]) -> None:
-    with path.open("w", encoding="utf-8") as file_obj:
-        yaml.safe_dump(
-            payload,
-            file_obj,
-            allow_unicode=True,
-            sort_keys=False,
-            width=1000,
-        )
-
-
-def _build_scenario_document(
-    template_data: dict[str, Any],
-    code: str,
-    conversation: Conversation,
-    messages: Sequence[Message],
-    rating: int,
-    correction: str,
-    corrected_reply: str,
-    selected_model: str,
-) -> dict[str, Any]:
-    assistant_message = messages[-1]
-    assistant_internal = assistant_message.internal_json or {}
-    intent = str(assistant_internal.get("intent") or detect_intent(_latest_user_message(messages)).value)
-    category = _category_from_intent(intent)
-    summary = _FEEDBACK_BY_RATING[rating].label
-    steps = _build_scenario_steps(messages, corrected_reply)
-    scenario_data = dict(template_data)
-    scenario_data["code"] = code
-    scenario_data["name"] = f"Chat Lab - {_compact_text(_latest_user_message(messages), limit=48)}"
-    scenario_data["description"] = (
-        f"Admin geri bildirimi ile uretildi. Puan: {rating}/5 ({summary}). "
-        f"Mesaj kimligi: {assistant_message.id}."
-    )
-    scenario_data["category"] = category
-    scenario_data["language"] = conversation.language
-    scenario_data["tags"] = ["chat_lab", "human_feedback", category, f"rating_{rating}"]
-    scenario_data["source"] = f"chat_lab_feedback_{assistant_message.id}"
-    scenario_data["steps"] = steps
-    scenario_data["feedback"] = {
-        "rating": rating,
-        "rating_label": summary,
-        "selected_model": selected_model,
-        "admin_correction": correction,
-        "corrected_reply": corrected_reply,
-        "created_at": datetime.now(UTC).isoformat(),
-    }
-    return scenario_data
-
-
-def _build_scenario_steps(messages: Sequence[Message], corrected_reply: str) -> list[dict[str, Any]]:
-    steps: list[dict[str, Any]] = []
-    pairs = _pair_user_assistant_messages(messages)
-    if not pairs:
-        raise ChatLabFeedbackError("Conversation transcript is missing a user-assistant pair.")
-
-    for index, (user_message, assistant_message) in enumerate(pairs, start=1):
-        assistant_internal = assistant_message.internal_json or {}
-        is_last = index == len(pairs)
-        step = {
-            "user": user_message.content,
-            "expect_intent": str(assistant_internal.get("intent") or detect_intent(user_message.content).value),
-            "expect_state": str(assistant_internal.get("state") or "INTENT_DETECTED"),
-            "expect_tool_calls": _tool_call_names(assistant_internal.get("tool_calls")),
-            "expect_reply_contains": _extract_significant_terms(
-                corrected_reply if is_last else assistant_message.content
-            ),
-            "expect_reply_must_not": _extract_forbidden_terms(
-                bad_reply=assistant_message.content,
-                corrected_reply=corrected_reply,
-            )
-            if is_last
-            else [],
-            "expect_risk_flags": [str(flag) for flag in assistant_internal.get("risk_flags") or []],
-            "note": "Admin duzeltmesiyle guncellenen hedef adim."
-            if is_last
-            else "Baglam adimi.",
-        }
-        steps.append(step)
-    return steps
-
-
-def _pair_user_assistant_messages(messages: Sequence[Message]) -> list[tuple[Message, Message]]:
-    pending_user: Message | None = None
-    pairs: list[tuple[Message, Message]] = []
-    for message in messages:
+def _latest_user_message_view(messages: Sequence[ChatLabMessageView]) -> str:
+    for message in reversed(messages):
         if message.role == "user":
-            pending_user = message
-            continue
-        if message.role == "assistant" and pending_user is not None:
-            pairs.append((pending_user, message))
-            pending_user = None
-    return pairs
+            return message.content
+    return ""
+
+
+def _serialize_excerpt(messages: Sequence[Message]) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": str(message.id),
+            "role": message.role,
+            "content": message.content,
+            "created_at": message.created_at.astimezone(UTC).isoformat(),
+            "internal_json": message.internal_json,
+        }
+        for message in messages[-8:]
+    ]
 
 
 def _tool_call_names(raw_tool_calls: Any) -> list[str]:
@@ -467,108 +429,15 @@ def _tool_call_names(raw_tool_calls: Any) -> list[str]:
     return names
 
 
-def _extract_significant_terms(text: str, limit: int = 5) -> list[str]:
-    tokens = re.findall(r"\b[\w\-]{4,}\b", text.lower())
-    terms: list[str] = []
-    for token in tokens:
-        if token in _SCENARIO_STOP_WORDS:
-            continue
-        if token not in terms:
-            terms.append(token)
-        if len(terms) >= limit:
-            break
-    return terms
+def _write_yaml_file(path: Path, payload: dict[str, Any]) -> None:
+    with path.open("w", encoding="utf-8") as file_obj:
+        yaml.safe_dump(payload, file_obj, allow_unicode=True, sort_keys=False, width=1000)
 
 
-def _extract_forbidden_terms(bad_reply: str, corrected_reply: str, limit: int = 5) -> list[str]:
-    bad_terms = _extract_significant_terms(bad_reply, limit=limit * 3)
-    corrected_terms = set(_extract_significant_terms(corrected_reply, limit=limit * 3))
-    forbidden = [term for term in bad_terms if term not in corrected_terms]
-    return forbidden[:limit]
-
-
-def _compact_text(text: str, limit: int) -> str:
-    clean_text = " ".join(text.split())
-    if len(clean_text) <= limit:
-        return clean_text
-    return clean_text[: limit - 3].rstrip() + "..."
-
-
-def _slugify(text: str) -> str:
-    normalized = unicodedata.normalize("NFKD", text)
-    ascii_text = normalized.encode("ascii", "ignore").decode("ascii").lower()
-    slug = re.sub(r"[^a-z0-9]+", "_", ascii_text).strip("_")
-    return (slug or "chat_lab_feedback")[:48]
-
-
-def _category_from_intent(intent: str) -> str:
-    if intent.startswith("stay_"):
-        return "stay"
-    if intent.startswith("restaurant_"):
-        return "restaurant"
-    if intent.startswith("transfer_"):
-        return "transfer"
-    if intent.startswith("guest_") or intent in {
-        "early_checkin_request",
-        "late_checkout_request",
-        "special_event_request",
-    }:
-        return "guest_ops"
-    return "general"
-
-
-def _extract_response_text(response: dict[str, Any]) -> str:
-    choices = response.get("choices", [])
-    if not choices:
-        return ""
-    message = choices[0].get("message", {})
-    content = message.get("content")
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "".join(part.get("text", "") for part in content if isinstance(part, dict))
-    return ""
-
-
-def _is_feedback_model_candidate(model_id: str) -> bool:
-    normalized = model_id.lower()
-    if not (normalized.startswith("gpt") or normalized.startswith("o")):
-        return False
-    return not any(marker in normalized for marker in ("audio", "realtime", "transcribe", "search", "tts"))
-
-
-def _model_rank(model_id: str) -> tuple[int, int, str]:
-    normalized = model_id.lower()
-    capability = 100
-    if normalized.startswith("gpt-5"):
-        capability = 1000
-    elif normalized.startswith("o4"):
-        capability = 930
-    elif normalized.startswith("o3"):
-        capability = 900
-    elif normalized.startswith("gpt-4.5"):
-        capability = 860
-    elif normalized.startswith("gpt-4o"):
-        capability = 840
-    elif normalized.startswith("gpt-4.1"):
-        capability = 820
-    elif normalized.startswith("gpt-4"):
-        capability = 780
-    elif normalized.startswith("o1"):
-        capability = 760
-    elif normalized.startswith("gpt-3.5"):
-        capability = 500
-
-    for marker, penalty in _MODEL_VARIANT_PENALTIES.items():
-        if marker in normalized:
-            capability -= penalty
-
-    date_match = re.search(r"(20\d{2})-(\d{2})-(\d{2})$", normalized)
-    date_value = 0
-    if date_match:
-        year, month, day = date_match.groups()
-        date_value = int(year) * 10_000 + int(month) * 100 + int(day)
-    return capability, date_value, normalized
+def _ensure_test_phone(phone: str) -> str:
+    if phone.startswith("test_"):
+        return phone
+    return f"test_{phone}"
 
 
 def _display_path(path: Path) -> str:
@@ -578,3 +447,154 @@ def _display_path(path: Path) -> str:
         remainder = raw_path[6:].replace("/", "\\")
         return f"{drive}:{remainder}"
     return raw_path
+
+
+def _slugify(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value)
+    ascii_text = normalized.encode("ascii", "ignore").decode("ascii").lower()
+    slug = re.sub(r"[^a-z0-9]+", "_", ascii_text).strip("_")
+    return slug or "ozel"
+
+
+def _resolve_import_roles(raw_transcript: dict[str, Any], role_mapping: dict[str, str]) -> dict[str, Any]:
+    messages = raw_transcript.get("messages", [])
+    participants = _extract_participants(raw_transcript)
+    has_direct_roles = all(
+        isinstance(message, dict) and str(message.get("role") or "").lower() in {"user", "assistant", "system"}
+        for message in messages
+    )
+    if has_direct_roles:
+        return {
+            "status": "ready",
+            "role_mapping": {participant.phone: participant.suggested_role for participant in participants},
+            "participants": participants,
+            "metadata": _transcript_metadata(raw_transcript),
+        }
+
+    normalized_mapping = {
+        phone: role
+        for phone, role in role_mapping.items()
+        if role in {"user", "assistant", "system"}
+    }
+    participant_phones = [participant.phone for participant in participants]
+    if not participant_phones or not all(phone in normalized_mapping for phone in participant_phones):
+        return {
+            "status": "role_mapping_required",
+            "participants": participants,
+            "metadata": _transcript_metadata(raw_transcript),
+        }
+
+    if "assistant" not in normalized_mapping.values():
+        return {
+            "status": "role_mapping_required",
+            "participants": participants,
+            "metadata": _transcript_metadata(raw_transcript),
+        }
+    return {
+        "status": "ready",
+        "role_mapping": normalized_mapping,
+        "participants": participants,
+        "metadata": _transcript_metadata(raw_transcript),
+    }
+
+
+def _extract_participants(raw_transcript: dict[str, Any]) -> list[ChatLabParticipantOption]:
+    participants_raw = raw_transcript.get("participants")
+    participants: list[ChatLabParticipantOption] = []
+    if isinstance(participants_raw, list):
+        for item in participants_raw:
+            if not isinstance(item, dict):
+                continue
+            phone = str(item.get("phone") or "").strip()
+            if not phone:
+                continue
+            participants.append(
+                ChatLabParticipantOption(
+                    phone=phone,
+                    label=str(item.get("label") or phone),
+                    suggested_role=str(item.get("role") or "other"),
+                )
+            )
+    if participants:
+        return participants
+
+    discovered = []
+    for message in raw_transcript.get("messages", []):
+        if not isinstance(message, dict):
+            continue
+        phone = str(message.get("phone") or message.get("from") or "").strip()
+        if phone and phone not in discovered:
+            discovered.append(phone)
+    return [
+        ChatLabParticipantOption(phone=phone, label=phone, suggested_role="other")
+        for phone in discovered
+    ]
+
+
+def _normalize_import_messages(
+    raw_transcript: dict[str, Any],
+    role_mapping: dict[str, str],
+) -> list[ChatLabMessageView]:
+    normalized: list[ChatLabMessageView] = []
+    for index, raw_message in enumerate(raw_transcript.get("messages", []), start=1):
+        if not isinstance(raw_message, dict):
+            raise ChatLabImportError("Transcript message entries must be objects.")
+
+        message_id = str(raw_message.get("id") or f"imp_{index}")
+        content = str(raw_message.get("content") or "").strip()
+        if not content:
+            continue
+
+        timestamp = _parse_import_timestamp(raw_message.get("timestamp") or raw_message.get("created_at"))
+        phone = str(raw_message.get("phone") or raw_message.get("from") or "").strip() or None
+        role = str(raw_message.get("role") or "").lower()
+        if role not in {"user", "assistant", "system"}:
+            mapped_role = role_mapping.get(phone or "", "other")
+            role = "system" if mapped_role == "other" else mapped_role
+
+        normalized.append(
+            ChatLabMessageView(
+                id=message_id,
+                role=role,
+                content=content,
+                created_at=timestamp.isoformat(),
+                phone=phone,
+                internal_json=(
+                    raw_message.get("internal_json")
+                    if isinstance(raw_message.get("internal_json"), dict)
+                    else None
+                ),
+                model=str(raw_message.get("model") or ""),
+            )
+        )
+    return sorted(normalized, key=lambda item: item.created_at)
+
+
+def _parse_import_timestamp(raw_value: Any) -> datetime:
+    if isinstance(raw_value, str) and raw_value:
+        try:
+            parsed = datetime.fromisoformat(raw_value)
+        except ValueError:
+            parsed = None
+        if parsed is not None:
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=UTC)
+            return parsed.astimezone(UTC)
+    return datetime.now(UTC)
+
+
+def _transcript_metadata(raw_transcript: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": raw_transcript.get("schema_version") or _TRANSCRIPT_SCHEMA_VERSION,
+        "source_label": raw_transcript.get("source_label"),
+        "source_type": _resolve_import_source_type(raw_transcript),
+        "language": raw_transcript.get("language"),
+        "message_count": len(raw_transcript.get("messages", [])),
+    }
+
+
+def _resolve_import_source_type(raw_transcript: dict[str, Any]) -> str:
+    source_type = str(raw_transcript.get("source_type") or "").strip().lower()
+    if source_type == "imported_test":
+        return "imported_test"
+    return "imported_real"
