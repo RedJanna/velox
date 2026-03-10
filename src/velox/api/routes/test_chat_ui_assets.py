@@ -288,11 +288,41 @@ function applyCategorySuggestions(force = false) {
 
 async function apiFetch(path, options = {}) {
   const response = await fetch(API + path, options);
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.detail || 'Islem tamamlanamadi.');
+  let data = null;
+  let rawText = '';
+  try {
+    data = await response.json();
+  } catch {
+    try {
+      rawText = await response.text();
+    } catch {
+      rawText = '';
+    }
   }
-  return data;
+  if (!response.ok) {
+    throw new Error(extractApiErrorMessage(data, rawText));
+  }
+  return data || {};
+}
+
+function extractApiErrorMessage(data, rawText) {
+  if (typeof data?.detail === 'string' && data.detail.trim()) {
+    return data.detail.trim();
+  }
+  if (Array.isArray(data?.detail) && data.detail.length) {
+    return data.detail
+      .map(item => {
+        if (typeof item === 'string') return item;
+        const location = Array.isArray(item?.loc) ? item.loc.join(' > ') : 'field';
+        const message = item?.msg || JSON.stringify(item);
+        return `${location}: ${message}`;
+      })
+      .join(' | ');
+  }
+  if (rawText && rawText.trim()) {
+    return rawText.trim().slice(0, 400);
+  }
+  return 'Islem tamamlanamadi.';
 }
 
 function showTyping() {

@@ -274,6 +274,9 @@ async def test_chat_feedback(
         raise HTTPException(status_code=400, detail=str(error)) from error
     except ChatLabFeedbackError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+    except Exception as error:
+        logger.exception("test_chat_feedback_unexpected_error")
+        raise HTTPException(status_code=500, detail=f"Beklenmeyen feedback hatasi: {error}") from error
 
 
 @router.get("/chat/import-files", response_model=ChatLabImportListResponse)
@@ -291,6 +294,9 @@ async def load_chat_import(body: ChatLabImportRequest) -> ChatLabImportResponse:
         return await service.load_import(body)
     except ChatLabImportError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+    except Exception as error:
+        logger.exception("test_chat_import_unexpected_error")
+        raise HTTPException(status_code=500, detail=f"Beklenmeyen import hatasi: {error}") from error
 
 
 @router.post("/chat/report", response_model=ChatLabReportResponse)
@@ -301,6 +307,9 @@ async def generate_chat_lab_report(body: ChatLabReportRequest) -> ChatLabReportR
         return await service.generate_report(body)
     except ChatLabReportError as error:
         raise HTTPException(status_code=500, detail=str(error)) from error
+    except Exception as error:
+        logger.exception("test_chat_report_unexpected_error")
+        raise HTTPException(status_code=500, detail=f"Beklenmeyen rapor hatasi: {error}") from error
 
 
 @router.get("/models")

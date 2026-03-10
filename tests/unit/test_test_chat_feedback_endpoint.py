@@ -110,6 +110,12 @@ class _MissingMessageFeedbackService:
         raise FeedbackMessageNotFoundError("The selected assistant reply could not be found.")
 
 
+class _CrashedFeedbackService:
+    async def submit_feedback(self, payload: ChatLabFeedbackRequest) -> ChatLabFeedbackResponse:
+        _ = payload
+        raise RuntimeError("disk write failed")
+
+
 class _FakeReportService:
     async def generate_report(self, payload: ChatLabReportRequest) -> ChatLabReportResponse:
         _ = payload
@@ -226,6 +232,28 @@ async def test_import_list_and_load_endpoints_return_service_payload(
     assert files_response.items[0].filename == "905332227788__alpha.json"
     assert load_response.status == "ready"
     assert load_response.source_type == "imported_real"
+
+
+@pytest.mark.asyncio
+async def test_feedback_endpoint_surfaces_unexpected_server_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(test_chat, "ChatLabFeedbackService", _CrashedFeedbackService)
+
+    with pytest.raises(HTTPException) as exc:
+        await test_chat.test_chat_feedback(
+            body=ChatLabFeedbackRequest(
+                phone="test_user_123",
+                assistant_message_id="msg-1",
+                rating=3,
+                category="eksik_bilgi",
+                gold_standard="Dogru bilgi",
+            ),
+            request=_request_with_db(),
+        )
+
+    assert exc.value.status_code == 500
+    assert exc.value.detail == "Beklenmeyen feedback hatasi: disk write failed"
 
 
 @pytest.mark.asyncio
