@@ -3,6 +3,8 @@
 from unittest.mock import AsyncMock, call
 
 import pytest
+from starlette.requests import Request
+from starlette.responses import JSONResponse, RedirectResponse
 
 from velox import main
 
@@ -28,6 +30,24 @@ def _redis_factory(client: _FakeRedis):
         return client
 
     return factory
+
+
+def _build_request(*, accept: str) -> Request:
+    """Create a minimal ASGI request for root route tests."""
+    return Request(
+        {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "path": "/",
+            "raw_path": b"/",
+            "query_string": b"",
+            "headers": [(b"accept", accept.encode("utf-8"))],
+            "client": ("127.0.0.1", 12345),
+            "server": ("testserver", 80),
+        }
+    )
 
 
 @pytest.mark.asyncio
@@ -68,3 +88,21 @@ async def test_connect_redis_with_retry_degrades_after_exhausting_retries(
     assert result is None
     assert sleep_mock.await_args_list == [call(1), call(3)]
     client.aclose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_root_redirects_html_clients_to_admin_panel() -> None:
+    response = await main.root(_build_request(accept="text/html"))
+
+    assert isinstance(response, RedirectResponse)
+    assert response.headers["location"] == main.settings.admin_panel_path
+    assert response.status_code == 307
+
+
+@pytest.mark.asyncio
+async def test_root_returns_json_for_api_clients() -> None:
+    response = await main.root(_build_request(accept="application/json"))
+
+    assert isinstance(response, JSONResponse)
+    assert response.status_code == 200
+    assert response.body == b'{"service":"velox","status":"running"}'

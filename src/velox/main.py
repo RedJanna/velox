@@ -1,19 +1,23 @@
 """Velox (NexlumeAI) — FastAPI Application Entry Point."""
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
 from time import perf_counter
+from typing import cast
 
 import redis.asyncio as redis
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from redis.asyncio.client import Redis
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from velox.adapters.elektraweb.client import close_elektraweb_client
 from velox.adapters.whatsapp.client import close_whatsapp_client
 from velox.api.middleware.rate_limiter import RateLimitMiddleware
-from velox.api.routes import admin, admin_webhook, health, whatsapp_webhook
+from velox.api.routes import admin, admin_panel_ui, admin_portal, admin_webhook, health, whatsapp_webhook
 from velox.config.constants import (
     MAX_STARTUP_RETRIES,
     STARTUP_DEPENDENCY_TIMEOUT_SECONDS,
@@ -42,7 +46,7 @@ async def _connect_redis_with_retry() -> Redis | None:
         started = perf_counter()
         try:
             async with asyncio.timeout(STARTUP_DEPENDENCY_TIMEOUT_SECONDS):
-                pong = await redis_client.ping()
+                pong = await cast(Awaitable[bool], redis_client.ping())
             if not pong:
                 raise RuntimeError("redis_ping_failed")
             logger.info(
@@ -130,11 +134,16 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+if settings.app_env == "production":
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
+    app.add_middleware(HTTPSRedirectMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(admin_portal.router, prefix="/api/v1")
 app.include_router(whatsapp_webhook.router, prefix="/api/v1")
 app.include_router(admin_webhook.router, prefix="/api/v1")
+app.include_router(admin_panel_ui.router)
 
 if settings.app_env != "production":
     from velox.api.routes import test_chat
@@ -142,7 +151,10 @@ if settings.app_env != "production":
     app.include_router(test_chat.ui_router)
 
 
-@app.get("/")
-async def root() -> dict[str, str]:
-    """Return service status for root endpoint."""
-    return {"service": "velox", "status": "running"}
+@app.get("/", response_model=None)
+async def root(request: Request) -> JSONResponse | RedirectResponse:
+    """Return service status for API clients and redirect browsers to the admin panel."""
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept:
+        return RedirectResponse(url=settings.admin_panel_path, status_code=307)
+    return JSONResponse(content={"service": "velox", "status": "running"})

@@ -1,9 +1,14 @@
 """Hotel profile loader — loads YAML files and parses into HotelProfile models."""
 
+from __future__ import annotations
+
+import re
+import unicodedata
 from pathlib import Path
+from typing import Any
 
 import structlog
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from velox.config.settings import settings
 from velox.models.hotel_profile import HotelProfile
@@ -11,12 +16,14 @@ from velox.models.hotel_profile import HotelProfile
 logger = structlog.get_logger(__name__)
 
 _profiles: dict[int, HotelProfile] = {}
+_profile_sources: dict[int, Path] = {}
 
 
 def load_all_profiles() -> dict[int, HotelProfile]:
     """Load all hotel profile YAML files from the configured directory."""
     global _profiles
     _profiles.clear()
+    _profile_sources.clear()
 
     profiles_dir = Path(settings.hotel_profiles_dir)
     if not profiles_dir.exists():
@@ -37,6 +44,7 @@ def load_all_profiles() -> dict[int, HotelProfile]:
 
             profile = HotelProfile(**raw)
             _profiles[profile.hotel_id] = profile
+            _profile_sources[profile.hotel_id] = yaml_file
             logger.info(
                 "hotel_profile_loaded",
                 hotel_id=profile.hotel_id,
@@ -63,3 +71,39 @@ def reload_profiles() -> dict[int, HotelProfile]:
     """Reload all profiles from disk."""
     logger.info("hotel_profiles_reloading")
     return load_all_profiles()
+
+
+def save_profile_definition(profile_data: dict[str, Any]) -> Path:
+    """Persist one hotel profile payload to YAML and refresh in-memory cache."""
+    validated = HotelProfile.model_validate(profile_data)
+    hotel_id = validated.hotel_id
+    target_path = _profile_sources.get(hotel_id) or _build_profile_path(validated)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with target_path.open("w", encoding="utf-8") as file_obj:
+        yaml.safe_dump(
+            profile_data,
+            file_obj,
+            allow_unicode=True,
+            sort_keys=False,
+            default_flow_style=False,
+        )
+
+    _profile_sources[hotel_id] = target_path
+    reload_profiles()
+    return target_path
+
+
+def _build_profile_path(profile: HotelProfile) -> Path:
+    """Resolve the file path for a hotel profile."""
+    base_name = profile.hotel_name.en or profile.hotel_name.tr or f"hotel_{profile.hotel_id}"
+    slug = _slugify(base_name)
+    profiles_dir = Path(settings.hotel_profiles_dir)
+    return profiles_dir / f"{slug}.yaml"
+
+
+def _slugify(value: str) -> str:
+    """Create a filesystem-safe ASCII slug."""
+    normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    compact = re.sub(r"[^a-zA-Z0-9]+", "_", normalized).strip("_").lower()
+    return compact or "hotel_profile"

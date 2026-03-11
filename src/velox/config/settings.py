@@ -1,5 +1,9 @@
 """Application settings loaded from environment variables."""
 
+# ruff: noqa: S104, S105
+
+from urllib.parse import urlsplit
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +17,9 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_log_level: str = "INFO"
     app_secret_key: str = "change-me-in-production"
+    app_trusted_hosts: str = "127.0.0.1,localhost,nexlumeai.com,www.nexlumeai.com"
+    public_base_url: str = "https://nexlumeai.com"
+    admin_panel_path: str = "/admin"
 
     # Database
     db_host: str = "localhost"
@@ -26,6 +33,21 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+
+    @property
+    def trusted_hosts(self) -> list[str]:
+        return [item.strip() for item in self.app_trusted_hosts.split(",") if item.strip()]
+
+    @property
+    def admin_panel_url(self) -> str:
+        base = self.public_base_url.rstrip("/")
+        path = self.admin_panel_path if self.admin_panel_path.startswith("/") else f"/{self.admin_panel_path}"
+        return f"{base}{path}"
+
+    @property
+    def public_host(self) -> str:
+        parsed = urlsplit(self.public_base_url)
+        return parsed.netloc or self.public_base_url
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
@@ -58,6 +80,8 @@ class Settings(BaseSettings):
     admin_jwt_algorithm: str = "HS256"
     admin_jwt_expire_minutes: int = 60
     admin_webhook_secret: str = ""
+    admin_bootstrap_token: str = ""
+    admin_totp_issuer: str = "NexlumeAI"
 
     # Rate Limiting
     rate_limit_per_phone_per_minute: int = 30

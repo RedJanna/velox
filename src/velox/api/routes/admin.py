@@ -18,12 +18,13 @@ from velox.api.middleware.auth import (
 )
 from velox.config.constants import HoldStatus, Role
 from velox.config.settings import settings
-from velox.core.hotel_profile_loader import reload_profiles
+from velox.core.hotel_profile_loader import reload_profiles, save_profile_definition
+from velox.core.template_engine import reload_templates
 from velox.db.repositories.restaurant import RestaurantRepository
 from velox.db.repositories.transfer import TransferRepository
-from velox.models.restaurant import RestaurantSlotCreate, RestaurantSlotUpdate
-from velox.core.template_engine import reload_templates
 from velox.escalation.matrix import reload_matrix
+from velox.models.restaurant import RestaurantSlotCreate, RestaurantSlotUpdate
+from velox.utils.totp import verify_totp_code
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -33,11 +34,14 @@ HOLD_TABLES = {
     "R_HOLD_": ("restaurant_holds", "restaurant"),
     "TR_HOLD_": ("transfer_holds", "transfer"),
 }
+ALLOWED_TICKET_STATUSES = {"OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"}
+ALLOWED_TICKET_PRIORITIES = {"low", "medium", "high"}
 
 
 class LoginRequest(BaseModel):
     username: str
     password: str
+    otp_code: str | None = Field(default=None, min_length=6, max_length=8)
 
 
 class HotelProfileUpdate(BaseModel):
@@ -65,7 +69,7 @@ async def admin_login(body: LoginRequest, request: Request) -> TokenResponse:
     async with db.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT id, hotel_id, username, password_hash, role, display_name, is_active
+            SELECT id, hotel_id, username, password_hash, role, display_name, totp_secret, is_active
             FROM admin_users WHERE username = $1
             """,
             body.username,
@@ -75,6 +79,11 @@ async def admin_login(body: LoginRequest, request: Request) -> TokenResponse:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not row["is_active"]:
         raise HTTPException(status_code=403, detail="Account disabled")
+    totp_secret = str(row["totp_secret"] or "").strip()
+    if not totp_secret:
+        raise HTTPException(status_code=403, detail="Two-factor authentication is not configured for this account")
+    if not body.otp_code or not verify_totp_code(totp_secret, body.otp_code):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token_data = TokenData(
         user_id=int(row["id"]),
@@ -160,8 +169,13 @@ async def update_hotel_profile(
     request: Request,
     user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
 ) -> dict[str, Any]:
-    """Update hotel profile JSON; ADMIN only."""
+    """Update hotel profile JSON, persist YAML, and refresh runtime cache."""
     _ = user
+    try:
+        profile_path = save_profile_definition(body.profile_json)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     db = request.app.state.db_pool
     async with db.acquire() as conn:
         result = await conn.execute(
@@ -175,7 +189,8 @@ async def update_hotel_profile(
         )
     if result == "UPDATE 0":
         raise HTTPException(status_code=404, detail="Hotel not found")
-    return {"status": "updated", "hotel_id": hotel_id}
+    reload_profiles()
+    return {"status": "updated", "hotel_id": hotel_id, "profile_path": profile_path.name}
 
 
 @router.post("/hotels/{hotel_id}/restaurant/slots")
@@ -239,8 +254,8 @@ async def update_restaurant_slot(
 async def list_transfer_holds(
     hotel_id: int,
     user: Annotated[TokenData, Depends(get_current_user)],
-    date_from: date | None = Query(None),
-    date_to: date | None = Query(None),
+    date_from: date | None = Query(None),  # noqa: B008
+    date_to: date | None = Query(None),  # noqa: B008
     status_filter: str | None = Query(None, alias="status"),
 ) -> dict[str, Any]:
     """List transfer holds with optional date and status filters."""
@@ -355,54 +370,54 @@ async def list_conversations(
     user: Annotated[TokenData, Depends(get_current_user)],
     hotel_id: int | None = Query(None),
     status_filter: str | None = Query(None, alias="status"),
-    date_from: date | None = Query(None),
-    date_to: date | None = Query(None),
+    date_from: date | None = Query(None),  # noqa: B008
+    date_to: date | None = Query(None),  # noqa: B008
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ) -> dict[str, Any]:
     """List conversations with filters and pagination."""
     check_permission(user, "conversations:read")
     db = request.app.state.db_pool
-
-    conditions: list[str] = []
-    params: list[Any] = []
-    param_idx = 1
-
-    effective_hotel_id = hotel_id if user.role == Role.ADMIN and hotel_id else user.hotel_id
-    conditions.append(f"c.hotel_id = ${param_idx}")
-    params.append(effective_hotel_id)
-    param_idx += 1
-
-    if status_filter:
-        conditions.append(f"c.current_state = ${param_idx}")
-        params.append(status_filter)
-        param_idx += 1
-    if date_from:
-        conditions.append(f"c.created_at >= ${param_idx}")
-        params.append(date_from)
-        param_idx += 1
-    if date_to:
-        conditions.append(f"c.created_at <= ${param_idx}")
-        params.append(date_to)
-        param_idx += 1
-
-    where_clause = " AND ".join(conditions)
+    effective_hotel_id = hotel_id if user.role == Role.ADMIN else user.hotel_id
     offset = (page - 1) * per_page
-    query = f"""
-        SELECT c.id, c.hotel_id, c.phone_display, c.language, c.current_state,
-               c.current_intent, c.risk_flags, c.is_active, c.last_message_at, c.created_at,
-               (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count
-        FROM conversations c
-        WHERE {where_clause}
-        ORDER BY c.last_message_at DESC
-        LIMIT ${param_idx} OFFSET ${param_idx + 1}
-    """
-    params.extend([per_page, offset])
 
     async with db.acquire() as conn:
-        rows = await conn.fetch(query, *params)
-        count_query = f"SELECT COUNT(*) FROM conversations c WHERE {where_clause}"
-        total = int(await conn.fetchval(count_query, *params[: param_idx - 1]) or 0)
+        rows = await conn.fetch(
+            """
+            SELECT c.id, c.hotel_id, c.phone_display, c.language, c.current_state,
+                   c.current_intent, c.risk_flags, c.is_active, c.last_message_at, c.created_at,
+                   (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count
+            FROM conversations c
+            WHERE ($1::int IS NULL OR c.hotel_id = $1)
+              AND ($2::text IS NULL OR c.current_state = $2)
+              AND ($3::date IS NULL OR c.created_at::date >= $3)
+              AND ($4::date IS NULL OR c.created_at::date <= $4)
+            ORDER BY c.last_message_at DESC
+            LIMIT $5 OFFSET $6
+            """,
+            effective_hotel_id,
+            status_filter,
+            date_from,
+            date_to,
+            per_page,
+            offset,
+        )
+        total = int(
+            await conn.fetchval(
+                """
+                SELECT COUNT(*) FROM conversations c
+                WHERE ($1::int IS NULL OR c.hotel_id = $1)
+                  AND ($2::text IS NULL OR c.current_state = $2)
+                  AND ($3::date IS NULL OR c.created_at::date >= $3)
+                  AND ($4::date IS NULL OR c.created_at::date <= $4)
+                """,
+                effective_hotel_id,
+                status_filter,
+                date_from,
+                date_to,
+            )
+            or 0
+        )
 
     return {"items": [dict(row) for row in rows], "total": total, "page": page, "per_page": per_page}
 
@@ -438,6 +453,7 @@ async def get_conversation(
 async def list_holds(
     request: Request,
     user: Annotated[TokenData, Depends(get_current_user)],
+    hotel_id: int | None = Query(None),
     hold_type: str | None = Query(None, description="stay, restaurant, or transfer"),
     status_filter: str | None = Query(None, alias="status"),
     page: int = Query(1, ge=1),
@@ -452,6 +468,7 @@ async def list_holds(
 
     db = request.app.state.db_pool
     results: list[dict[str, Any]] = []
+    effective_hotel_id = hotel_id if user.role == Role.ADMIN else user.hotel_id
 
     async with db.acquire() as conn:
         if hold_type in (None, "stay"):
@@ -463,7 +480,7 @@ async def list_holds(
             """
             rows = await conn.fetch(
                 query,
-                None if user.role == Role.ADMIN else user.hotel_id,
+                effective_hotel_id,
                 status_filter,
             )
             results.extend(dict(row) for row in rows)
@@ -484,7 +501,7 @@ async def list_holds(
             """
             rows = await conn.fetch(
                 query,
-                None if user.role == Role.ADMIN else user.hotel_id,
+                effective_hotel_id,
                 status_filter,
             )
             results.extend(dict(row) for row in rows)
@@ -506,7 +523,7 @@ async def list_holds(
             """
             rows = await conn.fetch(
                 query,
-                None if user.role == Role.ADMIN else user.hotel_id,
+                effective_hotel_id,
                 status_filter,
             )
             results.extend(dict(row) for row in rows)
@@ -536,11 +553,11 @@ async def approve_hold(
     """Approve hold and update related approval request."""
     _ = body
     check_permission(user, "holds:approve")
-    table, hold_type = _resolve_hold_target(hold_id)
+    _table, hold_type = _resolve_hold_target(hold_id)
     db = request.app.state.db_pool
 
     async with db.acquire() as conn:
-        row = await conn.fetchrow(f"SELECT * FROM {table} WHERE hold_id = $1", hold_id)
+        row = await _fetch_hold_row(conn, hold_type, hold_id)
         if row is None:
             raise HTTPException(status_code=404, detail="Hold not found")
         if row["status"] != HoldStatus.PENDING_APPROVAL:
@@ -548,16 +565,7 @@ async def approve_hold(
         if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
             raise HTTPException(status_code=403, detail="Access denied")
 
-        await conn.execute(
-            f"""
-            UPDATE {table}
-            SET status = $1, approved_by = $2, approved_at = now(), updated_at = now()
-            WHERE hold_id = $3
-            """,
-            HoldStatus.APPROVED.value,
-            user.username,
-            hold_id,
-        )
+        await _update_hold_approval(conn, hold_type, hold_id, user.username)
         await conn.execute(
             """
             UPDATE approval_requests
@@ -580,11 +588,11 @@ async def reject_hold(
 ) -> dict[str, Any]:
     """Reject hold and store reason."""
     check_permission(user, "holds:reject")
-    table, _ = _resolve_hold_target(hold_id)
+    _table, hold_type = _resolve_hold_target(hold_id)
     db = request.app.state.db_pool
 
     async with db.acquire() as conn:
-        row = await conn.fetchrow(f"SELECT * FROM {table} WHERE hold_id = $1", hold_id)
+        row = await _fetch_hold_row(conn, hold_type, hold_id)
         if row is None:
             raise HTTPException(status_code=404, detail="Hold not found")
         if row["status"] != HoldStatus.PENDING_APPROVAL:
@@ -592,16 +600,7 @@ async def reject_hold(
         if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
             raise HTTPException(status_code=403, detail="Access denied")
 
-        await conn.execute(
-            f"""
-            UPDATE {table}
-            SET status = $1, rejected_reason = $2, updated_at = now()
-            WHERE hold_id = $3
-            """,
-            HoldStatus.REJECTED.value,
-            body.reason,
-            hold_id,
-        )
+        await _update_hold_rejection(conn, hold_type, hold_id, body.reason)
         await conn.execute(
             """
             UPDATE approval_requests
@@ -627,47 +626,52 @@ async def list_tickets(
 ) -> dict[str, Any]:
     """List tickets with role-based visibility and filters."""
     check_permission(user, "tickets:read")
+    if status_filter and status_filter not in ALLOWED_TICKET_STATUSES:
+        raise HTTPException(status_code=400, detail="Invalid ticket status")
+    if priority and priority not in ALLOWED_TICKET_PRIORITIES:
+        raise HTTPException(status_code=400, detail="Invalid ticket priority")
     db = request.app.state.db_pool
-
-    conditions: list[str] = []
-    params: list[Any] = []
-    param_idx = 1
-
-    effective_hotel_id = hotel_id if user.role == Role.ADMIN and hotel_id else user.hotel_id
-    conditions.append(f"hotel_id = ${param_idx}")
-    params.append(effective_hotel_id)
-    param_idx += 1
-
-    if user.role != Role.ADMIN:
-        conditions.append(f"assigned_to_role = ${param_idx}")
-        params.append(user.role.value)
-        param_idx += 1
-    if status_filter:
-        conditions.append(f"status = ${param_idx}")
-        params.append(status_filter)
-        param_idx += 1
-    if priority:
-        conditions.append(f"priority = ${param_idx}")
-        params.append(priority)
-        param_idx += 1
-
-    where_clause = " AND ".join(conditions)
+    effective_hotel_id = hotel_id if user.role == Role.ADMIN else user.hotel_id
+    assigned_role = None if user.role == Role.ADMIN else user.role.value
     offset = (page - 1) * per_page
-    query = f"""
-        SELECT ticket_id, hotel_id, conversation_id, reason, transcript_summary,
-               priority, dedupe_key, status, assigned_to_role, assigned_to_name,
-               resolved_at, created_at
-        FROM tickets
-        WHERE {where_clause}
-        ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, created_at DESC
-        LIMIT ${param_idx} OFFSET ${param_idx + 1}
-    """
-    params.extend([per_page, offset])
 
     async with db.acquire() as conn:
-        rows = await conn.fetch(query, *params)
-        count_query = f"SELECT COUNT(*) FROM tickets WHERE {where_clause}"
-        total = int(await conn.fetchval(count_query, *params[: param_idx - 1]) or 0)
+        rows = await conn.fetch(
+            """
+            SELECT ticket_id, hotel_id, conversation_id, reason, transcript_summary,
+                   priority, dedupe_key, status, assigned_to_role, assigned_to_name,
+                   resolved_at, created_at
+            FROM tickets
+            WHERE ($1::int IS NULL OR hotel_id = $1)
+              AND ($2::text IS NULL OR assigned_to_role = $2)
+              AND ($3::text IS NULL OR status = $3)
+              AND ($4::text IS NULL OR priority = $4)
+            ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, created_at DESC
+            LIMIT $5 OFFSET $6
+            """,
+            effective_hotel_id,
+            assigned_role,
+            status_filter,
+            priority,
+            per_page,
+            offset,
+        )
+        total = int(
+            await conn.fetchval(
+                """
+                SELECT COUNT(*) FROM tickets
+                WHERE ($1::int IS NULL OR hotel_id = $1)
+                  AND ($2::text IS NULL OR assigned_to_role = $2)
+                  AND ($3::text IS NULL OR status = $3)
+                  AND ($4::text IS NULL OR priority = $4)
+                """,
+                effective_hotel_id,
+                assigned_role,
+                status_filter,
+                priority,
+            )
+            or 0
+        )
     return {"items": [dict(row) for row in rows], "total": total, "page": page, "per_page": per_page}
 
 
@@ -680,6 +684,10 @@ async def update_ticket(
 ) -> dict[str, Any]:
     """Update ticket status and assignment."""
     check_permission(user, "tickets:write")
+    if body.status and body.status not in ALLOWED_TICKET_STATUSES:
+        raise HTTPException(status_code=400, detail="Invalid ticket status")
+    if body.assigned_to_role and body.assigned_to_role not in {role.value for role in Role if role != Role.NONE}:
+        raise HTTPException(status_code=400, detail="Invalid role")
     db = request.app.state.db_pool
     async with db.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM tickets WHERE ticket_id = $1", ticket_id)
@@ -691,29 +699,110 @@ async def update_ticket(
             if row["assigned_to_role"] != user.role.value:
                 raise HTTPException(status_code=403, detail="Ticket not assigned to your role")
 
-        updates = ["updated_at = now()"]
-        params: list[Any] = []
-        param_idx = 1
-
-        if body.status:
-            updates.append(f"status = ${param_idx}")
-            params.append(body.status)
-            param_idx += 1
-            if body.status in {"RESOLVED", "CLOSED"}:
-                updates.append("resolved_at = now()")
-        if body.assigned_to_role:
-            updates.append(f"assigned_to_role = ${param_idx}")
-            params.append(body.assigned_to_role)
-            param_idx += 1
-        if body.assigned_to_name:
-            updates.append(f"assigned_to_name = ${param_idx}")
-            params.append(body.assigned_to_name)
-            param_idx += 1
-        if not params:
+        if not any([body.status, body.assigned_to_role, body.assigned_to_name]):
             raise HTTPException(status_code=400, detail="No fields to update")
 
-        set_clause = ", ".join(updates)
-        params.append(ticket_id)
-        query = f"UPDATE tickets SET {set_clause} WHERE ticket_id = ${param_idx}"
-        await conn.execute(query, *params)
+        await conn.execute(
+            """
+            UPDATE tickets
+            SET status = COALESCE($1, status),
+                assigned_to_role = COALESCE($2, assigned_to_role),
+                assigned_to_name = COALESCE($3, assigned_to_name),
+                resolved_at = CASE
+                    WHEN COALESCE($1, status) IN ('RESOLVED', 'CLOSED') THEN COALESCE(resolved_at, now())
+                    ELSE resolved_at
+                END,
+                updated_at = now()
+            WHERE ticket_id = $4
+            """,
+            body.status,
+            body.assigned_to_role,
+            body.assigned_to_name,
+            ticket_id,
+        )
     return {"status": "updated", "ticket_id": ticket_id}
+
+
+async def _fetch_hold_row(conn: Any, hold_type: str, hold_id: str) -> Any:
+    """Fetch one hold row by normalized hold type."""
+    if hold_type == "stay":
+        return await conn.fetchrow("SELECT * FROM stay_holds WHERE hold_id = $1", hold_id)
+    if hold_type == "restaurant":
+        return await conn.fetchrow("SELECT * FROM restaurant_holds WHERE hold_id = $1", hold_id)
+    return await conn.fetchrow("SELECT * FROM transfer_holds WHERE hold_id = $1", hold_id)
+
+
+async def _update_hold_approval(conn: Any, hold_type: str, hold_id: str, username: str) -> None:
+    """Approve one hold row using a static query per hold type."""
+    if hold_type == "stay":
+        await conn.execute(
+            """
+            UPDATE stay_holds
+            SET status = $1, approved_by = $2, approved_at = now(), updated_at = now()
+            WHERE hold_id = $3
+            """,
+            HoldStatus.APPROVED.value,
+            username,
+            hold_id,
+        )
+        return
+    if hold_type == "restaurant":
+        await conn.execute(
+            """
+            UPDATE restaurant_holds
+            SET status = $1, approved_by = $2, approved_at = now(), updated_at = now()
+            WHERE hold_id = $3
+            """,
+            HoldStatus.APPROVED.value,
+            username,
+            hold_id,
+        )
+        return
+    await conn.execute(
+        """
+        UPDATE transfer_holds
+        SET status = $1, approved_by = $2, approved_at = now(), updated_at = now()
+        WHERE hold_id = $3
+        """,
+        HoldStatus.APPROVED.value,
+        username,
+        hold_id,
+    )
+
+
+async def _update_hold_rejection(conn: Any, hold_type: str, hold_id: str, reason: str) -> None:
+    """Reject one hold row using a static query per hold type."""
+    if hold_type == "stay":
+        await conn.execute(
+            """
+            UPDATE stay_holds
+            SET status = $1, rejected_reason = $2, updated_at = now()
+            WHERE hold_id = $3
+            """,
+            HoldStatus.REJECTED.value,
+            reason,
+            hold_id,
+        )
+        return
+    if hold_type == "restaurant":
+        await conn.execute(
+            """
+            UPDATE restaurant_holds
+            SET status = $1, rejected_reason = $2, updated_at = now()
+            WHERE hold_id = $3
+            """,
+            HoldStatus.REJECTED.value,
+            reason,
+            hold_id,
+        )
+        return
+    await conn.execute(
+        """
+        UPDATE transfer_holds
+        SET status = $1, rejected_reason = $2, updated_at = now()
+        WHERE hold_id = $3
+        """,
+        HoldStatus.REJECTED.value,
+        reason,
+        hold_id,
+    )
