@@ -17,6 +17,7 @@ services:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8001/api/v1/health || exit 1"]
       interval: 30s
       timeout: 5s
+      start_period: 30s
       retries: 3
     restart: unless-stopped
 
@@ -36,6 +37,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -48,6 +50,7 @@ services:
       retries: 5
     volumes:
       - redisdata:/data
+    restart: unless-stopped
 
 volumes:
   pgdata:

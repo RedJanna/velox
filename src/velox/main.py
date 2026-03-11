@@ -1,20 +1,28 @@
 """Velox (NexlumeAI) — FastAPI Application Entry Point."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from time import perf_counter
 
-from fastapi import FastAPI
 import redis.asyncio as redis
 import structlog
+from fastapi import FastAPI
+from redis.asyncio.client import Redis
 
 from velox.adapters.elektraweb.client import close_elektraweb_client
 from velox.adapters.whatsapp.client import close_whatsapp_client
 from velox.api.middleware.rate_limiter import RateLimitMiddleware
 from velox.api.routes import admin, admin_webhook, health, whatsapp_webhook
+from velox.config.constants import (
+    MAX_STARTUP_RETRIES,
+    STARTUP_DEPENDENCY_TIMEOUT_SECONDS,
+    STARTUP_RETRY_BACKOFF_SECONDS,
+)
 from velox.config.settings import settings
 from velox.core.event_processor import EventProcessor
-from velox.core.pipeline import post_process_escalation
 from velox.core.hotel_profile_loader import load_all_profiles
+from velox.core.pipeline import post_process_escalation
 from velox.core.template_engine import load_templates
 from velox.db.database import close_db_pool, init_db_pool
 from velox.db.repositories.hotel import HotelRepository
@@ -27,6 +35,41 @@ from velox.utils.logger import setup_logging
 logger = structlog.get_logger(__name__)
 
 
+async def _connect_redis_with_retry() -> Redis | None:
+    """Connect to Redis with bounded retries and degrade cleanly if unavailable."""
+    redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+    for attempt in range(1, MAX_STARTUP_RETRIES + 1):
+        started = perf_counter()
+        try:
+            async with asyncio.timeout(STARTUP_DEPENDENCY_TIMEOUT_SECONDS):
+                pong = await redis_client.ping()
+            if not pong:
+                raise RuntimeError("redis_ping_failed")
+            logger.info(
+                "redis_connected",
+                attempt_number=attempt,
+                duration_ms=int((perf_counter() - started) * 1000),
+            )
+            return redis_client
+        except Exception as exc:
+            logger.warning(
+                "redis_connection_failed",
+                attempt_number=attempt,
+                duration_ms=int((perf_counter() - started) * 1000),
+                error_type=type(exc).__name__,
+            )
+            if attempt >= MAX_STARTUP_RETRIES:
+                break
+            backoff = STARTUP_RETRY_BACKOFF_SECONDS[
+                min(attempt - 1, len(STARTUP_RETRY_BACKOFF_SECONDS) - 1)
+            ]
+            await asyncio.sleep(backoff)
+
+    await redis_client.aclose()
+    logger.warning("redis_startup_degraded", max_attempts=MAX_STARTUP_RETRIES)
+    return None
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Manage application startup and shutdown lifecycle."""
@@ -34,14 +77,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("application_startup", env=settings.app_env)
     db_pool = await init_db_pool()
     _app.state.db_pool = db_pool
-    redis_client = redis.from_url(settings.redis_url, decode_responses=True)
-    try:
-        await redis_client.ping()
-        _app.state.redis = redis_client
-        logger.info("redis_connected")
-    except Exception:
-        _app.state.redis = None
-        logger.exception("redis_connection_failed")
+    _app.state.redis = await _connect_redis_with_retry()
 
     profiles = load_all_profiles()
     logger.info("hotel_profiles_loaded", count=len(profiles))
@@ -95,9 +131,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.add_middleware(RateLimitMiddleware)
-
-# TODO: Include routers
-# from velox.api.routes import whatsapp_webhook, admin_webhook, admin
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(whatsapp_webhook.router, prefix="/api/v1")

@@ -1,8 +1,17 @@
 """AsyncPG database connection pool manager."""
 
-import asyncpg
+import asyncio
+from time import perf_counter
+from typing import cast
+
+import asyncpg  # type: ignore[import-untyped]
 import structlog
 
+from velox.config.constants import (
+    MAX_STARTUP_RETRIES,
+    STARTUP_DEPENDENCY_TIMEOUT_SECONDS,
+    STARTUP_RETRY_BACKOFF_SECONDS,
+)
 from velox.config.settings import settings
 
 logger = structlog.get_logger(__name__)
@@ -25,18 +34,55 @@ async def init_db_pool() -> asyncpg.Pool:
         max_size=settings.db_pool_max,
     )
 
-    _pool = await asyncpg.create_pool(
+    last_error: Exception | None = None
+    for attempt in range(1, MAX_STARTUP_RETRIES + 1):
+        started = perf_counter()
+        try:
+            pool = await asyncpg.create_pool(
+                host=settings.db_host,
+                port=settings.db_port,
+                database=settings.db_name,
+                user=settings.db_user,
+                password=settings.db_password,
+                min_size=settings.db_pool_min,
+                max_size=settings.db_pool_max,
+                command_timeout=30,
+                timeout=STARTUP_DEPENDENCY_TIMEOUT_SECONDS,
+            )
+            _pool = pool
+            logger.info(
+                "db_pool_init_done",
+                attempt_number=attempt,
+                duration_ms=int((perf_counter() - started) * 1000),
+            )
+            return pool
+        except Exception as exc:
+            last_error = exc
+            logger.warning(
+                "db_pool_init_failed",
+                host=settings.db_host,
+                port=settings.db_port,
+                database=settings.db_name,
+                attempt_number=attempt,
+                duration_ms=int((perf_counter() - started) * 1000),
+                error_type=type(exc).__name__,
+            )
+            if attempt >= MAX_STARTUP_RETRIES:
+                break
+            backoff = STARTUP_RETRY_BACKOFF_SECONDS[
+                min(attempt - 1, len(STARTUP_RETRY_BACKOFF_SECONDS) - 1)
+            ]
+            await asyncio.sleep(backoff)
+
+    logger.error(
+        "db_pool_init_exhausted",
         host=settings.db_host,
         port=settings.db_port,
         database=settings.db_name,
-        user=settings.db_user,
-        password=settings.db_password,
-        min_size=settings.db_pool_min,
-        max_size=settings.db_pool_max,
-        command_timeout=30,
+        max_attempts=MAX_STARTUP_RETRIES,
+        error_type=type(last_error).__name__ if last_error is not None else None,
     )
-    logger.info("db_pool_init_done")
-    return _pool
+    raise RuntimeError("Database dependency unavailable during startup.") from last_error
 
 
 async def close_db_pool() -> None:
@@ -58,13 +104,13 @@ def get_pool() -> asyncpg.Pool:
 async def execute(query: str, *args: object) -> str:
     """Execute a query that does not return rows (INSERT/UPDATE/DELETE)."""
     pool = get_pool()
-    return await pool.execute(query, *args)
+    return cast(str, await pool.execute(query, *args))
 
 
 async def fetch(query: str, *args: object) -> list[asyncpg.Record]:
     """Execute a query and return all result rows."""
     pool = get_pool()
-    return await pool.fetch(query, *args)
+    return cast(list[asyncpg.Record], await pool.fetch(query, *args))
 
 
 async def fetchrow(query: str, *args: object) -> asyncpg.Record | None:
@@ -76,4 +122,4 @@ async def fetchrow(query: str, *args: object) -> asyncpg.Record | None:
 async def fetchval(query: str, *args: object) -> object:
     """Execute a query and return a single value."""
     pool = get_pool()
-    return await pool.fetchval(query, *args)
+    return cast(object, await pool.fetchval(query, *args))

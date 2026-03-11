@@ -28,7 +28,7 @@ USER velox
 
 EXPOSE 8001
 
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8001/api/v1/health || exit 1
 
-CMD ["python", "-m", "uvicorn", "velox.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "2"]
+CMD ["python", "-m", "uvicorn", "velox.main:app", "--host", "0.0.0.0", "--port", "8001"]
