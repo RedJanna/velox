@@ -70,6 +70,8 @@ button,input,select,textarea{font:inherit}
 .helper-panel{display:flex;flex-direction:column;gap:12px}
 .helper-box{padding:14px 16px;border-radius:18px;background:var(--surface-2);border:1px solid var(--line)}
 .helper-box strong{display:block;margin-bottom:6px}
+.qr-wrap{display:flex;justify-content:center;padding:10px;border:1px dashed var(--line);border-radius:14px;background:#fff}
+.qr-wrap img{width:190px;height:190px;max-width:100%;display:block}
 .section-grid{display:grid;gap:18px}
 .card-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .overview-card h4{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -138,6 +140,7 @@ const state = {
   token: window.localStorage.getItem(TOKEN_KEY) || '',
   me: null,
   bootstrap: null,
+  bootstrapPending: null,
   hotels: [],
   selectedHotelId: window.localStorage.getItem(HOTEL_KEY) || '',
   currentView: (window.location.hash || '#dashboard').replace('#', ''),
@@ -162,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function bindRefs() {
   [
     'toast','authView','panelView','loginForm','bootstrapForm','bootstrapCard','bootstrapSummary',
-    'otpSetup','otpSecret','otpUri','currentUser','currentRole','hotelScope','hotelSelect','nav','pageTitle','pageLead',
+    'otpSetup','otpSecret','otpUri','otpQrImage','otpVerifyForm','otpVerifyHint','currentUser','currentRole','hotelScope','hotelSelect','nav','pageTitle','pageLead',
     'dashboardCards','dashboardQueues','conversationFilters','conversationTableBody','conversationDetail',
     'holdFilters','holdTableBody','ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor',
     'hotelProfileMeta','slotFilters','slotTableBody','slotCreateForm','systemChecks','systemMeta',
@@ -176,6 +179,7 @@ function bindRefs() {
 function bindEvents() {
   refs.loginForm.addEventListener('submit', onLogin);
   refs.bootstrapForm.addEventListener('submit', onBootstrap);
+  refs.otpVerifyForm.addEventListener('submit', onBootstrapVerify);
   refs.hotelSelect.addEventListener('change', onHotelScopeChange);
   refs.hotelProfileSelect.addEventListener('change', loadHotelProfileSection);
   refs.slotCreateForm.addEventListener('submit', onCreateSlot);
@@ -286,12 +290,43 @@ async function onBootstrap(event) {
   }
   try {
     const response = await apiFetch('/bootstrap', {method: 'POST', body: payload, auth: false});
+    state.bootstrapPending = {
+      username: payload.username,
+      password: payload.password,
+    };
     refs.otpSetup.hidden = false;
+    refs.otpVerifyForm.hidden = false;
+    refs.otpVerifyHint.hidden = false;
+    refs.otpQrImage.src = response.otpauth_qr_svg_data_uri;
     refs.otpSecret.textContent = response.totp_secret;
     refs.otpUri.textContent = response.otpauth_uri;
     refs.loginForm.username.value = response.username;
-    notify('Ilk admin hesabi olusturuldu. Authenticator uygulamasina secret ekleyin.', 'success');
-    await loadBootstrapStatus();
+    refs.loginForm.password.value = payload.password;
+    notify('Ilk admin hesabi olusturuldu. QR okutun ve kodu dogrulayin.', 'success');
+  } catch (error) {
+    notify(error.message, 'error');
+  }
+}
+
+async function onBootstrapVerify(event) {
+  event.preventDefault();
+  if (!state.bootstrapPending) {
+    notify('Once ilk admin hesabini olusturun.', 'warn');
+    return;
+  }
+  const payload = formToJson(refs.otpVerifyForm);
+  const loginPayload = {
+    username: state.bootstrapPending.username,
+    password: state.bootstrapPending.password,
+    otp_code: payload.otp_code,
+  };
+  try {
+    const response = await apiFetch('/login', {method: 'POST', body: loginPayload, auth: false});
+    state.token = response.access_token;
+    state.bootstrapPending = null;
+    window.localStorage.setItem(TOKEN_KEY, state.token);
+    notify('Kurulum dogrulandi, oturum acildi.', 'success');
+    await hydrateSession();
   } catch (error) {
     notify(error.message, 'error');
   }
@@ -811,6 +846,7 @@ async function reloadConfig() {
 function logout() {
   state.token = '';
   state.me = null;
+  state.bootstrapPending = null;
   window.localStorage.removeItem(TOKEN_KEY);
   notify('Oturum kapatildi.', 'info');
   showAuth();

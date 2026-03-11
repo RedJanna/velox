@@ -5,10 +5,14 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import io
 import secrets
 import struct
 import time
 from urllib.parse import quote
+
+from qrcode import QRCode, constants
+from qrcode.image.svg import SvgPathImage
 
 TOTP_DIGITS = 6
 TOTP_INTERVAL_SECONDS = 30
@@ -30,6 +34,24 @@ def build_otpauth_uri(secret: str, account_name: str, issuer: str) -> str:
         f"otpauth://totp/{label}?secret={normalized_secret}"
         f"&issuer={issuer_param}&algorithm=SHA1&digits={TOTP_DIGITS}&period={TOTP_INTERVAL_SECONDS}"
     )
+
+
+def build_otpauth_qr_svg_data_uri(otpauth_uri: str) -> str:
+    """Build a local QR SVG data URI for authenticator enrollment."""
+    qr = QRCode(
+        version=None,
+        error_correction=constants.ERROR_CORRECT_M,
+        box_size=8,
+        border=2,
+    )
+    qr.add_data(otpauth_uri)
+    qr.make(fit=True)
+
+    stream = io.BytesIO()
+    image = qr.make_image(image_factory=SvgPathImage)
+    image.save(stream)
+    encoded_svg = base64.b64encode(stream.getvalue()).decode("ascii")
+    return f"data:image/svg+xml;base64,{encoded_svg}"
 
 
 def normalize_totp_secret(secret: str) -> str:

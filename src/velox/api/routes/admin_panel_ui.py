@@ -144,6 +144,12 @@ def render_admin_panel_html() -> str:
             </form>
             <div id="otpSetup" class="helper-panel" hidden>
               <div class="helper-box">
+                <strong>Google Authenticator QR</strong>
+                <div class="qr-wrap">
+                  <img id="otpQrImage" alt="Google Authenticator QR">
+                </div>
+              </div>
+              <div class="helper-box">
                 <strong>Authenticator Secret</strong>
                 <p id="otpSecret" class="mono"></p>
               </div>
@@ -152,6 +158,16 @@ def render_admin_panel_html() -> str:
                 <p id="otpUri" class="mono"></p>
               </div>
             </div>
+            <form id="otpVerifyForm" class="field-grid" style="margin-top:12px" hidden>
+              <div class="field full">
+                <label for="otp-verify-code">Google Authenticator kodu</label>
+                <input id="otp-verify-code" name="otp_code" inputmode="numeric" pattern="[0-9]*" placeholder="6 haneli kod" required>
+              </div>
+              <div class="field full">
+                <button class="sidebar-button primary" type="submit">Kurulumu Dogrula ve Oturum Ac</button>
+              </div>
+            </form>
+            <p id="otpVerifyHint" class="helper" hidden>QR okutulduktan sonra uygulamadaki 6 haneli kodu girin.</p>
           </article>
         </div>
       </section>

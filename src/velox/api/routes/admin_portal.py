@@ -20,7 +20,7 @@ from velox.api.routes.health import (
 )
 from velox.config.constants import Role
 from velox.config.settings import settings
-from velox.utils.totp import build_otpauth_uri, generate_totp_secret
+from velox.utils.totp import build_otpauth_qr_svg_data_uri, build_otpauth_uri, generate_totp_secret
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -67,6 +67,7 @@ class BootstrapAdminResponse(BaseModel):
     panel_url: str
     totp_secret: str
     otpauth_uri: str
+    otpauth_qr_svg_data_uri: str
 
 
 @router.get("/bootstrap/status", response_model=BootstrapStatusResponse)
@@ -125,17 +126,20 @@ async def bootstrap_admin_account(body: BootstrapAdminRequest, request: Request)
             totp_secret,
         )
 
+    otpauth_uri = build_otpauth_uri(
+        secret=totp_secret,
+        account_name=body.username,
+        issuer=settings.admin_totp_issuer,
+    )
+
     return BootstrapAdminResponse(
         status="created",
         hotel_id=body.hotel_id,
         username=body.username,
         panel_url=settings.admin_panel_url,
         totp_secret=totp_secret,
-        otpauth_uri=build_otpauth_uri(
-            secret=totp_secret,
-            account_name=body.username,
-            issuer=settings.admin_totp_issuer,
-        ),
+        otpauth_uri=otpauth_uri,
+        otpauth_qr_svg_data_uri=build_otpauth_qr_svg_data_uri(otpauth_uri),
     )
 
 

@@ -115,6 +115,7 @@ def test_bootstrap_then_login_with_totp(admin_client: TestClient) -> None:
 
     assert bootstrap_response.status_code == 201
     bootstrap_payload = bootstrap_response.json()
+    assert bootstrap_payload["otpauth_qr_svg_data_uri"].startswith("data:image/svg+xml;base64,")
     otp_code = generate_totp_code(bootstrap_payload["totp_secret"])
 
     login_response = admin_client.post(
