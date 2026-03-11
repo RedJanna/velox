@@ -165,6 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function bindRefs() {
   [
     'toast','authView','panelView','loginForm','bootstrapForm','bootstrapCard','bootstrapSummary',
+    'totpRecovery','totpRecoveryForm',
     'otpSetup','otpSecret','otpUri','otpQrImage','otpVerifyForm','otpVerifyHint','currentUser','currentRole','hotelScope','hotelSelect','nav','pageTitle','pageLead',
     'dashboardCards','dashboardQueues','conversationFilters','conversationTableBody','conversationDetail',
     'holdFilters','holdTableBody','ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor',
@@ -179,6 +180,7 @@ function bindRefs() {
 function bindEvents() {
   refs.loginForm.addEventListener('submit', onLogin);
   refs.bootstrapForm.addEventListener('submit', onBootstrap);
+  refs.totpRecoveryForm.addEventListener('submit', onTotpRecovery);
   refs.otpVerifyForm.addEventListener('submit', onBootstrapVerify);
   refs.hotelSelect.addEventListener('change', onHotelScopeChange);
   refs.hotelProfileSelect.addEventListener('change', loadHotelProfileSection);
@@ -235,21 +237,25 @@ function renderBootstrapState() {
   refs.bootstrapHotels.innerHTML = hotelOptions || '<option value="">Hotel yok</option>';
 
   if (!info.bootstrap_required) {
-    refs.bootstrapCard.innerHTML = `
-      <div class="helper-panel">
-        <div class="helper-box">
-          <strong>Kurulum tamam</strong>
-          <p>Panel girisi aktif. Google Authenticator kodunuz ile oturum acabilirsiniz.</p>
-        </div>
-        <div class="helper-box">
-          <strong>Alan adi</strong>
-          <p>${escapeHtml(info.panel_url || CONFIG.panel_url || '/admin')}</p>
-        </div>
+    refs.bootstrapForm.hidden = true;
+    refs.totpRecovery.hidden = false;
+    refs.otpVerifyForm.hidden = true;
+    refs.otpVerifyHint.hidden = true;
+    refs.bootstrapSummary.innerHTML = `
+      <div class="helper-box">
+        <strong>Kurulum tamam</strong>
+        <p>Panel girisi aktif. Google Authenticator kodunuz ile oturum acabilirsiniz.</p>
+      </div>
+      <div class="helper-box">
+        <strong>Alan adi</strong>
+        <p>${escapeHtml(info.panel_url || CONFIG.panel_url || '/admin')}</p>
       </div>
     `;
     return;
   }
 
+  refs.bootstrapForm.hidden = false;
+  refs.totpRecovery.hidden = true;
   const accessMode = info.local_bootstrap_allowed
     ? 'Bu cihazdan localhost bootstrap acik.'
     : (info.token_bootstrap_enabled ? 'Bootstrap token gerekli.' : 'Bootstrap icin localhost erisimi veya ENV token gerekli.');
@@ -303,6 +309,34 @@ async function onBootstrap(event) {
     refs.loginForm.username.value = response.username;
     refs.loginForm.password.value = payload.password;
     notify('Ilk admin hesabi olusturuldu. QR okutun ve kodu dogrulayin.', 'success');
+  } catch (error) {
+    notify(error.message, 'error');
+  }
+}
+
+async function onTotpRecovery(event) {
+  event.preventDefault();
+  const payload = formToJson(refs.totpRecoveryForm);
+  const nextPassword = String(payload.new_password || '');
+  if (nextPassword && new TextEncoder().encode(nextPassword).length > 72) {
+    notify('Sifre en fazla 72 byte olabilir.', 'warn');
+    return;
+  }
+  try {
+    const response = await apiFetch('/bootstrap/recover-totp', {method: 'POST', body: payload, auth: false});
+    refs.otpSetup.hidden = false;
+    refs.otpVerifyForm.hidden = true;
+    refs.otpVerifyHint.hidden = true;
+    refs.otpQrImage.src = response.otpauth_qr_svg_data_uri;
+    refs.otpSecret.textContent = response.totp_secret;
+    refs.otpUri.textContent = response.otpauth_uri;
+    refs.loginForm.username.value = response.username;
+    if (nextPassword) {
+      refs.loginForm.password.value = nextPassword;
+      notify('2FA yenilendi. Yeni sifre ve Authenticator kodu ile giris yapin.', 'success');
+    } else {
+      notify('2FA yenilendi. Mevcut sifreniz ve yeni Authenticator kodu ile giris yapin.', 'success');
+    }
   } catch (error) {
     notify(error.message, 'error');
   }

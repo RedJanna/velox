@@ -142,6 +142,29 @@ def render_admin_panel_html() -> str:
                 <button class="sidebar-button primary" type="submit">Ilk Admin Hesabini Olustur</button>
               </div>
             </form>
+            <section id="totpRecovery" class="helper-panel" style="margin-top:14px" hidden>
+              <div class="helper-box">
+                <strong>2FA Kurtarma</strong>
+                <p>Hesap var ama Google Authenticator kurulumu kaybolduysa, bootstrap token ile yeni QR uretebilirsiniz.</p>
+              </div>
+              <form id="totpRecoveryForm" class="field-grid">
+                <div class="field">
+                  <label for="recovery-username">Kullanici adi</label>
+                  <input id="recovery-username" name="username" required>
+                </div>
+                <div class="field">
+                  <label for="recovery-token">Bootstrap token</label>
+                  <input id="recovery-token" name="bootstrap_token" required>
+                </div>
+                <div class="field full">
+                  <label for="recovery-password">Yeni sifre (opsiyonel)</label>
+                  <input id="recovery-password" name="new_password" type="password" minlength="12" maxlength="72" placeholder="Bos birakirsaniz mevcut sifre korunur">
+                </div>
+                <div class="field full">
+                  <button class="sidebar-button warn" type="submit">2FA QR Yenile</button>
+                </div>
+              </form>
+            </section>
             <div id="otpSetup" class="helper-panel" hidden>
               <div class="helper-box">
                 <strong>Google Authenticator QR</strong>

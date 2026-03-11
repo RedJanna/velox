@@ -70,6 +70,32 @@ class BootstrapAdminResponse(BaseModel):
     otpauth_qr_svg_data_uri: str
 
 
+class RecoverTotpRequest(BaseModel):
+    """Recovery payload for regenerating an admin TOTP enrollment secret."""
+
+    username: str = Field(min_length=3, max_length=100)
+    bootstrap_token: str | None = Field(default=None, max_length=256)
+    new_password: str | None = Field(default=None, min_length=12, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password_byte_length(cls, value: str | None) -> str | None:
+        """Enforce bcrypt byte-length limit for optional recovery password reset."""
+        if value is not None and len(value.encode("utf-8")) > 72:
+            raise ValueError("Password must be at most 72 bytes")
+        return value
+
+
+class RecoverTotpResponse(BaseModel):
+    """Recovery response containing refreshed TOTP enrollment details."""
+
+    status: str
+    username: str
+    otpauth_uri: str
+    totp_secret: str
+    otpauth_qr_svg_data_uri: str
+
+
 @router.get("/bootstrap/status", response_model=BootstrapStatusResponse)
 async def bootstrap_status(request: Request) -> BootstrapStatusResponse:
     """Expose whether the panel needs one-time admin bootstrap."""
@@ -139,6 +165,48 @@ async def bootstrap_admin_account(body: BootstrapAdminRequest, request: Request)
         panel_url=settings.admin_panel_url,
         totp_secret=totp_secret,
         otpauth_uri=otpauth_uri,
+        otpauth_qr_svg_data_uri=build_otpauth_qr_svg_data_uri(otpauth_uri),
+    )
+
+
+@router.post("/bootstrap/recover-totp", response_model=RecoverTotpResponse)
+async def recover_admin_totp(body: RecoverTotpRequest, request: Request) -> RecoverTotpResponse:
+    """Regenerate TOTP secret for an existing admin account via bootstrap recovery token."""
+    if not _bootstrap_permitted(request, body.bootstrap_token):
+        raise HTTPException(status_code=403, detail="Recovery requires localhost access or a valid bootstrap token")
+
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        row = await conn.fetchrow("SELECT id, username FROM admin_users WHERE username = $1 AND is_active = true", body.username)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Admin user not found")
+
+        refreshed_secret = generate_totp_secret()
+        if body.new_password:
+            password_hash = bcrypt.hash(body.new_password)
+            await conn.execute(
+                "UPDATE admin_users SET totp_secret = $1, password_hash = $2 WHERE id = $3",
+                refreshed_secret,
+                password_hash,
+                row["id"],
+            )
+        else:
+            await conn.execute(
+                "UPDATE admin_users SET totp_secret = $1 WHERE id = $2",
+                refreshed_secret,
+                row["id"],
+            )
+
+    otpauth_uri = build_otpauth_uri(
+        secret=refreshed_secret,
+        account_name=str(row["username"]),
+        issuer=settings.admin_totp_issuer,
+    )
+    return RecoverTotpResponse(
+        status="updated",
+        username=str(row["username"]),
+        otpauth_uri=otpauth_uri,
+        totp_secret=refreshed_secret,
         otpauth_qr_svg_data_uri=build_otpauth_qr_svg_data_uri(otpauth_uri),
     )
 

@@ -69,6 +69,21 @@ class _FakeConnection:
                 }
             )
             return "INSERT 0 1"
+        if "UPDATE admin_users SET totp_secret = $1, password_hash = $2 WHERE id = $3" in query:
+            target_id = int(args[2])
+            for item in self.admin_users:
+                if int(item["id"]) == target_id:
+                    item["totp_secret"] = str(args[0])
+                    item["password_hash"] = str(args[1])
+                    return "UPDATE 1"
+            return "UPDATE 0"
+        if "UPDATE admin_users SET totp_secret = $1 WHERE id = $2" in query:
+            target_id = int(args[1])
+            for item in self.admin_users:
+                if int(item["id"]) == target_id:
+                    item["totp_secret"] = str(args[0])
+                    return "UPDATE 1"
+            return "UPDATE 0"
         raise AssertionError(f"Unsupported execute query: {query}")
 
 
@@ -154,3 +169,41 @@ def test_bootstrap_rejects_password_longer_than_bcrypt_limit(admin_client: TestC
 
     assert response.status_code == 422
     assert "72 bytes" in str(response.json())
+
+
+def test_recover_totp_and_login_with_new_password(admin_client: TestClient) -> None:
+    bootstrap_response = admin_client.post(
+        "/api/v1/admin/bootstrap",
+        json={
+            "hotel_id": 21966,
+            "username": "ops_admin_recovery",
+            "display_name": "Ops Admin",
+            "password": "BootstrapPass123!",
+            "bootstrap_token": "bootstrap-secret",
+        },
+    )
+    assert bootstrap_response.status_code == 201
+
+    recovery_response = admin_client.post(
+        "/api/v1/admin/bootstrap/recover-totp",
+        json={
+            "username": "ops_admin_recovery",
+            "bootstrap_token": "bootstrap-secret",
+            "new_password": "RecoveredPass123!",
+        },
+    )
+    assert recovery_response.status_code == 200
+    recovery_payload = recovery_response.json()
+    assert recovery_payload["status"] == "updated"
+    assert recovery_payload["otpauth_qr_svg_data_uri"].startswith("data:image/svg+xml;base64,")
+
+    otp_code = generate_totp_code(recovery_payload["totp_secret"])
+    login_response = admin_client.post(
+        "/api/v1/admin/login",
+        json={
+            "username": "ops_admin_recovery",
+            "password": "RecoveredPass123!",
+            "otp_code": otp_code,
+        },
+    )
+    assert login_response.status_code == 200
