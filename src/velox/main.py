@@ -17,7 +17,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from velox.adapters.elektraweb.client import close_elektraweb_client
 from velox.adapters.whatsapp.client import close_whatsapp_client
 from velox.api.middleware.rate_limiter import RateLimitMiddleware
-from velox.api.routes import admin, admin_panel_ui, admin_portal, admin_webhook, health, whatsapp_webhook
+from velox.api.routes import admin, admin_panel_ui, admin_portal, admin_webhook, health, test_chat, whatsapp_webhook
 from velox.config.constants import (
     MAX_STARTUP_RETRIES,
     STARTUP_DEPENDENCY_TIMEOUT_SECONDS,
@@ -144,11 +144,8 @@ app.include_router(admin_portal.router, prefix="/api/v1")
 app.include_router(whatsapp_webhook.router, prefix="/api/v1")
 app.include_router(admin_webhook.router, prefix="/api/v1")
 app.include_router(admin_panel_ui.router)
-
-if settings.app_env != "production":
-    from velox.api.routes import test_chat
-    app.include_router(test_chat.router, prefix="/api/v1")
-    app.include_router(test_chat.ui_router)
+app.include_router(test_chat.router, prefix="/api/v1")
+app.include_router(test_chat.ui_router)
 
 
 @app.get("/", response_model=None)

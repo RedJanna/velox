@@ -1,14 +1,15 @@
-"""Test chat endpoints and Chat Lab UI, disabled in production."""
+"""Chat Lab endpoints and UI for admin-operated testing workflows."""
 
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
+from velox.api.middleware.auth import require_role
 from velox.api.routes.test_chat_export import (
     ConversationExportPayload,
     ExportFormat,
@@ -23,6 +24,7 @@ from velox.api.routes.whatsapp_webhook import (
     _normalize_text,
     _run_message_pipeline,
 )
+from velox.config.constants import Role
 from velox.config.settings import settings
 from velox.core.chat_lab_feedback import (
     ChatLabFeedbackError,
@@ -47,7 +49,16 @@ from velox.models.chat_lab_feedback import (
 from velox.models.conversation import Conversation, Message
 
 logger = structlog.get_logger(__name__)
-router = APIRouter(prefix="/test", tags=["test-chat"])
+
+
+def _chat_lab_dependencies() -> list[Any]:
+    """Protect Chat Lab APIs with admin auth in production."""
+    if settings.app_env == "production":
+        return [Depends(require_role(Role.ADMIN))]
+    return []
+
+
+router = APIRouter(prefix="/test", tags=["test-chat"], dependencies=_chat_lab_dependencies())
 ui_router = APIRouter(tags=["test-chat-ui"])
 formatter = WhatsAppFormatter()
 
@@ -336,7 +347,13 @@ async def set_model(body: SetModelRequest) -> dict[str, str]:
     return {"status": "ok", "model": body.model}
 
 
-@ui_router.get("/test-chat", response_class=HTMLResponse)
+@ui_router.get("/admin/chat-lab", response_class=HTMLResponse)
 async def test_chat_ui() -> HTMLResponse:
     """Serve the Chat Lab web interface."""
+    return HTMLResponse(content=TEST_CHAT_HTML)
+
+
+@ui_router.get("/test-chat", response_class=HTMLResponse, include_in_schema=False)
+async def test_chat_ui_legacy() -> HTMLResponse:
+    """Serve the legacy Chat Lab URL for backwards compatibility."""
     return HTMLResponse(content=TEST_CHAT_HTML)

@@ -106,6 +106,8 @@ body{overflow:hidden}
 
 TEST_CHAT_SCRIPT = """\
 const API = '/api/v1/test';
+const ADMIN_TOKEN_KEY = 'velox.admin.token';
+const ADMIN_ENTRY_PATH = '/admin';
 const DEFAULT_FEEDBACK_SCALES = [
   {rating: 1, label: 'Kesinlikle Yanlis', summary: 'Yanit tamamen hatali.', tooltip: 'Bilgi tamamen yanlis mi? Burayi sec ve dogruyu sisteme ogret.', correction_required: true},
   {rating: 2, label: 'Hatali Anlatim', summary: 'Bilgi ozunde dogru ama anlatim bozuk.', tooltip: 'Bilgi dogru ama anlatim bozuk mu?', correction_required: true},
@@ -286,8 +288,24 @@ function applyCategorySuggestions(force = false) {
   updateCategoryGuidance();
 }
 
+function adminToken() {
+  return window.localStorage.getItem(ADMIN_TOKEN_KEY) || '';
+}
+
+function ensureAdminSession() {
+  if (adminToken()) return true;
+  window.location.href = ADMIN_ENTRY_PATH;
+  return false;
+}
+
 async function apiFetch(path, options = {}) {
-  const response = await fetch(API + path, options);
+  const headers = {...(options.headers || {})};
+  const token = adminToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(API + path, {
+    ...options,
+    headers,
+  });
   let data = null;
   let rawText = '';
   try {
@@ -300,6 +318,9 @@ async function apiFetch(path, options = {}) {
     }
   }
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      window.location.href = ADMIN_ENTRY_PATH;
+    }
     throw new Error(extractApiErrorMessage(data, rawText));
   }
   return data || {};
@@ -892,6 +913,7 @@ function wireEvents() {
 }
 
 async function boot() {
+  if (!ensureAdminSession()) return;
   wireEvents();
   renderCategoryOptions();
   renderTagOptions();
