@@ -8,7 +8,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from passlib.hash import bcrypt  # type: ignore[import-untyped]
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from velox.api.middleware.auth import ROLE_PERMISSIONS, TokenData, get_current_user
 from velox.api.routes.health import (
@@ -48,6 +48,14 @@ class BootstrapAdminRequest(BaseModel):
     password: str = Field(min_length=12, max_length=128)
     bootstrap_token: str | None = Field(default=None, max_length=256)
     totp_secret: str | None = Field(default=None, min_length=16, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_byte_length(cls, value: str) -> str:
+        """Enforce bcrypt byte-length limit to avoid runtime hashing errors."""
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Password must be at most 72 bytes")
+        return value
 
 
 class BootstrapAdminResponse(BaseModel):

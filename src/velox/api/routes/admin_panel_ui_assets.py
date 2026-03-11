@@ -161,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function bindRefs() {
   [
-    'toast','authView','panelView','loginForm','bootstrapForm','bootstrapCard','bootstrapSummary','bootstrapHotels',
+    'toast','authView','panelView','loginForm','bootstrapForm','bootstrapCard','bootstrapSummary',
     'otpSetup','otpSecret','otpUri','currentUser','currentRole','hotelScope','hotelSelect','nav','pageTitle','pageLead',
     'dashboardCards','dashboardQueues','conversationFilters','conversationTableBody','conversationDetail',
     'holdFilters','holdTableBody','ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor',
@@ -169,6 +169,8 @@ function bindRefs() {
     'logoutButton','reloadButton','decisionDialog','decisionForm','decisionTitle','decisionLead','decisionReason',
     'decisionHoldId','decisionMode'
   ].forEach(id => refs[id] = document.getElementById(id));
+  // Bootstrap hotel select uses kebab-case id in HTML; map it to the existing JS key.
+  refs.bootstrapHotels = document.getElementById('bootstrap-hotel');
 }
 
 function bindEvents() {
@@ -278,6 +280,10 @@ async function onBootstrap(event) {
   event.preventDefault();
   const payload = formToJson(refs.bootstrapForm);
   payload.hotel_id = Number(payload.hotel_id);
+  if (new TextEncoder().encode(String(payload.password || '')).length > 72) {
+    notify('Sifre en fazla 72 byte olabilir.', 'warn');
+    return;
+  }
   try {
     const response = await apiFetch('/bootstrap', {method: 'POST', body: payload, auth: false});
     refs.otpSetup.hidden = false;
@@ -839,9 +845,29 @@ async function handleResponse(response, auth) {
     if (auth && response.status === 401) {
       logout();
     }
-    throw new Error(payload.detail || payload.message || 'Beklenmeyen panel hatasi.');
+    throw new Error(extractErrorMessage(payload));
   }
   return payload;
+}
+
+function extractErrorMessage(payload) {
+  if (typeof payload?.detail === 'string' && payload.detail.trim()) {
+    return payload.detail;
+  }
+  if (Array.isArray(payload?.detail) && payload.detail.length > 0) {
+    const messages = payload.detail.map(item => {
+      if (typeof item === 'string') return item;
+      if (item && typeof item.msg === 'string') return item.msg;
+      return '';
+    }).filter(Boolean);
+    if (messages.length > 0) {
+      return messages.join(' | ');
+    }
+  }
+  if (typeof payload?.message === 'string' && payload.message.trim()) {
+    return payload.message;
+  }
+  return 'Beklenmeyen panel hatasi.';
 }
 
 function formToJson(form) {

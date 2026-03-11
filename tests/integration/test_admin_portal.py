@@ -137,3 +137,19 @@ def test_bootstrap_then_login_with_totp(admin_client: TestClient) -> None:
     assert me_response.status_code == 200
     assert me_response.json()["role"] == "ADMIN"
     assert me_response.json()["hotel_id"] == 21966
+
+
+def test_bootstrap_rejects_password_longer_than_bcrypt_limit(admin_client: TestClient) -> None:
+    response = admin_client.post(
+        "/api/v1/admin/bootstrap",
+        json={
+            "hotel_id": 21966,
+            "username": "ops_admin_long_password",
+            "display_name": "Ops Admin",
+            "password": "A" * 73,
+            "bootstrap_token": "bootstrap-secret",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "72 bytes" in str(response.json())

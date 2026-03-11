@@ -101,7 +101,7 @@ def render_admin_panel_html() -> str:
               </div>
               <div class="field">
                 <label for="login-password">Sifre</label>
-                <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+                <input id="login-password" name="password" type="password" autocomplete="current-password" maxlength="72" required>
               </div>
               <div class="field full">
                 <label for="login-otp">Google Authenticator kodu</label>
@@ -132,7 +132,7 @@ def render_admin_panel_html() -> str:
               </div>
               <div class="field">
                 <label for="bootstrap-password">Gecici sifre</label>
-                <input id="bootstrap-password" name="password" type="password" minlength="12" required>
+                <input id="bootstrap-password" name="password" type="password" minlength="12" maxlength="72" required>
               </div>
               <div class="field full">
                 <label for="bootstrap-token">Bootstrap token</label>
