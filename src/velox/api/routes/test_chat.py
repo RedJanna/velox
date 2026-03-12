@@ -159,7 +159,18 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
         conversation.language = detected_language
         await repository.update_language(conversation.id, detected_language)
 
-    user_message = Message(conversation_id=conversation.id, role="user", content=normalized)
+    user_message = Message(
+        conversation_id=conversation.id,
+        role="user",
+        content=normalized,
+        internal_json={
+            "source_type": "live_test_chat",
+            "route_audit": {
+                "route": "/api/v1/test/chat",
+                "received_at": datetime.now(UTC).isoformat(),
+            },
+        },
+    )
     await repository.add_message(user_message)
     conversation.messages = await repository.get_recent_messages(conversation.id, count=20)
 
@@ -169,6 +180,19 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
         dispatcher=getattr(request.app.state, "tool_dispatcher", None),
         expected_language=detected_language,
     )
+    current_state_value = (
+        str(conversation.current_state.value)
+        if hasattr(conversation.current_state, "value")
+        else str(conversation.current_state or "GREETING")
+    )
+    await repository.update_state(
+        conversation_id=conversation.id,
+        state=str(llm_response.internal_json.state or current_state_value),
+        intent=str(llm_response.internal_json.intent or "").strip() or None,
+        entities=llm_response.internal_json.entities or None,
+        risk_flags=llm_response.internal_json.risk_flags or None,
+    )
+
     reply_text = formatter.truncate(llm_response.user_message)
     assistant_message = Message(
         conversation_id=conversation.id,

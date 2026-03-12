@@ -20,6 +20,7 @@ from velox.config.constants import HoldStatus, Role
 from velox.config.settings import settings
 from velox.core.hotel_profile_loader import reload_profiles, save_profile_definition
 from velox.core.template_engine import reload_templates
+from velox.db.repositories.conversation import ConversationRepository
 from velox.db.repositories.restaurant import RestaurantRepository
 from velox.db.repositories.transfer import TransferRepository
 from velox.escalation.matrix import reload_matrix
@@ -384,12 +385,36 @@ async def list_conversations(
     async with db.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT c.id, c.hotel_id, c.phone_display, c.language, c.current_state,
-                   c.current_intent, c.risk_flags, c.is_active, c.last_message_at, c.created_at,
+            SELECT c.id, c.hotel_id, c.phone_display, c.language,
+                   COALESCE(NULLIF(c.current_state, ''), assistant_meta.last_state, 'GREETING') AS current_state,
+                   COALESCE(NULLIF(c.current_intent, ''), assistant_meta.last_intent) AS current_intent,
+                   c.risk_flags, c.is_active, c.last_message_at, c.created_at,
+                   user_meta.last_user_internal_json,
                    (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count
             FROM conversations c
+            LEFT JOIN LATERAL (
+                SELECT
+                    m.internal_json->>'intent' AS last_intent,
+                    m.internal_json->>'state' AS last_state
+                FROM messages m
+                WHERE m.conversation_id = c.id
+                  AND m.role = 'assistant'
+                ORDER BY m.created_at DESC
+                LIMIT 1
+            ) assistant_meta ON true
+            LEFT JOIN LATERAL (
+                SELECT m.internal_json AS last_user_internal_json
+                FROM messages m
+                WHERE m.conversation_id = c.id
+                  AND m.role = 'user'
+                ORDER BY m.created_at DESC
+                LIMIT 1
+            ) user_meta ON true
             WHERE ($1::int IS NULL OR c.hotel_id = $1)
-              AND ($2::text IS NULL OR c.current_state = $2)
+              AND (
+                    $2::text IS NULL
+                    OR COALESCE(NULLIF(c.current_state, ''), assistant_meta.last_state, 'GREETING') = $2
+                  )
               AND ($3::date IS NULL OR c.created_at::date >= $3)
               AND ($4::date IS NULL OR c.created_at::date <= $4)
             ORDER BY c.last_message_at DESC
@@ -407,7 +432,21 @@ async def list_conversations(
                 """
                 SELECT COUNT(*) FROM conversations c
                 WHERE ($1::int IS NULL OR c.hotel_id = $1)
-                  AND ($2::text IS NULL OR c.current_state = $2)
+                  AND (
+                        $2::text IS NULL
+                        OR COALESCE(
+                            NULLIF(c.current_state, ''),
+                            (
+                                SELECT m.internal_json->>'state'
+                                FROM messages m
+                                WHERE m.conversation_id = c.id
+                                  AND m.role = 'assistant'
+                                ORDER BY m.created_at DESC
+                                LIMIT 1
+                            ),
+                            'GREETING'
+                        ) = $2
+                      )
                   AND ($3::date IS NULL OR c.created_at::date >= $3)
                   AND ($4::date IS NULL OR c.created_at::date <= $4)
                 """,
@@ -432,7 +471,27 @@ async def get_conversation(
     check_permission(user, "conversations:read")
     db = request.app.state.db_pool
     async with db.acquire() as conn:
-        conv = await conn.fetchrow("SELECT * FROM conversations WHERE id = $1", conversation_id)
+        conv = await conn.fetchrow(
+            """
+            SELECT
+                c.*,
+                COALESCE(NULLIF(c.current_state, ''), assistant_meta.last_state, 'GREETING') AS resolved_state,
+                COALESCE(NULLIF(c.current_intent, ''), assistant_meta.last_intent) AS resolved_intent
+            FROM conversations c
+            LEFT JOIN LATERAL (
+                SELECT
+                    m.internal_json->>'intent' AS last_intent,
+                    m.internal_json->>'state' AS last_state
+                FROM messages m
+                WHERE m.conversation_id = c.id
+                  AND m.role = 'assistant'
+                ORDER BY m.created_at DESC
+                LIMIT 1
+            ) assistant_meta ON true
+            WHERE c.id = $1
+            """,
+            conversation_id,
+        )
         if conv is None:
             raise HTTPException(status_code=404, detail="Conversation not found")
         if user.role != Role.ADMIN and int(conv["hotel_id"]) != user.hotel_id:
@@ -446,7 +505,82 @@ async def get_conversation(
             """,
             conversation_id,
         )
-    return {"conversation": dict(conv), "messages": [dict(row) for row in messages]}
+    conversation_payload = dict(conv)
+    resolved_state = conversation_payload.get("resolved_state")
+    resolved_intent = conversation_payload.get("resolved_intent")
+    if resolved_state:
+        conversation_payload["current_state"] = resolved_state
+    if resolved_intent:
+        conversation_payload["current_intent"] = resolved_intent
+    conversation_payload.pop("resolved_state", None)
+    conversation_payload.pop("resolved_intent", None)
+    return {"conversation": conversation_payload, "messages": [dict(row) for row in messages]}
+
+
+@router.post("/conversations/{conversation_id}/reset")
+async def reset_conversation(
+    conversation_id: UUID,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Close a conversation so the next message starts a fresh session."""
+    check_permission(user, "conversations:read")
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, hotel_id, is_active FROM conversations WHERE id = $1",
+            conversation_id,
+        )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not row["is_active"]:
+        return {"status": "already_closed", "conversation_id": str(conversation_id)}
+
+    repository = ConversationRepository()
+    await repository.close(conversation_id)
+    return {"status": "reset", "conversation_id": str(conversation_id)}
+
+
+@router.post("/conversations/reset-by-phone")
+async def reset_conversation_by_phone(
+    request: Request,
+    user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
+    phone: str = Query(..., description="Phone number (e.g. 905xxxxxxxxx)"),
+    hotel_id: int | None = Query(None),
+) -> dict[str, Any]:
+    """Close all active conversations for a phone number to start fresh tests."""
+    import hashlib
+
+    effective_hotel_id = hotel_id or settings.elektra_hotel_id
+    phone_hash = hashlib.sha256(phone.strip().encode()).hexdigest()
+
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id FROM conversations
+            WHERE hotel_id = $1 AND phone_hash = $2 AND is_active = true
+            """,
+            effective_hotel_id,
+            phone_hash,
+        )
+    if not rows:
+        return {"status": "no_active_conversations", "phone": phone}
+
+    repository = ConversationRepository()
+    closed_ids = []
+    for row in rows:
+        await repository.close(row["id"])
+        closed_ids.append(str(row["id"]))
+
+    return {
+        "status": "reset",
+        "phone": phone,
+        "closed_count": len(closed_ids),
+        "closed_conversation_ids": closed_ids,
+    }
 
 
 @router.get("/holds")

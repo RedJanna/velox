@@ -9,7 +9,7 @@ ADMIN_PANEL_STYLE = """\
   --line:rgba(16,32,51,.12);--line-strong:rgba(16,32,51,.2);--accent:#0f766e;--accent-2:#1d8f86;
   --warn:#b45309;--danger:#b42318;--danger-2:#7f1d1d;--ok:#166534;--gold:#bb8a2a;--shadow:0 18px 42px rgba(16,32,51,.08);
   --radius-lg:26px;--radius-md:18px;--radius-sm:12px;--mono:'Cascadia Code','Fira Code',monospace;
-  --sans:'Segoe UI Variable','Aptos','Segoe UI',system-ui,sans-serif;--serif:'Iowan Old Style','Georgia',serif;
+  --sans:'Manrope','Segoe UI Variable','Aptos','Segoe UI',system-ui,sans-serif;--serif:'Fraunces','Iowan Old Style','Georgia',serif;
 }
 html,body{min-height:100%;margin:0;background:
   radial-gradient(circle at top left,rgba(187,138,42,.18),transparent 24%),
@@ -104,6 +104,9 @@ tbody tr:hover{background:#fffcf7}
 .message header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
 .message header strong{font-size:13px}
 .message pre{white-space:pre-wrap;word-break:break-word;margin:0;font-family:var(--sans)}
+.audit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.audit-grid .helper-box{margin:0}
+.audit-row{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line-strong);font-size:12px;line-height:1.45}
 .dense-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .dense-form .field.full{grid-column:1/-1}
 .dialog::backdrop{background:rgba(16,32,51,.42)}
@@ -244,10 +247,10 @@ function renderBootstrapState() {
     refs.bootstrapSummary.innerHTML = `
       <div class="helper-box">
         <strong>Kurulum tamam</strong>
-        <p>Panel girisi aktif. Google Authenticator kodunuz ile oturum acabilirsiniz.</p>
+        <p>Panel girişi aktif. Google Authenticator kodunuz ile oturum açabilirsiniz.</p>
       </div>
       <div class="helper-box">
-        <strong>Alan adi</strong>
+        <strong>Alan adı</strong>
         <p>${escapeHtml(info.panel_url || CONFIG.panel_url || '/admin')}</p>
       </div>
     `;
@@ -257,16 +260,16 @@ function renderBootstrapState() {
   refs.bootstrapForm.hidden = false;
   refs.totpRecovery.hidden = true;
   const accessMode = info.local_bootstrap_allowed
-    ? 'Bu cihazdan localhost bootstrap acik.'
-    : (info.token_bootstrap_enabled ? 'Bootstrap token gerekli.' : 'Bootstrap icin localhost erisimi veya ENV token gerekli.');
+    ? 'Bu cihazdan localhost bootstrap açık.'
+    : (info.token_bootstrap_enabled ? 'Bootstrap token gerekli.' : 'Bootstrap için localhost erişimi veya ENV token gerekli.');
 
   refs.bootstrapSummary.innerHTML = `
     <div class="helper-box">
-      <strong>Ilk yonetici hesabi gerekli</strong>
-      <p>Veritabaninda admin kullanicisi yok. Ilk hesap olusturulduktan sonra panel dogrudan 2FA ile calisacak.</p>
+      <strong>İlk yönetici hesabı gerekli</strong>
+      <p>Veritabanında admin kullanıcısı yok. İlk hesap oluşturulduktan sonra panel doğrudan 2FA ile çalışacak.</p>
     </div>
     <div class="helper-box">
-      <strong>Erisim modu</strong>
+      <strong>Erişim modu</strong>
       <p>${escapeHtml(accessMode)}</p>
     </div>
   `;
@@ -279,7 +282,7 @@ async function onLogin(event) {
     const response = await apiFetch('/login', {method: 'POST', body: payload, auth: false});
     state.token = response.access_token;
     window.localStorage.setItem(TOKEN_KEY, state.token);
-    notify('Oturum acildi.', 'success');
+    notify('Oturum açıldı.', 'success');
     await hydrateSession();
   } catch (error) {
     notify(error.message, 'error');
@@ -291,7 +294,7 @@ async function onBootstrap(event) {
   const payload = formToJson(refs.bootstrapForm);
   payload.hotel_id = Number(payload.hotel_id);
   if (new TextEncoder().encode(String(payload.password || '')).length > 72) {
-    notify('Sifre en fazla 72 byte olabilir.', 'warn');
+    notify('Şifre en fazla 72 byte olabilir.', 'warn');
     return;
   }
   try {
@@ -308,7 +311,7 @@ async function onBootstrap(event) {
     refs.otpUri.textContent = response.otpauth_uri;
     refs.loginForm.username.value = response.username;
     refs.loginForm.password.value = payload.password;
-    notify('Ilk admin hesabi olusturuldu. QR okutun ve kodu dogrulayin.', 'success');
+    notify('İlk admin hesabı oluşturuldu. QR okutun ve kodu doğrulayın.', 'success');
   } catch (error) {
     notify(error.message, 'error');
   }
@@ -319,7 +322,7 @@ async function onTotpRecovery(event) {
   const payload = formToJson(refs.totpRecoveryForm);
   const nextPassword = String(payload.new_password || '');
   if (nextPassword && new TextEncoder().encode(nextPassword).length > 72) {
-    notify('Sifre en fazla 72 byte olabilir.', 'warn');
+    notify('Şifre en fazla 72 byte olabilir.', 'warn');
     return;
   }
   try {
@@ -333,9 +336,9 @@ async function onTotpRecovery(event) {
     refs.loginForm.username.value = response.username;
     if (nextPassword) {
       refs.loginForm.password.value = nextPassword;
-      notify('2FA yenilendi. Yeni sifre ve Authenticator kodu ile giris yapin.', 'success');
+      notify('2FA yenilendi. Yeni şifre ve Authenticator kodu ile giriş yapın.', 'success');
     } else {
-      notify('2FA yenilendi. Mevcut sifreniz ve yeni Authenticator kodu ile giris yapin.', 'success');
+      notify('2FA yenilendi. Mevcut şifreniz ve yeni Authenticator kodu ile giriş yapın.', 'success');
     }
   } catch (error) {
     notify(error.message, 'error');
@@ -345,7 +348,7 @@ async function onTotpRecovery(event) {
 async function onBootstrapVerify(event) {
   event.preventDefault();
   if (!state.bootstrapPending) {
-    notify('Once ilk admin hesabini olusturun.', 'warn');
+    notify('Önce ilk admin hesabını oluşturun.', 'warn');
     return;
   }
   const payload = formToJson(refs.otpVerifyForm);
@@ -359,7 +362,7 @@ async function onBootstrapVerify(event) {
     state.token = response.access_token;
     state.bootstrapPending = null;
     window.localStorage.setItem(TOKEN_KEY, state.token);
-    notify('Kurulum dogrulandi, oturum acildi.', 'success');
+    notify('Kurulum doğrulandı, oturum açıldı.', 'success');
     await hydrateSession();
   } catch (error) {
     notify(error.message, 'error');
@@ -404,8 +407,8 @@ function populateHotelSelectors() {
 function showAuth() {
   refs.authView.hidden = false;
   refs.panelView.hidden = true;
-  refs.currentUser.textContent = 'Misafir degil, operasyon';
-  refs.currentRole.textContent = 'Panel girisi bekleniyor';
+  refs.currentUser.textContent = 'Misafir değil, operasyon';
+  refs.currentRole.textContent = 'Panel girişi bekleniyor';
   refs.hotelScope.textContent = CONFIG.public_host || 'nexlumeai.com';
 }
 
@@ -428,13 +431,13 @@ function setView(view) {
   });
 
   const meta = {
-    dashboard: ['Operasyon Ozeti', 'Tek bakista ne normal, ne riskli ve siradaki aksiyon ne sorularina cevap verir.'],
-    conversations: ['Konusmalar', 'Mesaj akisini, risk flaglerini ve karar baglamini ayni yerde toplar.'],
-    holds: ['Onay Bekleyen Kayitlar', 'Konaklama, restoran ve transfer taleplerini tek kararla yonetin.'],
-    tickets: ['Handoff ve Takip', 'Acilik, sahiplik ve kapanis durumlarini kaybetmeden ekip yonetin.'],
-    hotels: ['Hotel Profile', 'Dinamik hotel verisini panelden duzenleyip runtime cache ile esitleyin.'],
-    restaurant: ['Restoran Slotlari', 'Kapasite, alan ve tarih bazli slot yonetimini kontrol edin.'],
-    system: ['Sistem ve Domain', 'Alan adi, readiness, konfig reload ve panel guven katmanlarini izleyin.'],
+    dashboard: ['Operasyon Özeti', 'Tek bakışta normal, riskli ve sıradaki aksiyonu birlikte gösterir.'],
+    conversations: ['Konuşmalar', 'Mesaj akışını, risk bayraklarını ve karar bağlamını tek yerde toplar.'],
+    holds: ['Onay Bekleyen Kayıtlar', 'Konaklama, restoran ve transfer taleplerini tek kararla yönetin.'],
+    tickets: ['Handoff ve Takip', 'Aciliyet, sahiplik ve kapanış durumlarını kaybetmeden ekip yönetin.'],
+    hotels: ['Hotel Profile', 'Dinamik hotel verisini panelden düzenleyip runtime cache ile eşitleyin.'],
+    restaurant: ['Restoran Slotları', 'Kapasite, alan ve tarih bazlı slot yönetimini kontrol edin.'],
+    system: ['Sistem ve Domain', 'Alan adı, readiness, konfigürasyon yenileme ve güven katmanlarını izleyin.'],
   }[view] || ['Admin Panel', 'Operasyon merkezi'];
 
   refs.pageTitle.textContent = meta[0];
@@ -488,10 +491,10 @@ function renderDashboard() {
           <span class="muted">${escapeHtml(item.current_state || '-')} · ${escapeHtml(item.current_intent || '-')}</span>
           <div class="muted">${formatDate(item.last_message_at)}</div>
         </div>
-      `, 'Konusma yok')}
+      `, 'Konuşma yok')}
     </div>
     <div class="queue-card">
-      <div class="module-header"><div><h3>Bekleyen Holdlar</h3><p>Onay bekleyen kararlar burada yogunlasir.</p></div></div>
+      <div class="module-header"><div><h3>Bekleyen Holdlar</h3><p>Onay bekleyen kararlar burada yoğunlaşır.</p></div></div>
       ${renderQueue(state.dashboard.recent_holds, item => `
         <div class="queue-item">
           <strong>${escapeHtml(item.hold_id)}</strong>
@@ -501,14 +504,14 @@ function renderDashboard() {
       `, 'Bekleyen hold yok')}
     </div>
     <div class="queue-card">
-      <div class="module-header"><div><h3>Acik Ticketlar</h3><p>Handoff kuyrugunda sahiplik ve oncelik takibi.</p></div></div>
+      <div class="module-header"><div><h3>Açık Ticketlar</h3><p>Handoff kuyruğunda sahiplik ve öncelik takibi.</p></div></div>
       ${renderQueue(state.dashboard.recent_tickets, item => `
         <div class="queue-item">
           <strong>${escapeHtml(item.ticket_id)}</strong>
           <span class="muted">${escapeHtml(item.reason)} · ${escapeHtml(item.priority)}</span>
           <div class="muted">${formatDate(item.created_at)}</div>
         </div>
-      `, 'Acik ticket yok')}
+      `, 'Açık ticket yok')}
     </div>
   `;
 }
@@ -534,19 +537,19 @@ async function loadConversations() {
   if (state.conversations.length && !state.conversationDetail) {
     loadConversationDetail(state.conversations[0].id);
   } else if (!state.conversations.length) {
-    refs.conversationDetail.innerHTML = '<div class="empty-state"><p>Secili konusma yok.</p></div>';
+    refs.conversationDetail.innerHTML = '<div class="empty-state"><p>Seçili konuşma yok.</p></div>';
   }
 }
 
 function renderConversationRows(items) {
   if (!items.length) {
-    return `<tr><td colspan="6"><div class="empty-state"><p>Filtreye uygun konusma bulunamadi.</p></div></td></tr>`;
+    return `<tr><td colspan="6"><div class="empty-state"><p>Filtreye uygun konuşma bulunamadı.</p></div></td></tr>`;
   }
   return items.map(item => `
     <tr>
       <td><div class="stack"><strong>${escapeHtml(item.phone_display || 'Maskeli kullanici')}</strong><span class="muted mono">${escapeHtml(item.id)}</span></div></td>
       <td><span class="pill open">${escapeHtml(item.current_state || '-')}</span></td>
-      <td>${escapeHtml(item.current_intent || '-')}</td>
+      <td>${escapeHtml(resolveConversationIntent(item, []))}</td>
       <td>${escapeHtml((item.risk_flags || []).join(', ') || 'Yok')}</td>
       <td>${escapeHtml(item.message_count || 0)}</td>
       <td><button class="inline-button primary" data-open-conversation="${escapeHtml(item.id)}">Detay</button></td>
@@ -563,23 +566,44 @@ function bindConversationActions() {
 async function loadConversationDetail(conversationId) {
   const response = await apiFetch(`/conversations/${conversationId}`);
   state.conversationDetail = response;
+  const resolvedIntent = resolveConversationIntent(response.conversation, response.messages || []);
+  const resolvedState = resolveConversationState(response.conversation, response.messages || []);
+  const audit = extractLatestUserAudit(response.messages || []);
   refs.conversationDetail.innerHTML = `
     <div class="module-header">
       <div>
-        <h3>Konusma Detayi</h3>
-        <p>${escapeHtml(response.conversation.phone_display || 'Maskeli kullanici')} · ${escapeHtml(response.conversation.current_state || '-')}</p>
+        <h3>Konuşma Detayı</h3>
+        <p>${escapeHtml(response.conversation.phone_display || 'Maskeli kullanici')} · ${escapeHtml(resolvedState)}</p>
       </div>
-      <div class="badge dark">${escapeHtml(response.conversation.current_intent || 'intent yok')}</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="badge dark">${escapeHtml(resolvedIntent)}</div>
+        ${response.conversation.is_active ? `<button class="action-button danger" style="font-size:12px;padding:6px 14px" data-reset-conversation="${escapeHtml(String(response.conversation.id))}">Sıfırla</button>` : '<span class="pill" style="background:#e5e7eb;color:#6b7280;font-size:11px">Kapalı</span>'}
+      </div>
     </div>
+    ${renderUserAuditSection(audit)}
     <div class="timeline">
       ${(response.messages || []).map(message => `
         <article class="message ${escapeHtml(message.role || 'system')}">
           <header><strong>${escapeHtml(message.role || 'system')}</strong><span class="muted">${formatDate(message.created_at)}</span></header>
           <pre>${escapeHtml(message.content || '')}</pre>
+          ${renderMessageAuditRow(message)}
         </article>
       `).join('')}
     </div>
   `;
+  const resetBtn = refs.conversationDetail.querySelector('[data-reset-conversation]');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', async () => {
+      if (!confirm('Bu konuşmayı sıfırlamak istediğinize emin misiniz? Kullanıcının bir sonraki mesajı yeni bir konuşma başlatacaktır.')) return;
+      try {
+        await apiFetch(`/conversations/${resetBtn.dataset.resetConversation}/reset`, {method: 'POST'});
+        notify('Konuşma sıfırlandı.', 'success');
+        loadConversations();
+      } catch (error) {
+        notify(error.message, 'error');
+      }
+    });
+  }
 }
 
 async function loadHolds() {
@@ -596,7 +620,7 @@ async function loadHolds() {
 
 function renderHoldRows(items) {
   if (!items.length) {
-    return `<tr><td colspan="6"><div class="empty-state"><p>Onay akisinda kayit yok.</p></div></td></tr>`;
+    return `<tr><td colspan="6"><div class="empty-state"><p>Onay akışında kayıt yok.</p></div></td></tr>`;
   }
   return items.map(item => `
     <tr>
@@ -620,7 +644,7 @@ function bindHoldActions() {
     button.addEventListener('click', async () => {
       try {
         await apiFetch(`/holds/${button.dataset.approveHold}/approve`, {method: 'POST', body: {notes: ''}});
-        notify('Hold onaylandi.', 'success');
+        notify('Hold onaylandı.', 'success');
         loadHolds();
         loadDashboard();
       } catch (error) {
@@ -633,7 +657,7 @@ function bindHoldActions() {
       refs.decisionMode.value = 'reject';
       refs.decisionHoldId.value = button.dataset.rejectHold;
       refs.decisionTitle.textContent = 'Hold reddet';
-      refs.decisionLead.textContent = 'Bu islem misafir akisina olumsuz yansir. Nedeni acik yazin.';
+      refs.decisionLead.textContent = 'Bu işlem misafir akışına olumsuz yansır. Nedeni açık yazın.';
       refs.decisionReason.value = '';
       refs.decisionDialog.showModal();
     });
@@ -645,7 +669,7 @@ async function onDecisionSubmit(event) {
   const holdId = refs.decisionHoldId.value;
   const reason = refs.decisionReason.value.trim();
   if (!reason) {
-    notify('Red gerekcesi zorunlu.', 'warn');
+    notify('Red gerekçesi zorunlu.', 'warn');
     return;
   }
   try {
@@ -673,7 +697,7 @@ async function loadTickets() {
 
 function renderTicketRows(items) {
   if (!items.length) {
-    return `<tr><td colspan="7"><div class="empty-state"><p>Acik ticket bulunamadi.</p></div></td></tr>`;
+    return `<tr><td colspan="7"><div class="empty-state"><p>Açık ticket bulunamadı.</p></div></td></tr>`;
   }
   return items.map(item => `
     <tr>
@@ -702,7 +726,7 @@ function bindTicketActions() {
       const statusField = document.querySelector(`[data-ticket-status="${ticketId}"]`);
       try {
         await apiFetch(`/tickets/${ticketId}`, {method: 'PUT', body: {status: statusField.value}});
-        notify('Ticket guncellendi.', 'success');
+        notify('Ticket güncellendi.', 'success');
         loadTickets();
         loadDashboard();
       } catch (error) {
@@ -716,7 +740,7 @@ async function loadHotelProfileSection() {
   const hotelId = refs.hotelProfileSelect.value || state.selectedHotelId;
   if (!hotelId) {
     refs.hotelProfileEditor.value = '';
-    refs.hotelProfileMeta.innerHTML = '<div class="empty-state"><p>Hotel secin.</p></div>';
+    refs.hotelProfileMeta.innerHTML = '<div class="empty-state"><p>Hotel seçin.</p></div>';
     return;
   }
   state.hotelDetail = await apiFetch(`/hotels/${hotelId}`);
@@ -724,7 +748,7 @@ async function loadHotelProfileSection() {
   refs.hotelProfileMeta.innerHTML = `
     <div class="helper-box">
       <strong>${escapeHtml(state.hotelDetail.name_en || state.hotelDetail.name_tr || 'Hotel')}</strong>
-      <p>Dosya kaynagi YAML olarak guncellenir ve runtime cache yenilenir. Bu alan riskli konfigurasyondur.</p>
+      <p>Dosya kaynağı YAML olarak güncellenir ve runtime cache yenilenir. Bu alan riskli konfigürasyondur.</p>
     </div>
   `;
 }
@@ -732,7 +756,7 @@ async function loadHotelProfileSection() {
 async function saveHotelProfile() {
   const hotelId = refs.hotelProfileSelect.value || state.selectedHotelId;
   if (!hotelId) {
-    notify('Hotel secin.', 'warn');
+    notify('Hotel seçin.', 'warn');
     return;
   }
   let profileJson;
@@ -754,7 +778,7 @@ async function saveHotelProfile() {
 async function loadRestaurantSlots() {
   const hotelId = state.selectedHotelId;
   if (!hotelId) {
-    refs.slotTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><p>Hotel secin.</p></div></td></tr>';
+    refs.slotTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><p>Hotel seçin.</p></div></td></tr>';
     return;
   }
   const form = new FormData(refs.slotFilters);
@@ -769,7 +793,7 @@ async function loadRestaurantSlots() {
 
 function renderSlotRows(items) {
   if (!items.length) {
-    return `<tr><td colspan="7"><div class="empty-state"><p>Secili aralikta slot yok.</p></div></td></tr>`;
+    return `<tr><td colspan="7"><div class="empty-state"><p>Seçili aralıkta slot yok.</p></div></td></tr>`;
   }
   return items.map(item => `
     <tr>
@@ -786,7 +810,7 @@ function renderSlotRows(items) {
             <option value="true" ${item.is_active ? 'selected' : ''}>Aktif</option>
             <option value="false" ${!item.is_active ? 'selected' : ''}>Pasif</option>
           </select>
-          <button class="action-button primary" data-save-slot="${escapeHtml(item.slot_id)}">Guncelle</button>
+          <button class="action-button primary" data-save-slot="${escapeHtml(item.slot_id)}">Güncelle</button>
         </div>
       </td>
     </tr>
@@ -804,7 +828,7 @@ function bindSlotActions() {
           method: 'PUT',
           body: {total_capacity: Number(capacity), is_active: isActive},
         });
-        notify('Slot guncellendi.', 'success');
+        notify('Slot güncellendi.', 'success');
         loadRestaurantSlots();
       } catch (error) {
         notify(error.message, 'error');
@@ -816,7 +840,7 @@ function bindSlotActions() {
 async function onCreateSlot(event) {
   event.preventDefault();
   if (!state.selectedHotelId) {
-    notify('Hotel secin.', 'warn');
+    notify('Hotel seçin.', 'warn');
     return;
   }
   const payload = formToJson(refs.slotCreateForm);
@@ -824,7 +848,7 @@ async function onCreateSlot(event) {
   payload.is_active = payload.is_active === 'on';
   try {
     await apiFetch(`/hotels/${state.selectedHotelId}/restaurant/slots`, {method: 'POST', body: [payload]});
-    notify('Yeni slot araligi olusturuldu.', 'success');
+    notify('Yeni slot aralığı oluşturuldu.', 'success');
     refs.slotCreateForm.reset();
     loadRestaurantSlots();
   } catch (error) {
@@ -866,10 +890,66 @@ function renderSystemOverview() {
   `;
 }
 
+function resolveConversationIntent(conversation, messages) {
+  if (conversation?.current_intent) return String(conversation.current_intent);
+  const assistant = [...(messages || [])].reverse().find(message => message.role === 'assistant');
+  const internal = asObject(assistant?.internal_json);
+  return String(internal.intent || 'intent yok');
+}
+
+function resolveConversationState(conversation, messages) {
+  if (conversation?.current_state) return String(conversation.current_state);
+  const assistant = [...(messages || [])].reverse().find(message => message.role === 'assistant');
+  const internal = asObject(assistant?.internal_json);
+  return String(internal.state || '-');
+}
+
+function extractLatestUserAudit(messages) {
+  const userMessage = [...(messages || [])].reverse().find(message => message.role === 'user');
+  const internal = asObject(userMessage?.internal_json);
+  const routeAudit = asObject(internal.route_audit);
+  return {
+    senderProfileName: internal.sender_profile_name || '-',
+    waIdMasked: internal.wa_id_masked || '-',
+    waMessageId: internal.message_id || '-',
+    route: routeAudit.route || '-',
+    webhookIp: routeAudit.webhook_ip || '-',
+    receivedAt: routeAudit.received_at || '-',
+  };
+}
+
+function renderUserAuditSection(audit) {
+  if (!audit) return '';
+  return `
+    <div class="audit-grid">
+      <div class="helper-box"><strong>Gönderen Profil Adı</strong><p>${escapeHtml(audit.senderProfileName)}</p></div>
+      <div class="helper-box"><strong>WA ID (maskeli)</strong><p>${escapeHtml(audit.waIdMasked)}</p></div>
+      <div class="helper-box"><strong>WA Message ID</strong><p class="mono">${escapeHtml(audit.waMessageId)}</p></div>
+      <div class="helper-box"><strong>Route Audit</strong><p class="mono">${escapeHtml(`${audit.route} | ${audit.webhookIp}`)}</p><p class="muted">${escapeHtml(formatDate(audit.receivedAt))}</p></div>
+    </div>
+  `;
+}
+
+function renderMessageAuditRow(message) {
+  if (message.role !== 'user') return '';
+  const internal = asObject(message.internal_json);
+  if (!internal.message_id && !internal.route_audit) return '';
+  const routeAudit = asObject(internal.route_audit);
+  return `
+    <div class="audit-row muted mono">
+      profil=${escapeHtml(internal.sender_profile_name || '-')}
+      | wa_id=${escapeHtml(internal.wa_id_masked || '-')}
+      | msg_id=${escapeHtml(internal.message_id || '-')}
+      | route=${escapeHtml(routeAudit.route || '-')}
+      | ip=${escapeHtml(routeAudit.webhook_ip || '-')}
+    </div>
+  `;
+}
+
 async function reloadConfig() {
   try {
     await apiFetch('/reload-config', {method: 'POST', body: {}});
-    notify('Konfigurasyon yeniden yuklendi.', 'success');
+    notify('Konfigürasyon yeniden yüklendi.', 'success');
     loadSystemOverview();
     if (state.currentView === 'hotels') loadHotelProfileSection();
   } catch (error) {
@@ -882,7 +962,7 @@ function logout() {
   state.me = null;
   state.bootstrapPending = null;
   window.localStorage.removeItem(TOKEN_KEY);
-  notify('Oturum kapatildi.', 'info');
+  notify('Oturum kapatıldı.', 'info');
   showAuth();
 }
 
@@ -937,7 +1017,7 @@ function extractErrorMessage(payload) {
   if (typeof payload?.message === 'string' && payload.message.trim()) {
     return payload.message;
   }
-  return 'Beklenmeyen panel hatasi.';
+  return 'Beklenmeyen panel hatası.';
 }
 
 function formToJson(form) {
@@ -973,5 +1053,20 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function asObject(value) {
+  if (value && typeof value === 'object') return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === 'object') {
+        return parsed;
+      }
+    } catch (_error) {
+      return {};
+    }
+  }
+  return {};
 }
 """

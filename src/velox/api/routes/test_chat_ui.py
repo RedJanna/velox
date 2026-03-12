@@ -38,13 +38,13 @@ TEST_CHAT_HTML = (
         </select>
       </div>
       <div class="field">
-        <label for="phone-input">Phone</label>
+        <label for="phone-input">Numara / Test Kimliği</label>
         <input type="text" id="phone-input" class="header-input" value="test_user_123">
       </div>
       <div class="field">
         <label for="import-select">Kaynak</label>
         <select id="import-select" class="header-select header-select-import">
-          <option value="">New Test</option>
+          <option value="">Yeni Test</option>
         </select>
       </div>
       <button class="btn btn-ghost" id="refresh-imports" type="button">Importlar</button>

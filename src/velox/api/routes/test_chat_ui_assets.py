@@ -529,8 +529,8 @@ function renderTagOptions() {
 function renderImportOptions(items) {
   const select = el('import-select');
   const selected = state.importFile;
-  select.innerHTML = '<option value="">New Test</option>' + items.map(item => `
-    <option value="${escapeHtml(item.filename)}">${escapeHtml(item.filename)}</option>`).join('');
+  select.innerHTML = '<option value="">Yeni Test</option>' + items.map(item => `
+    <option value="${escapeHtml(item.filename)}">${escapeHtml(item.label || item.filename)}</option>`).join('');
   select.value = selected || '';
 }
 

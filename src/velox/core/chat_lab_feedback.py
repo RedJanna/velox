@@ -174,10 +174,15 @@ class ChatLabFeedbackService:
     async def list_import_files(self) -> ChatLabImportListResponse:
         """List available transcript JSON files in the admin-only imports folder."""
         await asyncio.to_thread(self._imports_root.mkdir, parents=True, exist_ok=True)
+        try:
+            await self._repository.export_recent_conversations_for_chat_lab(limit=200)
+        except Exception:
+            logger.exception("chat_lab_import_auto_export_failed")
         files = await asyncio.to_thread(lambda: sorted(self._imports_root.glob("*.json")))
         items = [
             ChatLabImportFileItem(
                 filename=file_path.name,
+                label=self._import_file_label(file_path),
                 modified_at=datetime.fromtimestamp(file_path.stat().st_mtime, tz=UTC).isoformat(),
                 size_bytes=file_path.stat().st_size,
             )
@@ -306,6 +311,24 @@ class ChatLabFeedbackService:
         if schema_version is not None and schema_version != _TRANSCRIPT_SCHEMA_VERSION:
             logger.warning("chat_lab_import_schema_mismatch", filename=safe_name, schema_version=schema_version)
         return data
+
+    def _import_file_label(self, file_path: Path) -> str:
+        """Build a readable option label from import file metadata."""
+        try:
+            with file_path.open(encoding="utf-8") as file_obj:
+                data = json.load(file_obj)
+        except Exception:
+            return file_path.name
+
+        source_label = str(data.get("source_label") or "").strip()
+        phone_display = str(data.get("phone_display") or "").strip()
+        conversation_id = str(data.get("conversation_id") or "").strip()
+        short_id = conversation_id.split("-")[0] if conversation_id else ""
+
+        parts = [part for part in [source_label, phone_display] if part]
+        if short_id:
+            parts.append(f"#{short_id}")
+        return " | ".join(parts) if parts else file_path.name
 
 
 def _feedback_root() -> Path:

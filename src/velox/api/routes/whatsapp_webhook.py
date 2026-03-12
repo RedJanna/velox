@@ -5,6 +5,7 @@ import re
 import time
 import unicodedata
 from collections import defaultdict, deque
+from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
@@ -17,7 +18,7 @@ from velox.adapters.elektraweb.endpoints import CHILD_OCCUPANCY_UNVERIFIED
 from velox.adapters.whatsapp.client import get_whatsapp_client
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.adapters.whatsapp.webhook import IncomingMessage, WhatsAppWebhook
-from velox.config.constants import SUPPORTED_LANGUAGES
+from velox.config.constants import CONTEXT_WINDOW_MAX_MESSAGES, SUPPORTED_LANGUAGES
 from velox.config.settings import settings
 from velox.core.hotel_profile_loader import get_profile
 from velox.core.pipeline import post_process_escalation
@@ -983,6 +984,7 @@ async def _create_or_get_conversation(repository: ConversationRepository, incomi
 
 async def _process_incoming_message(
     incoming: IncomingMessage,
+    audit_context: dict[str, Any],
     dispatcher: Any,
     escalation_engine: Any,
     tools: dict[str, Any],
@@ -1007,9 +1009,10 @@ async def _process_incoming_message(
             conversation_id=conversation.id,
             role="user",
             content=normalized_text,
+            internal_json=audit_context,
         )
         await conversation_repository.add_message(user_msg)
-        conversation.messages.append(user_msg)
+        conversation.messages = await conversation_repository.get_recent_messages(conversation.id, count=CONTEXT_WINDOW_MAX_MESSAGES)
 
         await whatsapp_client.mark_as_read(incoming.message_id)
 
@@ -1019,6 +1022,23 @@ async def _process_incoming_message(
             dispatcher=dispatcher,
             expected_language=detected_language,
         )
+        current_state_value = (
+            str(conversation.current_state.value)
+            if hasattr(conversation.current_state, "value")
+            else str(conversation.current_state or "GREETING")
+        )
+        next_state = str(llm_response.internal_json.state or current_state_value)
+        next_intent = str(llm_response.internal_json.intent or "").strip() or None
+        next_entities = llm_response.internal_json.entities or None
+        next_risk_flags = llm_response.internal_json.risk_flags or None
+        await conversation_repository.update_state(
+            conversation_id=conversation.id,
+            state=next_state,
+            intent=next_intent,
+            entities=next_entities,
+            risk_flags=next_risk_flags,
+        )
+
         reply_text = formatter.truncate(llm_response.user_message)
         await whatsapp_client.send_text_message(to=incoming.phone, body=reply_text)
 
@@ -1059,13 +1079,22 @@ async def _process_incoming_message(
 def _schedule_background_task(
     background_tasks: BackgroundTasks,
     incoming: IncomingMessage,
+    audit_context: dict[str, Any],
     dispatcher: Any,
     escalation_engine: Any,
     tools: dict[str, Any],
     db_pool: Any,
 ) -> None:
     """Add incoming message task to FastAPI background worker."""
-    background_tasks.add_task(_process_incoming_message, incoming, dispatcher, escalation_engine, tools, db_pool)
+    background_tasks.add_task(
+        _process_incoming_message,
+        incoming,
+        audit_context,
+        dispatcher,
+        escalation_engine,
+        tools,
+        db_pool,
+    )
 
 
 @router.get("", response_class=PlainTextResponse)
@@ -1131,10 +1160,29 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
     if tools["handoff"] is None or tools["notify"] is None:
         tools = {}
 
-    _schedule_background_task(background_tasks, incoming, dispatcher, escalation_engine, tools, db_pool)
+    route_audit = {
+        "route": "/api/v1/webhook/whatsapp",
+        "webhook_ip": webhook_ip,
+        "signature_valid": True,
+        "received_at": datetime.now(UTC).isoformat(),
+    }
+    audit_context = {
+        "source_type": "live_whatsapp",
+        "sender_profile_name": incoming.display_name or None,
+        "wa_id_masked": _mask_phone(incoming.phone),
+        "wa_id_hash": phone_hash,
+        "message_id": incoming.message_id,
+        "message_type": incoming.message_type,
+        "route_audit": route_audit,
+    }
+
+    _schedule_background_task(background_tasks, incoming, audit_context, dispatcher, escalation_engine, tools, db_pool)
     logger.info(
         "whatsapp_webhook_message_accepted",
         phone=_mask_phone(incoming.phone),
         message_type=incoming.message_type,
+        wa_message_id=incoming.message_id,
+        sender_profile_name=incoming.display_name or "",
+        route=route_audit["route"],
     )
     return {"status": "accepted"}

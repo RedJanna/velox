@@ -272,10 +272,27 @@ async def admin_dashboard_overview(
         )
         recent_conversations = await conn.fetch(
             """
-            SELECT id, hotel_id, phone_display, current_state, current_intent, risk_flags, last_message_at
-            FROM conversations
+            SELECT
+                c.id,
+                c.hotel_id,
+                c.phone_display,
+                COALESCE(NULLIF(c.current_state, ''), assistant_meta.last_state, 'GREETING') AS current_state,
+                COALESCE(NULLIF(c.current_intent, ''), assistant_meta.last_intent) AS current_intent,
+                c.risk_flags,
+                c.last_message_at
+            FROM conversations c
+            LEFT JOIN LATERAL (
+                SELECT
+                    m.internal_json->>'intent' AS last_intent,
+                    m.internal_json->>'state' AS last_state
+                FROM messages m
+                WHERE m.conversation_id = c.id
+                  AND m.role = 'assistant'
+                ORDER BY m.created_at DESC
+                LIMIT 1
+            ) assistant_meta ON true
             WHERE ($1::int IS NULL OR hotel_id = $1)
-            ORDER BY last_message_at DESC
+            ORDER BY c.last_message_at DESC
             LIMIT 5
             """,
             effective_hotel_id,

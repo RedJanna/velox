@@ -31,6 +31,7 @@ class Intent(StrEnum):
     SPECIAL_EVENT_REQUEST = "special_event_request"
 
     # General
+    GREETING = "greeting"
     FAQ_INFO = "faq_info"
     COMPLAINT = "complaint"
     HUMAN_HANDOFF = "human_handoff"

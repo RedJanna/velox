@@ -1,0 +1,168 @@
+schema_version: chat_lab_feedback.v1
+feedback_id: fb_20260310_221137_662223
+status: new
+approved_example: false
+created_at: '2026-03-10T22:11:37.662302+00:00'
+rating: 3
+rating_label: Eksik Bilgi
+category: intent_iskalama
+category_label: Intent Iskalama
+tags:
+- niyet_iskalama
+- eksik_dogrulama_sorusu
+gold_standard: 'Elbette 😊
+
+
+  Kassandra Restoran’ımız A la carte hizmeti vermektedir. Menü fiyatlarımız ürün grubuna ve sezona göre değişmektedir.
+
+
+  Aşağıdaki linkten ilgilendiğiniz menülere ulaşabilirsiniz:
+
+
+  https://www.kassandrarestaurant.com/
+
+
+  Rezervasyon oluşturmak ve daha detaylı bilgi almak isterseniz bize tekrar mesaj atabilirsiniz.'
+notes: '**[herhangi bir kelime]** bu şekilde müşteriye mesaj atılmaz!
+
+
+  **à la carte** bu yanlıştır.
+
+
+  Ayrıca müşteriler eğer sezon dışında bir tarihte restoran menüsü ile ilgili bir şey sorarsa, menü fiyatlarımız güncel değildir notunuda eklemelisin!'
+source_type: live_test_chat
+storage_group: bad_feedback
+input: Otelin güncel menü fiyatı var mı?
+output: "Elbette \U0001F60A  \n\nKassandra Restoran’ımız **à la carte** hizmet vermektedir. Menü fiyatlarımız ürün grubuna ve sezona göre değişmektedir.  \n\nHangi kategori için fiyat bilgisi almak istersiniz?  \n• Kahvaltı  \n• Ana yemekler  \n• İçecekler  \n• Tatlılar  \n• Alkollü içecekler  \n\nİlgilendiğiniz bölümü belirtirseniz güncel bilgiyi memnuniyetle paylaşabilirim."
+conversation_id: 3cdc0f08-a376-4708-bb5c-77090580575f
+assistant_message_id: eeeee1b8-3b63-4faa-ae77-c7e869fa2322
+timestamp: '2026-03-10T22:10:54.237815+00:00'
+language: tr
+intent: faq_info
+state: NEEDS_VERIFICATION
+risk_flags: []
+tool_calls: []
+model: gpt-5.2-chat-latest
+excerpt:
+- id: f440ed2d-f127-40df-87d8-98085e259af9
+  role: user
+  content: Otelin güncel menü fiyatı var mı?
+  created_at: '2026-03-10T21:07:36.913750+00:00'
+  internal_json: null
+- id: 9d720bcd-1af3-466a-b946-65c68e76e747
+  role: assistant
+  content: "Elbette \U0001F60A  \n\nKassandra Restoran’ımız **à la carte** hizmet vermektedir. Menü fiyatlarımız ürün grubuna ve sezona göre değişmektedir.  \n\nHangi kategori için fiyat bilgisi almak istersiniz?  \n• Kahvaltı  \n• Ana yemekler  \n• İçecekler  \n• Tatlılar  \n• Alkollü içecekler  \n\nİlgilendiğiniz bölümü belirtirseniz güncel bilgiyi hemen paylaşabilirim."
+  created_at: '2026-03-10T21:07:40.962110+00:00'
+  internal_json:
+    state: NEEDS_VERIFICATION
+    intent: faq_info
+    handoff:
+      needed: false
+      reason: null
+      ticket_id: null
+    entities: {}
+    language: tr
+    next_step: Ask guest which menu category they want pricing for.
+    escalation:
+      level: L0
+      reason: General menu price inquiry
+      sla_hint: low
+      dedupe_key: faq_menu_price_tr
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls: []
+    notifications: []
+    required_questions:
+    - menu_category
+- id: 719e0f0c-e6e4-4590-beab-d45c5ce60489
+  role: user
+  content: Otelin güncel menü fiyatı var mı?
+  created_at: '2026-03-10T21:23:22.044331+00:00'
+  internal_json: null
+- id: 586d9fad-333f-4f2d-aad2-f224a769ad5d
+  role: assistant
+  content: "Elbette \U0001F60A  \n\nKassandra Restoran’ımız **à la carte** hizmet vermektedir. Menü fiyatlarımız ürün grubuna ve sezona göre değişmektedir.  \n\nHangi kategori için fiyat bilgisi almak istersiniz?  \n• Kahvaltı  \n• Ana yemekler  \n• İçecekler  \n• Tatlılar  \n• Alkollü içecekler  \n\nİlgilendiğiniz bölümü belirtirseniz güncel bilgiyi memnuniyetle paylaşabilirim."
+  created_at: '2026-03-10T21:23:26.932739+00:00'
+  internal_json:
+    state: NEEDS_VERIFICATION
+    intent: faq_info
+    handoff:
+      needed: false
+      reason: ''
+      ticket_id: ''
+      dedupe_key: ''
+    entities: {}
+    language: tr
+    next_step: Kullanıcıdan hangi menü kategorisi için fiyat istediğini öğren.
+    escalation:
+      level: L0
+      reason: Menu category not specified
+      sla_hint: low
+      dedupe_key: faq_menu_price_tr
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls: []
+    notifications: []
+    required_questions:
+    - menu_category
+- id: 863deecd-25a8-412d-88a5-66005c34fd25
+  role: user
+  content: Merhaba
+  created_at: '2026-03-10T21:50:22.026537+00:00'
+  internal_json: null
+- id: e4e714b2-9e21-4a8a-863d-ea4cda3251c4
+  role: assistant
+  content: "Merhaba! \U0001F33F  \nKassandra Oludeniz’e hoş geldiniz.  \n\nSize nasıl yardımcı olabilirim? Oda rezervasyonu, restoran ya da transfer konusunda destek verebilirim."
+  created_at: '2026-03-10T21:50:24.703408+00:00'
+  internal_json:
+    state: GREETING
+    intent: other
+    handoff:
+      needed: false
+      reason: ''
+      ticket_id: ''
+    entities: {}
+    language: tr
+    next_step: Kullanıcının talebini bekle.
+    escalation:
+      level: L0
+      reason: initial_greeting
+      sla_hint: low
+      dedupe_key: greeting_tr
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls: []
+    notifications: []
+    required_questions: []
+- id: 24774305-7a80-40ba-a6e4-dc2117853209
+  role: user
+  content: Otelin güncel menü fiyatı var mı?
+  created_at: '2026-03-10T22:10:49.278809+00:00'
+  internal_json: null
+- id: eeeee1b8-3b63-4faa-ae77-c7e869fa2322
+  role: assistant
+  content: "Elbette \U0001F60A  \n\nKassandra Restoran’ımız **à la carte** hizmet vermektedir. Menü fiyatlarımız ürün grubuna ve sezona göre değişmektedir.  \n\nHangi kategori için fiyat bilgisi almak istersiniz?  \n• Kahvaltı  \n• Ana yemekler  \n• İçecekler  \n• Tatlılar  \n• Alkollü içecekler  \n\nİlgilendiğiniz bölümü belirtirseniz güncel bilgiyi memnuniyetle paylaşabilirim."
+  created_at: '2026-03-10T22:10:54.237815+00:00'
+  internal_json:
+    state: NEEDS_VERIFICATION
+    intent: faq_info
+    handoff:
+      needed: false
+      reason: ''
+      ticket_id: ''
+      dedupe_key: ''
+    entities: {}
+    language: tr
+    next_step: Kullanicidan istenen kategori bilgisini almak ve gerekirse faq.lookup veya notify ile devam etmek.
+    escalation:
+      level: L0
+      reason: Genel menu fiyat bilgisi talebi, net kategori belirtilmedi.
+      sla_hint: low
+      dedupe_key: ''
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls: []
+    notifications: []
+    required_questions:
+    - Hangi kategori için fiyat bilgisi isteniyor?
+source_file: null

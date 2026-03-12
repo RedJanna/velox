@@ -31,6 +31,16 @@ Cloudflare dashboard tarafinda disaridan yapilmasi gerekenler:
 4. Origin tarafinda `443 -> 8001` reverse proxy veya load balancer yonlendirmesini dogrulayin.
 5. Origin proxy, `Host`, `X-Forwarded-For` ve `X-Forwarded-Proto` basliklarini uygulamaya iletsin.
 
+## Cloudflare Tunnel (CGNAT icin)
+
+CGNAT varsa public IP ile erisim olmaz. Bu durumda Cloudflare Tunnel kullanabilirsiniz.
+
+1. Cloudflare Zero Trust uzerinde yeni tunnel olusturun.
+2. Public Hostname: `velox.nexlumeai.com` ekleyin.
+3. Origin URL: `http://app:8001` olarak belirleyin (Docker icinden app servisine gider).
+4. Tunnel token degerini `.env` icine `CLOUDFLARE_TUNNEL_TOKEN` olarak yazin.
+5. `docker compose up -d --build` calistirin; cloudflared servisi tunnel'i surekli acik tutar.
+
 ## Ilk kurulum akisi
 
 1. `https://nexlumeai.com/admin` sayfasini acin.

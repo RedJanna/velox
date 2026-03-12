@@ -1,0 +1,46 @@
+schema_version: chat_lab_report.v1
+report_id: rpt_20260310_221220_074739
+created_at: '2026-03-10T22:12:20.074769+00:00'
+selected_model: gpt-5-search-api-2025-10-14
+period:
+  date_from: '2026-03-10T22:05:00+00:00'
+  date_to: '2026-03-10T22:12:00+00:00'
+summary: Feedback cluster points out an issue of intent skimming (‘niyet_iskalama’) where the agent’s response asks for which category the user wants but doesn’t provide direct link or sufficient resource; the response is overly templated.
+feedback_count: 1
+cluster_count: 1
+clusters:
+- cluster_id: 001cfa9318b9
+  category: intent_iskalama
+  duplicate_count: 1
+  tags:
+  - niyet_iskalama
+  - eksik_dogrulama_sorusu
+  sample_input: Otelin güncel menü fiyatı var mı?
+  sample_output: "Elbette \U0001F60A  \n\nKassandra Restoran’ımız **à la carte** hizmet vermektedir. Menü fiyatlarımız ürün grubuna ve sezona göre değişmektedir.  \n\nHangi kategori için fiyat bilgisi almak istersiniz?  \n• Kahvaltı  \n• Ana yemekler  \n• İçecekler  \n• Tatlılar  \n• Alkollü içecekler  \n\nİlgilendiğiniz bölümü belirtirseniz güncel bilgiyi memnuniyetle paylaşabilirim."
+  gold_standard: 'Elbette 😊
+
+
+    Kassandra Restoran’ımız A la carte hizmeti vermektedir. Menü fiyatlarımız ürün grubuna ve sezona göre değişmektedir.
+
+
+    Aşağıdaki linkten ilgilendiğiniz menülere ulaşabilirsiniz:
+
+
+    https://www.kassandrarestaurant.com/
+
+
+    Rezervasyon oluşturmak ve daha detaylı bilgi almak isterseniz bize tekrar mesaj atabilirsiniz.'
+  root_cause_hint: template
+  files:
+  - /app/data/chat_lab_feedback/bad_feedback/rating_3/intent_iskalama/2026-03/fb_20260310_221137_662223.yaml
+recommendations:
+- target_file: response_templates.json
+  reason: The template used for intent clarification doesn’t include offering direct resource links which aligns with the gold standard; lacks proactive provision of external information even when user request is clear.
+  risk: Users may feel frustrated if they must take extra steps to get information that could have been directly provided; potential drop in satisfaction.
+  conflict_check: Check if other templates currently include external link offerings to avoid redundancy or inconsistency.
+  test_suggestion: Add test cases where user asks for menu prices and verify that updated template provides menu link vs only prompting for menu category.
+  root_cause_type: template
+  confidence: high
+  kassandra_profile_change_required: false
+  scenario_creation_recommended: true
+  duplicate_count: 1

@@ -40,23 +40,23 @@ def render_admin_panel_html() -> str:
         <div class="brand-mark">NX</div>
         <div>
           <h1>NexlumeAI<br>Admin</h1>
-          <p>Tek domain, tek operasyon yuzeyi. Konusma, onay, ticket ve konfigurasyon ayni merkezde.</p>
+          <p>Tek domain, tek operasyon yüzeyi. Konuşma, onay, ticket ve konfigürasyon aynı merkezde.</p>
         </div>
       </div>
 
       <nav id="nav" class="nav" aria-label="Admin navigasyon">
-        <button data-nav="dashboard"><span class="nav-label"><strong>Dashboard</strong><span>Durum farkindaligi</span></span><span>01</span></button>
-        <button data-nav="conversations"><span class="nav-label"><strong>Konusmalar</strong><span>Baglam ve risk takibi</span></span><span>02</span></button>
-        <button data-nav="holds"><span class="nav-label"><strong>Holdlar</strong><span>Onay ve red aksiyonlari</span></span><span>03</span></button>
+        <button data-nav="dashboard"><span class="nav-label"><strong>Dashboard</strong><span>Durum farkındalığı</span></span><span>01</span></button>
+        <button data-nav="conversations"><span class="nav-label"><strong>Konuşmalar</strong><span>Bağlam ve risk takibi</span></span><span>02</span></button>
+        <button data-nav="holds"><span class="nav-label"><strong>Holdlar</strong><span>Onay ve red aksiyonları</span></span><span>03</span></button>
         <button data-nav="tickets"><span class="nav-label"><strong>Ticketlar</strong><span>Handoff ve sahiplik</span></span><span>04</span></button>
-        <button data-nav="hotels"><span class="nav-label"><strong>Hotel Profile</strong><span>Dinamik bilgi yonetimi</span></span><span>05</span></button>
+        <button data-nav="hotels"><span class="nav-label"><strong>Hotel Profile</strong><span>Dinamik bilgi yönetimi</span></span><span>05</span></button>
         <button data-nav="restaurant"><span class="nav-label"><strong>Restoran Slotlari</strong><span>Kapasite ve zamanlama</span></span><span>06</span></button>
         <button data-nav="system"><span class="nav-label"><strong>Sistem</strong><span>Domain, readiness, reload</span></span><span>07</span></button>
       </nav>
 
       <section class="sidebar-card">
         <h2>Kimlik</h2>
-        <p id="currentUser">Panel girisi bekleniyor</p>
+        <p id="currentUser">Panel girişi bekleniyor</p>
         <small id="currentRole">-</small>
       </section>
 
@@ -71,7 +71,7 @@ def render_admin_panel_html() -> str:
         <h2>Kontroller</h2>
         <div class="sidebar-actions">
           <button id="reloadButton" class="sidebar-button warn" type="button">Config Reload</button>
-          <button id="logoutButton" class="sidebar-button secondary" type="button">Cikis Yap</button>
+          <button id="logoutButton" class="sidebar-button secondary" type="button">Çıkış Yap</button>
         </div>
       </section>
     </aside>
@@ -80,8 +80,8 @@ def render_admin_panel_html() -> str:
       <header class="topbar">
         <div>
           <div class="badge dark">nexlumeai.com operasyon alani</div>
-          <h2 id="pageTitle">Operasyon Ozeti</h2>
-          <p id="pageLead">Admin paneli kokpit mantigiyla calisir: kritik sinyali gizlemez, aksiyonu merkezde tutar.</p>
+          <h2 id="pageTitle">Operasyon Özeti</h2>
+          <p id="pageLead">Admin paneli kokpit mantığıyla çalışır: kritik sinyali gizlemez, aksiyonu merkezde tutar.</p>
         </div>
         <div class="topbar-aside">
           <div class="badge info">Tek merkezli kontrol</div>
@@ -93,14 +93,14 @@ def render_admin_panel_html() -> str:
         <div class="auth-grid">
           <article class="auth-card">
             <h3>Panel Girisi</h3>
-            <p>Sistem acik oldugunda giris yalnizca kullanici adi, sifre ve Google Authenticator kodu ile tamamlanir.</p>
+            <p>Sistem açık olduğunda giriş yalnızca kullanıcı adı, şifre ve Google Authenticator kodu ile tamamlanır.</p>
             <form id="loginForm" class="field-grid">
               <div class="field">
-                <label for="login-username">Kullanici adi</label>
+                <label for="login-username">Kullanıcı adı</label>
                 <input id="login-username" name="username" autocomplete="username" required>
               </div>
               <div class="field">
-                <label for="login-password">Sifre</label>
+                <label for="login-password">Şifre</label>
                 <input id="login-password" name="password" type="password" autocomplete="current-password" maxlength="72" required>
               </div>
               <div class="field full">
@@ -108,14 +108,14 @@ def render_admin_panel_html() -> str:
                 <input id="login-otp" name="otp_code" inputmode="numeric" pattern="[0-9]*" placeholder="6 haneli kod" required>
               </div>
               <div class="field full">
-                <button class="sidebar-button primary" type="submit">Oturum Ac</button>
+                <button class="sidebar-button primary" type="submit">Oturum Aç</button>
               </div>
             </form>
           </article>
 
           <article id="bootstrapCard" class="auth-card">
-            <h3>Ilk Kurulum</h3>
-            <p>Yonetici kaydi yoksa panel kilitli kalmaz; ilk hesap guvenli bootstrap akisiyla uretilir.</p>
+            <h3>İlk Kurulum</h3>
+            <p>Yönetici kaydı yoksa panel kilitli kalmaz; ilk hesap güvenli bootstrap akışıyla üretilir.</p>
             <div id="bootstrapSummary" class="helper-panel"></div>
             <form id="bootstrapForm" class="field-grid" style="margin-top:14px">
               <div class="field">
@@ -123,23 +123,23 @@ def render_admin_panel_html() -> str:
                 <select id="bootstrap-hotel" name="hotel_id" required></select>
               </div>
               <div class="field">
-                <label for="bootstrap-username">Kullanici adi</label>
+                <label for="bootstrap-username">Kullanıcı adı</label>
                 <input id="bootstrap-username" name="username" required>
               </div>
               <div class="field">
-                <label for="bootstrap-display-name">Gorunen ad</label>
+                <label for="bootstrap-display-name">Görünen ad</label>
                 <input id="bootstrap-display-name" name="display_name">
               </div>
               <div class="field">
-                <label for="bootstrap-password">Gecici sifre</label>
+                <label for="bootstrap-password">Geçici şifre</label>
                 <input id="bootstrap-password" name="password" type="password" minlength="12" maxlength="72" required>
               </div>
               <div class="field full">
                 <label for="bootstrap-token">Bootstrap token</label>
-                <input id="bootstrap-token" name="bootstrap_token" placeholder="ENV ile acildiysa gerekli olabilir">
+                <input id="bootstrap-token" name="bootstrap_token" placeholder="ENV ile açıldıysa gerekli olabilir">
               </div>
               <div class="field full">
-                <button class="sidebar-button primary" type="submit">Ilk Admin Hesabini Olustur</button>
+                <button class="sidebar-button primary" type="submit">İlk Admin Hesabını Oluştur</button>
               </div>
             </form>
             <section id="totpRecovery" class="helper-panel" style="margin-top:14px" hidden>
@@ -157,8 +157,8 @@ def render_admin_panel_html() -> str:
                   <input id="recovery-token" name="bootstrap_token" required>
                 </div>
                 <div class="field full">
-                  <label for="recovery-password">Yeni sifre (opsiyonel)</label>
-                  <input id="recovery-password" name="new_password" type="password" minlength="12" maxlength="72" placeholder="Bos birakirsaniz mevcut sifre korunur">
+                <label for="recovery-password">Yeni sifre (opsiyonel)</label>
+                  <input id="recovery-password" name="new_password" type="password" minlength="12" maxlength="72" placeholder="Boş bırakırsanız mevcut şifre korunur">
                 </div>
                 <div class="field full">
                   <button class="sidebar-button warn" type="submit">2FA QR Yenile</button>
@@ -187,7 +187,7 @@ def render_admin_panel_html() -> str:
                 <input id="otp-verify-code" name="otp_code" inputmode="numeric" pattern="[0-9]*" placeholder="6 haneli kod" required>
               </div>
               <div class="field full">
-                <button class="sidebar-button primary" type="submit">Kurulumu Dogrula ve Oturum Ac</button>
+                <button class="sidebar-button primary" type="submit">Kurulumu Doğrula ve Oturum Aç</button>
               </div>
             </form>
             <p id="otpVerifyHint" class="helper" hidden>QR okutulduktan sonra uygulamadaki 6 haneli kodu girin.</p>
@@ -205,7 +205,7 @@ def render_admin_panel_html() -> str:
           <div class="split">
             <article class="module-card">
               <div class="module-header">
-                <div><h3>Konusma Listesi</h3><p>Filtreleri sade tut, riskli olanlari hizla ac.</p></div>
+                <div><h3>Konuşma Listesi</h3><p>Filtreleri sade tutun, riskli olanları hızlıca açın.</p></div>
               </div>
               <form id="conversationFilters" class="toolbar">
                 <select name="status">
@@ -215,8 +215,8 @@ def render_admin_panel_html() -> str:
                   <option value="CONFIRMED">CONFIRMED</option>
                   <option value="HANDOFF">HANDOFF</option>
                 </select>
-                <input name="date_from" type="date">
-                <input name="date_to" type="date">
+                <input name="date_from" type="date" aria-label="Başlangıç tarihi">
+                <input name="date_to" type="date" aria-label="Bitiş tarihi">
                 <button class="primary" type="submit">Filtrele</button>
               </form>
               <div class="table-shell">
@@ -227,7 +227,7 @@ def render_admin_panel_html() -> str:
               </div>
             </article>
             <article id="conversationDetail" class="module-card">
-              <div class="empty-state"><p>Detay icin soldan bir konusma secin.</p></div>
+              <div class="empty-state"><p>Detay için soldan bir konuşma seçin.</p></div>
             </article>
           </div>
         </section>
@@ -235,7 +235,7 @@ def render_admin_panel_html() -> str:
         <section data-view="holds" class="section-grid" hidden>
           <article class="module-card">
             <div class="module-header">
-              <div><h3>Birlesik Hold Masasi</h3><p>Konaklama, restoran ve transfer taleplerini tek kurgu ile yonetin.</p></div>
+              <div><h3>Birleşik Hold Masası</h3><p>Konaklama, restoran ve transfer taleplerini tek kurgu ile yönetin.</p></div>
             </div>
             <form id="holdFilters" class="toolbar">
               <select name="hold_type">
@@ -264,7 +264,7 @@ def render_admin_panel_html() -> str:
         <section data-view="tickets" class="section-grid" hidden>
           <article class="module-card">
             <div class="module-header">
-              <div><h3>Ticket Takibi</h3><p>Sahiplik ve kapanis durumunu kaybetmeden ekip akisina mudahale edin.</p></div>
+              <div><h3>Ticket Takibi</h3><p>Sahiplik ve kapanış durumunu kaybetmeden ekip akışına müdahale edin.</p></div>
             </div>
             <form id="ticketFilters" class="toolbar">
               <select name="status">

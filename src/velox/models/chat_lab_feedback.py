@@ -64,6 +64,7 @@ class ChatLabImportFileItem(BaseModel):
     """One available transcript import file."""
 
     filename: str
+    label: str | None = None
     modified_at: str
     size_bytes: int = Field(ge=0)
 
