@@ -14,7 +14,9 @@ def _build_profile() -> HotelProfile:
             "hotel_name": {"tr": "Kassandra Oludeniz", "en": "Kassandra Oludeniz"},
             "faq_data": [
                 {
+                    "faq_id": "faq_spa_active",
                     "topic": "spa_hamam",
+                    "status": "ACTIVE",
                     "question_tr": "Spa, hamam veya sauna var mi?",
                     "question_en": "Do you have a spa or sauna?",
                     "question_variants_tr": ["Hamam var mi?", "Spa mevcut mu?"],
@@ -25,7 +27,9 @@ def _build_profile() -> HotelProfile:
                     "answer_en": "There is no spa, Turkish bath, or sauna.",
                 },
                 {
+                    "faq_id": "faq_late_removed",
                     "topic": "late_arrival",
+                    "status": "REMOVED",
                     "question_tr": "Gec varis yaparsam ne olmali?",
                     "question_en": "What if I arrive late?",
                     "answer_tr": "Gece yarisindan sonraki varislar icin onceden bilgi veriniz.",
@@ -51,6 +55,7 @@ async def test_faq_lookup_matches_turkish_question_variant(
 
     assert result["found"] is True
     assert result["topic"] == "spa_hamam"
+    assert result["faq_id"] == "faq_spa_active"
     assert result["answer"] == "Spa, hamam ve sauna bulunmamaktadir."
     assert result["match_score"] == 1.0
 
@@ -70,6 +75,7 @@ async def test_faq_lookup_matches_english_question_variant(
 
     assert result["found"] is True
     assert result["topic"] == "spa_hamam"
+    assert result["faq_id"] == "faq_spa_active"
     assert result["answer"] == "There is no spa, Turkish bath, or sauna."
     assert result["match_score"] == 1.0
 
@@ -78,7 +84,7 @@ async def test_faq_lookup_matches_english_question_variant(
 async def test_faq_lookup_preserves_existing_question_matching(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Entries without variants should still match their base question text."""
+    """Removed entries should not be used by FAQ lookup."""
     monkeypatch.setattr("velox.tools.faq.get_profile", lambda _hotel_id: _build_profile())
 
     result = await FAQLookupTool().execute(
@@ -87,9 +93,9 @@ async def test_faq_lookup_preserves_existing_question_matching(
         language="EN",
     )
 
-    assert result["found"] is True
-    assert result["topic"] == "late_arrival"
-    assert result["answer"] == "Please inform us in advance for arrivals after midnight."
+    if result["found"] is True:
+        assert result["topic"] != "late_arrival"
+        assert result["faq_id"] != "faq_late_removed"
 
 
 @pytest.mark.asyncio

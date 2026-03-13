@@ -50,8 +50,10 @@ def render_admin_panel_html() -> str:
         <button data-nav="holds"><span class="nav-label"><strong>Holdlar</strong><span>Onay ve red aksiyonları</span></span><span>03</span></button>
         <button data-nav="tickets"><span class="nav-label"><strong>Ticketlar</strong><span>Handoff ve sahiplik</span></span><span>04</span></button>
         <button data-nav="hotels"><span class="nav-label"><strong>Hotel Profile</strong><span>Dinamik bilgi yönetimi</span></span><span>05</span></button>
-        <button data-nav="restaurant"><span class="nav-label"><strong>Restoran Slotlari</strong><span>Kapasite ve zamanlama</span></span><span>06</span></button>
-        <button data-nav="system"><span class="nav-label"><strong>Sistem</strong><span>Domain, readiness, reload</span></span><span>07</span></button>
+        <button data-nav="faq"><span class="nav-label"><strong>FAQ Yonetimi</strong><span>Soru-cevap ve moderasyon</span></span><span>06</span></button>
+        <button data-nav="restaurant"><span class="nav-label"><strong>Restoran Slotlari</strong><span>Kapasite ve zamanlama</span></span><span>07</span></button>
+        <button data-nav="system"><span class="nav-label"><strong>Sistem</strong><span>Domain, readiness, reload</span></span><span>08</span></button>
+        <button data-nav="chatlab"><span class="nav-label"><strong>Chat Lab</strong><span>Canli test ve feedback</span></span><span>09</span></button>
       </nav>
 
       <section class="sidebar-card">
@@ -334,6 +336,36 @@ def render_admin_panel_html() -> str:
           </article>
         </section>
 
+        <section data-view="faq" class="section-grid" hidden>
+          <div class="split">
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>FAQ Kayitlari</h3><p>Sadece aktif kayitlar cevap motorunda kullanilir. Uygunsuz icerikleri aninda kaldirin.</p></div>
+              </div>
+              <form id="faqFilters" class="toolbar">
+                <select name="status">
+                  <option value="">Tum durumlar</option>
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="PAUSED">PAUSED</option>
+                  <option value="REMOVED">REMOVED</option>
+                </select>
+                <input name="q" placeholder="Konu, soru veya cevap ara">
+                <button class="primary" type="submit">Filtrele</button>
+              </form>
+              <div class="table-shell">
+                <table>
+                  <thead><tr><th>Konu</th><th>Durum</th><th>Soru/Ozet</th><th>Cevap/Ozet</th><th>Aksiyon</th></tr></thead>
+                  <tbody id="faqTableBody"></tbody>
+                </table>
+              </div>
+            </article>
+            <article id="faqDetail" class="module-card">
+              <div class="empty-state"><p>Detay için listeden bir FAQ kaydı seçin.</p></div>
+            </article>
+          </div>
+        </section>
+
         <section data-view="restaurant" class="section-grid" hidden>
           <article class="module-card">
             <div class="module-header">
@@ -422,6 +454,10 @@ def render_admin_panel_html() -> str:
               </div>
             </article>
           </div>
+        </section>
+
+        <section data-view="chatlab" class="section-grid" hidden>
+          <iframe id="chatlab-frame" style="width:100%;height:calc(100vh - 80px);border:none;border-radius:12px"></iframe>
         </section>
       </section>
     </main>

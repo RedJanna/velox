@@ -6,7 +6,7 @@ from typing import Any
 
 from velox.config.constants import SUPPORTED_LANGUAGES
 from velox.core.hotel_profile_loader import get_profile
-from velox.models.hotel_profile import FAQEntry
+from velox.models.hotel_profile import FAQEntry, FAQStatus
 from velox.tools.base import BaseTool
 
 _CHAR_NORMALIZATION_TABLE = str.maketrans(
@@ -83,6 +83,8 @@ class FAQLookupTool(BaseTool):
         best_item: FAQEntry | None = None
         best_score = 0.0
         for entry in faq_data:
+            if entry.status != FAQStatus.ACTIVE:
+                continue
             candidates = _question_candidates(entry, language)
             answer_tr = entry.answer_tr
             answer_en = entry.answer_en
@@ -106,6 +108,7 @@ class FAQLookupTool(BaseTool):
 
         return {
             "found": True,
+            "faq_id": best_item.faq_id,
             "topic": best_item.topic,
             "answer_tr": best_item.answer_tr,
             "answer_en": best_item.answer_en,

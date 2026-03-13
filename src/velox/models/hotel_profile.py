@@ -1,5 +1,8 @@
 """Hotel profile data models."""
 
+from datetime import UTC, datetime
+from enum import StrEnum
+
 from pydantic import BaseModel, Field
 
 from velox.config.constants import SUPPORTED_LANGUAGES
@@ -76,8 +79,17 @@ class RestaurantConfig(BaseModel):
     external_guests_allowed: bool = True
 
 
+class FAQStatus(StrEnum):
+    DRAFT = "DRAFT"
+    ACTIVE = "ACTIVE"
+    PAUSED = "PAUSED"
+    REMOVED = "REMOVED"
+
+
 class FAQEntry(BaseModel):
+    faq_id: str = ""
     topic: str
+    status: FAQStatus = FAQStatus.ACTIVE
     question_tr: str = ""
     question_en: str = ""
     question_variants_tr: list[str] = Field(default_factory=list)
@@ -92,6 +104,13 @@ class FAQEntry(BaseModel):
     question_variants_pt: list[str] = Field(default_factory=list)
     answer_tr: str = ""
     answer_en: str = ""
+    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    created_by: str = "system"
+    updated_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    updated_by: str = "system"
+    removed_at: str | None = None
+    removed_by: str | None = None
+    removed_reason: str | None = None
 
     def question_variants_for_language(self, language: str) -> list[str]:
         """Return question variants for the requested language code."""

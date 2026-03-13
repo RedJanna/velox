@@ -170,6 +170,8 @@ const state = {
   conversationDetail: null,
   holds: [],
   tickets: [],
+  faqs: [],
+  faqDetail: null,
   hotelDetail: null,
   restaurantSlots: [],
   systemOverview: null,
@@ -194,6 +196,7 @@ function bindRefs() {
     'otpSetup','otpSecret','otpUri','otpQrImage','otpVerifyForm','otpVerifyHint','currentUser','currentRole','hotelScope','hotelSelect','nav','pageTitle','pageLead',
     'dashboardCards','dashboardQueues','conversationFilters','conversationTableBody','conversationDetail',
     'holdFilters','holdTableBody','ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor',
+    'faqFilters','faqTableBody','faqDetail',
     'hotelProfileMeta','slotFilters','slotTableBody','slotCreateForm','systemChecks','systemMeta',
     'sessionSummary','sessionPreferencesForm','sessionRememberToggle','sessionPreferenceFields',
     'systemVerificationOptions','systemSessionOptions','sessionOtpField','trustedDevicePanel','forgetDeviceButton',
@@ -230,6 +233,10 @@ function bindEvents() {
     event.preventDefault();
     loadTickets();
   });
+  refs.faqFilters.addEventListener('submit', event => {
+    event.preventDefault();
+    loadFaqs();
+  });
   refs.decisionForm.addEventListener('submit', onDecisionSubmit);
   document.querySelectorAll('[data-nav]').forEach(button => {
     button.addEventListener('click', () => setView(button.dataset.nav));
@@ -240,6 +247,12 @@ function bindEvents() {
     loadRestaurantSlots();
   });
   document.getElementById('closeDecision').addEventListener('click', () => refs.decisionDialog.close());
+  window.addEventListener('message', async event => {
+    if (event.data && event.data.type === 'chatlab:auth-required') {
+      // Re-obtain a fresh token and send it to the iframe
+      await loadChatLab();
+    }
+  });
 }
 
 async function boot() {
@@ -551,8 +564,10 @@ function setView(view) {
     holds: ['Onay Bekleyen Kayıtlar', 'Konaklama, restoran ve transfer taleplerini tek kararla yönetin.'],
     tickets: ['Handoff ve Takip', 'Aciliyet, sahiplik ve kapanış durumlarını kaybetmeden ekip yönetin.'],
     hotels: ['Hotel Profile', 'Dinamik hotel verisini panelden düzenleyip runtime cache ile eşitleyin.'],
+    faq: ['FAQ Yonetimi', 'Hazır yanıt bilgisini soru-cevap bazında izleyin ve uygunsuz içeriği anında devreden çıkarın.'],
     restaurant: ['Restoran Slotları', 'Kapasite, alan ve tarih bazlı slot yönetimini kontrol edin.'],
     system: ['Sistem ve Domain', 'Alan adı, readiness, konfigürasyon yenileme ve güven katmanlarını izleyin.'],
+    chatlab: ['Chat Lab', 'Canlı test, feedback kaydı, transcript import ve genel rapor paneli.'],
   }[view] || ['Admin Panel', 'Operasyon merkezi'];
 
   refs.pageTitle.textContent = meta[0];
@@ -563,8 +578,10 @@ function setView(view) {
   if (view === 'holds') loadHolds();
   if (view === 'tickets') loadTickets();
   if (view === 'hotels') loadHotelProfileSection();
+  if (view === 'faq') loadFaqs();
   if (view === 'restaurant') loadRestaurantSlots();
   if (view === 'system') loadSystemOverview();
+  if (view === 'chatlab') loadChatLab();
 }
 
 function onHotelScopeChange() {
@@ -573,6 +590,35 @@ function onHotelScopeChange() {
   window.localStorage.setItem(HOTEL_KEY, state.selectedHotelId);
   refs.hotelScope.textContent = state.selectedHotelId || '-';
   setView(state.currentView);
+}
+
+async function loadChatLab() {
+  const frame = document.getElementById('chatlab-frame');
+  if (!frame) return;
+  // Obtain a fresh access token and pass it to the iframe via postMessage
+  // because iframe fetch may not send httpOnly cookies reliably.
+  let tokenPayload;
+  try {
+    tokenPayload = await apiFetch('/session/refresh', {method: 'POST', body: {}, auth: false, allowRefresh: false, logoutOn401: false});
+  } catch (_e) {
+    try {
+      tokenPayload = await apiFetch('/me', {allowRefresh: true});
+    } catch (_e2) { return; }
+  }
+  const token = tokenPayload?.access_token || '';
+  const needsLoad = !frame.src || frame.src === 'about:blank' || frame.contentWindow?.location?.href === 'about:blank';
+  if (needsLoad) {
+    frame.src = '/admin/chat-lab';
+  }
+  // Send token to iframe once it finishes loading
+  const sendToken = () => {
+    try { frame.contentWindow.postMessage({type: 'chatlab:token', token}, window.location.origin); } catch(_e) {}
+  };
+  if (needsLoad) {
+    frame.addEventListener('load', sendToken, {once: true});
+  } else {
+    sendToken();
+  }
 }
 
 async function loadDashboard() {
@@ -849,6 +895,160 @@ function bindTicketActions() {
       }
     });
   });
+}
+
+async function loadFaqs() {
+  const hotelId = state.selectedHotelId;
+  if (!hotelId) {
+    refs.faqTableBody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><p>Hotel seçin.</p></div></td></tr>';
+    refs.faqDetail.innerHTML = '<div class="empty-state"><p>Detay için listeden bir FAQ kaydı seçin.</p></div>';
+    state.faqs = [];
+    state.faqDetail = null;
+    return;
+  }
+  const form = new FormData(refs.faqFilters);
+  const params = new URLSearchParams();
+  if (form.get('status')) params.set('status', String(form.get('status')));
+  if (form.get('q')) params.set('q', String(form.get('q')));
+  const response = await apiFetch(`/hotels/${hotelId}/faq?${params.toString()}`);
+  state.faqs = response.items || [];
+  refs.faqTableBody.innerHTML = renderFaqRows(state.faqs);
+  bindFaqActions();
+  if (!state.faqDetail || !state.faqs.find(item => item.faq_id === state.faqDetail.faq_id)) {
+    state.faqDetail = null;
+    refs.faqDetail.innerHTML = '<div class="empty-state"><p>Detay için listeden bir FAQ kaydı seçin.</p></div>';
+  } else {
+    renderFaqDetail(state.faqDetail);
+  }
+}
+
+function renderFaqRows(items) {
+  if (!items.length) {
+    return '<tr><td colspan="5"><div class="empty-state"><p>Filtreye uyan FAQ kaydı bulunamadı.</p></div></td></tr>';
+  }
+  return items.map(item => {
+    const pillClass = item.status === 'ACTIVE' ? 'open' : (item.status === 'REMOVED' ? 'closed' : 'pending');
+    const questionPreview = `${item.question?.tr || '-'} / ${item.question?.en || '-'}`;
+    const answerPreview = `${item.answer?.tr || '-'} / ${item.answer?.en || '-'}`;
+    return `
+      <tr>
+        <td><strong>${escapeHtml(item.topic || '-')}</strong></td>
+        <td><span class="pill ${pillClass}">${escapeHtml(item.status || '-')}</span></td>
+        <td><span class="muted">${escapeHtml(questionPreview).slice(0, 180)}</span></td>
+        <td><span class="muted">${escapeHtml(answerPreview).slice(0, 180)}</span></td>
+        <td>
+          <div class="stack">
+            <button class="action-button primary" data-faq-open="${escapeHtml(item.faq_id)}">Detay</button>
+            ${item.status === 'ACTIVE'
+              ? `<button class="action-button warn" data-faq-status="${escapeHtml(item.faq_id)}" data-next-status="PAUSED">Pasife Al</button>`
+              : ''}
+            ${(item.status === 'PAUSED' || item.status === 'DRAFT')
+              ? `<button class="action-button primary" data-faq-status="${escapeHtml(item.faq_id)}" data-next-status="ACTIVE">Aktif Et</button>`
+              : ''}
+            ${item.status !== 'REMOVED'
+              ? `<button class="action-button danger" data-faq-remove="${escapeHtml(item.faq_id)}">Kaldir</button>`
+              : ''}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function bindFaqActions() {
+  document.querySelectorAll('[data-faq-open]').forEach(button => {
+    button.addEventListener('click', () => {
+      const item = state.faqs.find(entry => entry.faq_id === button.dataset.faqOpen);
+      if (!item) return;
+      state.faqDetail = item;
+      renderFaqDetail(item);
+    });
+  });
+
+  document.querySelectorAll('[data-faq-status]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const faqId = button.dataset.faqStatus;
+      const nextStatus = button.dataset.nextStatus;
+      try {
+        await apiFetch(`/hotels/${state.selectedHotelId}/faq/${faqId}/status`, {
+          method: 'POST',
+          body: {status: nextStatus},
+        });
+        notify(`FAQ durumu ${nextStatus} olarak guncellendi.`, 'success');
+        await loadFaqs();
+      } catch (error) {
+        notify(error.message, 'error');
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-faq-remove]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const faqId = button.dataset.faqRemove;
+      const reason = window.prompt('Kaldırma gerekçesi yazın:');
+      if (!reason || !reason.trim()) {
+        notify('Kaldırma gerekçesi zorunlu.', 'warn');
+        return;
+      }
+      try {
+        await apiFetch(`/hotels/${state.selectedHotelId}/faq/${faqId}`, {
+          method: 'DELETE',
+          body: {reason: reason.trim()},
+        });
+        notify('FAQ kaydi aninda kaldirildi.', 'success');
+        await loadFaqs();
+      } catch (error) {
+        notify(error.message, 'error');
+      }
+    });
+  });
+}
+
+function renderFaqDetail(item) {
+  if (!item) {
+    refs.faqDetail.innerHTML = '<div class="empty-state"><p>Detay için listeden bir FAQ kaydı seçin.</p></div>';
+    return;
+  }
+  const variants = item.question_variants || {};
+  refs.faqDetail.innerHTML = `
+    <div class="module-header">
+      <div>
+        <h3>${escapeHtml(item.topic || 'FAQ Detay')}</h3>
+        <p>Soru ve cevap aynı panelde incelenir. Durum değişikliği ve kaldırma aksiyonu anında uygulanır.</p>
+      </div>
+      <span class="pill ${item.status === 'ACTIVE' ? 'open' : (item.status === 'REMOVED' ? 'closed' : 'pending')}">${escapeHtml(item.status || '-')}</span>
+    </div>
+    <div class="status-list">
+      <div class="status-block">
+        <h4>Soru (TR)</h4>
+        <pre>${escapeHtml(item.question?.tr || '-')}</pre>
+      </div>
+      <div class="status-block">
+        <h4>Soru (EN)</h4>
+        <pre>${escapeHtml(item.question?.en || '-')}</pre>
+      </div>
+      <div class="status-block">
+        <h4>Cevap (TR)</h4>
+        <pre>${escapeHtml(item.answer?.tr || '-')}</pre>
+      </div>
+      <div class="status-block">
+        <h4>Cevap (EN)</h4>
+        <pre>${escapeHtml(item.answer?.en || '-')}</pre>
+      </div>
+    </div>
+    <div class="helper-panel" style="margin-top:12px">
+      <div class="helper-box">
+        <strong>Varyantlar</strong>
+        <p class="mono">TR: ${escapeHtml((variants.tr || []).join(' | ') || '-')}</p>
+        <p class="mono">EN: ${escapeHtml((variants.en || []).join(' | ') || '-')}</p>
+      </div>
+      <div class="helper-box">
+        <strong>Yonetim Bilgisi</strong>
+        <p class="mono">Guncelleyen: ${escapeHtml(item.updated_by || '-')} · ${escapeHtml(formatDate(item.updated_at) || '-')}</p>
+        <p class="mono">Kaldirma: ${escapeHtml(item.removed_reason || '-')}</p>
+      </div>
+    </div>
+  `;
 }
 
 async function loadHotelProfileSection() {
@@ -1169,6 +1369,7 @@ async function reloadConfig() {
     notify('Konfigürasyon yeniden yüklendi.', 'success');
     loadSystemOverview();
     if (state.currentView === 'hotels') loadHotelProfileSection();
+    if (state.currentView === 'faq') loadFaqs();
   } catch (error) {
     notify(error.message, 'error');
   }
@@ -1192,6 +1393,8 @@ function clearClientSession() {
   state.bootstrapPending = null;
   state.dashboard = null;
   state.conversationDetail = null;
+  state.faqs = [];
+  state.faqDetail = null;
   state.sessionPreferences = null;
 }
 

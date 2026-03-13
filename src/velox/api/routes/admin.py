@@ -1,8 +1,8 @@
 """Admin panel REST API routes."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Annotated, Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from passlib.hash import bcrypt
@@ -24,6 +24,7 @@ from velox.db.repositories.conversation import ConversationRepository
 from velox.db.repositories.restaurant import RestaurantRepository
 from velox.db.repositories.transfer import TransferRepository
 from velox.escalation.matrix import reload_matrix
+from velox.models.hotel_profile import FAQEntry, FAQStatus, HotelProfile
 from velox.models.restaurant import RestaurantSlotCreate, RestaurantSlotUpdate
 from velox.utils.admin_security import (
     DEFAULT_SESSION_PRESET,
@@ -56,6 +57,8 @@ ALLOWED_TICKET_STATUSES = {"OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"}
 ALLOWED_TICKET_PRIORITIES = {"low", "medium", "high"}
 ALLOWED_VERIFICATION_PRESETS = {item.value for item in VERIFICATION_DURATION_OPTIONS}
 ALLOWED_SESSION_PRESETS = {item.value for item in SESSION_DURATION_OPTIONS}
+FAQ_FILTER_STATUSES = {status.value for status in FAQStatus}
+FAQ_MANAGE_STATUSES = {FAQStatus.DRAFT.value, FAQStatus.ACTIVE.value, FAQStatus.PAUSED.value}
 
 
 class LoginRequest(BaseModel):
@@ -87,6 +90,52 @@ class HotelProfileUpdate(BaseModel):
     profile_json: dict[str, Any]
 
 
+class FAQCreateRequest(BaseModel):
+    topic: str = Field(min_length=1, max_length=120)
+    question_tr: str = Field(default="", max_length=500)
+    question_en: str = Field(default="", max_length=500)
+    answer_tr: str = Field(min_length=1, max_length=4000)
+    answer_en: str = Field(min_length=1, max_length=4000)
+    question_variants_tr: list[str] = Field(default_factory=list)
+    question_variants_en: list[str] = Field(default_factory=list)
+    question_variants_ru: list[str] = Field(default_factory=list)
+    question_variants_de: list[str] = Field(default_factory=list)
+    question_variants_ar: list[str] = Field(default_factory=list)
+    question_variants_es: list[str] = Field(default_factory=list)
+    question_variants_fr: list[str] = Field(default_factory=list)
+    question_variants_zh: list[str] = Field(default_factory=list)
+    question_variants_hi: list[str] = Field(default_factory=list)
+    question_variants_pt: list[str] = Field(default_factory=list)
+    status: FAQStatus = FAQStatus.DRAFT
+
+
+class FAQUpdateRequest(BaseModel):
+    topic: str = Field(min_length=1, max_length=120)
+    question_tr: str = Field(default="", max_length=500)
+    question_en: str = Field(default="", max_length=500)
+    answer_tr: str = Field(min_length=1, max_length=4000)
+    answer_en: str = Field(min_length=1, max_length=4000)
+    question_variants_tr: list[str] = Field(default_factory=list)
+    question_variants_en: list[str] = Field(default_factory=list)
+    question_variants_ru: list[str] = Field(default_factory=list)
+    question_variants_de: list[str] = Field(default_factory=list)
+    question_variants_ar: list[str] = Field(default_factory=list)
+    question_variants_es: list[str] = Field(default_factory=list)
+    question_variants_fr: list[str] = Field(default_factory=list)
+    question_variants_zh: list[str] = Field(default_factory=list)
+    question_variants_hi: list[str] = Field(default_factory=list)
+    question_variants_pt: list[str] = Field(default_factory=list)
+    status: FAQStatus = FAQStatus.DRAFT
+
+
+class FAQStatusUpdateRequest(BaseModel):
+    status: FAQStatus
+
+
+class FAQRemoveRequest(BaseModel):
+    reason: str = Field(min_length=2, max_length=500)
+
+
 class ApproveRequest(BaseModel):
     notes: str | None = None
 
@@ -99,6 +148,116 @@ class TicketUpdate(BaseModel):
     status: str | None = None
     assigned_to_role: str | None = None
     assigned_to_name: str | None = None
+
+
+def _now_iso() -> str:
+    """Return an ISO-8601 UTC timestamp for FAQ metadata fields."""
+    return datetime.now(UTC).isoformat()
+
+
+def _faq_allowed_actions(status: FAQStatus) -> list[str]:
+    """Map FAQ status to the admin actions allowed from panel."""
+    if status == FAQStatus.DRAFT:
+        return ["activate", "edit", "remove"]
+    if status == FAQStatus.ACTIVE:
+        return ["pause", "edit", "remove"]
+    if status == FAQStatus.PAUSED:
+        return ["activate", "edit", "remove"]
+    return []
+
+
+def _faq_to_payload(entry: FAQEntry) -> dict[str, Any]:
+    """Return admin-facing FAQ shape with grouped localized fields."""
+    return {
+        "faq_id": entry.faq_id,
+        "topic": entry.topic,
+        "status": entry.status.value,
+        "question": {"tr": entry.question_tr, "en": entry.question_en},
+        "answer": {"tr": entry.answer_tr, "en": entry.answer_en},
+        "question_variants": {
+            "tr": entry.question_variants_tr,
+            "en": entry.question_variants_en,
+            "ru": entry.question_variants_ru,
+            "de": entry.question_variants_de,
+            "ar": entry.question_variants_ar,
+            "es": entry.question_variants_es,
+            "fr": entry.question_variants_fr,
+            "zh": entry.question_variants_zh,
+            "hi": entry.question_variants_hi,
+            "pt": entry.question_variants_pt,
+        },
+        "created_at": entry.created_at,
+        "created_by": entry.created_by,
+        "updated_at": entry.updated_at,
+        "updated_by": entry.updated_by,
+        "removed_at": entry.removed_at,
+        "removed_by": entry.removed_by,
+        "removed_reason": entry.removed_reason,
+        "allowed_actions": _faq_allowed_actions(entry.status),
+    }
+
+
+def _faq_search_blob(entry: FAQEntry) -> str:
+    """Build a single lowercase text blob used by FAQ search filter."""
+    parts = [
+        entry.topic,
+        entry.question_tr,
+        entry.question_en,
+        entry.answer_tr,
+        entry.answer_en,
+        *entry.question_variants_tr,
+        *entry.question_variants_en,
+        *entry.question_variants_ru,
+        *entry.question_variants_de,
+        *entry.question_variants_ar,
+        *entry.question_variants_es,
+        *entry.question_variants_fr,
+        *entry.question_variants_zh,
+        *entry.question_variants_hi,
+        *entry.question_variants_pt,
+    ]
+    return " ".join(parts).casefold()
+
+
+def _build_faq_entry(
+    body: FAQCreateRequest | FAQUpdateRequest,
+    *,
+    faq_id: str,
+    created_at: str,
+    created_by: str,
+    updated_at: str,
+    updated_by: str,
+    removed_at: str | None = None,
+    removed_by: str | None = None,
+    removed_reason: str | None = None,
+) -> FAQEntry:
+    """Create a normalized FAQEntry from create/update request payload."""
+    return FAQEntry(
+        faq_id=faq_id,
+        topic=body.topic.strip(),
+        status=body.status,
+        question_tr=body.question_tr.strip(),
+        question_en=body.question_en.strip(),
+        answer_tr=body.answer_tr.strip(),
+        answer_en=body.answer_en.strip(),
+        question_variants_tr=[item.strip() for item in body.question_variants_tr if item.strip()],
+        question_variants_en=[item.strip() for item in body.question_variants_en if item.strip()],
+        question_variants_ru=[item.strip() for item in body.question_variants_ru if item.strip()],
+        question_variants_de=[item.strip() for item in body.question_variants_de if item.strip()],
+        question_variants_ar=[item.strip() for item in body.question_variants_ar if item.strip()],
+        question_variants_es=[item.strip() for item in body.question_variants_es if item.strip()],
+        question_variants_fr=[item.strip() for item in body.question_variants_fr if item.strip()],
+        question_variants_zh=[item.strip() for item in body.question_variants_zh if item.strip()],
+        question_variants_hi=[item.strip() for item in body.question_variants_hi if item.strip()],
+        question_variants_pt=[item.strip() for item in body.question_variants_pt if item.strip()],
+        created_at=created_at,
+        created_by=created_by,
+        updated_at=updated_at,
+        updated_by=updated_by,
+        removed_at=removed_at,
+        removed_by=removed_by,
+        removed_reason=removed_reason,
+    )
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -288,6 +447,224 @@ async def update_hotel_profile(
         raise HTTPException(status_code=404, detail="Hotel not found")
     reload_profiles()
     return {"status": "updated", "hotel_id": hotel_id, "profile_path": profile_path.name}
+
+
+async def _load_hotel_profile(
+    conn: Any,
+    hotel_id: int,
+) -> tuple[dict[str, Any], HotelProfile]:
+    """Load hotel DB row plus validated profile model for FAQ operations."""
+    row = await conn.fetchrow("SELECT * FROM hotels WHERE hotel_id = $1", hotel_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Hotel not found")
+    profile_json = dict(row).get("profile_json") or {}
+    return dict(row), HotelProfile.model_validate(profile_json)
+
+
+async def _persist_hotel_profile(
+    conn: Any,
+    hotel_id: int,
+    profile_json: dict[str, Any],
+) -> str:
+    """Persist hotel profile to YAML + DB and return profile file name."""
+    profile_path = save_profile_definition(profile_json)
+    result = await conn.execute(
+        """
+        UPDATE hotels
+        SET profile_json = $1, updated_at = now()
+        WHERE hotel_id = $2
+        """,
+        profile_json,
+        hotel_id,
+    )
+    if result == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="Hotel not found")
+    reload_profiles()
+    return profile_path.name
+
+
+def _ensure_faq_integrity(faq_items: list[FAQEntry]) -> tuple[list[FAQEntry], bool]:
+    """Backfill missing FAQ ids and metadata so admin actions stay stable."""
+    changed = False
+    normalized: list[FAQEntry] = []
+    for entry in faq_items:
+        updated_entry = entry.model_copy(deep=True)
+        if not updated_entry.faq_id:
+            updated_entry.faq_id = str(uuid4())
+            changed = True
+        if not updated_entry.created_at:
+            updated_entry.created_at = _now_iso()
+            changed = True
+        if not updated_entry.updated_at:
+            updated_entry.updated_at = updated_entry.created_at
+            changed = True
+        if not updated_entry.created_by:
+            updated_entry.created_by = "system"
+            changed = True
+        if not updated_entry.updated_by:
+            updated_entry.updated_by = "system"
+            changed = True
+        normalized.append(updated_entry)
+    return normalized, changed
+
+
+@router.get("/hotels/{hotel_id}/faq")
+async def list_hotel_faq_entries(
+    hotel_id: int,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+    status_filter: str | None = Query(None, alias="status"),
+    q: str | None = Query(None),
+) -> dict[str, Any]:
+    """List FAQ items with status/search filters for admin review."""
+    check_permission(user, "hotels:read")
+    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
+        raise HTTPException(status_code=403, detail="Access denied to this hotel")
+    if status_filter and status_filter not in FAQ_FILTER_STATUSES:
+        raise HTTPException(status_code=400, detail="Invalid FAQ status")
+
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        _, profile = await _load_hotel_profile(conn, hotel_id)
+        normalized_faq, changed = _ensure_faq_integrity(profile.faq_data)
+        if changed:
+            profile.faq_data = normalized_faq
+            await _persist_hotel_profile(conn, hotel_id, profile.model_dump(mode="json"))
+        filtered_items = normalized_faq
+        if status_filter:
+            filtered_items = [entry for entry in filtered_items if entry.status.value == status_filter]
+        if q:
+            search_token = q.casefold().strip()
+            filtered_items = [entry for entry in filtered_items if search_token in _faq_search_blob(entry)]
+    items = [_faq_to_payload(entry) for entry in filtered_items]
+    return {"items": items, "total": len(items)}
+
+
+@router.post("/hotels/{hotel_id}/faq")
+async def create_hotel_faq_entry(
+    hotel_id: int,
+    body: FAQCreateRequest,
+    request: Request,
+    user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
+) -> dict[str, Any]:
+    """Create a new FAQ entry and publish it to runtime profile cache."""
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        _, profile = await _load_hotel_profile(conn, hotel_id)
+        normalized_faq, changed = _ensure_faq_integrity(profile.faq_data)
+        now_iso = _now_iso()
+        new_entry = _build_faq_entry(
+            body,
+            faq_id=str(uuid4()),
+            created_at=now_iso,
+            created_by=user.username,
+            updated_at=now_iso,
+            updated_by=user.username,
+        )
+        normalized_faq.append(new_entry)
+        profile.faq_data = normalized_faq
+        profile_name = await _persist_hotel_profile(conn, hotel_id, profile.model_dump(mode="json"))
+    return {
+        "status": "created",
+        "profile_path": profile_name,
+        "item": _faq_to_payload(new_entry),
+        "normalized": changed,
+    }
+
+
+@router.put("/hotels/{hotel_id}/faq/{faq_id}")
+async def update_hotel_faq_entry(
+    hotel_id: int,
+    faq_id: str,
+    body: FAQUpdateRequest,
+    request: Request,
+    user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
+) -> dict[str, Any]:
+    """Update FAQ content or status and refresh runtime FAQ source immediately."""
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        _, profile = await _load_hotel_profile(conn, hotel_id)
+        normalized_faq, _ = _ensure_faq_integrity(profile.faq_data)
+        target_index = next((index for index, item in enumerate(normalized_faq) if item.faq_id == faq_id), None)
+        if target_index is None:
+            raise HTTPException(status_code=404, detail="FAQ entry not found")
+        existing = normalized_faq[target_index]
+        updated_entry = _build_faq_entry(
+            body,
+            faq_id=existing.faq_id,
+            created_at=existing.created_at,
+            created_by=existing.created_by,
+            updated_at=_now_iso(),
+            updated_by=user.username,
+            removed_at=existing.removed_at,
+            removed_by=existing.removed_by,
+            removed_reason=existing.removed_reason,
+        )
+        if updated_entry.status != FAQStatus.REMOVED:
+            updated_entry.removed_at = None
+            updated_entry.removed_by = None
+            updated_entry.removed_reason = None
+        normalized_faq[target_index] = updated_entry
+        profile.faq_data = normalized_faq
+        profile_name = await _persist_hotel_profile(conn, hotel_id, profile.model_dump(mode="json"))
+    return {"status": "updated", "profile_path": profile_name, "item": _faq_to_payload(updated_entry)}
+
+
+@router.post("/hotels/{hotel_id}/faq/{faq_id}/status")
+async def update_hotel_faq_status(
+    hotel_id: int,
+    faq_id: str,
+    body: FAQStatusUpdateRequest,
+    request: Request,
+    user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
+) -> dict[str, Any]:
+    """Change FAQ status without editing full content payload."""
+    if body.status.value not in FAQ_MANAGE_STATUSES:
+        raise HTTPException(status_code=400, detail="Use remove action for REMOVED status")
+
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        _, profile = await _load_hotel_profile(conn, hotel_id)
+        normalized_faq, _ = _ensure_faq_integrity(profile.faq_data)
+        entry = next((item for item in normalized_faq if item.faq_id == faq_id), None)
+        if entry is None:
+            raise HTTPException(status_code=404, detail="FAQ entry not found")
+        entry.status = body.status
+        entry.updated_at = _now_iso()
+        entry.updated_by = user.username
+        entry.removed_at = None
+        entry.removed_by = None
+        entry.removed_reason = None
+        profile.faq_data = normalized_faq
+        profile_name = await _persist_hotel_profile(conn, hotel_id, profile.model_dump(mode="json"))
+    return {"status": "updated", "profile_path": profile_name, "item": _faq_to_payload(entry)}
+
+
+@router.delete("/hotels/{hotel_id}/faq/{faq_id}")
+async def remove_hotel_faq_entry(
+    hotel_id: int,
+    faq_id: str,
+    body: FAQRemoveRequest,
+    request: Request,
+    user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
+) -> dict[str, Any]:
+    """Soft-remove FAQ entry so runtime stops using it immediately."""
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        _, profile = await _load_hotel_profile(conn, hotel_id)
+        normalized_faq, _ = _ensure_faq_integrity(profile.faq_data)
+        entry = next((item for item in normalized_faq if item.faq_id == faq_id), None)
+        if entry is None:
+            raise HTTPException(status_code=404, detail="FAQ entry not found")
+        entry.status = FAQStatus.REMOVED
+        entry.updated_at = _now_iso()
+        entry.updated_by = user.username
+        entry.removed_at = entry.updated_at
+        entry.removed_by = user.username
+        entry.removed_reason = body.reason.strip()
+        profile.faq_data = normalized_faq
+        profile_name = await _persist_hotel_profile(conn, hotel_id, profile.model_dump(mode="json"))
+    return {"status": "removed", "profile_path": profile_name, "item": _faq_to_payload(entry)}
 
 
 @router.post("/hotels/{hotel_id}/restaurant/slots")
