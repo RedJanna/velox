@@ -115,6 +115,16 @@ class FAQEntry(BaseModel):
         return candidates
 
 
+class HotelConversationalFlow(BaseModel):
+    style: str = "concise_premium"
+    max_paragraph_lines: int = 3
+    max_list_items: int = 5
+    max_follow_up_questions: int = 2
+    avoid_repeating_confirmed_facts: bool = True
+    summarize_large_price_lists: bool = True
+    ask_before_full_price_dump: bool = True
+
+
 class HotelProfile(BaseModel):
     hotel_id: int
     hotel_name: LocalizedText
@@ -134,3 +144,4 @@ class HotelProfile(BaseModel):
     facility_policies: dict = Field(default_factory=dict)
     faq_data: list[FAQEntry] = Field(default_factory=list)
     payment: dict = Field(default_factory=dict)
+    hotel_conversational_flow: HotelConversationalFlow = Field(default_factory=HotelConversationalFlow)

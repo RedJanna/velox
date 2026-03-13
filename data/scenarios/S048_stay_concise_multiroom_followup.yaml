@@ -1,0 +1,31 @@
+# S048: Konaklama Cok Odali Akis - Kisa ve Net Yanit
+# Gevezelik/asiri uzun yanit regresyonu icin follow-up senaryosu.
+
+code: "S048"
+name: "Konaklama Cok Odali Akis - Kisa Yanit"
+description: "2 odali konaklama akisinda sistem gereksiz uzun tekrar yapmadan kisa ve net yonlendirme yapmali."
+category: "stay"
+language: "tr"
+tags: ["stay", "format", "concise", "multi_room", "regression"]
+
+steps:
+  - user: |
+      Merhaba,
+      20.08.2026 - 22.08.2026 tarihleri arasi 4 yetiskin ve 2 cocuk (15, 13) konaklama dusunuyoruz.
+      Uygun oda secenekleri var mi?
+    expect_intent: "stay_availability"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: ["booking_availability"]
+    expect_reply_contains: ["2 ayri oda", "teyit"]
+    expect_reply_must_not: ["detayli olarak", "asagida tum secenekler", "uzun aciklama"]
+    expect_risk_flags: []
+    note: "Ilk adimda sistem kisa yonlendirme yapmali; gereksiz detay dump yapmamali."
+
+  - user: "2 ayri oda istiyorum"
+    expect_intent: "stay_booking_create"
+    expect_state: "NEEDS_VERIFICATION"
+    expect_tool_calls: []
+    expect_reply_contains: ["oda dagilimi", "1", "2"]
+    expect_reply_must_not: ["fiyatlarin tamamini", "detayli listeyi"]
+    expect_risk_flags: []
+    note: "Sistem sadece gerekli secim sorusunu sorup fiyat listesini bir sonraki adıma birakmali."

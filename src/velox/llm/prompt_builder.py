@@ -61,6 +61,33 @@ class PromptBuilder:
         self.template_library = template_library
         self.master_prompt_a = _load_master_prompt_a_section()
 
+    def _build_conversational_flow_instruction(self, hotel_id: int) -> str:
+        """Build profile-driven brevity constraints for guest-facing responses."""
+        profile = self.hotel_profiles.get(hotel_id)
+        flow = profile.hotel_conversational_flow if profile else None
+
+        max_paragraph_lines = flow.max_paragraph_lines if flow else 3
+        max_list_items = flow.max_list_items if flow else 5
+        max_follow_up_questions = flow.max_follow_up_questions if flow else 2
+        avoid_repeating = flow.avoid_repeating_confirmed_facts if flow else True
+        summarize_large_lists = flow.summarize_large_price_lists if flow else True
+        ask_before_full_dump = flow.ask_before_full_price_dump if flow else True
+        style = flow.style if flow else "concise_premium"
+
+        return (
+            "HOTEL_CONVERSATIONAL_FLOW (STRICT):\n"
+            f"- style={style}\n"
+            "- Keep the guest message concise and high-signal.\n"
+            f"- Each paragraph must be <= {max_paragraph_lines} lines.\n"
+            f"- Show at most {max_list_items} list items in one message.\n"
+            f"- Ask at most {max_follow_up_questions} follow-up question(s) per turn.\n"
+            f"- avoid_repeating_confirmed_facts={str(avoid_repeating).lower()}\n"
+            f"- summarize_large_price_lists={str(summarize_large_lists).lower()}\n"
+            f"- ask_before_full_price_dump={str(ask_before_full_dump).lower()}\n"
+            "- Do not repeat already confirmed details unless the guest asks again or data changes.\n"
+            "- For long room-price outputs, share a compact shortlist first and offer full breakdown on request."
+        )
+
     def build_system_prompt(self, hotel_id: int) -> str:
         """Build complete system prompt from static and dynamic context layers."""
         profile = self.hotel_profiles.get(hotel_id)
@@ -159,6 +186,12 @@ class PromptBuilder:
                 ),
             }
         )
+        messages.append(
+            {
+                "role": "system",
+                "content": self._build_conversational_flow_instruction(conversation.hotel_id),
+            }
+        )
         messages.append({"role": "user", "content": new_user_message})
         messages.append(
             {
@@ -187,6 +220,10 @@ class PromptBuilder:
                     "error, do NOT present adult-only prices.\n"
                     "- In Turkish replies, use cancellation labels exactly as "
                     "'İptal edilemez' and 'Ücretsiz İptal'.\n"
+                    "- For multi-room requests, list only the requested room count "
+                    "and never add extra room blocks not requested by the guest.\n"
+                    "- Keep price lists compact: show up to 5 room-type lines first; "
+                    "if more exist, ask whether the guest wants the full list.\n"
                     "- Do not add generic statements like 'EUR fiyatlarımız' when "
                     "the currency is already visible in the listed prices.\n"
                     "- Mention 'Ön ödeme girişten 7 gün önce planlanır' only if the "

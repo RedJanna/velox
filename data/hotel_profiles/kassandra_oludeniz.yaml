@@ -919,6 +919,18 @@ payment:
   mail_order_handling: "human_handoff"
 
 # ============================================================
+# Hotel Conversational Flow
+# ============================================================
+hotel_conversational_flow:
+  style: "concise_premium"
+  max_paragraph_lines: 3
+  max_list_items: 5
+  max_follow_up_questions: 2
+  avoid_repeating_confirmed_facts: true
+  summarize_large_price_lists: true
+  ask_before_full_price_dump: true
+
+# ============================================================
 # Operational Notes
 # ============================================================
 operational:

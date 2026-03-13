@@ -1,7 +1,7 @@
 # ============================================================
 # VELOX SENARYO MASTER INDEX
 # ============================================================
-# Toplam: 47 senaryo
+# Toplam: 48 senaryo
 # Her senaryo ayri bir YAML dosyasinda tanimlanir.
 # Dosya adi formati: S{NNN}_{kisa_ad}.yaml
 #
@@ -11,7 +11,7 @@
 # ============================================================
 
 # ──────────────────────────────────────────────────────────
-# STAY (Konaklama) - 10 Senaryo
+# STAY (Konaklama) - 11 Senaryo
 # ──────────────────────────────────────────────────────────
 stay_scenarios:
   - code: "S001"
@@ -81,6 +81,13 @@ stay_scenarios:
     file: "S010_stay_nonrefundable.yaml"
     name: "Konaklama - Non-Refundable Akis"
     description: "Misafir ucuz fiyat istiyor, NON_REFUNDABLE secenegi sunuluyor, prepayment_immediate aciklanir"
+    intent: "stay_booking_create"
+    status: "[x]"
+
+  - code: "S048"
+    file: "S048_stay_concise_multiroom_followup.yaml"
+    name: "Konaklama Cok Odali Akis - Kisa Yanit"
+    description: "2 odali takip akisinda gevezelik olmadan kisa ve net yonlendirme"
     intent: "stay_booking_create"
     status: "[x]"
 
