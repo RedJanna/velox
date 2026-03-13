@@ -70,6 +70,24 @@ button,input,select,textarea{font:inherit}
 .helper-panel{display:flex;flex-direction:column;gap:12px}
 .helper-box{padding:14px 16px;border-radius:18px;background:var(--surface-2);border:1px solid var(--line)}
 .helper-box strong{display:block;margin-bottom:6px}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;border:1px solid var(--line);border-radius:18px;background:var(--surface-2);text-transform:none!important;letter-spacing:0!important}
+.toggle-copy{display:flex;flex-direction:column;gap:4px}
+.toggle-copy strong{font-size:14px;color:var(--ink)}
+.toggle-copy small{font-size:12px;color:var(--muted);line-height:1.45}
+.switch{position:relative;display:inline-flex;align-items:center}
+.switch input{position:absolute;opacity:0;pointer-events:none}
+.switch-track{width:54px;height:32px;border-radius:999px;background:#d7d9dd;display:block;position:relative;transition:.18s background ease}
+.switch-thumb{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:999px;background:#fff;box-shadow:0 6px 16px rgba(16,32,51,.18);transition:.18s transform ease}
+.switch input:checked + .switch-track{background:linear-gradient(135deg,var(--accent),var(--accent-2))}
+.switch input:checked + .switch-track .switch-thumb{transform:translateX(22px)}
+.session-stack{display:flex;flex-direction:column;gap:14px}
+.choice-group{display:flex;flex-wrap:wrap;gap:10px}
+.choice-card{cursor:pointer;position:relative}
+.choice-card input{position:absolute;opacity:0;pointer-events:none}
+.choice-card span{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:13px;font-weight:800;color:var(--muted);transition:.18s ease}
+.choice-card input:checked + span{background:linear-gradient(135deg,#102033,#1f3554);border-color:#102033;color:#fff;box-shadow:0 10px 22px rgba(16,32,51,.12)}
+.status-strip{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.detail-list{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
 .qr-wrap{display:flex;justify-content:center;padding:10px;border:1px dashed var(--line);border-radius:14px;background:#fff}
 .qr-wrap img{width:190px;height:190px;max-width:100%;display:block}
 .section-grid{display:grid;gap:18px}
@@ -129,6 +147,7 @@ tbody tr:hover{background:#fffcf7}
   .field-grid,.dense-form,.status-list{grid-template-columns:1fr}
   .topbar{padding:18px 20px;border-radius:24px;flex-direction:column}
   .card-grid{grid-template-columns:1fr}
+  .status-strip{grid-template-columns:1fr}
 }
 """
 
@@ -136,11 +155,10 @@ ADMIN_PANEL_SCRIPT = """\
 const CONFIG = window.ADMIN_PANEL_CONFIG || {};
 const API_ROOT = '/api/v1/admin';
 const READY_URL = '/api/v1/health/ready';
-const TOKEN_KEY = 'velox.admin.token';
 const HOTEL_KEY = 'velox.admin.hotel';
+const CSRF_COOKIE = 'velox_admin_csrf';
 
 const state = {
-  token: window.localStorage.getItem(TOKEN_KEY) || '',
   me: null,
   bootstrap: null,
   bootstrapPending: null,
@@ -155,6 +173,9 @@ const state = {
   hotelDetail: null,
   restaurantSlots: [],
   systemOverview: null,
+  sessionStatus: null,
+  sessionPreferences: null,
+  refreshPromise: null,
 };
 
 const refs = {};
@@ -168,11 +189,14 @@ document.addEventListener('DOMContentLoaded', () => {
 function bindRefs() {
   [
     'toast','authView','panelView','loginForm','bootstrapForm','bootstrapCard','bootstrapSummary',
-    'totpRecovery','totpRecoveryForm',
+    'totpRecovery','totpRecoveryForm','trustedSessionBanner','loginOtpField','rememberDeviceToggle',
+    'loginRememberOptions','loginVerificationOptions','loginSessionOptions',
     'otpSetup','otpSecret','otpUri','otpQrImage','otpVerifyForm','otpVerifyHint','currentUser','currentRole','hotelScope','hotelSelect','nav','pageTitle','pageLead',
     'dashboardCards','dashboardQueues','conversationFilters','conversationTableBody','conversationDetail',
     'holdFilters','holdTableBody','ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor',
     'hotelProfileMeta','slotFilters','slotTableBody','slotCreateForm','systemChecks','systemMeta',
+    'sessionSummary','sessionPreferencesForm','sessionRememberToggle','sessionPreferenceFields',
+    'systemVerificationOptions','systemSessionOptions','sessionOtpField','trustedDevicePanel','forgetDeviceButton',
     'logoutButton','reloadButton','decisionDialog','decisionForm','decisionTitle','decisionLead','decisionReason',
     'decisionHoldId','decisionMode'
   ].forEach(id => refs[id] = document.getElementById(id));
@@ -185,9 +209,13 @@ function bindEvents() {
   refs.bootstrapForm.addEventListener('submit', onBootstrap);
   refs.totpRecoveryForm.addEventListener('submit', onTotpRecovery);
   refs.otpVerifyForm.addEventListener('submit', onBootstrapVerify);
+  refs.rememberDeviceToggle.addEventListener('change', toggleLoginRememberOptions);
   refs.hotelSelect.addEventListener('change', onHotelScopeChange);
   refs.hotelProfileSelect.addEventListener('change', loadHotelProfileSection);
   refs.slotCreateForm.addEventListener('submit', onCreateSlot);
+  refs.sessionPreferencesForm.addEventListener('submit', onSessionPreferencesSave);
+  refs.sessionRememberToggle.addEventListener('change', toggleSessionPreferenceState);
+  refs.forgetDeviceButton.addEventListener('click', forgetTrustedDevice);
   refs.reloadButton.addEventListener('click', reloadConfig);
   refs.logoutButton.addEventListener('click', logout);
   refs.conversationFilters.addEventListener('submit', event => {
@@ -215,21 +243,27 @@ function bindEvents() {
 }
 
 async function boot() {
-  await loadBootstrapStatus();
-  if (state.token) {
-    try {
-      await hydrateSession();
-      return;
-    } catch (error) {
-      console.error(error);
-    }
+  await Promise.all([loadBootstrapStatus(), loadSessionStatus()]);
+  try {
+    await hydrateSession();
+    return;
+  } catch (_error) {
+    showAuth();
   }
-  showAuth();
 }
 
 async function loadBootstrapStatus() {
   state.bootstrap = await apiFetch('/bootstrap/status', {auth: false});
   renderBootstrapState();
+}
+
+async function loadSessionStatus() {
+  try {
+    state.sessionStatus = await apiFetch('/session/status', {auth: false});
+  } catch (_error) {
+    state.sessionStatus = null;
+  }
+  renderLoginSessionState();
 }
 
 function renderBootstrapState() {
@@ -275,14 +309,95 @@ function renderBootstrapState() {
   `;
 }
 
+function renderLoginSessionState() {
+  const status = state.sessionStatus || {};
+  const verificationOptions = status.verification_options || [];
+  const sessionOptions = status.session_options || [];
+  const rememberChecked = refs.rememberDeviceToggle.checked || Boolean(status.has_trusted_device);
+
+  refs.rememberDeviceToggle.checked = rememberChecked;
+  renderChoiceGroup(
+    refs.loginVerificationOptions,
+    'verification_preset',
+    verificationOptions,
+    status.verification_preset || '24_hours',
+  );
+  renderChoiceGroup(
+    refs.loginSessionOptions,
+    'session_preset',
+    sessionOptions,
+    status.session_preset || '8_hours',
+  );
+  toggleLoginRememberOptions();
+
+  if (!status.has_trusted_device) {
+    refs.trustedSessionBanner.hidden = true;
+    setOtpMode({skipAllowed: false});
+    return;
+  }
+
+  refs.trustedSessionBanner.hidden = false;
+  refs.trustedSessionBanner.innerHTML = `
+    <div class="helper-box">
+      <strong>${escapeHtml(status.user_label || 'Bu cihaz')}</strong>
+      <p>${escapeHtml(status.device_label || 'Tarayici cihazi')} icin hizli giris durumu gorunur.</p>
+    </div>
+    <div class="status-strip">
+      <div class="helper-box">
+        <strong>OTP tekrar suresi</strong>
+        <p>${status.verification_active ? `Aktif · ${escapeHtml(formatDate(status.verification_expires_at))}` : 'Suresi doldu'}</p>
+      </div>
+      <div class="helper-box">
+        <strong>Oturum hatirlama</strong>
+        <p>${status.session_active ? `Aktif · ${escapeHtml(formatDate(status.session_expires_at))}` : 'Aktif degil'}</p>
+      </div>
+    </div>
+    ${status.verification_active ? '<button id="loginForceOtpButton" class="inline-button secondary" type="button">Kodu yine de kullan</button>' : ''}
+  `;
+
+  setOtpMode({skipAllowed: Boolean(status.verification_active)});
+  const forceOtpButton = document.getElementById('loginForceOtpButton');
+  if (forceOtpButton) {
+    forceOtpButton.addEventListener('click', () => setOtpMode({skipAllowed: false, forced: true}));
+  }
+}
+
+function toggleLoginRememberOptions() {
+  refs.loginRememberOptions.hidden = !refs.rememberDeviceToggle.checked;
+}
+
+function setOtpMode({skipAllowed, forced = false}) {
+  const otpInput = refs.loginForm.otp_code;
+  const shouldHide = skipAllowed && !forced;
+  refs.loginOtpField.hidden = shouldHide;
+  otpInput.required = !shouldHide;
+  if (shouldHide) {
+    otpInput.value = '';
+  }
+}
+
+function renderChoiceGroup(container, name, options, selectedValue) {
+  container.innerHTML = (options || []).map(option => `
+    <label class="choice-card">
+      <input type="radio" name="${escapeHtml(name)}" value="${escapeHtml(option.value)}" ${option.value === selectedValue ? 'checked' : ''}>
+      <span>${escapeHtml(option.label)}</span>
+    </label>
+  `).join('');
+}
+
 async function onLogin(event) {
   event.preventDefault();
   const payload = formToJson(refs.loginForm);
+  payload.remember_device = refs.rememberDeviceToggle.checked;
+  payload.verification_preset = getSelectedChoice(refs.loginForm, 'verification_preset', state.sessionStatus?.verification_preset || '24_hours');
+  payload.session_preset = getSelectedChoice(refs.loginForm, 'session_preset', state.sessionStatus?.session_preset || '8_hours');
+  if (!payload.otp_code) {
+    delete payload.otp_code;
+  }
   try {
     const response = await apiFetch('/login', {method: 'POST', body: payload, auth: false});
-    state.token = response.access_token;
-    window.localStorage.setItem(TOKEN_KEY, state.token);
-    notify('Oturum açıldı.', 'success');
+    notify(response.authentication_mode === 'trusted_device' ? 'Bu cihaz icin OTP adimi atlandi.' : 'Oturum acildi.', 'success');
+    await loadSessionStatus();
     await hydrateSession();
   } catch (error) {
     notify(error.message, 'error');
@@ -359,10 +474,9 @@ async function onBootstrapVerify(event) {
   };
   try {
     const response = await apiFetch('/login', {method: 'POST', body: loginPayload, auth: false});
-    state.token = response.access_token;
     state.bootstrapPending = null;
-    window.localStorage.setItem(TOKEN_KEY, state.token);
-    notify('Kurulum doğrulandı, oturum açıldı.', 'success');
+    notify('Kurulum dogrulandi, oturum acildi.', 'success');
+    await loadSessionStatus();
     await hydrateSession();
   } catch (error) {
     notify(error.message, 'error');
@@ -377,7 +491,7 @@ async function hydrateSession() {
   window.localStorage.setItem(HOTEL_KEY, state.selectedHotelId);
   populateHotelSelectors();
   showPanel();
-  await Promise.all([loadDashboard(), loadSystemOverview()]);
+  await Promise.all([loadDashboard(), loadSystemOverview(), loadSessionPreferences()]);
   setView(state.currentView || 'dashboard');
 }
 
@@ -410,6 +524,7 @@ function showAuth() {
   refs.currentUser.textContent = 'Misafir değil, operasyon';
   refs.currentRole.textContent = 'Panel girişi bekleniyor';
   refs.hotelScope.textContent = CONFIG.public_host || 'nexlumeai.com';
+  renderLoginSessionState();
 }
 
 function showPanel() {
@@ -890,6 +1005,108 @@ function renderSystemOverview() {
   `;
 }
 
+async function loadSessionPreferences() {
+  state.sessionPreferences = await apiFetch('/session/preferences');
+  state.sessionStatus = state.sessionPreferences;
+  renderSessionPreferences();
+  renderLoginSessionState();
+}
+
+function renderSessionPreferences() {
+  const prefs = state.sessionPreferences || state.sessionStatus;
+  if (!prefs) return;
+
+  refs.sessionRememberToggle.checked = Boolean(prefs.has_trusted_device);
+  renderChoiceGroup(
+    refs.systemVerificationOptions,
+    'verification_preset',
+    prefs.verification_options || [],
+    prefs.verification_preset || '24_hours',
+  );
+  renderChoiceGroup(
+    refs.systemSessionOptions,
+    'session_preset',
+    prefs.session_options || [],
+    prefs.session_preset || '8_hours',
+  );
+  refs.sessionSummary.innerHTML = `
+    <div class="helper-box">
+      <strong>Giris hizlandirma</strong>
+      <p>${prefs.has_trusted_device ? 'Bu cihaz tanimli. OTP tekrari ve oturum suresi secimleri aktif.' : 'Bu cihaz icin hizli giris kapali. Etkinlestirmek icin switchi acin ve 6 haneli kodu girin.'}</p>
+    </div>
+    <div class="status-strip">
+      <div class="helper-box">
+        <strong>Dogrulama tekrar suresi</strong>
+        <p>${prefs.has_trusted_device ? escapeHtml(formatDate(prefs.verification_expires_at)) : '-'}</p>
+      </div>
+      <div class="helper-box">
+        <strong>Oturum hatirlama</strong>
+        <p>${prefs.has_trusted_device ? escapeHtml(formatDate(prefs.session_expires_at)) : '-'}</p>
+      </div>
+    </div>
+  `;
+  refs.trustedDevicePanel.innerHTML = prefs.has_trusted_device ? `
+    <div class="helper-box">
+      <strong>${escapeHtml(prefs.device_label || 'Tarayici cihazi')}</strong>
+      <p>${escapeHtml(prefs.user_label || 'Aktif kullanici')} icin tanimli.</p>
+      <div class="detail-list">
+        <span>OTP atlama: ${prefs.verification_active ? 'Acik' : 'Kapali'}</span>
+        <span>Session restore: ${prefs.session_active ? 'Acik' : 'Kapali'}</span>
+        <span>Son dogrulama: ${escapeHtml(formatDate(prefs.last_verified_at))}</span>
+      </div>
+    </div>
+  ` : '<div class="empty-state"><p>Bu cihaz icin kayitli hizli giris bulunmuyor.</p></div>';
+  refs.forgetDeviceButton.hidden = !prefs.has_trusted_device;
+  toggleSessionPreferenceState();
+}
+
+function toggleSessionPreferenceState() {
+  const rememberEnabled = refs.sessionRememberToggle.checked;
+  refs.sessionOtpField.hidden = !rememberEnabled;
+  refs.sessionPreferencesForm.otp_code.required = rememberEnabled;
+}
+
+async function onSessionPreferencesSave(event) {
+  event.preventDefault();
+  const payload = {
+    remember_device: refs.sessionRememberToggle.checked,
+    verification_preset: getSelectedChoice(refs.sessionPreferencesForm, 'verification_preset', state.sessionPreferences?.verification_preset || '24_hours'),
+    session_preset: getSelectedChoice(refs.sessionPreferencesForm, 'session_preset', state.sessionPreferences?.session_preset || '8_hours'),
+  };
+  const otpCode = String(refs.sessionPreferencesForm.otp_code.value || '').trim();
+  if (payload.remember_device) {
+    if (!otpCode) {
+      notify('Tercihleri kaydetmek icin 6 haneli kod gerekli.', 'warn');
+      return;
+    }
+    payload.otp_code = otpCode;
+  }
+
+  try {
+    state.sessionPreferences = await apiFetch('/session/preferences', {method: 'PUT', body: payload});
+    state.sessionStatus = state.sessionPreferences;
+    refs.sessionPreferencesForm.otp_code.value = '';
+    renderSessionPreferences();
+    renderLoginSessionState();
+    notify(payload.remember_device ? 'Cihaz tercihleri kaydedildi.' : 'Bu cihaz icin hizli giris kapatildi.', 'success');
+  } catch (error) {
+    notify(error.message, 'error');
+  }
+}
+
+async function forgetTrustedDevice() {
+  try {
+    state.sessionPreferences = await apiFetch('/session/forget-device', {method: 'POST', body: {}});
+    state.sessionStatus = state.sessionPreferences;
+    refs.sessionPreferencesForm.otp_code.value = '';
+    renderSessionPreferences();
+    renderLoginSessionState();
+    notify('Bu cihaz artik hatirlanmayacak.', 'success');
+  } catch (error) {
+    notify(error.message, 'error');
+  }
+}
+
 function resolveConversationIntent(conversation, messages) {
   if (conversation?.current_intent) return String(conversation.current_intent);
   const assistant = [...(messages || [])].reverse().find(message => message.role === 'assistant');
@@ -957,34 +1174,50 @@ async function reloadConfig() {
   }
 }
 
-function logout() {
-  state.token = '';
-  state.me = null;
-  state.bootstrapPending = null;
-  window.localStorage.removeItem(TOKEN_KEY);
-  notify('Oturum kapatıldı.', 'info');
+async function logout() {
+  try {
+    await apiFetch('/logout', {method: 'POST', body: {}, allowRefresh: false});
+  } catch (_error) {
+    // UI logout should still continue even if the backend cookie already expired.
+  }
+  clearClientSession();
+  await loadSessionStatus();
+  renderLoginSessionState();
+  notify('Oturum kapatildi.', 'info');
   showAuth();
 }
 
-async function apiFetch(path, {method = 'GET', body = null, auth = true} = {}) {
+function clearClientSession() {
+  state.me = null;
+  state.bootstrapPending = null;
+  state.dashboard = null;
+  state.conversationDetail = null;
+  state.sessionPreferences = null;
+}
+
+async function apiFetch(path, {method = 'GET', body = null, auth = true, allowRefresh = true, logoutOn401 = true} = {}) {
   const headers = {'Content-Type': 'application/json'};
-  if (auth && state.token) {
-    headers.Authorization = `Bearer ${state.token}`;
+  if (auth && !isSafeMethod(method)) {
+    const csrfToken = readCookie(CSRF_COOKIE);
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
+    }
   }
   const response = await fetch(`${API_ROOT}${path}`, {
     method,
+    credentials: 'same-origin',
     headers,
     body: body ? JSON.stringify(body) : null,
   });
-  return handleResponse(response, auth);
+  return handleResponse(response, {auth, allowRefresh, logoutOn401, request: {path, method, body}});
 }
 
 async function apiFetchFromAbsolute(path) {
-  const response = await fetch(path);
-  return handleResponse(response, false);
+  const response = await fetch(path, {credentials: 'same-origin'});
+  return handleResponse(response, {auth: false, allowRefresh: false, logoutOn401: false, request: null});
 }
 
-async function handleResponse(response, auth) {
+async function handleResponse(response, options) {
   let payload = {};
   try {
     payload = await response.json();
@@ -992,12 +1225,48 @@ async function handleResponse(response, auth) {
     payload = {};
   }
   if (!response.ok) {
-    if (auth && response.status === 401) {
-      logout();
+    if (options.auth && response.status === 401 && options.allowRefresh) {
+      const refreshed = await refreshAccessSession({silent: true});
+      if (refreshed && options.request) {
+        return apiFetch(options.request.path, {
+          method: options.request.method,
+          body: options.request.body,
+          auth: true,
+          allowRefresh: false,
+          logoutOn401: options.logoutOn401,
+        });
+      }
+    }
+    if (options.auth && response.status === 401 && options.logoutOn401) {
+      clearClientSession();
+      await loadSessionStatus();
+      showAuth();
     }
     throw new Error(extractErrorMessage(payload));
   }
   return payload;
+}
+
+async function refreshAccessSession({silent = false} = {}) {
+  if (state.refreshPromise) {
+    return state.refreshPromise;
+  }
+  state.refreshPromise = (async () => {
+    try {
+      await apiFetch('/session/refresh', {method: 'POST', body: {}, auth: false, allowRefresh: false, logoutOn401: false});
+      await loadSessionStatus();
+      return true;
+    } catch (error) {
+      if (!silent) {
+        notify(error.message, 'warn');
+      }
+      await loadSessionStatus();
+      return false;
+    } finally {
+      state.refreshPromise = null;
+    }
+  })();
+  return state.refreshPromise;
 }
 
 function extractErrorMessage(payload) {
@@ -1022,6 +1291,20 @@ function extractErrorMessage(payload) {
 
 function formToJson(form) {
   return Object.fromEntries(new FormData(form).entries());
+}
+
+function getSelectedChoice(form, name, fallback) {
+  const field = form.querySelector(`input[name="${name}"]:checked`);
+  return field ? field.value : fallback;
+}
+
+function readCookie(name) {
+  const encoded = `${name}=`;
+  return document.cookie.split(';').map(item => item.trim()).find(item => item.startsWith(encoded))?.slice(encoded.length) || '';
+}
+
+function isSafeMethod(method) {
+  return ['GET', 'HEAD', 'OPTIONS'].includes(String(method || 'GET').toUpperCase());
 }
 
 function notify(message, tone = 'info') {

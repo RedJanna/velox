@@ -1,15 +1,16 @@
 """JWT authentication and role-based access control for admin routes."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
 from velox.config.constants import Role
 from velox.config.settings import settings
+from velox.utils.admin_security import ACCESS_COOKIE_NAME, CSRF_COOKIE_NAME, CSRF_HEADER_NAME, SAFE_HTTP_METHODS
 
 
 class TokenData(BaseModel):
@@ -26,15 +27,19 @@ class TokenResponse(BaseModel):
     """JWT token response for login endpoint."""
 
     access_token: str
-    token_type: str = "bearer"
+    token_type: str = "bearer"  # noqa: S105
     expires_in: int
     role: str
     hotel_id: int
+    authentication_mode: str = "otp"
+    trusted_device_enabled: bool = False
+    verification_expires_at: datetime | None = None
+    session_expires_at: datetime | None = None
 
 
 def create_access_token(data: TokenData) -> str:
     """Create JWT access token with configured expiration."""
-    issued_at = datetime.now(timezone.utc)
+    issued_at = datetime.now(UTC)
     expire = issued_at + timedelta(minutes=settings.admin_jwt_expire_minutes)
     payload = {
         "sub": str(data.user_id),
@@ -48,11 +53,12 @@ def create_access_token(data: TokenData) -> str:
     return jwt.encode(payload, settings.admin_jwt_secret, algorithm=settings.admin_jwt_algorithm)
 
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
 ) -> TokenData:
     """Validate bearer token and return current user context."""
     credentials_exception = HTTPException(
@@ -60,9 +66,14 @@ async def get_current_user(
         detail="Invalid or expired token",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    token = _extract_token(request, credentials)
+    if token is None:
+        raise credentials_exception
+    if credentials is None and request.method.upper() not in SAFE_HTTP_METHODS:
+        _validate_csrf(request)
     try:
         payload = jwt.decode(
-            credentials.credentials,
+            token,
             settings.admin_jwt_secret,
             algorithms=[settings.admin_jwt_algorithm],
         )
@@ -78,6 +89,25 @@ async def get_current_user(
         )
     except (JWTError, KeyError, ValueError) as exc:
         raise credentials_exception from exc
+
+
+def _extract_token(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None,
+) -> str | None:
+    """Prefer bearer auth headers, but fall back to the access cookie for the panel UI."""
+    if credentials is not None:
+        return credentials.credentials
+    cookie_token = request.cookies.get(ACCESS_COOKIE_NAME, "").strip()
+    return cookie_token or None
+
+
+def _validate_csrf(request: Request) -> None:
+    """Require a matching CSRF header for cookie-backed unsafe requests."""
+    header_token = request.headers.get(CSRF_HEADER_NAME, "").strip()
+    cookie_token = request.cookies.get(CSRF_COOKIE_NAME, "").strip()
+    if not header_token or not cookie_token or header_token != cookie_token:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF validation failed")
 
 
 def require_role(*allowed_roles: Role):

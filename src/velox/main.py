@@ -17,7 +17,16 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from velox.adapters.elektraweb.client import close_elektraweb_client
 from velox.adapters.whatsapp.client import close_whatsapp_client
 from velox.api.middleware.rate_limiter import RateLimitMiddleware
-from velox.api.routes import admin, admin_panel_ui, admin_portal, admin_webhook, health, test_chat, whatsapp_webhook
+from velox.api.routes import (
+    admin,
+    admin_panel_ui,
+    admin_portal,
+    admin_session,
+    admin_webhook,
+    health,
+    test_chat,
+    whatsapp_webhook,
+)
 from velox.config.constants import (
     MAX_STARTUP_RETRIES,
     STARTUP_DEPENDENCY_TIMEOUT_SECONDS,
@@ -64,9 +73,7 @@ async def _connect_redis_with_retry() -> Redis | None:
             )
             if attempt >= MAX_STARTUP_RETRIES:
                 break
-            backoff = STARTUP_RETRY_BACKOFF_SECONDS[
-                min(attempt - 1, len(STARTUP_RETRY_BACKOFF_SECONDS) - 1)
-            ]
+            backoff = STARTUP_RETRY_BACKOFF_SECONDS[min(attempt - 1, len(STARTUP_RETRY_BACKOFF_SECONDS) - 1)]
             await asyncio.sleep(backoff)
 
     await redis_client.aclose()
@@ -141,6 +148,7 @@ app.add_middleware(RateLimitMiddleware)
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(admin_portal.router, prefix="/api/v1")
+app.include_router(admin_session.router, prefix="/api/v1")
 app.include_router(whatsapp_webhook.router, prefix="/api/v1")
 app.include_router(admin_webhook.router, prefix="/api/v1")
 app.include_router(admin_panel_ui.router)

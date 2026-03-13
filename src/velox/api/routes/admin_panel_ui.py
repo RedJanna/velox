@@ -93,7 +93,8 @@ def render_admin_panel_html() -> str:
         <div class="auth-grid">
           <article class="auth-card">
             <h3>Panel Girisi</h3>
-            <p>Sistem açık olduğunda giriş yalnızca kullanıcı adı, şifre ve Google Authenticator kodu ile tamamlanır.</p>
+            <p>Ilk dogrulamadan sonra ayni cihaz icin giris adimlari kisaltilabilir; yine de kritik guvenlik akisi Google Authenticator temellidir.</p>
+            <div id="trustedSessionBanner" class="helper-panel" style="margin-bottom:14px" hidden></div>
             <form id="loginForm" class="field-grid">
               <div class="field">
                 <label for="login-username">Kullanıcı adı</label>
@@ -103,9 +104,34 @@ def render_admin_panel_html() -> str:
                 <label for="login-password">Şifre</label>
                 <input id="login-password" name="password" type="password" autocomplete="current-password" maxlength="72" required>
               </div>
-              <div class="field full">
+              <div id="loginOtpField" class="field full">
                 <label for="login-otp">Google Authenticator kodu</label>
                 <input id="login-otp" name="otp_code" inputmode="numeric" pattern="[0-9]*" placeholder="6 haneli kod" required>
+              </div>
+              <div class="field full">
+                <label class="toggle-row" for="rememberDeviceToggle">
+                  <span class="toggle-copy">
+                    <strong>Bu cihazi hatirla</strong>
+                    <small>Ayni cihazda tekrar girislerde Google dogrulamasini azaltir.</small>
+                  </span>
+                  <span class="switch">
+                    <input id="rememberDeviceToggle" name="remember_device" type="checkbox">
+                    <span class="switch-track"><span class="switch-thumb"></span></span>
+                  </span>
+                </label>
+              </div>
+              <div id="loginRememberOptions" class="field full" hidden>
+                <div class="session-stack">
+                  <div>
+                    <label>Dogrulama tekrari</label>
+                    <div id="loginVerificationOptions" class="choice-group"></div>
+                  </div>
+                  <div>
+                    <label>Oturum hatirlama</label>
+                    <div id="loginSessionOptions" class="choice-group"></div>
+                  </div>
+                  <p class="helper">Paylasilan cihazlarda bu secenegi kapali tutun.</p>
+                </div>
               </div>
               <div class="field full">
                 <button class="sidebar-button primary" type="submit">Oturum Aç</button>
@@ -343,13 +369,59 @@ def render_admin_panel_html() -> str:
         </section>
 
         <section data-view="system" class="section-grid" hidden>
-          <article class="module-card">
-            <div class="module-header">
-              <div><h3>Sistem Kontrolleri</h3><p>Readiness, domain ve bootstrap guvenlik durumu ayni ekranda gorunur kalir.</p></div>
-            </div>
-            <div id="systemMeta" class="helper-panel" style="margin-bottom:14px"></div>
-            <div id="systemChecks" class="status-list"></div>
-          </article>
+          <div class="split">
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Sistem Kontrolleri</h3><p>Readiness, domain ve bootstrap guvenlik durumu ayni ekranda gorunur kalir.</p></div>
+              </div>
+              <div id="systemMeta" class="helper-panel" style="margin-bottom:14px"></div>
+              <div id="systemChecks" class="status-list"></div>
+            </article>
+
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Guvenlik ve Oturum</h3><p>Sik giris yapan ekipler icin dogrulama tekrari ve cihaz hatirlama suresini buradan yonetin.</p></div>
+              </div>
+              <div id="sessionSummary" class="helper-panel" style="margin-bottom:14px"></div>
+              <form id="sessionPreferencesForm" class="field-grid">
+                <div class="field full">
+                  <label class="toggle-row" for="sessionRememberToggle">
+                    <span class="toggle-copy">
+                      <strong>Bu cihazi panel icin hatirla</strong>
+                      <small>Kayitli cihazlarda giris adimlarini kisaltir; ayar degisikligi icin 6 haneli kod gerekir.</small>
+                    </span>
+                    <span class="switch">
+                      <input id="sessionRememberToggle" name="remember_device" type="checkbox">
+                      <span class="switch-track"><span class="switch-thumb"></span></span>
+                    </span>
+                  </label>
+                </div>
+                <div id="sessionPreferenceFields" class="field full">
+                  <div class="session-stack">
+                    <div>
+                      <label>Google dogrulama tekrari</label>
+                      <div id="systemVerificationOptions" class="choice-group"></div>
+                    </div>
+                    <div>
+                      <label>Oturum / hatirlama suresi</label>
+                      <div id="systemSessionOptions" class="choice-group"></div>
+                    </div>
+                  </div>
+                </div>
+                <div id="sessionOtpField" class="field full">
+                  <label for="session-otp-code">Google Authenticator kodu</label>
+                  <input id="session-otp-code" name="otp_code" inputmode="numeric" pattern="[0-9]*" placeholder="Tercihleri kaydetmek icin 6 haneli kod">
+                </div>
+                <div class="field full">
+                  <button class="inline-button primary" type="submit">Oturum Tercihlerini Kaydet</button>
+                </div>
+              </form>
+              <div id="trustedDevicePanel" class="helper-panel" style="margin-top:14px"></div>
+              <div class="module-actions" style="margin-top:14px">
+                <button id="forgetDeviceButton" class="inline-button danger" type="button">Bu Cihazi Unut</button>
+              </div>
+            </article>
+          </div>
         </section>
       </section>
     </main>

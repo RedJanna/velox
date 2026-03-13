@@ -4,9 +4,9 @@ from datetime import date
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from passlib.hash import bcrypt
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from velox.api.middleware.auth import (
     TokenData,
@@ -25,6 +25,23 @@ from velox.db.repositories.restaurant import RestaurantRepository
 from velox.db.repositories.transfer import TransferRepository
 from velox.escalation.matrix import reload_matrix
 from velox.models.restaurant import RestaurantSlotCreate, RestaurantSlotUpdate
+from velox.utils.admin_security import (
+    DEFAULT_SESSION_PRESET,
+    DEFAULT_VERIFICATION_PRESET,
+    SESSION_DURATION_OPTIONS,
+    TRUSTED_DEVICE_COOKIE_NAME,
+    VERIFICATION_DURATION_OPTIONS,
+    fetch_trusted_device_record,
+    generate_csrf_token,
+    refresh_trusted_device_session,
+    resolve_session_seconds,
+    resolve_verification_seconds,
+    set_access_cookie,
+    set_csrf_cookie,
+    set_trusted_device_cookie,
+    trusted_device_is_active,
+    upsert_trusted_device_record,
+)
 from velox.utils.totp import verify_totp_code
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -37,12 +54,33 @@ HOLD_TABLES = {
 }
 ALLOWED_TICKET_STATUSES = {"OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"}
 ALLOWED_TICKET_PRIORITIES = {"low", "medium", "high"}
+ALLOWED_VERIFICATION_PRESETS = {item.value for item in VERIFICATION_DURATION_OPTIONS}
+ALLOWED_SESSION_PRESETS = {item.value for item in SESSION_DURATION_OPTIONS}
 
 
 class LoginRequest(BaseModel):
     username: str
     password: str
     otp_code: str | None = Field(default=None, min_length=6, max_length=8)
+    remember_device: bool = False
+    verification_preset: str = DEFAULT_VERIFICATION_PRESET
+    session_preset: str = DEFAULT_SESSION_PRESET
+
+    @field_validator("verification_preset")
+    @classmethod
+    def validate_verification_preset(cls, value: str) -> str:
+        """Reject unsupported verification presets."""
+        if value not in ALLOWED_VERIFICATION_PRESETS:
+            raise ValueError("Unsupported verification preset")
+        return value
+
+    @field_validator("session_preset")
+    @classmethod
+    def validate_session_preset(cls, value: str) -> str:
+        """Reject unsupported session presets."""
+        if value not in ALLOWED_SESSION_PRESETS:
+            raise ValueError("Unsupported session preset")
+        return value
 
 
 class HotelProfileUpdate(BaseModel):
@@ -64,9 +102,14 @@ class TicketUpdate(BaseModel):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def admin_login(body: LoginRequest, request: Request) -> TokenResponse:
+async def admin_login(body: LoginRequest, request: Request, response: Response) -> TokenResponse:
     """Authenticate admin user and return JWT token."""
     db = request.app.state.db_pool
+    authentication_mode = "otp"
+    trusted_device_enabled = False
+    verification_expires_at = None
+    session_expires_at = None
+    current_device = None
     async with db.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -75,16 +118,61 @@ async def admin_login(body: LoginRequest, request: Request) -> TokenResponse:
             """,
             body.username,
         )
+        if not row or not bcrypt.verify(body.password, row["password_hash"]):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        if not row["is_active"]:
+            raise HTTPException(status_code=403, detail="Account disabled")
 
-    if not row or not bcrypt.verify(body.password, row["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    if not row["is_active"]:
-        raise HTTPException(status_code=403, detail="Account disabled")
-    totp_secret = str(row["totp_secret"] or "").strip()
-    if not totp_secret:
-        raise HTTPException(status_code=403, detail="Two-factor authentication is not configured for this account")
-    if not body.otp_code or not verify_totp_code(totp_secret, body.otp_code):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        trusted_device_record = await fetch_trusted_device_record(
+            conn,
+            request.cookies.get(TRUSTED_DEVICE_COOKIE_NAME),
+        )
+        current_device = (
+            trusted_device_record
+            if trusted_device_record is not None and int(trusted_device_record["admin_user_id"]) == int(row["id"])
+            else None
+        )
+
+        totp_secret = str(row["totp_secret"] or "").strip()
+        if not totp_secret:
+            raise HTTPException(status_code=403, detail="Two-factor authentication is not configured for this account")
+        if body.otp_code:
+            if not verify_totp_code(totp_secret, body.otp_code):
+                raise HTTPException(status_code=401, detail="Invalid credentials")
+        elif current_device is not None and trusted_device_is_active(current_device.get("verification_expires_at")):
+            authentication_mode = "trusted_device"
+        else:
+            raise HTTPException(status_code=401, detail="Google Authenticator kodu gerekli")
+
+        if body.remember_device:
+            device_token = await upsert_trusted_device_record(
+                conn,
+                admin_user=dict(row),
+                request=request,
+                verification_preset=body.verification_preset,
+                session_preset=body.session_preset,
+                existing_device_id=current_device["id"] if current_device is not None else None,
+            )
+            remember_seconds = max(
+                resolve_verification_seconds(body.verification_preset),
+                resolve_session_seconds(body.session_preset),
+            )
+            set_trusted_device_cookie(
+                response,
+                device_token.cookie_value,
+                max_age_seconds=max(remember_seconds, 60),
+            )
+            trusted_device_enabled = True
+            verification_expires_at = device_token.verification_expires_at
+            session_expires_at = device_token.session_expires_at
+        elif current_device is not None:
+            trusted_device_enabled = True
+            verification_expires_at = current_device.get("verification_expires_at")
+            session_expires_at = await refresh_trusted_device_session(
+                conn,
+                current_device["id"],
+                str(current_device["session_preset"]),
+            )
 
     token_data = TokenData(
         user_id=int(row["id"]),
@@ -94,11 +182,19 @@ async def admin_login(body: LoginRequest, request: Request) -> TokenResponse:
         display_name=row["display_name"],
     )
     access_token = create_access_token(token_data)
+    access_max_age = settings.admin_jwt_expire_minutes * 60
+    csrf_token = generate_csrf_token()
+    set_access_cookie(response, access_token, max_age_seconds=access_max_age)
+    set_csrf_cookie(response, csrf_token, max_age_seconds=access_max_age)
     return TokenResponse(
         access_token=access_token,
-        expires_in=settings.admin_jwt_expire_minutes * 60,
+        expires_in=access_max_age,
         role=token_data.role.value,
         hotel_id=token_data.hotel_id,
+        authentication_mode=authentication_mode,
+        trusted_device_enabled=trusted_device_enabled,
+        verification_expires_at=verification_expires_at,
+        session_expires_at=session_expires_at,
     )
 
 
@@ -553,6 +649,7 @@ async def reset_conversation_by_phone(
     """Close all active conversations for a phone number to start fresh tests."""
     import hashlib
 
+    _ = user
     effective_hotel_id = hotel_id or settings.elektra_hotel_id
     phone_hash = hashlib.sha256(phone.strip().encode()).hexdigest()
 
