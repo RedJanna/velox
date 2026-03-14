@@ -33,11 +33,15 @@ class _FakePool:
 class _FakeDispatcher:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.create_result: dict[str, Any] = {"reservation_id": "RSV-1", "voucher_no": "V-1"}
+        self.readback_result: dict[str, Any] = {"reservation_id": "RSV-1", "voucher_no": "V-1"}
 
     async def dispatch(self, tool_name: str, **kwargs: Any) -> dict[str, Any]:
         self.calls.append((tool_name, kwargs))
         if tool_name == "booking_create_reservation":
-            return {"reservation_id": "RSV-1", "voucher_no": "V-1"}
+            return dict(self.create_result)
+        if tool_name == "booking_get_reservation":
+            return dict(self.readback_result)
         if tool_name == "payment_request_prepayment":
             return {"payment_request_id": "PAY-1", "status": "REQUESTED"}
         raise AssertionError(f"unexpected tool: {tool_name}")
@@ -148,7 +152,7 @@ async def test_process_approval_event_stay_moves_to_payment_pending(
 
     assert result["status"] == "processed"
     tool_names = [name for name, _ in dispatcher.calls]
-    assert tool_names == ["booking_create_reservation", "payment_request_prepayment"]
+    assert tool_names == ["booking_create_reservation", "booking_get_reservation", "payment_request_prepayment"]
 
     status_updates = [
         args[1]
@@ -158,3 +162,47 @@ async def test_process_approval_event_stay_moves_to_payment_pending(
     assert "PMS_PENDING" in status_updates
     assert "PMS_CREATED" in status_updates
     assert "PAYMENT_PENDING" in status_updates
+
+
+@pytest.mark.asyncio
+async def test_process_approval_event_stay_missing_reservation_identifiers_goes_manual_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hold_row = {
+        "hold_id": "S_HOLD_0001",
+        "hotel_id": 21966,
+        "conversation_id": None,
+        "status": "PENDING_APPROVAL",
+        "approval_idempotency_key": None,
+        "draft_json": {
+            "phone": "",
+            "checkin_date": "2026-09-10",
+            "total_price_eur": 200,
+            "currency_display": "EUR",
+            "cancel_policy_type": "FREE_CANCEL",
+        },
+    }
+    processor, conn, dispatcher = _build_processor(hold_row, monkeypatch=monkeypatch)
+    dispatcher.create_result = {"reservation_id": "", "voucher_no": ""}
+
+    event = ApprovalEvent(
+        hotel_id=21966,
+        approval_request_id="APR-1",
+        approved=True,
+        approved_by_role="ADMIN",
+        timestamp=datetime.now(UTC),
+    )
+    result = await processor.process_approval_event(event)
+
+    assert result["status"] == "processed"
+    assert result["reconciliation_action"] == "manual_review"
+    tool_names = [name for name, _ in dispatcher.calls]
+    assert tool_names == ["booking_create_reservation"]
+
+    status_updates = [
+        args[1]
+        for query, args in conn.executed
+        if "UPDATE stay_holds" in query and "SET status = $2" in query and len(args) >= 2
+    ]
+    assert "PMS_PENDING" in status_updates
+    assert "MANUAL_REVIEW" in status_updates

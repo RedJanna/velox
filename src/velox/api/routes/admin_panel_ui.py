@@ -279,14 +279,21 @@ def render_admin_panel_html() -> str:
               <select name="status" aria-label="Hold durumu">
                 <option value="">Tum statuler</option>
                 <option value="PENDING_APPROVAL">PENDING_APPROVAL</option>
+                <option value="PMS_PENDING">PMS_PENDING</option>
+                <option value="PMS_CREATED">PMS_CREATED</option>
+                <option value="PAYMENT_PENDING">PAYMENT_PENDING</option>
+                <option value="PAYMENT_EXPIRED">PAYMENT_EXPIRED</option>
+                <option value="MANUAL_REVIEW">MANUAL_REVIEW</option>
+                <option value="PMS_FAILED">PMS_FAILED</option>
                 <option value="APPROVED">APPROVED</option>
+                <option value="CONFIRMED">CONFIRMED</option>
                 <option value="REJECTED">REJECTED</option>
               </select>
               <button class="primary" type="submit">Filtrele</button>
             </form>
             <div class="table-shell">
-              <table>
-                <thead><tr><th>Hold</th><th>Hotel</th><th>Durum</th><th>Draft</th><th>Zaman</th><th>Aksiyon</th></tr></thead>
+              <table class="holds-table">
+                <thead><tr><th>Aksiyon</th><th>Hold</th><th>Durum</th><th>Rezervasyon Ozeti</th><th>Teknik Durum</th><th>Zaman</th></tr></thead>
                 <tbody id="holdTableBody"></tbody>
               </table>
             </div>

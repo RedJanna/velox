@@ -1,7 +1,7 @@
 # Velox (NexlumeAI) — Codex Project Guide
 
-> **Sürüm:** v3.4 | **Son güncelleme:** 2026-03-14 19:56:02
-> **Değişiklik özeti:** Admin panel frontend asset'leri yardımcı modüle bölündü ve embedded UI modül yapısı güncellendi.
+> **Sürüm:** v4.0 | **Son güncelleme:** 2026-03-14 21:18:00
+> **Değişiklik özeti:** Stay hold onay akışında PMS create sonrası zorunlu readback doğrulaması eklendi; Holds ekranı operasyon odaklı yeniden düzenlendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -40,6 +40,8 @@ FastAPI Webhook Endpoint
     |       |                   (booking, restaurant, transfer,      |
     |       |                    approval, payment, notify,          |
     |       |                    handoff, crm, faq)                  |
+    |       |                   Stay onayinda: create -> readback    |
+    |       |                   doğrulaması olmadan PAYMENT_PENDING yok|
     |       |                        |                               |
     |       |                        v                               |
     |       |                   Adapters                             |

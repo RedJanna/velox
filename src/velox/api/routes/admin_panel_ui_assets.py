@@ -116,8 +116,15 @@ tbody tr:last-child td{border-bottom:none}
 tbody tr:hover{background:#fffcf7}
 .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:800}
 .pill.pending{background:#fff2dd;color:#92400e}.pill.open{background:#e8f3f1;color:#115e59}.pill.closed{background:#e5e7eb;color:#374151}.pill.high{background:#fde7e5;color:#991b1b}.pill.medium{background:#eef4ff;color:#1d4ed8}.pill.low{background:#ecfdf3;color:#166534}
+.pill.success{background:#ecfdf3;color:#166534}.pill.warn{background:#fff2dd;color:#92400e}.pill.danger{background:#fde7e5;color:#991b1b}.pill.info{background:#e8f3f1;color:#115e59}
 .stack{display:flex;flex-direction:column;gap:6px}.muted{color:var(--muted);font-size:13px}
 .mono{font-family:var(--mono);font-size:12px}
+.hold-action-stack{display:flex;flex-direction:column;gap:8px;min-width:124px}
+.holds-table thead th:first-child,.holds-table tbody td:first-child{position:sticky;left:0;background:var(--surface);z-index:2}
+.holds-table thead th:first-child{z-index:3}
+.hold-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.hold-summary-grid span{font-size:12px;color:var(--muted)}
+.hold-summary-grid strong{display:block;font-size:13px;color:var(--ink)}
 .queue-list{display:flex;flex-direction:column;gap:10px}
 .queue-item{padding:14px 16px;border-radius:18px;background:var(--surface-2);border:1px solid var(--line)}
 .queue-item strong{display:block}
@@ -167,11 +174,12 @@ tbody tr:hover{background:#fffcf7}
   .topbar-actions{width:100%;justify-content:space-between;align-items:center}
   .topbar-aside{justify-content:flex-start}
   .table-shell{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
-  .table-shell table{min-width:720px}
+  .table-shell table{min-width:640px}
   .field-grid,.dense-form,.status-list{grid-template-columns:1fr}
   .topbar{padding:18px 20px;border-radius:24px;flex-direction:column}
   .card-grid{grid-template-columns:1fr}
   .status-strip{grid-template-columns:1fr}
+  .hold-summary-grid{grid-template-columns:1fr}
 }
 """
 
@@ -336,12 +344,18 @@ function bindDelegatedEvents() {
 
     // Hold approve
     if (target.dataset.approveHold) {
+      const approveButton = target;
+      const originalLabel = approveButton.textContent;
+      approveButton.disabled = true;
+      approveButton.textContent = 'Onaylaniyor...';
       try {
         await apiFetch(`/holds/${target.dataset.approveHold}/approve`, {method: 'POST', body: {notes: ''}});
         notify('Hold onaylandi.', 'success');
         loadHolds();
         loadDashboard();
       } catch (error) {
+        approveButton.disabled = false;
+        approveButton.textContent = originalLabel;
         notify(error.message, 'error');
       }
       return;
@@ -900,19 +914,71 @@ function renderHoldRows(items) {
   }
   return items.map(item => `
     <tr>
-      <td><div class="stack"><strong>${escapeHtml(item.hold_id)}</strong><span class="muted">${escapeHtml(item.type)}</span></div></td>
-      <td>${escapeHtml(item.hotel_id)}</td>
-      <td><span class="pill pending">${escapeHtml(item.status)}</span></td>
-      <td><pre class="mono">${escapeHtml(JSON.stringify(item.draft_json || {}, null, 2))}</pre></td>
-      <td>${formatDate(item.created_at)}</td>
       <td>
-        <div class="stack">
+        <div class="hold-action-stack">
           <button class="action-button primary" data-approve-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' holdunu onayla')}">Onayla</button>
           <button class="action-button danger" data-reject-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' holdunu reddet')}">Reddet</button>
         </div>
       </td>
+      <td>
+        <div class="stack">
+          <strong>${escapeHtml(item.hold_id)}</strong>
+          <span class="muted">${escapeHtml(item.type)} · Hotel ${escapeHtml(item.hotel_id)}</span>
+        </div>
+      </td>
+      <td><span class="pill ${holdStatusClass(item.status)}">${escapeHtml(item.status)}</span></td>
+      <td>${formatHoldSummary(item)}</td>
+      <td>${formatHoldTechnicalState(item)}</td>
+      <td>${formatDate(item.created_at)}</td>
     </tr>
   `).join('');
+}
+
+function holdStatusClass(status) {
+  const normalized = String(status || '').toUpperCase();
+  if (['PMS_FAILED', 'MANUAL_REVIEW', 'REJECTED'].includes(normalized)) return 'danger';
+  if (['PENDING_APPROVAL', 'PMS_PENDING', 'PAYMENT_PENDING'].includes(normalized)) return 'warn';
+  if (['PMS_CREATED', 'CONFIRMED'].includes(normalized)) return 'success';
+  if (['PAYMENT_EXPIRED', 'APPROVED'].includes(normalized)) return 'info';
+  return 'pending';
+}
+
+function formatHoldSummary(item) {
+  const draft = item.draft_json && typeof item.draft_json === 'object' ? item.draft_json : {};
+  const checkin = draft.checkin_date ? String(draft.checkin_date) : '-';
+  const checkout = draft.checkout_date ? String(draft.checkout_date) : '-';
+  const guest = draft.guest_name ? String(draft.guest_name) : '-';
+  const adults = Number(draft.adults || 0);
+  const children = Array.isArray(draft.chd_ages) ? draft.chd_ages.length : 0;
+  const total = draft.total_price_eur !== undefined && draft.total_price_eur !== null
+    ? `${escapeHtml(String(draft.total_price_eur))} EUR`
+    : '-';
+  const cancelPolicy = draft.cancel_policy_type ? String(draft.cancel_policy_type) : '-';
+  return `
+    <div class="hold-summary-grid">
+      <div><span>Misafir</span><strong>${escapeHtml(guest)}</strong></div>
+      <div><span>Tarih</span><strong>${escapeHtml(checkin)} → ${escapeHtml(checkout)}</strong></div>
+      <div><span>Kisi</span><strong>${escapeHtml(String(adults))}Y / ${escapeHtml(String(children))}C</strong></div>
+      <div><span>Tutar</span><strong>${total}</strong></div>
+      <div><span>Politika</span><strong>${escapeHtml(cancelPolicy)}</strong></div>
+      <div><span>Tip</span><strong>${escapeHtml(String(item.type || '-').toUpperCase())}</strong></div>
+    </div>
+  `;
+}
+
+function formatHoldTechnicalState(item) {
+  const workflowState = item.workflow_state ? String(item.workflow_state) : '-';
+  const reservationId = item.pms_reservation_id ? String(item.pms_reservation_id) : '-';
+  const voucherNo = item.voucher_no ? String(item.voucher_no) : '-';
+  const manualReason = item.manual_review_reason ? String(item.manual_review_reason) : '-';
+  return `
+    <div class="stack">
+      <span class="muted">Workflow: <strong>${escapeHtml(workflowState)}</strong></span>
+      <span class="muted">PMS ID: <strong>${escapeHtml(reservationId)}</strong></span>
+      <span class="muted">Voucher: <strong>${escapeHtml(voucherNo)}</strong></span>
+      <span class="muted">Not: <strong>${escapeHtml(manualReason)}</strong></span>
+    </div>
+  `;
 }
 
 // Hold actions handled by delegated event listener (see bindDelegatedEvents)

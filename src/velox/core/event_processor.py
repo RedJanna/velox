@@ -218,6 +218,114 @@ class EventProcessor:
                     }
 
                 tool_results["booking_create_reservation"] = booking_result
+                reservation_id = str(booking_result.get("reservation_id", "")).strip()
+                voucher_no = str(booking_result.get("voucher_no", "")).strip() or None
+
+                # Create response without reservation identifiers is considered uncertain and blocked.
+                if not reservation_id and not voucher_no:
+                    reconciliation_action = ReconciliationAction.MANUAL_REVIEW
+                    failed_state = HoldStatus.MANUAL_REVIEW.value
+                    await self._update_hold_status(conn, approval_type, reference_id, status=failed_state)
+                    await self._upsert_stay_workflow_metadata(
+                        conn,
+                        reference_id=reference_id,
+                        workflow_state=failed_state,
+                        manual_review_reason="create_missing_identifiers",
+                        pms_create_completed=True,
+                    )
+                    tool_results["booking_get_reservation"] = {
+                        "success": False,
+                        "error_type": "MissingReservationIdentifiers",
+                    }
+                    user_message = (
+                        "Talebiniz alindi ancak rezervasyon dogrulama adiminda teknik kontrol gerekiyor. "
+                        "Ekibimiz en kisa surede sizinle iletisime gececektir."
+                    )
+                    await self.inject_system_event(
+                        conversation_id,
+                        {
+                            "event_type": "approval.updated",
+                            "approval_request_id": event.approval_request_id,
+                            "approval_type": approval_type,
+                            "approved": event.approved,
+                            "reference_id": reference_id,
+                            "tool_results": tool_results,
+                            "timestamp": event.timestamp.isoformat(),
+                        },
+                    )
+                    await self._append_assistant_message(conversation_id, user_message)
+                    await self._send_user_message(phone, user_message)
+                    return {
+                        "approval_request_id": event.approval_request_id,
+                        "status": "processed",
+                        "approved": event.approved,
+                        "reconciliation_action": reconciliation_action.value,
+                    }
+
+                readback_result: dict[str, Any] | None = None
+                try:
+                    readback_result = await self._fetch_reservation_readback(
+                        hotel_id=event.hotel_id,
+                        reservation_id=reservation_id or None,
+                        voucher_no=voucher_no,
+                    )
+                    tool_results["booking_get_reservation"] = {"success": True, "result": readback_result}
+                except Exception as exc:
+                    readback_result = None
+                    tool_results["booking_get_reservation"] = {
+                        "success": False,
+                        "error_type": type(exc).__name__,
+                    }
+                    logger.warning(
+                        "reservation_readback_failed",
+                        hold_id=reference_id,
+                        error_type=type(exc).__name__,
+                    )
+
+                reservation_found_by_id = False
+                reservation_found_by_voucher = False
+                if isinstance(readback_result, dict):
+                    readback_reservation_id = str(readback_result.get("reservation_id", "")).strip()
+                    readback_voucher = str(readback_result.get("voucher_no", "")).strip()
+                    reservation_found_by_id = bool(reservation_id and readback_reservation_id)
+                    reservation_found_by_voucher = bool(voucher_no and readback_voucher)
+
+                if not (reservation_found_by_id or reservation_found_by_voucher):
+                    reconciliation_action = ReconciliationAction.MANUAL_REVIEW
+                    failed_state = HoldStatus.MANUAL_REVIEW.value
+                    await self._update_hold_status(conn, approval_type, reference_id, status=failed_state)
+                    await self._upsert_stay_workflow_metadata(
+                        conn,
+                        reference_id=reference_id,
+                        workflow_state=failed_state,
+                        manual_review_reason="create_unverified_after_readback",
+                        pms_create_completed=True,
+                    )
+                    user_message = (
+                        "Talebiniz alindi ancak rezervasyon dogrulama adiminda teknik kontrol gerekiyor. "
+                        "Ekibimiz en kisa surede sizinle iletisime gececektir."
+                    )
+                    await self.inject_system_event(
+                        conversation_id,
+                        {
+                            "event_type": "approval.updated",
+                            "approval_request_id": event.approval_request_id,
+                            "approval_type": approval_type,
+                            "approved": event.approved,
+                            "reference_id": reference_id,
+                            "tool_results": tool_results,
+                            "timestamp": event.timestamp.isoformat(),
+                        },
+                    )
+                    await self._append_assistant_message(conversation_id, user_message)
+                    await self._send_user_message(phone, user_message)
+                    return {
+                        "approval_request_id": event.approval_request_id,
+                        "status": "processed",
+                        "approved": event.approved,
+                        "reconciliation_action": reconciliation_action.value,
+                    }
+
                 pms_created_transition = apply_hold_transition(
                     current_state=pms_pending_transition.to_state,
                     event=HoldWorkflowEvent.pms_create_succeeded,
@@ -235,8 +343,6 @@ class EventProcessor:
                     pms_create_completed=True,
                 )
 
-                reservation_id = str(booking_result.get("reservation_id", "")).strip()
-                voucher_no = booking_result.get("voucher_no")
                 if reservation_id:
                     await conn.execute(
                         """
@@ -577,6 +683,28 @@ class EventProcessor:
                 backoff = TOOL_RETRY_BACKOFF_SECONDS[min(attempt - 1, len(TOOL_RETRY_BACKOFF_SECONDS) - 1)]
                 await asyncio.sleep(backoff)
         raise RuntimeError("tool_dispatch_retry_exhausted")
+
+    async def _fetch_reservation_readback(
+        self,
+        *,
+        hotel_id: int,
+        reservation_id: str | None,
+        voucher_no: str | None,
+    ) -> dict[str, Any]:
+        """Fetch reservation using reservation id and voucher fallback."""
+        if reservation_id:
+            return await self._dispatch_with_retry(
+                "booking_get_reservation",
+                hotel_id=hotel_id,
+                reservation_id=reservation_id,
+            )
+        if voucher_no:
+            return await self._dispatch_with_retry(
+                "booking_get_reservation",
+                hotel_id=hotel_id,
+                voucher_no=voucher_no,
+            )
+        raise ValueError("reservation identifiers are required for readback")
 
     @staticmethod
     async def _load_hold(
