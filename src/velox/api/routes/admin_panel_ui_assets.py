@@ -1049,14 +1049,27 @@ function formatHoldTechnicalState(item) {
   const reservationId = item.pms_reservation_id ? String(item.pms_reservation_id) : '-';
   const voucherNo = item.voucher_no ? String(item.voucher_no) : '-';
   const manualReason = mapManualReviewReason(item.manual_review_reason);
+  const failedTool = mapFailedTool(item.last_failed_tool);
+  const failedErrorType = item.last_failed_error_type ? String(item.last_failed_error_type) : '-';
   return `
     <div class="stack">
       <span class="muted">Workflow: <strong>${escapeHtml(workflowState)}</strong></span>
       <span class="muted">PMS ID: <strong>${escapeHtml(reservationId)}</strong></span>
       <span class="muted">Voucher: <strong>${escapeHtml(voucherNo)}</strong></span>
+      <span class="muted">Son hata araci: <strong>${escapeHtml(failedTool)}</strong></span>
+      <span class="muted">Hata tipi: <strong>${escapeHtml(failedErrorType)}</strong></span>
       <span class="muted">Not: <strong>${escapeHtml(manualReason)}</strong></span>
     </div>
   `;
+}
+
+function mapFailedTool(toolName) {
+  const normalized = String(toolName || '').trim();
+  if (!normalized) return '-';
+  if (normalized === 'booking_create_reservation') return 'PMS rezervasyon olusturma';
+  if (normalized === 'booking_get_reservation') return 'PMS readback dogrulamasi';
+  if (normalized === 'payment_request_prepayment') return 'Odeme talebi olusturma';
+  return normalized;
 }
 
 function mapManualReviewReason(reason) {

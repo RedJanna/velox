@@ -1143,6 +1143,7 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
                sh.approval_idempotency_key, sh.create_idempotency_key,
                sh.pms_reservation_id, sh.voucher_no, sh.approved_by, sh.approved_at,
                approval_meta.approval_decided_at, payment_meta.payment_requested_at,
+               failure_meta.last_failed_tool, failure_meta.last_failed_error_type,
                sh.created_at, sh.conversation_id
         FROM stay_holds sh
         LEFT JOIN LATERAL (
@@ -1162,6 +1163,29 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
             ORDER BY pr.created_at DESC
             LIMIT 1
         ) AS payment_meta ON true
+        LEFT JOIN LATERAL (
+            SELECT
+                CASE
+                    WHEN msg.internal_json->'tool_results'->'booking_get_reservation'->>'success' = 'false'
+                        THEN 'booking_get_reservation'
+                    WHEN msg.internal_json->'tool_results'->'booking_create_reservation'->>'success' = 'false'
+                        THEN 'booking_create_reservation'
+                    WHEN msg.internal_json->'tool_results'->'payment_request_prepayment'->>'success' = 'false'
+                        THEN 'payment_request_prepayment'
+                    ELSE NULL
+                END AS last_failed_tool,
+                COALESCE(
+                    msg.internal_json->'tool_results'->'booking_get_reservation'->>'error_type',
+                    msg.internal_json->'tool_results'->'booking_create_reservation'->>'error_type',
+                    msg.internal_json->'tool_results'->'payment_request_prepayment'->>'error_type'
+                ) AS last_failed_error_type
+            FROM messages msg
+            WHERE msg.conversation_id = sh.conversation_id
+              AND msg.role = 'system'
+              AND msg.internal_json->>'event_type' = 'approval.updated'
+            ORDER BY msg.created_at DESC
+            LIMIT 1
+        ) AS failure_meta ON true
         WHERE ($1::int IS NULL OR sh.hotel_id = $1) AND ($2::text IS NULL OR sh.status = $2)
         """
         if include_stay_workflow
@@ -1172,6 +1196,7 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
                 NULL::text AS manual_review_reason, NULL::text AS approval_idempotency_key,
                NULL::text AS create_idempotency_key, sh.pms_reservation_id, sh.voucher_no, sh.approved_by, sh.approved_at,
                approval_meta.approval_decided_at, payment_meta.payment_requested_at,
+               failure_meta.last_failed_tool, failure_meta.last_failed_error_type,
                sh.created_at, sh.conversation_id
         FROM stay_holds sh
         LEFT JOIN LATERAL (
@@ -1191,6 +1216,29 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
             ORDER BY pr.created_at DESC
             LIMIT 1
         ) AS payment_meta ON true
+        LEFT JOIN LATERAL (
+            SELECT
+                CASE
+                    WHEN msg.internal_json->'tool_results'->'booking_get_reservation'->>'success' = 'false'
+                        THEN 'booking_get_reservation'
+                    WHEN msg.internal_json->'tool_results'->'booking_create_reservation'->>'success' = 'false'
+                        THEN 'booking_create_reservation'
+                    WHEN msg.internal_json->'tool_results'->'payment_request_prepayment'->>'success' = 'false'
+                        THEN 'payment_request_prepayment'
+                    ELSE NULL
+                END AS last_failed_tool,
+                COALESCE(
+                    msg.internal_json->'tool_results'->'booking_get_reservation'->>'error_type',
+                    msg.internal_json->'tool_results'->'booking_create_reservation'->>'error_type',
+                    msg.internal_json->'tool_results'->'payment_request_prepayment'->>'error_type'
+                ) AS last_failed_error_type
+            FROM messages msg
+            WHERE msg.conversation_id = sh.conversation_id
+              AND msg.role = 'system'
+              AND msg.internal_json->>'event_type' = 'approval.updated'
+            ORDER BY msg.created_at DESC
+            LIMIT 1
+        ) AS failure_meta ON true
         WHERE ($1::int IS NULL OR sh.hotel_id = $1) AND ($2::text IS NULL OR sh.status = $2)
         """
     )
@@ -1209,6 +1257,7 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
                 NULL::text AS approval_idempotency_key, NULL::text AS create_idempotency_key,
                NULL::text AS pms_reservation_id, NULL::text AS voucher_no, approved_by, approved_at,
                NULL::timestamptz AS approval_decided_at, NULL::timestamptz AS payment_requested_at,
+               NULL::text AS last_failed_tool, NULL::text AS last_failed_error_type,
                created_at, conversation_id
         FROM restaurant_holds
         WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
@@ -1229,6 +1278,7 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
                 NULL::text AS approval_idempotency_key, NULL::text AS create_idempotency_key,
                NULL::text AS pms_reservation_id, NULL::text AS voucher_no, approved_by, approved_at,
                NULL::timestamptz AS approval_decided_at, NULL::timestamptz AS payment_requested_at,
+               NULL::text AS last_failed_tool, NULL::text AS last_failed_error_type,
                created_at, conversation_id
         FROM transfer_holds
         WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
