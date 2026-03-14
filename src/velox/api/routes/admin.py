@@ -1326,7 +1326,7 @@ async def approve_hold(
     request: Request,
     user: Annotated[TokenData, Depends(get_current_user)],
 ) -> dict[str, Any]:
-    """Approve hold and trigger approval webhook flow inside backend."""
+    """Approve hold and trigger approval/retry webhook flow inside backend."""
     _ = body
     check_permission(user, "holds:approve")
     _table, hold_type = _resolve_hold_target(hold_id)
@@ -1338,8 +1338,25 @@ async def approve_hold(
         row = await _fetch_hold_row(conn, hold_type, hold_id)
         if row is None:
             raise HTTPException(status_code=404, detail="Hold not found")
-        if row["status"] != HoldStatus.PENDING_APPROVAL:
-            raise HTTPException(status_code=409, detail=f"Hold is not pending approval (current: {row['status']})")
+        current_status = str(row["status"])
+        allowed_statuses = (
+            {
+                HoldStatus.PENDING_APPROVAL.value,
+                HoldStatus.APPROVED.value,
+                HoldStatus.MANUAL_REVIEW.value,
+                HoldStatus.PMS_FAILED.value,
+            }
+            if hold_type == "stay"
+            else {HoldStatus.PENDING_APPROVAL.value}
+        )
+        if current_status not in allowed_statuses:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Hold cannot be approved/retried in current status "
+                    f"(current: {current_status})"
+                ),
+            )
         if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
             raise HTTPException(status_code=403, detail="Access denied")
         effective_hotel_id = int(row["hotel_id"])

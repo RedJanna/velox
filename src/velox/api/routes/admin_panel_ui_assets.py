@@ -993,7 +993,7 @@ function renderHoldDetail(item) {
       ${formatHoldTimeline(item)}
     </div>
     <div class="dialog-actions hold-detail-actions mt-lg">
-      <button class="action-button primary" data-approve-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' holdunu onayla')}">Onayla</button>
+      <button class="action-button primary" data-approve-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' holdunu onayla')}" ${isHoldApproveActionable(item) ? '' : 'disabled'}>${escapeHtml(holdApproveButtonLabel(item))}</button>
       <button class="action-button danger" data-reject-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' holdunu reddet')}">Reddet</button>
     </div>
   `;
@@ -1144,6 +1144,21 @@ function holdTimelineLevel(item) {
   if (['MANUAL_REVIEW', 'PMS_FAILED', 'REJECTED'].includes(status)) return 'danger';
   if (['PMS_PENDING', 'PENDING_APPROVAL', 'PAYMENT_PENDING'].includes(status)) return 'warn';
   return 'done';
+}
+
+function isHoldApproveActionable(item) {
+  const holdType = String(item?.type || '').toLowerCase();
+  const status = String(item?.status || '').toUpperCase();
+  if (holdType === 'stay') {
+    return ['PENDING_APPROVAL', 'APPROVED', 'MANUAL_REVIEW', 'PMS_FAILED'].includes(status);
+  }
+  return status === 'PENDING_APPROVAL';
+}
+
+function holdApproveButtonLabel(item) {
+  const status = String(item?.status || '').toUpperCase();
+  if (['APPROVED', 'MANUAL_REVIEW', 'PMS_FAILED'].includes(status)) return 'Yeniden Dene';
+  return 'Onayla';
 }
 
 // Hold actions handled by delegated event listener (see bindDelegatedEvents)

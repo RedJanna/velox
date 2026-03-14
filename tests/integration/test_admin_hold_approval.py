@@ -106,3 +106,36 @@ async def test_admin_hold_approve_triggers_event_processor() -> None:
     assert event.approved_by_role == Role.ADMIN.value
     assert isinstance(event.timestamp, datetime)
     assert event.timestamp.tzinfo == UTC
+
+
+@pytest.mark.asyncio
+async def test_admin_hold_approve_allows_stay_retry_from_approved_status() -> None:
+    """Stay holds in APPROVED state should allow retrying PMS create flow."""
+    fake_conn = _FakeConnection()
+    fake_conn.hold_row["status"] = "APPROVED"
+    fake_processor = _FakeEventProcessor()
+    fake_request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                db_pool=_FakePool(fake_conn),
+                event_processor=fake_processor,
+            )
+        )
+    )
+    user = TokenData(
+        user_id=1,
+        hotel_id=21966,
+        username="ops_admin",
+        role=Role.ADMIN,
+        display_name="Ops Admin",
+    )
+
+    result = await admin.approve_hold(
+        hold_id="S_HOLD_0001",
+        body=admin.ApproveRequest(notes="retry"),
+        request=fake_request,
+        user=user,
+    )
+
+    assert result["status"] == "approved"
+    assert len(fake_processor.events) == 1
