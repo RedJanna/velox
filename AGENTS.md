@@ -1,7 +1,7 @@
 # Velox (NexlumeAI) — Codex Project Guide
 
-> **Sürüm:** v3.2 | **Son güncelleme:** 2026-03-14 14:35:58
-> **Değişiklik özeti:** Migration çalıştırma adımı manuel takipten otomasyon-first sürece taşındı.
+> **Sürüm:** v3.3 | **Son güncelleme:** 2026-03-14 14:48:46
+> **Değişiklik özeti:** Migration eksikliği durumunda LLM'in izin isteyerek tek satır operasyon komutu üretme/uygulama kuralı eklendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -145,6 +145,10 @@ This is mandatory — do NOT skip the commit step.
 - **Kural 3:** Lokal geliştirmede backend başlatmadan önce migration komutu çalıştırılır; manuel SQL komutu istisna/fallback olarak kalır.
 - **Kural 4:** CI/CD hattında migration kontrolü zorunludur; migration uygulanmadan deploy tamamlanmış sayılmaz.
 - **Kural 5:** Runtime'da migration eksikliği tespit edilirse endpoint 500 yerine anlamlı 503 + aksiyon mesajı döndürmelidir.
+- **Kural 6 (LLM operasyon davranışı):** Migration eksikliği hatasında LLM kullanıcıdan izin isteyip komutu kendisi uygular; kullanıcıyı uzun manuel adım listesiyle bırakmaz.
+- **Kural 7 (Tek satır komut standardı):** PowerShell/terminal satır bölünmesi kaynaklı hata riskine karşı migration komutları tek satır verilir. Çok satırlı örnek sadece açıkça istenirse paylaşılır.
+- **Kural 8 (İzin/escalation):** Komut sandbox veya yetki nedeniyle escalated izin gerektiriyorsa LLM doğrudan izin talebi açar; önce kullanıcıya uzun teknik açıklama gönderip beklemez.
+- **Kural 9 (Doğrulama sonrası adım):** Migration çalıştıktan sonra LLM standart olarak `app restart` + ilgili endpoint smoke check adımını önerir veya uygular.
 
 > **Standartlaştırma notu:** Projede bir migration wrapper komutu tanımlandığında AGENTS.md ve README aynı komutu referans almalıdır.
 
