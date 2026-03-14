@@ -1,192 +1,296 @@
-# Skill: Frontend Standards (Admin Panel)
+# Skill: Frontend Standards (Admin Panel & Chat Lab)
 
-> **Hiyerarşi:** Bu dosya `system_prompt_velox.md §0` hiyerarşisinde **Öncelik 3** seviyesindedir.
-> Güvenlik (`security_privacy.md`) ve kaynak doğrulama (`anti_hallucination.md`) kuralları bu dosyadan önce gelir.
+> **Hiyerarsi:** Bu dosya `system_prompt_velox.md` hiyerarsisinde **Oncelik 3** seviyesindedir.
+> Guvenlik (`security_privacy.md`) ve kaynak dogrulama (`anti_hallucination.md`) kurallari bu dosyadan once gelir.
 
-> Kod bilmeyen biri için benzetme: Bu doküman, admin panelinin **"iç mimar kılavuzu"**dur.
-> Her ekran aynı stilde, aynı malzemeyle, aynı düzenle yapılsın diye kurallar koyar.
-> Amaç: Panelin tutarlı, bakımı kolay ve güvenli olması.
-
----
-
-## 0) Bu dokümanın kapsamı
-
-- **Kapsam:** Velox Admin Panel (React/Next.js tabanlı web arayüzü)
-- **Kapsam dışı:** Backend API, WhatsApp mesaj formatı, LLM prompt kuralları
-- **İlişkili dosyalar:** `coding_standards.md` (backend), `security_privacy.md` (veri güvenliği)
+> Kod bilmeyen biri icin benzetme: Bu dokuman, admin panelinin **"ic mimar kilavuzu"**dur.
+> Her ekran ayni stilde, ayni malzemeyle, ayni duzenle yapilsin diye kurallar koyar.
+> Amac: Panelin tutarli, bakimi kolay ve guvenli olmasi.
 
 ---
 
-## 1) Tech Stack
+## 0) Bu dokumanin kapsami
+
+- **Kapsam:** Velox Admin Panel (`/admin`) ve Chat Lab (`/admin/chat-lab`) web arayuzleri
+- **Kapsam disi:** Backend API, WhatsApp mesaj formati, LLM prompt kurallari
+- **Iliskili dosyalar:** `coding_standards.md` (backend), `security_privacy.md` (veri guvenligi)
+
+---
+
+## 1) Mevcut Mimari
+
+Velox frontend'i **Python icine gomulu (embedded) HTML/CSS/JS** mimarisi kullanir.
+Bagimsiz bir frontend build pipeline'i yoktur; tum UI kodu FastAPI uygulamasinin parcasidir.
+
+### 1.1 Tech Stack (Mevcut)
 
 | Katman | Teknoloji | Not |
 |--------|-----------|-----|
-| Framework | React 18+ / Next.js | SPA veya SSR — proje kararına göre |
-| Dil | TypeScript (strict mode) | `any` tipi yasak |
-| Stil | Tailwind CSS | Ek özel CSS minimumda tutulur |
-| Component Library | Shadcn UI (Radix primitives) | Mevcut kütüphane varsa **onu kullan** |
-| State Management | React Context / Zustand | Basit state Context, karmaşık state Zustand |
-| HTTP Client | Axios veya fetch + wrapper | Backend API iletişimi |
-| Form | React Hook Form + Zod | Validasyon şeması Zod ile |
-| Tablo | TanStack Table | Sayfalama, sıralama, filtreleme |
+| Render | FastAPI `HTMLResponse` | Python f-string ile HTML assembly |
+| Dil | Vanilla JavaScript (ES2020+) | TypeScript yok, tip kontrolu yok |
+| Stil | Ozel CSS (CSS custom properties) | Tailwind yok, inline `<style>` bloklari |
+| Component | Yok (DOM manipulasyonu) | `innerHTML` template literal ile render |
+| State | Global `state` objesi | Framework yok, dogrudan mutation |
+| HTTP Client | Native `fetch` + wrapper (`apiFetch`) | Merkezi client, CSRF ve auth destekli |
+| Build | Yok | Minification, bundling, tree-shaking mevcut degil |
+
+### 1.2 Dosya Yapisi (Mevcut)
+
+```
+src/velox/api/routes/
+  admin_panel_ui.py          # Admin panel HTML iskeleti (~510 satir)
+  admin_panel_ui_assets.py   # Admin panel CSS + JS (~1620 satir)
+  test_chat_ui.py            # Chat Lab HTML iskeleti (~207 satir)
+  test_chat_ui_assets.py     # Chat Lab CSS + JS (~966 satir)
+```
+
+### 1.3 Mimari Kisitlar
+
+Bu gomulu mimari bilerek secilmistir: tek container, sifir npm bagimliligi, deployment basitligi.
+Ancak su kisitlamalari tasir:
+
+- Frontend kodu Python string literal'i icinde yasadigi icin IDE destegi (autocomplete, lint, format) zayiftir.
+- JS fonksiyonlari izole degildir; unit test yazmak zordur.
+- Dosya boyutlari buyudukce bakimi zorlasir.
 
 ---
 
 ## 2) Temel Kurallar
 
-### 2.1 Kütüphane Disiplini (KRİTİK)
-Projede bir UI kütüphanesi (Shadcn UI, Radix, MUI vb.) aktifse **onu kullanmak zorunludur**.
+### 2.1 XSS Korumasi (KRITIK)
 
-- Kütüphane sağlıyorsa modal, dropdown, button gibi bileşenleri **sıfırdan yazma**.
-- Gereksiz CSS ile kütüphane bileşenlerini **çoğaltma**.
-- **İstisna:** Kütüphane bileşenini sarmalayıp (wrap) stil verebilirsin, ama alttaki primitive kütüphaneden gelmeli.
+- Kullanicidan veya API'den gelen **her** degisken `escapeHtml()` fonksiyonu ile sanitize edilmelidir.
+- `innerHTML` ile render yaparken template literal icindeki **tum** degiskenler `escapeHtml()` ile sarilmalidir.
+- **Inline event handler yasaktir** (`onclick="fn()"` gibi). Tum event'ler `addEventListener` ile baglanmalidir.
+- URL parametreleri DOM'a yazilmadan once `encodeURIComponent` ile encode edilmelidir.
 
-**Benzetme:** Otel zaten hazır form kullanıyorsa, aynı bilgiyi toplayan ikinci bir form icat etme.
+**Benzetme:** Her musluktan gelen su filtrelenir — kaynagi ne olursa olsun.
 
-### 2.2 TypeScript Strict
-- `tsconfig.json`'da `strict: true` aktif olmalı.
-- `any` tipi **yasak** — `unknown` veya doğru tip kullan.
-- API response'ları Zod schema ile parse et, ham JSON'a güvenme.
+### 2.2 `escapeHtml` Kullanim Kurali
 
-**Benzetme:** Etiket olmadan kablo çekmek yasak — her kablonun tipi belli olmalı.
+```javascript
+// DOGRU: Her degisken escaped
+`<td>${escapeHtml(item.name)}</td>`
 
-### 2.3 Component Yapısı
-```
-src/
-├── components/
-│   ├── ui/              # Shadcn UI primitives (Button, Dialog, Input...)
-│   ├── layout/          # Header, Sidebar, PageLayout
-│   ├── features/        # İş mantığı bileşenleri (ReservationTable, GuestCard...)
-│   └── shared/          # Ortak (LoadingSpinner, ErrorBoundary, EmptyState...)
-├── pages/ veya app/     # Route bazlı sayfalar
-├── hooks/               # Custom hooks (useAuth, useHotelProfile...)
-├── lib/                 # Utility fonksiyonlar, API client
-├── types/               # TypeScript type tanımları
-└── stores/              # Zustand store'ları (gerekirse)
+// YANLIS: Degisken dogrudan yazilmis
+`<td>${item.name}</td>`
+
+// YASAK: Inline event handler
+`<button onclick="doSomething('${value}')">Tikla</button>`
+
+// DOGRU: Event delegation veya addEventListener
+button.addEventListener('click', () => doSomething(value));
 ```
 
-### 2.4 İsimlendirme
+### 2.3 State Yonetimi
 
-| Öğe | Kural | Örnek |
+- Her UI'nin tek bir `state` objesi vardir. Bu obje global scope'ta tanimlidir.
+- State degisiklikleri yalnizca ilgili `load*` veya `on*` fonksiyonlari icerisinde yapilir.
+- State'ten okuma yapan render fonksiyonlari (`render*`) state'i **degistirmez**, yalnizca DOM'u gunceller.
+- Yeni state alani eklendiginde `clearClientSession()` fonksiyonuna da eklenmesi gerekir.
+
+### 2.4 API Client Kurallari
+
+- Tum API cagrilari merkezi `apiFetch()` fonksiyonu uzerinden yapilir.
+- `apiFetch()` otomatik olarak:
+  - CSRF token ekler (unsafe method'larda)
+  - 401 durumunda token refresh dener
+  - Basarisiz refresh'te login ekranina yonlendirir
+- Dogrudan `fetch()` cagrisi **yasaktir** (tek istisna: `apiFetchFromAbsolute` gibi acikca tanimlanmis wrapper'lar).
+- Hata durumlarinda kullaniciya `notify()` ile toast gosterilir, teknik detay gosterilmez.
+
+### 2.5 Event Yonetimi
+
+- **Event delegation tercih edilir:** Tablo satirlarindaki butonlar icin her satirda ayri listener yerine, ust container'a tek listener baglanmalidir.
+- **Listener temizligi:** `bind*Actions()` fonksiyonlari her cagrildiginda eski listener'lar temizlenmelidir. `innerHTML` ile yeniden render edilen alanlarda listener zaten kaybolur, ancak `addEventListener` ile baglanan durable listener'lar icin dikkatli olunmalidir.
+- **Inline handler yasak:** `onclick`, `onchange` gibi HTML attribute event handler'lari kullanilmaz.
+
+### 2.6 Isimlendirme
+
+| Oge | Kural | Ornek |
 |-----|-------|-------|
-| Component dosyası | PascalCase | `ReservationTable.tsx` |
-| Component adı | PascalCase | `ReservationTable` |
-| Hook | camelCase, `use` prefix | `useReservations` |
-| Utility fonksiyon | camelCase | `formatCurrency` |
-| Sabitler | UPPER_SNAKE_CASE | `MAX_PAGE_SIZE` |
-| CSS class (Tailwind) | kebab-case | `bg-primary text-sm` |
-| API endpoint path | kebab-case | `/api/admin/hotel-profile` |
+| JS fonksiyon | camelCase | `loadConversations`, `renderHoldRows` |
+| JS sabit | UPPER_SNAKE_CASE | `API_ROOT`, `CSRF_COOKIE` |
+| CSS class | kebab-case | `module-card`, `empty-state` |
+| CSS degisken | `--` prefix, kebab-case | `--accent`, `--bg-2` |
+| HTML id | camelCase | `conversationTableBody`, `holdFilters` |
+| data attribute | kebab-case | `data-nav`, `data-approve-hold` |
+| Python fonksiyon | snake_case | `render_admin_panel_html` |
 
-### 2.5 Dosya Boyutu
-- Hedef: **300 satır/component dosyası** (backend'in 600 satır hedefinden farklı)
-- Aşılırsa: Alt bileşenlere böl, custom hook'a çıkar
-- **İstisna:** Büyük form bileşenleri (10+ alan) 400 satıra kadar tolere edilir
+### 2.7 Dosya Boyutu
 
-### 2.6 Prop Drilling Yasak
-- 3+ seviye prop geçirme yerine Context veya Zustand kullan
-- Her Context provider'ın kendi dosyası olsun (`AuthProvider.tsx`, `HotelProvider.tsx`)
+- **Hedef:** Assets dosyalari 1200 satiri asmamali.
+- **Asilarsa:** Ortak yardimci fonksiyonlari ayri bir shared module'e tasi.
+- **HTML iskeleti:** 600 satiri asmamali. Asilarsa section'lari ayri fonksiyonlara bol.
 
 ---
 
-## 3) Tasarım Felsefesi: "Bilinçli Minimalizm"
+## 3) Tasarim Felsefesi: "Bilinçli Minimalizm"
 
-- **Anti-Jenerik:** Standart "bootstrap" görünümünü reddet. Template gibi görünüyorsa yanlıştır.
-- **Özgünlük:** Bespoke layout, asimetri ve ayırt edici tipografi hedefle.
-- **"Neden" Faktörü:** Her elementi yerleştirmeden önce amacını hesapla. Amacı yoksa sil.
-- **Minimalizm:** Azaltma en yüksek zarafettir.
+- **Anti-Jenerik:** Standart "bootstrap" gorunumunu reddet. Template gibi gorunuyorsa yanlistir.
+- **Ozgunluk:** Bespoke layout, asimetri ve ayirt edici tipografi hedefle.
+- **"Neden" Faktoru:** Her elementi yerlestirmeden once amacini hesapla. Amaci yoksa sil.
+- **Minimalizm:** Azaltma en yuksek zarafettir.
 - **Micro-interactions:** Hover, focus, transition efektleri kaliteli olsun.
-- **Spacing:** Tutarlı spacing scale (Tailwind'in spacing sistemi).
+- **Spacing:** Tutarli spacing scale (CSS custom properties ile).
 
 ---
 
-## 4) Güvenlik (Frontend Özel)
+## 4) CSS Kurallari
 
-### 4.1 XSS Koruması
-- Kullanıcıdan gelen metni `dangerouslySetInnerHTML` ile **asla** render etme
-- Gerekli HTML render için DOMPurify kullan
-- URL parametrelerini doğrudan DOM'a yazmadan önce sanitize et
+### 4.1 Custom Properties (Zorunlu)
 
-### 4.2 Auth & Route Koruması
-- Admin panel rotaları `ProtectedRoute` wrapper ile korunsun
-- JWT token'ı `httpOnly` cookie'de saklanmalı (localStorage'da **değil**)
-- Token süresi dolunca kullanıcıyı login'e yönlendir
-- CSRF token backend'den alınıp isteklere eklensin
+- Tum renkler, olculer ve font'lar `:root` degiskenleri ile tanimlanir.
+- Yeni renk veya spacing eklerken once mevcut degiskenleri kontrol et; gereksiz yeni degisken olusturma.
+- Admin Panel ve Chat Lab **ayni degisken isimlerini kullanmalidir** (uyumluluk hedefi).
 
-### 4.3 Hassas Veri Gösterimi
-- Telefon numaraları admin panelde **maskelenmiş** gösterilir (son 4 hane hariç)
-- "Tam göster" butonu ile geçici olarak açılabilir (audit log'a düşmeli)
-- Kart/CVV/OTP bilgisi admin panelde **asla** gösterilmez
-- Console.log'da hassas veri yazdırmak **yasak** (production build'de log temizlenir)
+### 4.2 Inline Style Yasagi
 
-### 4.4 API İletişimi
-- Tüm API çağrıları merkezi bir client üzerinden yapılır (interceptor ile auth header eklenir)
-- Hata durumlarında kullanıcıya toast/notification gösterilir, teknik detay gösterilmez
-- Request/response interceptor'da hassas veri loglanmaz
+- `style="..."` HTML attribute'u **yalnizca** dinamik degerler icin (JS ile hesaplanan degerler) kullanilabilir.
+- Sabit gorunum degerleri (`margin-top:14px`, `min-width:240px` gibi) CSS class'i olarak tanimlanmalidir.
+- Yeni sabit gorunum ihtiyaci varsa, mevcut utility class'lari kontrol et veya yeni class ekle.
 
----
+### 4.3 Responsive Tasarim
 
-## 5) Erişilebilirlik (a11y)
+- En az uc breakpoint tanimli olmalidir: desktop (varsayilan), tablet (~1240px), mobil (~980px).
+- Tablolar dar ekranda yatay scroll veya kart gorunumune gecmelidir.
+- Sidebar mobilde collapse olmali, toggle butonu ile acilmalidir.
 
-- Tüm interactive elementlerde `aria-label` veya `aria-labelledby` olmalı
-- Keyboard navigation çalışmalı (Tab sırası mantıklı)
-- Renk kontrastı WCAG AA minimum (4.5:1 normal metin, 3:1 büyük metin)
-- Focus ring görünür olmalı (Tailwind `focus-visible:ring-2`)
-- Form hata mesajları `aria-describedby` ile input'a bağlanmalı
+### 4.4 `!important` Yasagi
+
+- `!important` yalnizca `[hidden]` ve `.hidden` gibi framework-level override'lar icin kullanilabilir.
+- Diger tum durumlarda spesifiklik ile cozum uretilmelidir.
 
 ---
 
-## 6) Performans
+## 5) Guvenlik (Frontend Ozel)
 
-- **Lazy loading:** Route-level code splitting (`React.lazy` / Next.js dynamic import)
-- **Memoization:** Pahalı hesaplamalar `useMemo`, callback'ler `useCallback` ile sarılır
-- **Re-render kontrolü:** React DevTools Profiler ile gereksiz render tespit edilir
-- **Image optimization:** Next.js `Image` component veya lazy load
-- **Bundle size:** Gereksiz kütüphane ekleme — her yeni bağımlılık PR'da gerekçelendirilmeli
+### 5.1 XSS Korumasi
+- `innerHTML` kullanilan her yerde tum degiskenler `escapeHtml()` ile sanitize edilir.
+- Inline event handler (`onclick`, `onchange`) **yasaktir** — `addEventListener` kullanilir.
+- URL parametreleri DOM'a yazilmadan once sanitize edilir.
 
----
+### 5.2 Auth & Route Korumasi
+- Admin panel JWT token'i `httpOnly` cookie'de saklanir (localStorage'da **degil**).
+- Token suresi dolunca otomatik refresh denenir; basarisizsa login ekranina yonlendirilir.
+- CSRF token her unsafe request'e (`POST`, `PUT`, `DELETE`) otomatik eklenir.
+- Chat Lab iframe icinde calistiginda, token `postMessage` ile gonderilir; origin kontrolu zorunludur.
 
-## 7) Hata Yönetimi (Frontend)
+### 5.3 Hassas Veri Gosterimi
+- Telefon numaralari admin panelde **maskelenmis** gosterilir (`phone_display` alani).
+- Kart/CVV/OTP bilgisi admin panelde **asla** gosterilmez.
+- `console.log`'da hassas veri yazdirmak **yasaktir**.
 
-- Her sayfa/route `ErrorBoundary` ile sarılmalı
-- API hata durumları:
-  - `401` → Login sayfasına yönlendir
-  - `403` → "Yetkiniz yok" mesajı
-  - `404` → "Bulunamadı" sayfası
-  - `500` → "Bir sorun oluştu, lütfen tekrar deneyin" (teknik detay yok)
-- Network hatası → "Bağlantı sorunu" toast mesajı
-- Form validation hataları inline gösterilmeli (submit sonrası değil, yazarken)
-
----
-
-## 8) Kesin Yasaklar (Kırmızı Çizgiler)
-
-- `any` tipi kullanma → doğru TypeScript tipi yaz
-- `dangerouslySetInnerHTML` direkt kullanma → sanitize et veya kaçın
-- JWT token'ı localStorage'da tutma → httpOnly cookie
-- Console.log'da hassas veri yazdırma
-- Kütüphane varken custom component yazma (modal, dropdown, tooltip, button)
-- Inline style kullanma (Tailwind varken)
-- `!important` kullanma (istisna: 3rd party override zorunluysa)
-- Prop drilling (3+ seviye)
-- Backend URL'yi koda gömme → env variable kullan
-- Tarihleri `new Date()` ile parse etme → `date-fns` veya `dayjs` kullan
+### 5.4 API Iletisimi
+- Tum API cagrilari merkezi `apiFetch()` uzerinden yapilir.
+- Hata durumlarinda kullaniciya toast/notification gosterilir, teknik detay gosterilmez.
+- API hata mesajlari `extractErrorMessage()` ile parse edilir; ham JSON kullaniciya yansitilmaz.
 
 ---
 
-## 9) Validation Checklist
+## 6) Erisilebilirlik (a11y)
 
-- [ ] TypeScript strict mode aktif, `any` yok
-- [ ] Tüm API çağrıları merkezi client üzerinden
-- [ ] Route koruması var (ProtectedRoute / auth guard)
-- [ ] JWT httpOnly cookie'de, localStorage'da değil
-- [ ] XSS koruması var (dangerouslySetInnerHTML yok veya sanitized)
-- [ ] CSRF token uygulanıyor
-- [ ] Hassas veri maskelenmiş gösteriliyor
-- [ ] Console.log'da hassas veri yok
-- [ ] ErrorBoundary her route'ta var
-- [ ] Component dosyaları hedef 300 satır altında
-- [ ] Erişilebilirlik: aria-label, keyboard nav, kontrast
-- [ ] Tailwind kullanılıyor, inline style yok
-- [ ] Kütüphane bileşenleri kullanılıyor (custom component gereksiz yere yok)
-- [ ] Lazy loading / code splitting aktif
-- [ ] Backend URL env variable'dan geliyor
+- Tum interactive elementlerde `aria-label` veya `aria-labelledby` olmalidir.
+- Navigasyon icin `<nav>` elementi `aria-label` ile etiketlenmelidir.
+- Keyboard navigation calismalidir (Tab sirasi mantikli).
+- Renk kontrasti WCAG AA minimum (4.5:1 normal metin, 3:1 buyuk metin).
+- Focus ring gorunur olmalidir (CSS `outline` veya `box-shadow` ile).
+- Form hata mesajlari `aria-describedby` ile input'a baglanmalidir.
+- Dialog/modal elemanlari `<dialog>` HTML elementi ile uygulanmalidir (mevcut durum uygun).
+
+---
+
+## 7) Hata Yonetimi (Frontend)
+
+- API hata durumlari:
+  - `401` -> Token refresh dene, basarisizsa login ekranina yonlendir
+  - `403` -> "Yetkiniz yok" toast mesaji
+  - `404` -> "Bulunamadi" empty state
+  - `500` -> "Bir sorun olustu, lutfen tekrar deneyin" (teknik detay yok)
+- Network hatasi -> "Baglanti sorunu" toast mesaji
+- Form validation hatalari `notify()` ile gosterilir; gerekce net ve Turkce olmalidir.
+- JSON parse hatalari icin kullaniciya anlasilir mesaj gosterilir (`Profile JSON parse edilemedi` gibi).
+
+---
+
+## 8) Dil ve Metin Tutarliligi
+
+### 8.1 Temel Kural
+- UI metinleri **Turkce** olarak yazilir.
+- Teknik terimler (Dashboard, Hold, Ticket, FAQ, Chat Lab) Turkce karsiliklarinin yaygin olmadigi durumlarda Ingilizce kalabilir, ancak **ayni terim her yerde ayni sekilde yazilir**.
+
+### 8.2 Karakter Kurali
+- HTML icindeki Turkce metinlerde ozel karakter (`i`, `s`, `g`, `u`, `o`, `c`) kullanilir.
+- Ancak **CSS class isimleri ve JS degisken isimleri** ASCII ile sinirli kalir.
+
+### 8.3 Tutarlilik Tablosu
+
+| Terim | Dogru Kullanim | Yanlis Kullanim |
+|-------|---------------|----------------|
+| Konusmalar | Konusmalar | Conversations |
+| Holdlar | Holdlar | Holds / Bekleyen Onaylar (karisik) |
+| Ticketlar | Ticketlar | Tickets / Talepler (karisik) |
+| Durum | Durum | Status (UI metninde) |
+| Aksiyon | Aksiyon | Action (UI metninde) |
+
+---
+
+## 9) Kesin Yasaklar (Kirmizi Cizgiler)
+
+1. `innerHTML` icinde `escapeHtml()` olmadan degisken yazmak -> **XSS riski**
+2. Inline event handler (`onclick`, `onchange`) kullanmak -> **addEventListener kullan**
+3. JWT token'i localStorage'da tutmak -> **httpOnly cookie**
+4. `console.log`'da hassas veri yazdirmak
+5. Dogrudan `fetch()` cagrisi yapmak (`apiFetch()` wrapper'i yerine)
+6. Ayni yardimci fonksiyonu birden fazla dosyada tekrar tanimlamak -> **shared module'e tasi**
+7. Backend URL'yi koda gommek -> `CONFIG` objesi veya env variable kullan
+8. `postMessage` gonderirken `'*'` origin kullanmak -> **`window.location.origin` kullan**
+9. CSS'de sabit deger icin inline `style="..."` kullanmak -> **CSS class tanimla**
+10. Event listener'lari temizlemeden yeniden bind etmek -> **delegation veya cleanup**
+
+---
+
+## 10) Validation Checklist
+
+Her frontend degisikligi sonrasi asagidaki kontrol uygulanir:
+
+- [ ] Tum `innerHTML` template'lerinde degiskenler `escapeHtml()` ile sarili
+- [ ] Inline event handler yok (onclick, onchange vb.)
+- [ ] API cagrilari `apiFetch()` uzerinden
+- [ ] JWT httpOnly cookie'de, localStorage'da degil
+- [ ] CSRF token unsafe method'larda gonderiliyor
+- [ ] Hassas veri maskelenmis gosteriliyor
+- [ ] `console.log`'da hassas veri yok
+- [ ] CSS custom properties kullaniliyor, hardcoded renk/font yok
+- [ ] Inline style yalnizca dinamik degerler icin (sabit degerler class'ta)
+- [ ] Event listener'lar temiz (delegation veya innerHTML ile yeniden render)
+- [ ] Toast mesajlari Turkce ve anlasilir
+- [ ] Empty state tasarimi mevcut (bos tablo, bos liste)
+- [ ] Responsive breakpoint'lar calisiyor (1240px, 980px)
+- [ ] `aria-label` interactive elementlerde mevcut
+- [ ] Yardimci fonksiyonlar tekrar tanimlanmamis (shared module'den import)
+
+---
+
+## 11) Gelecek Mimari Hedefi (Referans)
+
+Proje buyudukce asagidaki stack'e gecis planlanmaktadir.
+Bu bolum **mevcut kurallari gecersiz kilmaz**; yalnizca yol haritasi referansidir.
+
+| Katman | Hedef Teknoloji | Not |
+|--------|----------------|-----|
+| Framework | React 18+ / Next.js | SPA veya SSR |
+| Dil | TypeScript (strict mode) | `any` tipi yasak |
+| Stil | Tailwind CSS | Ozel CSS minimumda |
+| Component Library | Shadcn UI (Radix primitives) | Mevcut kutuphaneden faydalanilir |
+| State Management | React Context / Zustand | Basit state Context, karmasik state Zustand |
+| HTTP Client | Axios veya fetch + wrapper | Merkezi client |
+| Form | React Hook Form + Zod | Validasyon Zod ile |
+| Tablo | TanStack Table | Sayfalama, siralama, filtreleme |
+
+**Gecis kosullari:**
+- Frontend dosya boyutlari 2000+ satiri astiginda
+- Birden fazla bagimsiz frontend gelistirici calistiginda
+- Karmasik form akislari ve client-side routing ihtiyaci dogdugunda
+
+Bu gecis gerceklestiginde bu bolum "Mevcut Mimari" bolumunun yerine tasinir ve eski kurallar kaldirilir.
