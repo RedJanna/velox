@@ -1427,12 +1427,27 @@ def _should_auto_submit_stay_hold(internal_json: InternalJSON) -> bool:
     if state not in {"READY_FOR_TOOL", "NEEDS_CONFIRMATION", "PENDING_APPROVAL"}:
         return False
 
+    parsed_tool_calls = ResponseParser.extract_tool_calls(internal_json)
+    tool_names = {
+        str(item.get("name") or "").strip()
+        for item in parsed_tool_calls
+        if isinstance(item, dict)
+    }
+    if state in {"READY_FOR_TOOL", "PENDING_APPROVAL"} and (
+        "stay_create_hold" in tool_names or "approval_request" in tool_names
+    ):
+        return True
+
     next_step = _canonical_text(str(internal_json.next_step or ""))
     if not next_step:
-        return state in {"READY_FOR_TOOL", "NEEDS_CONFIRMATION"}
-    if "createstayhold" in next_step and "approval" in next_step:
+        return state == "READY_FOR_TOOL"
+    if "createstayhold" in next_step and ("approval" in next_step or "onay" in next_step):
         return True
-    return next_step in {"adminapprovalwait", "awaitadminapproval"}
+    if next_step in {"adminapprovalwait", "awaitadminapproval"}:
+        return True
+    if "adminapproval" in next_step or "adminonay" in next_step:
+        return True
+    return state == "READY_FOR_TOOL"
 
 
 def _resolve_requested_room_type_id(entities: dict[str, Any], profile: Any | None) -> int:
@@ -1706,7 +1721,7 @@ async def _run_message_pipeline(
         tools = get_tool_definitions()
         tool_executor = mock_tool_executor
         if dispatcher is not None:
-            tool_executor = _build_dispatcher_executor(dispatcher)
+            tool_executor = _build_dispatcher_executor(dispatcher, conversation)
         else:
             logger.warning("tool_dispatcher_missing_fallback_to_mock")
 
@@ -1762,6 +1777,29 @@ async def _run_message_pipeline(
             )
             if fallback_calls:
                 executed_calls.extend(fallback_calls)
+            else:
+                logger.warning(
+                    "stay_hold_submission_missing_after_pending_approval",
+                    conversation_id=str(conversation.id) if conversation.id is not None else None,
+                    state=str(parsed.internal_json.state or ""),
+                    next_step=str(parsed.internal_json.next_step or ""),
+                )
+                return LLMResponse(
+                    user_message=(
+                        "Talebinizi aldik ancak rezervasyon kaydini teknik olarak tamamlayamadik. "
+                        "Ekibimiz sizi manuel olarak en kisa surede bilgilendirecektir."
+                    ),
+                    internal_json=InternalJSON(
+                        language=language,
+                        intent="stay_booking_create",
+                        state="HANDOFF",
+                        entities=entities,
+                        required_questions=[],
+                        handoff={"needed": True, "reason": "stay_hold_submission_failed"},
+                        risk_flags=["TOOL_ERROR_REPEAT"],
+                        next_step="manual_review_required",
+                    ),
+                )
         if intent == "stay_quote" and language == "tr" and _executed_booking_quote(executed_calls):
             deterministic_messages = _build_deterministic_turkish_stay_quote_messages(
                 conversation.hotel_id,
@@ -1799,7 +1837,7 @@ async def _run_message_pipeline(
         )
 
 
-def _build_dispatcher_executor(dispatcher: Any) -> Any:
+def _build_dispatcher_executor(dispatcher: Any, conversation: Conversation | None = None) -> Any:
     """Wrap ToolDispatcher into the executor signature expected by LLMClient."""
 
     async def _execute(tool_name: str, tool_args: str | dict[str, Any]) -> str:
@@ -1812,6 +1850,23 @@ def _build_dispatcher_executor(dispatcher: Any) -> Any:
             parsed_args = tool_args
         else:
             parsed_args = {}
+
+        if conversation is not None:
+            parsed_args = dict(parsed_args)
+            if conversation.hotel_id and not parsed_args.get("hotel_id"):
+                parsed_args["hotel_id"] = conversation.hotel_id
+            if (
+                tool_name in {
+                    "stay_create_hold",
+                    "restaurant_create_hold",
+                    "transfer_create_hold",
+                    "handoff_create_ticket",
+                    "crm_log",
+                }
+                and conversation.id is not None
+                and not parsed_args.get("conversation_id")
+            ):
+                parsed_args["conversation_id"] = str(conversation.id)
 
         result = await dispatcher.dispatch(tool_name, **parsed_args)
         return orjson.dumps(result).decode()

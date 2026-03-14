@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 from typing import Any
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -378,6 +379,184 @@ async def test_run_message_pipeline_auto_submits_hold_when_pending_approval_admi
     )
 
     assert [item[0] for item in dispatcher.calls] == ["booking_quote", "stay_create_hold"]
+    assert result.internal_json.state == "PENDING_APPROVAL"
+    assert result.internal_json.next_step == "await_admin_approval"
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_auto_submits_hold_when_embedded_tool_calls_only_exist_in_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """HAR-style free-text admin approval next step should still create the real hold."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Tesekkur ederiz.\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"stay_booking_create","state":"PENDING_APPROVAL","entities":'
+            '{"checkin_date":"2026-10-01","checkout_date":"2026-10-02","adults":2,"chd_count":0,'
+            '"chd_ages":[],"room_type_id":2,"board_type_id":2,"currency":"EUR",'
+            '"cancel_policy_type":"NON_REFUNDABLE","guest_name":"Deneme Denndim",'
+            '"phone":"+905304498453","nationality":"TR"},'
+            '"required_questions":[],"tool_calls":[{"name":"stay_create_hold","status":"called"},'
+            '{"name":"approval_request","status":"called"}],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},'
+            '"next_step":"Admin approval bekleniyor; onay sonrasi NON_REFUNDABLE icin '
+            'payment_request_prepayment(NOW) tetiklenecek."}',
+            [],
+        )
+
+    class _Dispatcher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append((name, kwargs))
+            if name == "booking_quote":
+                return {
+                    "offers": [
+                        {
+                            "room_type_id": 396097,
+                            "board_type_id": 2,
+                            "rate_type_id": 24171,
+                            "rate_code_id": 301001,
+                            "price_agency_id": 11,
+                            "currency_code": "EUR",
+                            "price": "140",
+                            "discounted_price": "140",
+                            "rate_type": "Iptal Edilemez",
+                            "cancel_possible": False,
+                        }
+                    ]
+                }
+            if name == "stay_create_hold":
+                return {
+                    "stay_hold_id": "S_HOLD_9003",
+                    "status": "PENDING_APPROVAL",
+                    "approval_request_id": "APR_9003",
+                    "approval_status": "REQUESTED",
+                }
+            return {"error": "unexpected_tool"}
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    fake_profile = SimpleNamespace(
+        room_types=[
+            SimpleNamespace(
+                id=2,
+                pms_room_type_id=396097,
+                name=SimpleNamespace(tr="Superior", en="Superior"),
+            )
+        ],
+        rate_mapping={},
+    )
+    dispatcher = _Dispatcher()
+    conversation = Conversation(
+        id=uuid4(),
+        hotel_id=21966,
+        phone_hash="hash",
+        language="tr",
+    )
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: fake_profile)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="evet",
+        dispatcher=dispatcher,
+        expected_language="tr",
+    )
+
+    assert [item[0] for item in dispatcher.calls] == ["booking_quote", "stay_create_hold"]
+    assert dispatcher.calls[1][1]["conversation_id"] == str(conversation.id)
+    assert result.internal_json.state == "PENDING_APPROVAL"
+    assert result.internal_json.next_step == "await_admin_approval"
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_injects_context_into_llm_stay_hold_tool_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Live LLM tool calls should inherit hotel and conversation context automatically."""
+
+    draft = {
+        "checkin_date": "2026-10-01",
+        "checkout_date": "2026-10-02",
+        "room_type_id": 396097,
+        "board_type_id": 2,
+        "rate_type_id": 24171,
+        "rate_code_id": 301001,
+        "price_agency_id": 11,
+        "currency_display": "EUR",
+        "total_price_eur": 140,
+        "adults": 2,
+        "guest_name": "Deneme Denndim",
+        "phone": "+905304498453",
+        "cancel_policy_type": "NON_REFUNDABLE",
+        "notes": "Yok",
+    }
+
+    async def fake_run_tool_call_loop(*, tool_executor: Any, **_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        tool_result = await tool_executor("stay_create_hold", {"draft": draft})
+        return (
+            "Talebinizi aldik.\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"stay_booking_create","state":"PENDING_APPROVAL","entities":'
+            '{"checkin_date":"2026-10-01","checkout_date":"2026-10-02","adults":2,"chd_count":0,'
+            '"chd_ages":[],"room_type_id":2,"cancel_policy_type":"NON_REFUNDABLE",'
+            '"guest_name":"Deneme Denndim","phone":"+905304498453","nationality":"TR"},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},'
+            '"next_step":"await_admin_approval"}',
+            [
+                {
+                    "name": "stay_create_hold",
+                    "arguments": {"draft": draft},
+                    "result": tool_result,
+                }
+            ],
+        )
+
+    class _Dispatcher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append((name, kwargs))
+            return {
+                "stay_hold_id": "S_HOLD_9010",
+                "status": "PENDING_APPROVAL",
+                "approval_request_id": "APR_9010",
+                "approval_status": "REQUESTED",
+            }
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    conversation = Conversation(
+        id=uuid4(),
+        hotel_id=21966,
+        phone_hash="hash",
+        language="tr",
+    )
+    dispatcher = _Dispatcher()
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="evet",
+        dispatcher=dispatcher,
+        expected_language="tr",
+    )
+
+    assert dispatcher.calls[0][0] == "stay_create_hold"
+    assert dispatcher.calls[0][1]["hotel_id"] == 21966
+    assert dispatcher.calls[0][1]["conversation_id"] == str(conversation.id)
     assert result.internal_json.state == "PENDING_APPROVAL"
     assert result.internal_json.next_step == "await_admin_approval"
 

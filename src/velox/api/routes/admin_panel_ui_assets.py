@@ -199,6 +199,7 @@ const API_ROOT = '/api/v1/admin';
 const READY_URL = '/api/v1/health/ready';
 const HOTEL_KEY = 'velox.admin.hotel';
 const CSRF_COOKIE = 'velox_admin_csrf';
+const LIVE_REFRESH_INTERVAL_MS = 10000;
 
 const state = {
   me: null,
@@ -222,6 +223,7 @@ const state = {
   sessionStatus: null,
   sessionPreferences: null,
   refreshPromise: null,
+  liveRefreshHandle: null,
 };
 
 const refs = {};
@@ -683,6 +685,7 @@ function populateHotelSelectors() {
 }
 
 function showAuth() {
+  clearLiveRefresh();
   refs.authView.hidden = false;
   refs.panelView.hidden = true;
   refs.currentUser.textContent = 'Misafir değil, operasyon';
@@ -735,6 +738,30 @@ function setView(view) {
   if (view === 'notifications') loadNotifPhones();
   if (view === 'system') loadSystemOverview();
   if (view === 'chatlab') loadChatLab();
+  scheduleLiveRefresh();
+}
+
+function clearLiveRefresh() {
+  if (state.liveRefreshHandle) {
+    window.clearInterval(state.liveRefreshHandle);
+    state.liveRefreshHandle = null;
+  }
+}
+
+function scheduleLiveRefresh() {
+  clearLiveRefresh();
+  const refreshers = {
+    dashboard: async () => loadDashboard(),
+    holds: async () => {
+      await Promise.all([loadHolds(), loadDashboard()]);
+    },
+  };
+  const refresh = refreshers[state.currentView];
+  if (!refresh) return;
+  state.liveRefreshHandle = window.setInterval(() => {
+    if (document.hidden) return;
+    refresh().catch(() => {});
+  }, LIVE_REFRESH_INTERVAL_MS);
 }
 
 function onHotelScopeChange() {
