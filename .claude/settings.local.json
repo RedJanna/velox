@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker ps:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker compose:*)",
+      "Bash(find /c/Users/gonen/Desktop/velox/nexLume/velox -type f \\\\\\(-name nginx* -o -name *proxy* -o -name *router* \\\\\\))",
+      "Bash(find /c/Users/gonen/Desktop/velox/nexLume/velox -name *admin* -type f)",
+      "Bash(find /c/Users/gonen/Desktop/velox/nexLume/velox -name master_prompt* -type f)"
+    ]
+  }
+}

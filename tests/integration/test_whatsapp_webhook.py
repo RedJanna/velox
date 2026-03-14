@@ -3,9 +3,9 @@
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 from velox.adapters.whatsapp.webhook import IncomingMessage
 from velox.api.routes import whatsapp_webhook
@@ -13,27 +13,31 @@ from velox.models.conversation import Conversation
 
 
 @pytest.fixture
-def webhook_client(reset_whatsapp_webhook_state: None) -> TestClient:
+async def webhook_client(reset_whatsapp_webhook_state: None) -> httpx.AsyncClient:
     """Build lightweight app exposing only whatsapp webhook routes."""
+    _ = reset_whatsapp_webhook_state
     app = FastAPI()
     app.include_router(whatsapp_webhook.router, prefix="/api/v1")
     app.state.tool_dispatcher = None
     app.state.escalation_engine = None
     app.state.db_pool = None
-    return TestClient(app)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client
 
 
-def test_get_verification_correct_and_incorrect_tokens(
-    webhook_client: TestClient,
+@pytest.mark.asyncio
+async def test_get_verification_correct_and_incorrect_tokens(
+    webhook_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """GET verify endpoint should return challenge only for matching token."""
     monkeypatch.setattr(whatsapp_webhook.webhook_handler, "verify_token", "verify-123")
-    ok = webhook_client.get(
+    ok = await webhook_client.get(
         "/api/v1/webhook/whatsapp",
         params={"hub.mode": "subscribe", "hub.verify_token": "verify-123", "hub.challenge": "abc"},
     )
-    bad = webhook_client.get(
+    bad = await webhook_client.get(
         "/api/v1/webhook/whatsapp",
         params={"hub.mode": "subscribe", "hub.verify_token": "wrong", "hub.challenge": "abc"},
     )
@@ -42,8 +46,9 @@ def test_get_verification_correct_and_incorrect_tokens(
     assert bad.status_code == 403
 
 
-def test_post_with_valid_signature_message_accepted(
-    webhook_client: TestClient,
+@pytest.mark.asyncio
+async def test_post_with_valid_signature_message_accepted(
+    webhook_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Valid signature and parsed message should return accepted status."""
@@ -57,8 +62,8 @@ def test_post_with_valid_signature_message_accepted(
     )
     monkeypatch.setattr(whatsapp_webhook.webhook_handler, "validate_signature", lambda *_: True)
     monkeypatch.setattr(whatsapp_webhook.webhook_handler, "parse_message", lambda *_: incoming)
-    monkeypatch.setattr(whatsapp_webhook, "_schedule_background_task", lambda *args, **kwargs: None)
-    response = webhook_client.post(
+    monkeypatch.setattr(whatsapp_webhook, "_schedule_background_task", lambda *_args, **_kwargs: None)
+    response = await webhook_client.post(
         "/api/v1/webhook/whatsapp",
         json={"entry": [{"changes": [{"value": {}}]}]},
         headers={"X-Hub-Signature-256": "sha256=test"},
@@ -67,13 +72,14 @@ def test_post_with_valid_signature_message_accepted(
     assert response.json() == {"status": "accepted"}
 
 
-def test_post_with_invalid_signature_returns_403(
-    webhook_client: TestClient,
+@pytest.mark.asyncio
+async def test_post_with_invalid_signature_returns_403(
+    webhook_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Invalid signature should be rejected before payload processing."""
     monkeypatch.setattr(whatsapp_webhook.webhook_handler, "validate_signature", lambda *_: False)
-    response = webhook_client.post(
+    response = await webhook_client.post(
         "/api/v1/webhook/whatsapp",
         json={"entry": []},
         headers={"X-Hub-Signature-256": "sha256=bad"},
@@ -81,14 +87,15 @@ def test_post_with_invalid_signature_returns_403(
     assert response.status_code == 403
 
 
-def test_status_update_payload_returns_ok_without_processing(
-    webhook_client: TestClient,
+@pytest.mark.asyncio
+async def test_status_update_payload_returns_ok_without_processing(
+    webhook_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Status payloads (no user message) should return ok."""
     monkeypatch.setattr(whatsapp_webhook.webhook_handler, "validate_signature", lambda *_: True)
     monkeypatch.setattr(whatsapp_webhook.webhook_handler, "parse_message", lambda *_: None)
-    response = webhook_client.post(
+    response = await webhook_client.post(
         "/api/v1/webhook/whatsapp",
         json={"entry": [{"changes": [{"value": {"statuses": [{"status": "delivered"}]}}]}]},
         headers={"X-Hub-Signature-256": "sha256=test"},
@@ -97,8 +104,9 @@ def test_status_update_payload_returns_ok_without_processing(
     assert response.json() == {"status": "ok"}
 
 
-def test_deduplication_of_repeated_webhooks(
-    webhook_client: TestClient,
+@pytest.mark.asyncio
+async def test_deduplication_of_repeated_webhooks(
+    webhook_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Repeated webhook with same message id should be ignored on second call."""
@@ -116,14 +124,14 @@ def test_deduplication_of_repeated_webhooks(
 
     monkeypatch.setattr(whatsapp_webhook.webhook_handler, "validate_signature", lambda *_: True)
     monkeypatch.setattr(whatsapp_webhook.webhook_handler, "parse_message", _parse)
-    monkeypatch.setattr(whatsapp_webhook, "_schedule_background_task", lambda *args, **kwargs: None)
+    monkeypatch.setattr(whatsapp_webhook, "_schedule_background_task", lambda *_args, **_kwargs: None)
 
-    first = webhook_client.post(
+    first = await webhook_client.post(
         "/api/v1/webhook/whatsapp",
         json={"entry": [{"changes": [{"value": {}}]}]},
         headers={"X-Hub-Signature-256": "sha256=test"},
     )
-    second = webhook_client.post(
+    second = await webhook_client.post(
         "/api/v1/webhook/whatsapp",
         json={"entry": [{"changes": [{"value": {}}]}]},
         headers={"X-Hub-Signature-256": "sha256=test"},
@@ -143,10 +151,41 @@ def test_child_quote_mismatch_creates_manual_verification_response() -> None:
             "result": '{"error":"CHILD_OCCUPANCY_UNVERIFIED: PMS quote did not reflect requested child occupancy.","tool":"booking_quote"}',
         }
     ]
-    response = whatsapp_webhook._build_child_quote_handoff_response(executed_calls)
+    response = whatsapp_webhook._build_child_quote_handoff_response(21966, executed_calls)
     assert response.internal_json.state == "HANDOFF"
     assert response.internal_json.entities["chd_count"] == 1
     assert "Çocuklu konaklamalarda" in response.user_message
+
+
+def test_child_quote_mismatch_over_capacity_requests_room_split(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Over-capacity mismatch should ask room split instead of immediate handoff."""
+    profile = SimpleNamespace(
+        room_types=[
+            SimpleNamespace(pms_room_type_id=396094, name=SimpleNamespace(tr="Deluxe"), max_pax=4),
+            SimpleNamespace(pms_room_type_id=396096, name=SimpleNamespace(tr="Premium"), max_pax=4),
+        ]
+    )
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: profile)
+
+    executed_calls = [
+        {
+            "name": "booking_availability",
+            "result": '{"rows":[{"room_type_id":396094,"room_to_sell":2,"stop_sell":false},{"room_type_id":396096,"room_to_sell":1,"stop_sell":false}]}',
+        },
+        {
+            "name": "booking_quote",
+            "arguments": '{"checkin_date":"2026-08-20","checkout_date":"2026-08-22","adults":4,"chd_count":2,"chd_ages":[15,13],"currency":"EUR"}',
+            "result": '{"error":"CHILD_OCCUPANCY_UNVERIFIED: PMS quote did not reflect requested child occupancy.","tool":"booking_quote"}',
+        },
+    ]
+
+    response = whatsapp_webhook._build_child_quote_handoff_response(21966, executed_calls)
+    assert response.internal_json.state == "NEEDS_VERIFICATION"
+    assert response.internal_json.intent == "stay_availability"
+    assert response.internal_json.handoff == {"needed": False, "reason": None}
+    assert "2 oda" in response.user_message
+    assert "Deluxe" in response.user_message
+    assert "Premium" in response.user_message
 
 
 def test_quote_notes_only_added_when_booking_quote_was_executed() -> None:
@@ -156,6 +195,106 @@ def test_quote_notes_only_added_when_booking_quote_was_executed() -> None:
 
     assert whatsapp_webhook._executed_booking_quote(no_quote_calls) is False
     assert whatsapp_webhook._executed_booking_quote(with_quote_calls) is True
+
+
+def test_stay_hold_submission_detects_embedded_approval_request_id() -> None:
+    """stay_create_hold tool result should count as approval when id is present."""
+    executed_calls = [
+        {
+            "name": "stay_create_hold",
+            "result": {"stay_hold_id": "S_HOLD_9001", "approval_request_id": "APR_9001"},
+        }
+    ]
+    assert whatsapp_webhook._executed_stay_hold_submission(executed_calls) is True
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_auto_submits_hold_when_next_step_requires_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pipeline should create hold via fallback when LLM misses explicit tool calls."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Rezervasyon talebinizi isleme aliyorum.\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"stay_booking_create","state":"READY_FOR_TOOL","entities":'
+            '{"checkin_date":"2026-10-01","checkout_date":"2026-10-02","adults":2,"chd_count":0,'
+            '"chd_ages":[],"guest_name":"Deneme Denndim","phone":"+909304498453",'
+            '"room_type_id":2,"board_type_id":2,"cancel_policy_type":"NON_REFUNDABLE",'
+            '"currency":"EUR","nationality":"TR"},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},'
+            '"next_step":"Create stay hold and request ADMIN approval"}',
+            [],
+        )
+
+    class _Dispatcher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append((name, kwargs))
+            if name == "booking_quote":
+                return {
+                    "offers": [
+                        {
+                            "room_type_id": 396097,
+                            "board_type_id": 2,
+                            "rate_type_id": 24171,
+                            "rate_code_id": 301001,
+                            "price_agency_id": 11,
+                            "currency_code": "EUR",
+                            "price": "140",
+                            "discounted_price": "140",
+                            "rate_type": "Iptal Edilemez",
+                            "cancel_possible": False,
+                        }
+                    ]
+                }
+            if name == "stay_create_hold":
+                draft = kwargs.get("draft", {})
+                assert draft.get("room_type_id") == 396097
+                assert draft.get("cancel_policy_type") == "NON_REFUNDABLE"
+                return {
+                    "stay_hold_id": "S_HOLD_9001",
+                    "status": "PENDING_APPROVAL",
+                    "approval_request_id": "APR_9001",
+                    "approval_status": "REQUESTED",
+                }
+            return {"error": "unexpected_tool"}
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    fake_profile = SimpleNamespace(
+        room_types=[
+            SimpleNamespace(
+                id=2,
+                pms_room_type_id=396097,
+                name=SimpleNamespace(tr="Superior", en="Superior"),
+            )
+        ],
+        rate_mapping={},
+    )
+    dispatcher = _Dispatcher()
+    conversation = Conversation(hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: fake_profile)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="Iptal edilemez secenegiyle devam edelim",
+        dispatcher=dispatcher,
+        expected_language="tr",
+    )
+
+    assert [item[0] for item in dispatcher.calls] == ["booking_quote", "stay_create_hold"]
+    assert result.internal_json.state == "PENDING_APPROVAL"
+    assert result.internal_json.next_step == "await_admin_approval"
+    assert "Rezervasyon talebinizi aldik" in result.user_message
 
 
 def test_child_bedding_reply_uses_profile_policy(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -227,6 +366,49 @@ def test_payment_reply_uses_profile_policy(monkeypatch: pytest.MonkeyPatch) -> N
     reply = whatsapp_webhook._build_turkish_payment_methods_reply(21966)
 
     assert "nakit ve havale kabul ediyoruz" in reply
+
+
+def test_payment_intake_requests_reference_and_name_before_handoff() -> None:
+    """Payment messages should collect minimum info before human handoff."""
+    conversation = Conversation(hotel_id=21966, phone_hash="hash", language="tr")
+    response = whatsapp_webhook._build_payment_intake_response(
+        conversation=conversation,
+        normalized_text="odeme yapmak istiyorum",
+        target_language="tr",
+    )
+
+    assert response is not None
+    assert response.internal_json.state == "NEEDS_VERIFICATION"
+    assert response.internal_json.intent == "payment_inquiry"
+    assert "reference_id" in response.internal_json.required_questions
+    assert "full_name" in response.internal_json.required_questions
+    assert "Odeme ekibimize yonlendirebilmem" in response.user_message
+
+
+def test_payment_intake_completes_then_routes_to_handoff() -> None:
+    """Once intake fields exist, payment flow should move to HANDOFF."""
+    conversation = Conversation(
+        hotel_id=21966,
+        phone_hash="hash",
+        language="tr",
+        entities_json={
+            "payment_intake": {
+                "in_progress": True,
+                "reference_id": "S_HOLD_1234",
+                "full_name": "Ali Veli",
+            }
+        },
+    )
+    response = whatsapp_webhook._build_payment_intake_response(
+        conversation=conversation,
+        normalized_text="detaylari ilettim",
+        target_language="tr",
+    )
+
+    assert response is not None
+    assert response.internal_json.state == "HANDOFF"
+    assert response.internal_json.handoff["needed"] is True
+    assert "PAYMENT_CONFUSION" in response.internal_json.risk_flags
 
 
 def test_elevator_reply_uses_profile_policy_for_russian(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -357,6 +539,95 @@ def test_deterministic_turkish_quote_reply_uses_live_rate_types(monkeypatch: pyt
     assert "Superior (30m2)" in reply
     assert "Exclusive Sokak Manzaralı (40m2)" in reply
     assert "Kontrat" not in reply
+
+
+def test_deterministic_turkish_quote_reply_formats_multi_room_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Different occupancies should be rendered as separate customer messages."""
+    profile = SimpleNamespace(
+        rate_mapping={
+            "FREE_CANCEL": SimpleNamespace(rate_type_id=24178),
+            "NON_REFUNDABLE": SimpleNamespace(rate_type_id=24171),
+        },
+        room_types=[
+            SimpleNamespace(pms_room_type_id=396094, name=SimpleNamespace(tr="Deluxe"), size_m2=25),
+            SimpleNamespace(pms_room_type_id=396097, name=SimpleNamespace(tr="Superior"), size_m2=30),
+        ],
+    )
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: profile)
+
+    executed_calls = [
+        {
+            "name": "booking_quote",
+            "arguments": '{"adults":3,"chd_count":0}',
+            "result": (
+                '{"offers":['
+                '{"room_type_id":396094,"room_type":"DELUXE","rate_type_id":24171,"rate_type":"İptal Edilemez","price":"500","discounted_price":"500","currency_code":"EUR","room_area":25,"cancel_possible":false},'
+                '{"room_type_id":396094,"room_type":"DELUXE","rate_type_id":24178,"rate_type":"Ücretsiz İptal","price":"550","discounted_price":"550","currency_code":"EUR","room_area":25,"cancel_possible":true}'
+                ']}'
+            ),
+        },
+        {
+            "name": "booking_quote",
+            "arguments": '{"adults":1,"chd_count":2}',
+            "result": (
+                '{"offers":['
+                '{"room_type_id":396097,"room_type":"SUPERIOR","rate_type_id":24171,"rate_type":"İptal Edilemez","price":"600","discounted_price":"600","currency_code":"EUR","room_area":30,"cancel_possible":false},'
+                '{"room_type_id":396097,"room_type":"SUPERIOR","rate_type_id":24178,"rate_type":"Ücretsiz İptal","price":"650","discounted_price":"650","currency_code":"EUR","room_area":30,"cancel_possible":true}'
+                ']}'
+            ),
+        },
+    ]
+
+    messages = whatsapp_webhook._build_deterministic_turkish_stay_quote_messages(21966, executed_calls)
+
+    assert len(messages) == 2
+    assert messages[0].startswith("1. Oda")
+    assert messages[1].startswith("2. Oda")
+    assert "Deluxe (25m2)" in messages[0]
+    assert "Superior (30m2)" in messages[1]
+
+
+def test_deterministic_turkish_quote_reply_merges_same_occupancy_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """FREE_CANCEL and NON_REFUNDABLE calls for same room request must merge into one message."""
+    profile = SimpleNamespace(
+        rate_mapping={
+            "FREE_CANCEL": SimpleNamespace(rate_type_id=24178),
+            "NON_REFUNDABLE": SimpleNamespace(rate_type_id=24171),
+        },
+        room_types=[
+            SimpleNamespace(pms_room_type_id=396094, name=SimpleNamespace(tr="Deluxe"), size_m2=25),
+        ],
+    )
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: profile)
+
+    executed_calls = [
+        {
+            "name": "booking_quote",
+            "arguments": '{"checkin_date":"2026-04-21","checkout_date":"2026-04-22","adults":1,"chd_count":0}',
+            "result": (
+                '{"offers":['
+                '{"room_type_id":396094,"room_type":"DELUXE","rate_type_id":24171,"rate_type":"İptal Edilemez","price":"85","discounted_price":"85","currency_code":"EUR","room_area":25,"cancel_possible":false}'
+                ']}'
+            ),
+        },
+        {
+            "name": "booking_quote",
+            "arguments": '{"checkin_date":"2026-04-21","checkout_date":"2026-04-22","adults":1,"chd_count":0}',
+            "result": (
+                '{"offers":['
+                '{"room_type_id":396094,"room_type":"DELUXE","rate_type_id":24178,"rate_type":"Ücretsiz İptal","price":"90","discounted_price":"90","currency_code":"EUR","room_area":25,"cancel_possible":true}'
+                ']}'
+            ),
+        },
+    ]
+
+    messages = whatsapp_webhook._build_deterministic_turkish_stay_quote_messages(21966, executed_calls)
+
+    assert len(messages) == 1
+    assert "1. Oda" not in messages[0]
+    assert "2026-04-21 - 2026-04-22 tarihleri arasında 1 gece" in messages[0]
+    assert "İptal edilemez: 85 €" in messages[0]
+    assert "Ücretsiz İptal: 90 €" in messages[0]
 
 
 def test_normalized_turkish_quote_reply_keeps_notes_single() -> None:

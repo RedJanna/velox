@@ -1,0 +1,235 @@
+schema_version: chat_lab_feedback.v1
+feedback_id: fb_20260313_184216_971446
+status: new
+approved_example: true
+created_at: '2026-03-13T18:42:16.971637+00:00'
+rating: 5
+rating_label: Mukemmel
+category: approved_example
+category_label: Ozel Kategori
+tags: []
+gold_standard: null
+notes: null
+source_type: live_test_chat
+storage_group: good_feedback
+input: 'Merhaba,
+
+
+  20.08.2026 – 22.08.2026 tarihleri arasında konaklama için müsaitlik sormak istiyorum.
+
+  Toplam 6 kişi olacağız:
+
+  4 yetişkin
+
+  2 çocuk (15 ve 13 yaşlarında)
+
+
+  Bu tarihler için uygun oda veya aile odası var mı?
+
+  Mümkünse fiyat bilgisi ve oda seçeneklerini de paylaşabilir misiniz?
+
+
+  Teşekkür ederim.
+
+  Işıl'
+output: "Işıl Hanım merhaba \U0001F33F  \n\n20.08.2026 – 22.08.2026 (2 gece) tarihleri için  \n4 yetişkin + 2 çocuk (15 ve 13 yaş) konaklamanıza uygun müsaitliğimizi kontrol ettim.\n\nOtelimizde maksimum kapasite oda başı 4 kişidir.  \nBu nedenle 6 kişi için **tek bir aile odası** yerine **2 oda** planlamamız gerekmektedir.\n\nBu tarihlerde aşağıdaki oda tiplerimiz müsait görünmektedir:\n\n• Exclusive Pool  \n• Penthouse  \n• Exclusive Land  \n• Premium  \n\nSizin için en uygun kombinasyonu netleştirebilmem adına küçük bir bilgi rica edeceğim:\n\n\U0001F449 2 oda şeklinde konaklamayı kabul eder misiniz?  \n\U0001F449 Oda dağılımı nasıl olsun istersiniz? (Örn: 3+3 ya da 2+2+2 şeklinde bağlantılı oda talebi gibi)\n\nOnayınızla birlikte 4 yetişkin + 2 çocuk konfigürasyonuna göre toplam fiyatları (hem **İptal edilemez** hem **Ücretsiz İptal** seçenekleriyle birlikte) detaylı olarak paylaşacağım.\n\nMemnuniyetle yardımcı olurum \U0001F338"
+conversation_id: 583c1910-c95b-4241-b1b3-d0a83e1b7a72
+assistant_message_id: 19f7434c-e7a0-4500-a3f8-4e60957c9cc6
+timestamp: '2026-03-13T18:39:30.822616+00:00'
+language: tr
+intent: stay_availability
+state: NEEDS_VERIFICATION
+risk_flags: []
+tool_calls: []
+model: gpt-5.2-chat-latest
+excerpt:
+- id: b01e49ae-965d-46ab-b5ca-761c546f5567
+  role: user
+  content: merhaba
+  created_at: '2026-03-13T18:39:10.633420+00:00'
+  internal_json:
+    route_audit:
+      route: /api/v1/test/chat
+      received_at: '2026-03-13T18:39:10.633282+00:00'
+    source_type: live_test_chat
+- id: 87235d6e-7d6f-467d-9a07-b3355bcbcfd9
+  role: user
+  content: merhaba
+  created_at: '2026-03-13T18:39:10.663617+00:00'
+  internal_json:
+    route_audit:
+      route: /api/v1/test/chat
+      received_at: '2026-03-13T18:39:10.663511+00:00'
+    source_type: live_test_chat
+- id: ff09153a-418f-4d86-920d-fe58e7178d3c
+  role: assistant
+  content: "Merhaba! \U0001F33F  \nKassandra Oludeniz’e hoş geldiniz.\n\nSize nasıl yardımcı olabilirim? Oda rezervasyonu, fiyat bilgisi, transfer ya da restoran için destek sağlayabilirim."
+  created_at: '2026-03-13T18:39:13.525077+00:00'
+  internal_json:
+    state: GREETING
+    intent: greeting
+    handoff:
+      needed: false
+      reason: null
+      ticket_id: null
+    entities: {}
+    language: tr
+    next_step: Misafirin niyetini belirle (konaklama, restoran, transfer, vb.).
+    escalation:
+      level: L0
+      reason: null
+      sla_hint: low
+      dedupe_key: null
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls: []
+    notifications: []
+    required_questions: []
+- id: 3acbf3c4-9270-490b-afe6-0601ee8a8027
+  role: assistant
+  content: "Merhaba! \U0001F33F  \nKassandra Oludeniz’e hoş geldiniz.\n\nSize nasıl yardımcı olabilirim?  \nOda rezervasyonu, fiyat bilgisi, transfer ya da restoran için destek verebilirim."
+  created_at: '2026-03-13T18:39:13.775231+00:00'
+  internal_json:
+    state: GREETING
+    intent: greeting
+    handoff:
+      needed: false
+      reason: ''
+    entities: {}
+    language: tr
+    next_step: Kullanici niyetini belirtmeli (konaklama, restoran, transfer vb.).
+    escalation:
+      level: L0
+      reason: ''
+      sla_hint: low
+      dedupe_key: ''
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls: []
+    notifications: []
+    required_questions: []
+- id: eb3d2779-74ff-4684-9e64-ff60d26b7772
+  role: user
+  content: 'Merhaba,
+
+
+    20.08.2026 – 22.08.2026 tarihleri arasında konaklama için müsaitlik sormak istiyorum.
+
+    Toplam 6 kişi olacağız:
+
+    4 yetişkin
+
+    2 çocuk (15 ve 13 yaşlarında)
+
+
+    Bu tarihler için uygun oda veya aile odası var mı?
+
+    Mümkünse fiyat bilgisi ve oda seçeneklerini de paylaşabilir misiniz?
+
+
+    Teşekkür ederim.
+
+    Işıl'
+  created_at: '2026-03-13T18:39:19.529055+00:00'
+  internal_json:
+    route_audit:
+      route: /api/v1/test/chat
+      received_at: '2026-03-13T18:39:19.528954+00:00'
+    source_type: live_test_chat
+- id: 2a174897-da2c-4979-a18b-a9d1dbc6c8af
+  role: user
+  content: 'Merhaba,
+
+
+    20.08.2026 – 22.08.2026 tarihleri arasında konaklama için müsaitlik sormak istiyorum.
+
+    Toplam 6 kişi olacağız:
+
+    4 yetişkin
+
+    2 çocuk (15 ve 13 yaşlarında)
+
+
+    Bu tarihler için uygun oda veya aile odası var mı?
+
+    Mümkünse fiyat bilgisi ve oda seçeneklerini de paylaşabilir misiniz?
+
+
+    Teşekkür ederim.
+
+    Işıl'
+  created_at: '2026-03-13T18:39:19.529487+00:00'
+  internal_json:
+    route_audit:
+      route: /api/v1/test/chat
+      received_at: '2026-03-13T18:39:19.529364+00:00'
+    source_type: live_test_chat
+- id: ee681516-8485-429f-b843-e206ab827b61
+  role: assistant
+  content: "Merhaba Işıl Hanım \U0001F33F  \n\nİlginiz için çok teşekkür ederiz.\n\nBelirtmiş olduğunuz tarihler (20.08.2026 – 22.08.2026) için toplam **6 kişi (4 yetişkin + 15 ve 13 yaşlarında 2 çocuk)** konaklama talebinizi memnuniyetle kontrol edebilirim.\n\nOtelimizde odalarımızın maksimum kapasitesi **4 kişiye kadar** olduğu için size en uygun opsiyonu netleştirebilmem adına küçük bir bilgi rica edeceğim:\n\n\U0001F539 **Tek büyük oda mı tercih edersiniz (müsaitlik durumuna göre 4 kişilik + ek oda şeklinde)?**  \n\U0001F539 Yoksa **2 ayrı oda (örneğin 3+3 veya 4+2 kişi)** şeklinde mi düşünüyorsunuz?\n\nTercihinizi paylaşırsanız, hemen müsaitlik ve her oda tipi için fiyat seçeneklerini (İptal edilemez & Ücretsiz İptal alternatifleriyle birlikte) detaylı şekilde ileteceğim.  \n\nSevgilerimizle \U0001F338  \nKassandra Oludeniz"
+  created_at: '2026-03-13T18:39:29.690482+00:00'
+  internal_json:
+    state: NEEDS_VERIFICATION
+    intent: stay_availability
+    handoff:
+      needed: false
+      reason: ''
+    entities:
+      adults: 4
+      chd_ages:
+      - 15
+      - 13
+      currency: EUR
+      chd_count: 2
+      nationality: TR
+      checkin_date: '2026-08-20'
+      checkout_date: '2026-08-22'
+    language: tr
+    next_step: Oda dağılım tercihi alındıktan sonra booking.availability ve booking.quote çağrılacak.
+    escalation:
+      level: L0
+      reason: ''
+      sla_hint: low
+      dedupe_key: ''
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls: []
+    notifications: []
+    required_questions:
+    - Toplam 6 kişi için oda dağılım tercihi nedir? (tek oda + ek oda mı, 2 ayrı oda mı?)
+- id: 19f7434c-e7a0-4500-a3f8-4e60957c9cc6
+  role: assistant
+  content: "Işıl Hanım merhaba \U0001F33F  \n\n20.08.2026 – 22.08.2026 (2 gece) tarihleri için  \n4 yetişkin + 2 çocuk (15 ve 13 yaş) konaklamanıza uygun müsaitliğimizi kontrol ettim.\n\nOtelimizde maksimum kapasite oda başı 4 kişidir.  \nBu nedenle 6 kişi için **tek bir aile odası** yerine **2 oda** planlamamız gerekmektedir.\n\nBu tarihlerde aşağıdaki oda tiplerimiz müsait görünmektedir:\n\n• Exclusive Pool  \n• Penthouse  \n• Exclusive Land  \n• Premium  \n\nSizin için en uygun kombinasyonu netleştirebilmem adına küçük bir bilgi rica edeceğim:\n\n\U0001F449 2 oda şeklinde konaklamayı kabul eder misiniz?  \n\U0001F449 Oda dağılımı nasıl olsun istersiniz? (Örn: 3+3 ya da 2+2+2 şeklinde bağlantılı oda talebi gibi)\n\nOnayınızla birlikte 4 yetişkin + 2 çocuk konfigürasyonuna göre toplam fiyatları (hem **İptal edilemez** hem **Ücretsiz İptal** seçenekleriyle birlikte) detaylı olarak paylaşacağım.\n\nMemnuniyetle yardımcı olurum \U0001F338"
+  created_at: '2026-03-13T18:39:30.822616+00:00'
+  internal_json:
+    state: NEEDS_VERIFICATION
+    intent: stay_availability
+    handoff:
+      needed: false
+      reason: null
+      ticket_id: null
+    entities:
+      adults: 4
+      chd_ages:
+      - 15
+      - 13
+      currency: EUR
+      chd_count: 2
+      checkin_date: '2026-08-20'
+      checkout_date: '2026-08-22'
+    language: tr
+    next_step: Oda dağılımı netleştikten sonra her oda için booking_quote çağrısı yapıp iki iptal politikasıyla fiyat sunmak.
+    escalation:
+      level: L0
+      reason: null
+      sla_hint: low
+      dedupe_key: null
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls:
+    - tool: booking_availability
+      status: completed
+    notifications: []
+    required_questions:
+    - Oda dağılım tercihi (2 oda kabulü ve kişi dağılımı)
+source_file: null

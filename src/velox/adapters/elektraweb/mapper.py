@@ -142,7 +142,37 @@ def parse_quote(raw: dict | list) -> QuoteResponse:
 def parse_reservation_create(raw: dict) -> ReservationResponse:
     """Parse raw reservation creation response."""
     normalized = normalize_keys(raw)
-    return ReservationResponse(**normalized)
+    if isinstance(normalized, dict):
+        row_data = normalized.get("row")
+        row_id = row_data.get("id") if isinstance(row_data, dict) else None
+        reservation_id = str(
+            normalized.get("reservation_id")
+            or normalized.get("resid")
+            or normalized.get("primary_key")
+            or row_id
+            or ""
+        )
+        voucher_no = str(
+            normalized.get("voucher_no")
+            or normalized.get("voucher")
+            or normalized.get("voucherno")
+            or ""
+        )
+        state = str(normalized.get("state") or normalized.get("status") or normalized.get("message") or "")
+        confirmation_url_raw = normalized.get("confirmation_url")
+        confirmation_url = str(confirmation_url_raw) if isinstance(confirmation_url_raw, str) else None
+        return ReservationResponse(
+            reservation_id=reservation_id,
+            voucher_no=voucher_no,
+            confirmation_url=confirmation_url,
+            state=state,
+        )
+
+    if isinstance(normalized, list) and normalized:
+        first = normalized[0]
+        if isinstance(first, dict):
+            return parse_reservation_create(first)
+    return ReservationResponse()
 
 
 def parse_reservation_detail(raw: dict) -> ReservationDetailResponse:

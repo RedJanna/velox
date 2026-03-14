@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_log_level: str = "INFO"
     app_secret_key: str = "change-me-in-production"
-    app_trusted_hosts: str = "127.0.0.1,localhost,nexlumeai.com,www.nexlumeai.com"
+    app_trusted_hosts: str = "127.0.0.1,localhost,nexlumeai.com,www.nexlumeai.com,velox.nexlumeai.com"
     public_base_url: str = "https://nexlumeai.com"
     admin_panel_path: str = "/admin"
 

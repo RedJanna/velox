@@ -1,5 +1,8 @@
 # Skill: Security & Privacy (v2)
 
+> **Hiyerarşi:** Bu dosya `SKILL.md` hiyerarşisinde **Öncelik 1 (En yüksek)** seviyesindedir.
+> Bu dosyadaki kurallar **asla override edilemez** — diğer tüm dosyalar bu kurallara tabidir.
+
 > Kod bilmeyen biri için benzetme: Bu doküman, otelin **kasa + anahtar + kamera + resepsiyon protokolü** gibidir.
 > Amaç: Misafirin bilgisi **gereksiz yere toplanmasın**, toplandıysa **güvende kalsın**, kimseye **sızmasın**.
 
@@ -100,12 +103,16 @@ Loglar düzenli tutulur ama:
 
 **Benzetme:** Olay defterine “Ali Veli, telefon 05xx…” yazmak yerine “Misafir #A12” yazmak.
 
-### 2.7 Kapıdaki mühür (Webhook signature validation)
-Dışarıdan gelen her “kapı zili” (webhook) için:
-- “Bu gerçekten WhatsApp’tan mı geldi?” kontrolü yapılır.
-- İmzası tutmayan istekler **içeri alınmaz** (403).
+### 2.7 Kapıdaki mühür (Webhook signature + replay protection)
+Dışarıdan gelen her “kapı zili” (webhook) için **iki kontrol** yapılır:
 
-**Benzetme:** Kargo tesliminde “mühür” kontrolü.
+1. **İmza kontrolü:** “Bu gerçekten WhatsApp’tan mı geldi?” → HMAC-SHA256 doğrulaması
+2. **Zaman kontrolü:** “Bu eski bir istek mi?” → 5 dakikadan eski webhook’lar reddedilir (replay attack koruması)
+
+- İmzası tutmayan istekler **içeri alınmaz** (403).
+- Timestamp’ı eski olan istekler **içeri alınmaz** (403).
+
+**Benzetme:** Kargo tesliminde hem “mühür” hem “tarih” kontrolü — eski tarihli sahte teslimat kabul edilmez.
 
 ### 2.8 Aşırı istek olursa fren (Rate limiting)
 Aynı numara/IP kısa sürede çok istek atarsa:
@@ -118,7 +125,10 @@ Aynı numara/IP kısa sürede çok istek atarsa:
 ### 2.9 Admin panel: kısa ömürlü anahtar + 2 aşama (JWT + 2FA)
 Admin panelde:
 - oturum anahtarı **kısa süreli** (60 dk)
-- süresi bitince yeniden giriş gerekir
+- access token frontend tarafında **httpOnly cookie** ile tutulur
+- kullanıcı isterse aynı tarayıcı için **trusted device** süresi tanımlanabilir
+- trusted device sadece daha önce OTP ile doğrulanmış cihazda çalışır; **2FA kapatılmaz**
+- session/hatırlama süresi dolunca yeniden giriş gerekir
 - 2 aşamalı doğrulama (Google Authenticator / TOTP) kullanılır
 
 **Benzetme:** Personel kartı + ekstra PIN.
@@ -143,32 +153,81 @@ Admin panelde:
 
 ---
 
-## 4) Eklemeyi önerdiğim (gerçekten faydalı) yeni kurallar
+## 4) Veri Koruma & Yasal Uyumluluk (KVKK / GDPR)
 
-> Bu bölüm “gerçekten gerekli mi?” sorusunun cevabı: **Evet**, çünkü aşağıdakiler pratikte en çok sorun çıkaran alanlar.
+> ⚠️ Bu bölüm **öneri değil, zorunluluktur.** Türkiye'de KVKK, AB misafirleri için GDPR geçerlidir.
+> İhlal durumunda yasal yaptırım riski vardır.
 
-### 4.1 Veri saklama süresi (Data retention)
-- Loglar: örn. **30 gün** sakla, sonra sil
-- Konuşma kayıtları: iş ihtiyacına göre örn. **90 gün** sonra anonimleştir
-- Ticket kayıtları: sadece gerekli alanları sakla
+### 4.1 Veri saklama süresi (Data retention) — ZORUNLU
 
-**Benzetme:** Eski güvenlik kamera kayıtlarının süre sonunda silinmesi.
+Kişisel veri içeren her kayıt için **maksimum saklama süresi** tanımlıdır.
+Süre dolduğunda veri **silinir veya anonimleştirilir** — “belki lazım olur” geçerli değildir.
 
-> Süreleri siz belirlersiniz; ben dokümana “değiştirilebilir alan” olarak koydum.
+| Veri türü | Maks. saklama süresi | Süre sonunda ne olur? |
+|-----------|---------------------|----------------------|
+| Uygulama logları (PII içeren) | **30 gün** | Silinir |
+| Konuşma kayıtları | **90 gün** | Anonimleştirilir (telefon/isim kaldırılır) |
+| Escalation ticket'ları | **180 gün** | Sadece istatistiksel özet kalır |
+| Webhook ham payload'ları | **7 gün** | Silinir |
+| Session verileri (Redis) | **24 saat** (TTL) | Otomatik expire |
 
-### 4.2 Yetki prensibi: “En az yetki”
+> **Kural:** Bu süreler `settings.py` veya `constants.py`'da tanımlanır, hardcoded değildir.
+> Admin panelden değiştirilebilir olmalıdır (minimum süreler korunarak).
+
+**Benzetme:** Eski güvenlik kamera kayıtlarının süre sonunda silinmesi — yasal zorunluluk.
+
+### 4.2 Rıza yönetimi (Consent management) — ZORUNLU
+
+Misafirden kişisel veri toplamadan önce **bilgilendirme ve rıza** gerekir.
+
+- **İlk mesaj senaryosu:** Misafir WhatsApp üzerinden ilk kez iletişime geçtiğinde,
+  sistem kısa bir bilgilendirme mesajı gönderir:
+  - TR: “Merhaba! Size yardımcı olabilmem için bazı bilgilerinizi (isim, tarih vb.) kullanmam gerekebilir. Gizlilik politikamız: [kısa link]. Devam ederek bilgi paylaşımını onaylıyorsunuz.”
+  - EN: “Hello! To assist you, I may need some of your information (name, dates, etc.). Privacy policy: [short link]. By continuing, you consent to sharing information.”
+- Bu mesaj **sadece ilk etkileşimde** gönderilir (session'da `consent_shown: true` flag'i tutulur).
+- Rıza mesajı `TEMPLATE_LIBRARY`'de yönetilir.
+
+**Benzetme:** Otele giriş formunda “kişisel verileriniz şu amaçla kullanılacaktır” yazması.
+
+### 4.3 Unutulma hakkı (Right to erasure — GDPR Article 17 / KVKK m.11)
+
+Misafir “verilerimi silin” derse:
+
+1. **İnsan devri** yapılır (bu işlem otomatik yapılamaz, admin onayı gerekir)
+2. Admin panelde **”Veri Silme Talebi”** oluşturulur
+3. Silme kapsamı:
+   - Konuşma geçmişi → silinir veya anonimleştirilir
+   - Telefon hash'i → silinir (artık eşleştirilemez)
+   - Log kayıtları → kişisel veri alanları maskelenir
+   - Elektraweb'deki veriler → otel yönetimine bildirilir (sistem kontrolü dışında)
+4. İşlem tamamlandığında misafire bilgilendirme yapılır
+5. Tüm silme talepleri **audit log**'da tutulur (talebin kendisi saklanır, silinen veri saklanmaz)
+
+**Süre:** KVKK gereği en geç **30 gün** içinde tamamlanmalıdır.
+
+**Benzetme:** Otelden “bütün kayıtlarımı silin” talebi — yasal hakkı var, yapmak zorunlu.
+
+### 4.4 Yetki prensibi: “En az yetki” (Least privilege) — ZORUNLU
 - Her kullanıcı/servis sadece ihtiyacı olan erişimi alır.
-- Admin panel erişimi rol bazlıdır (sadece gerekli ekranlar).
+- Admin panel erişimi **rol bazlıdır** (sadece gerekli ekranlar).
+- Roller: `SUPER_ADMIN`, `MANAGER`, `SALES`, `VIEWER` (minimum 4 seviye)
+- DB kullanıcısı sadece gerekli tablo/işlemlere erişir (SELECT/INSERT/UPDATE — DROP yok).
 
 **Benzetme:** Her personelin her odaya anahtarı olmaması.
 
-### 4.3 İhlal olursa ne yapılır? (Incident checklist)
-- Şüpheli durum tespit → erişimi kısıtla
-- Logları incele → etki alanını belirle
-- Gerekirse misafirleri bilgilendir (politikaya göre)
-- Kalıcı düzeltme → tekrar etmesin
+### 4.5 İhlal olursa ne yapılır? (Incident response) — ZORUNLU
 
-**Benzetme:** Yangın tatbikatı: “olursa ne yapacağımız belli”.
+| Adım | İşlem | Maks. süre |
+|------|-------|-----------|
+| 1 | Şüpheli durumu tespit et, erişimi kısıtla | Anında |
+| 2 | Etki alanını belirle (hangi veriler, kaç misafir?) | 4 saat |
+| 3 | Admin/yönetimi bilgilendir | 4 saat |
+| 4 | KVKK Kurulu'na bildirim (ciddi ihlallerde) | 72 saat |
+| 5 | Etkilenen misafirleri bilgilendir (gerekiyorsa) | 72 saat |
+| 6 | Kalıcı düzeltme uygula | 7 gün |
+| 7 | Incident raporu hazırla ve sakla | 14 gün |
+
+**Benzetme:** Yangın tatbikatı: “olursa ne yapacağımız belli” — artık zaman sınırlarıyla.
 
 ---
 
@@ -183,9 +242,14 @@ Admin panelde:
 - [ ] Secrets kodda değil (ENV’de)
 - [ ] SQL sorguları parametreli (birleştirme yok)
 - [ ] Misafire iç hata detayları gösterilmiyor
-- [ ] Admin panel JWT kısa ömür + 2FA
-- [ ] (Öneri) Log retention / veri saklama süresi uygulanıyor
-- [ ] (Öneri) En az yetki / rol bazlı erişim var
+- [ ] Admin panel access token kısa ömürlü cookie, trusted device sadece OTP sonrası aktif
+- [ ] Veri saklama süreleri tanımlı ve uygulanıyor (log 30 gün, konuşma 90 gün, webhook 7 gün)
+- [ ] En az yetki / rol bazlı erişim var (SUPER_ADMIN, MANAGER, SALES, VIEWER)
+- [ ] İlk etkileşimde consent (rıza) mesajı gönderiliyor
+- [ ] Unutulma hakkı (veri silme talebi) akışı mevcut
+- [ ] Phone hash salt'ı ENV'den alınıyor (PHONE_HASH_SALT)
+- [ ] Webhook doğrulaması imza + timestamp kontrolü içeriyor (replay protection)
+- [ ] Incident response prosedürü tanımlı (72 saat KVKK bildirimi)
 
 ---
 
@@ -194,12 +258,22 @@ Admin panelde:
 > Bu bölüm, ekip uygularken “nasıl yapacağız?” diye bakabilsin diye var. Misafir mesajlarında kullanılmaz.
 
 ### Phone hashing (telefon parmak izi)
+
+> **⚠️ Salt zorunludur.** Telefon numaraları sınırlı bir kümedir (ülke kodu + 10-11 rakam).
+> Salt olmadan SHA-256 hash'i rainbow table saldırısıyla kırılabilir.
+> Salt değeri `PHONE_HASH_SALT` ortam değişkeninden alınır.
+
 ```python
 import hashlib
+import os
+
+# Salt ENV'den alınır — .env dosyasında tanımlı olmalı
+PHONE_HASH_SALT: str = os.environ["PHONE_HASH_SALT"]
 
 def hash_phone(phone: str) -> str:
-    """One-way hash for storage."""
-    return hashlib.sha256(phone.encode()).hexdigest()
+    """One-way salted hash for storage. Rainbow table resistant."""
+    salted = f"{PHONE_HASH_SALT}{phone}"
+    return hashlib.sha256(salted.encode()).hexdigest()
 
 def mask_phone(phone: str) -> str:
     """Masked display: +90 5** *** **77"""
@@ -207,6 +281,9 @@ def mask_phone(phone: str) -> str:
         return "***"
     return phone[:4] + " " + "*" * (len(phone) - 6) + " " + phone[-2:]
 ```
+
+> **Kural:** Aynı telefon numarası her zaman aynı hash'i üretmeli (lookup yapılabilsin).
+> Bu yüzden salt sabittir (her hash'te farklı salt değil). Ama salt'ın kendisi gizli kalmalı (ENV'de).
 
 ### Payment data detection and rejection (kart verisi yakalama)
 ```python
@@ -220,14 +297,51 @@ def contains_payment_data(text: str) -> bool:
 ```
 
 ### Webhook signature validation (kapı mührü)
+
+> **⚠️ Replay attack koruması zorunludur.**
+> Sadece imza kontrolü yetmez — eski bir geçerli webhook yeniden gönderilebilir.
+> Webhook'un timestamp'ı kontrol edilir ve 5 dakikadan eski istekler reddedilir.
+
 ```python
 import hmac
 import hashlib
+import time
+
+# Replay attack penceresi: 5 dakika (300 saniye)
+WEBHOOK_MAX_AGE_SECONDS: int = 300
 
 def validate_signature(payload: bytes, signature: str, secret: str) -> bool:
-    expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+    """Verify webhook HMAC-SHA256 signature."""
+    expected = hmac.new(
+        key=secret.encode(),
+        msg=payload,
+        digestmod=hashlib.sha256,
+    ).hexdigest()
     return hmac.compare_digest(f"sha256={expected}", signature)
+
+def validate_webhook_timestamp(timestamp: int | str) -> bool:
+    """Reject webhooks older than WEBHOOK_MAX_AGE_SECONDS (replay attack protection)."""
+    try:
+        ts = int(timestamp)
+    except (ValueError, TypeError):
+        return False
+    age = abs(time.time() - ts)
+    return age <= WEBHOOK_MAX_AGE_SECONDS
+
+def validate_webhook(
+    payload: bytes,
+    signature: str,
+    timestamp: int | str,
+    secret: str,
+) -> bool:
+    """Full webhook validation: signature + replay protection."""
+    if not validate_webhook_timestamp(timestamp):
+        return False  # Too old or too far in future — reject
+    return validate_signature(payload, signature, secret)
 ```
+
+> **Kural:** Her webhook handler'da `validate_webhook()` çağrılmalı.
+> Sadece `validate_signature()` tek başına **yetersizdir** — replay attack'a açık bırakır.
 
 ### Parameterized SQL (asla metin birleştirme)
 ```python

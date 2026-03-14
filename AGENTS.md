@@ -1,5 +1,8 @@
 # Velox (NexlumeAI) — Codex Project Guide
 
+> **Sürüm:** v3.1 | **Son güncelleme:** 2026-03-13 16:59:24
+> **Değişiklik özeti:** Admin panel auth için trusted device / kısa ömürlü cookie oturum kuralı eklendi.
+
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
 
@@ -20,40 +23,71 @@ WhatsApp User
 Meta Business API (webhook)
     |
     v
-FastAPI (src/velox/api/routes/whatsapp_webhook.py)
+FastAPI Webhook Endpoint
     |
-    v
-Session Manager (Redis) -> Load/create conversation
+    ├── 1. Signature + Timestamp Validation (HMAC-SHA256, 5 min window)
     |
-    v
-LLM Engine (OpenAI GPT + function calling)
-    |--- Tool calls ---> Tools layer (booking, restaurant, transfer, approval, payment, notify, handoff, crm, faq)
-    |                        |
-    |                        v
-    |                    Adapters (Elektraweb for stay, DB for restaurant/transfer)
+    ├── 2. Consent Check ── İlk mesaj mı? ──YES──> KVKK/GDPR onay mesajı gönder
+    |                                                 (onay gelene kadar akış durur)
+    |                          NO
+    |                          |
+    ├── 3. Session Manager (Redis) ── Load/create conversation
+    |                                  Key: session:{hotel_id}:{phone_hash}
     |
-    v
-Response Parser -> USER_MESSAGE + INTERNAL_JSON
+    ├── 4. LLM Engine (OpenAI GPT + function calling)
+    |       |
+    |       |--- Tool calls ──> Tools Layer ──────────────────────────┐
+    |       |                   (booking, restaurant, transfer,      |
+    |       |                    approval, payment, notify,          |
+    |       |                    handoff, crm, faq)                  |
+    |       |                        |                               |
+    |       |                        v                               |
+    |       |                   Adapters                             |
+    |       |                   ├── Elektraweb (stay) ◄── Circuit Breaker
+    |       |                   ├── PostgreSQL (restaurant/transfer)  |
+    |       |                   └── External APIs ◄── Retry + Backoff |
+    |       |                                                        |
+    |       v                                                        |
+    ├── 5. QC Gate (7 checks, parallel, ≤500ms budget)               |
+    |       ├── QC1: Intent/Entity    ├── QC5: Format                |
+    |       ├── QC2: Source Check     ├── QC6: Escalation            |
+    |       ├── QC3: Policy Gate      └── QC7: Session               |
+    |       └── QC4: Security                                        |
+    |       |                                                        |
+    |       ├── PASS ──> Response Parser (USER_MESSAGE + INTERNAL_JSON)
+    |       └── FAIL ──> Düzelt / Tool çağır / İnsan devri           |
+    |                                                                |
+    ├── 6. Handoff & SLA Engine                                      |
+    |       ├── L1: 30 min  (genel sorular)                          |
+    |       ├── L2: 15 min  (rezervasyon sorunları)                  |
+    |       └── L3: 5 min   (ödeme/güvenlik)                         |
+    |       └── Follow-up: %100 → hatırlatma, %300 → escalate       |
     |
-    v
-WhatsApp API (send reply) + DB (log conversation)
+    └── 7. WhatsApp API (send reply)
+            ├── Text / Reply Buttons (≤3) / List Message (4+)
+            └── DB (log conversation) + Metrics (Prometheus)
 ```
 
 ## IMPORTANT: SKILL System (Read First!)
 Before writing ANY code, you MUST:
-1. Read `SKILL.md` — the skill index file
+1. Read `SKILL.md` — the skill index file (**Rule Hierarchy dahil!**)
 2. Find your current task in the **Task → Skill Map**
 3. Read each required skill file from `skills/`
 4. Follow every rule in those files while coding
 5. Run the **Validation Checklist** from each skill before finishing
 
+> **Kural Hiyerarşisi:** `SKILL.md` içindeki "Rule Hierarchy" tablosu tüm dosyalar için geçerlidir.
+> Çakışma olursa: security_privacy > anti_hallucination > diğer skill'ler > system_prompt > task
+
 Skill files location: `skills/`
-- `coding_standards.md` — Async, types, module size, imports (EVERY task)
+- `coding_standards.md` — Async, types, module size, imports (EVERY backend task)
+- `frontend_standards.md` — React/TypeScript, component structure, admin panel UI (EVERY frontend task)
 - `security_privacy.md` — PII, secrets, sanitization, payment data
 - `anti_hallucination.md` — Source hierarchy, QC checks, template-first
 - `error_handling.md` — Retry patterns, fallback, user-facing errors
 - `whatsapp_format.md` — Message limits, formatting, tone
 - `testing_qa.md` — Test structure, mocks, coverage
+- `observability.md` — Health checks, metrics, logging, tracing, alerting
 
 ## Key Documents
 - `SKILL.md` — **Read this before every task** (skill system entry point)
@@ -89,6 +123,7 @@ Execute tasks in `tasks/` directory sequentially:
 6. **Modular code**: Target 600 lines per file. Split by responsibility if exceeded.
 7. **Async everywhere**: Use async/await for all I/O operations.
 8. **Type hints**: Use Pydantic models and Python type hints everywhere.
+9. **Admin auth**: Access token kısa ömürlü kalır; tekrar TOTP azaltma sadece doğrulanmış trusted device ile yapılır, 2FA kapatılmaz.
 
 ## Auto-Commit Rule
 After completing each task, you MUST commit your changes:
@@ -101,8 +136,218 @@ git add -A && git commit -m "Task 04: Elektraweb PMS adapter with JWT auth and r
 ```
 This is mandatory — do NOT skip the commit step.
 
-## Environment Variables (see .env.example)
-All secrets, API keys, and configuration must be in environment variables. Never commit .env files.
+> **⚠️ Güvenlik notu:** `git add -A` kullanırken `.gitignore` dosyasının güncel olduğundan emin ol.
+> `.env`, `*.pem`, `credentials.*`, `secrets.*` gibi hassas dosyalar `.gitignore`'da **mutlaka** listelenmeli.
+> Commit öncesi `git status` ile eklenen dosyaları kontrol et — hassas dosya görürsen **commit etme**, uyar.
+
+## Required .gitignore Entries
+The following patterns **MUST** be in `.gitignore` before any commit. If missing, add them first:
+
+```gitignore
+# Secrets & credentials
+.env
+.env.*
+*.pem
+*.key
+credentials.*
+secrets.*
+**/secret_*
+*.p12
+
+# Python
+__pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Logs (local)
+*.log
+logs/
+```
+
+> **Kural:** Her `git add -A` öncesi `git status` çalıştır.
+> Yukarıdaki pattern'lara uyan dosya staged'daysa **commit etme**, `.gitignore`'u düzelt.
+
+## Multi-Tenant Architecture (İkinci Otel ve Sonrası)
+
+> **Durum:** Şu an tek otel (Kassandra Ölüdeniz) ile çalışıyoruz. İkinci otel eklendiğinde
+> aşağıdaki mimari kararlar uygulanacak. Bu bölüm **planlama rehberi**dir — henüz uygulanmadı.
+
+### Tenant izolasyon stratejisi
+
+| Katman | Mevcut (tek otel) | Multi-tenant hedef |
+|--------|-------------------|-------------------|
+| **HOTEL_PROFILE** | Tek YAML dosyası | `hotel_id` bazlı YAML veya DB tablosu |
+| **Veritabanı** | Tek schema | Shared DB + `hotel_id` sütunu (her tabloda) |
+| **Redis** | Tek namespace | `hotel:{hotel_id}:*` key prefix |
+| **WhatsApp** | Tek numara | Otel başına ayrı numara (WABA per hotel) |
+| **LLM Prompt** | Tek system prompt | `hotel_id` bazlı dinamik prompt assembly |
+| **Webhook** | Tek endpoint | Tek endpoint + `hotel_id` routing (phone number → hotel mapping) |
+
+### Kritik tasarım kararları
+
+1. **Shared DB, tenant column:** Her tabloya `hotel_id: int` eklenir. Tüm sorgular `WHERE hotel_id = $N` içerir. ORM/repository katmanında zorunlu filtre.
+2. **Phone → Hotel mapping:** Gelen WhatsApp numarası hangi otele ait? `whatsapp_numbers` tablosu: `phone_number → hotel_id`. Webhook'ta ilk adım bu lookup.
+3. **HOTEL_PROFILE loader:** `hotel_id` parametresi alır, ilgili profili yükler. Cache: Redis ile `hotel:profile:{hotel_id}` (TTL: 1 saat).
+4. **Session isolation:** Redis session key: `session:{hotel_id}:{guest_phone_hash}`. Farklı otellerdeki aynı misafir ayrı session'larda.
+5. **Admin panel:** Her kullanıcı bir veya birden fazla `hotel_id`'ye bağlı. JWT token'da `hotel_ids: list[int]`. API middleware'de hotel_id filtresi zorunlu.
+6. **Adapter config:** Elektraweb credentials otel bazlı. `adapters/elektraweb.py` → `hotel_id` ile doğru credential set'i seçer.
+
+### Uygulama sırası (ikinci otel eklenirken)
+
+1. DB migration: Tüm tablolara `hotel_id` sütunu + index
+2. `whatsapp_numbers` tablosu oluştur
+3. Repository layer: Tüm sorgulara `hotel_id` filtresi ekle
+4. HOTEL_PROFILE loader'ı `hotel_id` parametreli yap
+5. Redis key'lere `hotel:{hotel_id}:` prefix ekle
+6. Admin panel: hotel selector + JWT hotel_ids
+7. Webhook router: phone → hotel_id mapping
+8. Test: İki farklı hotel_id ile uçtan uca test
+
+### Yasak kararlar
+
+- **Ayrı DB instance / schema per hotel:** Gereksiz karmaşıklık, bakım maliyeti yüksek.
+- **Ayrı deployment per hotel:** Tek codebase, tek deployment. Otel farkı sadece config seviyesinde.
+- **Hardcoded hotel_id kontrolleri:** `if hotel_id == 1` gibi kodlar yasak. Her şey config-driven.
+
+## Environment Variables
+
+All secrets, API keys, and configuration must be in environment variables. Never commit `.env` files.
+
+### Zorunlu ENV değişkenleri
+
+| Değişken | Açıklama | Örnek | Kaynak |
+|----------|----------|-------|--------|
+| `OPENAI_API_KEY` | OpenAI GPT API anahtarı | `sk-...` | OpenAI Dashboard |
+| `WHATSAPP_TOKEN` | Meta Business API erişim token'ı | `EAA...` | Meta Business Suite |
+| `WHATSAPP_VERIFY_TOKEN` | Webhook doğrulama token'ı (kendin belirle) | `velox-webhook-2024` | Manuel |
+| `WHATSAPP_PHONE_NUMBER_ID` | WhatsApp Business telefon numarası ID'si | `10234...` | Meta Business Suite |
+| `WHATSAPP_WEBHOOK_SECRET` | Webhook HMAC-SHA256 imza doğrulama secret'ı | `abc123...` | Meta Business Suite |
+| `DATABASE_URL` | PostgreSQL bağlantı adresi | `postgresql+asyncpg://user:pass@host/db` | Hosting |
+| `REDIS_URL` | Redis bağlantı adresi | `redis://localhost:6379/0` | Hosting |
+| `PHONE_HASH_SALT` | Telefon numarası hash'leme için salt (rainbow table koruması) | `random-32-char-string` | Manuel üret |
+| `ELEKTRAWEB_BASE_URL` | Elektraweb PMS API base URL | `https://api.elektraweb.com` | Elektraweb |
+| `ELEKTRAWEB_USERNAME` | Elektraweb API kullanıcı adı | `velox_api` | Elektraweb |
+| `ELEKTRAWEB_PASSWORD` | Elektraweb API şifresi | `***` | Elektraweb |
+| `JWT_SECRET_KEY` | Admin panel JWT imzalama anahtarı | `random-64-char-string` | Manuel üret |
+| `CORS_ORIGINS` | İzin verilen frontend domain'leri | `["http://localhost:3000"]` | Manuel |
+
+### Opsiyonel ENV değişkenleri
+
+| Değişken | Açıklama | Varsayılan |
+|----------|----------|-----------|
+| `LOG_LEVEL` | Log seviyesi | `INFO` |
+| `QC_TIMEOUT_MS` | QC gate tek check timeout (ms) | `500` |
+| `CIRCUIT_BREAKER_THRESHOLD` | Circuit breaker hata eşiği | `5` |
+| `CIRCUIT_BREAKER_RECOVERY_S` | Circuit breaker recovery süresi (saniye) | `30` |
+| `SESSION_TTL_HOURS` | Redis session süresi (saat) | `24` |
+| `SENTRY_DSN` | Sentry error tracking DSN | _(boş = devre dışı)_ |
+| `PROMETHEUS_PORT` | Prometheus metrics port | `9090` |
+
+> **Kural:** Yeni bir ENV değişkeni eklendiğinde bu tabloyu güncelle ve `.env.example` dosyasına da ekle.
+
+## AGENTS.md Bakım Politikası
+
+> **Bu bölüm neden var:** Proje sahibi günde çok sayıda LLM oturumu açar ve sürekli iterasyon yapar.
+> AGENTS.md, her yeni oturumda projeye ilk kez bakan bir LLM'in okuduğu **kök referans dosyasıdır.**
+> Bu dosyadaki bilgi eski kalırsa, LLM yanlış mimari varsayımlarla kod üretir. Bu bölüm, dosyanın
+> ne zaman, nasıl ve hangi koşullarda güncellenmesi gerektiğini tanımlar.
+
+### 1. Zorunlu güncelleme tetikleyicileri
+
+Aşağıdaki değişiklik türlerinden **herhangi biri** yapıldığında AGENTS.md **mutlaka** güncellenir:
+
+| Değişiklik türü | Güncellenmesi gereken bölüm |
+|-----------------|----------------------------|
+| Yeni dizin veya modül eklendi/silindi (`src/velox/` altında) | **File Structure** |
+| Mesaj işleme akışına yeni bir adım eklendi/çıkarıldı (yeni gate, yeni kontrol noktası, yeni middleware) | **Architecture diyagramı** |
+| Mevcut bir akış adımının davranışı köklü şekilde değişti (ör. QC gate 7→8 check oldu, circuit breaker mantığı değişti) | **Architecture diyagramı** |
+| Yeni bir dış bağımlılık/servis eklendi (ör. yeni PMS, yeni ödeme sağlayıcı, yeni API) | **Architecture diyagramı + Tech Stack** |
+| Tech Stack değişti (Python sürümü, DB değişikliği, yeni framework) | **Tech Stack** |
+| Yeni skill dosyası oluşturuldu veya mevcut biri silindi/yeniden adlandırıldı | **Skill files listesi** |
+| Yeni task dosyası eklendi | **Implementation Order** |
+| Yeni zorunlu veya opsiyonel ENV değişkeni eklendi | **Environment Variables tabloları** |
+| Critical Rules'a yeni kural eklendi veya mevcut kural değişti | **Critical Rules** |
+| `.gitignore`'a yeni pattern eklenmesi gerekti | **Required .gitignore Entries** |
+| Multi-tenant planında karar değişikliği yapıldı | **Multi-Tenant Architecture** |
+
+### 2. Güncelleme GEREKTİRMEYEN durumlar
+
+Aşağıdaki değişiklikler AGENTS.md'yi **etkilemez** — gereksiz güncelleme yapma:
+
+- Mevcut bir dosya içindeki bug fix veya refactor (mimari değişiklik yoksa)
+- Skill dosyası içindeki kural ekleme/düzeltme (skill dosyasının kendisi yeterli)
+- Test ekleme veya test düzeltme
+- HOTEL_PROFILE veri güncellemesi (otel bilgisi değişikliği)
+- Template veya mesaj şablonu değişikliği
+- Mevcut ENV değişkeninin değerini değiştirme (yeni değişken eklemediğin sürece)
+- Kod stili veya formatlama değişiklikleri
+
+### 3. Architecture diyagramı koruma kuralı
+
+**Mimari diyagram bu dosyanın en kritik bölümüdür.** Kurallar:
+
+- Diyagram, mesajın WhatsApp'tan gelişinden yanıt gönderilmesine kadar olan **tüm adımları** göstermelidir.
+- Diyagramda **numaralanmış adımlar** kullanılır (1, 2, 3...). Yeni adım eklendiğinde sıra güncellenir.
+- Her adımın yanında kısa açıklama ve varsa performans/limit bilgisi bulunur.
+- Diyagramda gösterilmeyen bir akış adımı gerçek kodda **var olmamalıdır**; var olan her adım diyagramda **görünmelidir**.
+- Diyagram sadece ASCII art ile çizilir — görsel bağımlılık olmaz, her LLM okuyabilir.
+
+**Diyagram güncelleme testi:** Yaptığın değişiklikten sonra şu soruyu sor:
+> "Bir LLM bu diyagrama bakarak sistemin uçtan uca akışını doğru anlayabilir mi?"
+> Cevap HAYIR ise → diyagramı güncelle. Cevap EVET ise → dokunma.
+
+### 4. Oturum sonu hızlı kontrol (Quick Check)
+
+Her LLM oturumunun **sonunda**, aşağıdaki 6 soruluk kontrol listesini çalıştır.
+Herhangi birine **EVET** cevabı varsa, ilgili bölümü güncelle:
+
+```
+AGENTS.md QUICK CHECK (oturum sonu)
+─────────────────────────────────────
+[ ] Yeni bir dizin veya dosya yapısı değişikliği yaptım mı?          → File Structure
+[ ] Mesaj işleme akışına yeni bir adım ekledim/çıkardım mı?          → Architecture diyagramı
+[ ] Yeni bir ENV değişkeni tanımladım mı?                             → Environment Variables
+[ ] Yeni bir skill dosyası oluşturdum veya sildim mi?                 → Skill files listesi
+[ ] Tech stack'e yeni bir teknoloji/servis ekledim mi?                → Tech Stack
+[ ] Critical Rules'da bir kuralı değiştirdim veya yeni kural mı var? → Critical Rules
+─────────────────────────────────────
+Tüm cevaplar HAYIR → AGENTS.md güncelleme gerekmiyor.
+En az bir cevap EVET → İlgili bölümü güncelle + sürüm bloğunu güncelle.
+```
+
+### 5. Sürüm bloğu güncelleme kuralı
+
+Dosyanın en üstündeki sürüm bloğu, her güncelleme sonrası şu formatta güncellenir:
+
+```
+> **Sürüm:** v{major}.{minor} | **Son güncelleme:** {YYYY-MM-DD HH:MM:SS}
+> **Değişiklik özeti:** {Tek cümleyle ne değişti}
+```
+
+- **Major (v3.0, v4.0...):** Mimari diyagram değişikliği veya yeni bölüm eklenmesi
+- **Minor (v2.1, v2.2...):** Mevcut bölümlere satır/tablo eklenmesi, ENV güncellemesi, düzeltmeler
+
+### 6. Uygulanma sorumluluğu
+
+- Bu kurallar **projeyle çalışan her LLM** için geçerlidir (Claude, Codex, Copilot, GPT, Gemini).
+- LLM, oturum içinde yaptığı değişikliklerden AGENTS.md'yi etkileyen bir durum tespit ederse, **oturum bitmeden önce** güncellemeyi kendisi yapar veya geliştiriciye hatırlatır.
+- Geliştirici açıkça "AGENTS.md'yi güncelleme" demedikçe, LLM Quick Check sonucuna göre güncelleme önerir.
+- Bu politika `system_prompt_velox.md` §3 ile uyumludur: eski bilgi dokümanda tutulmaz, güncelliğini yitirmiş içerik silinir veya düzeltilir.
 
 ## File Structure
 ```

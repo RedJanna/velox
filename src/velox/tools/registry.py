@@ -3,6 +3,7 @@
 from velox.db.repositories.hotel import (
     ApprovalRequestRepository,
     CrmLogRepository,
+    NotificationPhoneRepository,
     NotificationRepository,
     PaymentRequestRepository,
     TicketRepository,
@@ -56,10 +57,18 @@ def build_dispatcher() -> ToolDispatcher:
     ticket_repository = TicketRepository()
     notification_repository = NotificationRepository()
     crm_repository = CrmLogRepository()
+    notification_phone_repository = NotificationPhoneRepository()
+
+    approval_tool = ApprovalRequestTool(
+        approval_repository, notification_repository, notification_phone_repository,
+    )
 
     dispatcher.register("booking_availability", BookingAvailabilityTool())
     dispatcher.register("booking_quote", BookingQuoteTool())
-    dispatcher.register("stay_create_hold", StayCreateHoldTool(reservation_repository))
+    dispatcher.register(
+        "stay_create_hold",
+        StayCreateHoldTool(reservation_repository, approval_tool),
+    )
     dispatcher.register("booking_create_reservation", BookingCreateReservationTool())
     dispatcher.register("booking_get_reservation", BookingGetReservationTool())
     dispatcher.register("booking_modify", BookingModifyTool())
@@ -84,7 +93,7 @@ def build_dispatcher() -> ToolDispatcher:
     dispatcher.register("transfer_modify", TransferModifyTool())
     dispatcher.register("transfer_cancel", TransferCancelTool())
 
-    dispatcher.register("approval_request", ApprovalRequestTool(approval_repository, notification_repository))
+    dispatcher.register("approval_request", approval_tool)
     dispatcher.register(
         "payment_request_prepayment",
         PaymentRequestPrepaymentTool(payment_repository, notification_repository),

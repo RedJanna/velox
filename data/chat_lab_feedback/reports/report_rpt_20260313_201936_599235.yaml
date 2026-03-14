@@ -1,0 +1,374 @@
+schema_version: chat_lab_report.v1
+report_id: rpt_20260313_201936_599235
+created_at: '2026-03-13T20:19:36.599267+00:00'
+selected_model: gpt-5-search-api-2025-10-14
+period:
+  date_from: '2026-03-10T22:12:00+00:00'
+  date_to: '2026-03-13T20:19:00+00:00'
+summary: Bu geribildirimlerdeki sorun, kullanıcı taleplerine verilen yanıtların gereğinden fazla uzun, detay odaklı ve fazla formatlanmış olması. Cevaplar netlikten uzaklaşmış, gereksiz tekrara düşmüş, format sık sık bozulmuş ya da aşırı detayla dolu olduğu için kullanıcılar gereksiz bilgilerle meşgul olmuş.
+feedback_count: 3
+cluster_count: 3
+clusters:
+- cluster_id: 0aece25c369e
+  category: gevezelik
+  duplicate_count: 1
+  tags:
+  - asiri_uzun_yanit
+  sample_input: 'Merhaba,
+
+
+    20.08.2026 – 22.08.2026 tarihleri arasında konaklama için müsaitlik sormak istiyorum.
+
+    Toplam 6 kişi olacağız:
+
+    4 yetişkin
+
+    2 çocuk (15 ve 13 yaşlarında)
+
+
+    Bu tarihler için uygun oda veya aile odası var mı?
+
+    Mümkünse fiyat bilgisi ve oda seçeneklerini de paylaşabilir misiniz?
+
+
+    Teşekkür ederim.
+
+    Işıl'
+  sample_output: "Merhaba Işıl Hanım \U0001F33F  \n\n20.08.2026 – 22.08.2026 tarihleri için yaptığım ilk kontrolde, sistemimiz 6 kişi (4 yetişkin + 15 ve 13 yaş) konaklaması için fiyat teklifi oluşturamadı.\n\nOtelimizde tek bir odada maksimum kapasite **4 kişi** olduğu için, 6 kişilik konaklama için genellikle:\n\n• **2 oda kombinasyonu** (örneğin 2× Exclusive / 2× Premium vb.)  \nşeklinde planlama yapılmaktadır.\n\nSize en uygun ve ekonomik kombinasyonu net fiyatlarıyla birlikte sunabilmem için kısa bir teyit rica ediyorum:\n\n\U0001F449 6 kişi için **2 ayrı oda** şeklinde konaklama sizin için uygun mudur?  \n(Odaların yan yana olması talebiniz varsa da belirtebilirsiniz.)\n\nOnayınızla birlikte, uygun oda kombinasyonlarını ve her oda tipi için  \n**İptal edilemez** ve **Ücretsiz İptal** fiyat seçeneklerini detaylı olarak paylaşacağım.\n\nMemnuniyetle yardımcı olurum \U0001F338"
+  gold_standard: 'Merhaba Işıl Hanım 🌿
+
+
+    20.08.2026 – 22.08.2026 tarihleri için yaptığım ilk kontrolde, sistemimiz 6 kişi (4 yetişkin + 15 ve 13 yaş) konaklaması için fiyat teklifi oluşturamadı.
+
+
+    Otelimizde tek bir odada maksimum kapasite **4 kişi** olduğu için, 6 kişilik konaklama için genellikle:
+
+
+    Size en uygun ve ekonomik kombinasyonu net fiyatlarıyla birlikte sunabilmem için kısa bir teyit rica ediyorum:
+
+
+    👉 6 kişi için **2 ayrı oda** şeklinde konaklama sizin için uygun mudur?
+
+    (Odaların yan yana olması talebiniz varsa da belirtebilirsiniz.)
+
+
+
+
+    Memnuniyetle yardımcı olurum 🌸'
+  root_cause_hint: formatting
+  files:
+  - /app/data/chat_lab_feedback/bad_feedback/rating_4/gevezelik/2026-03/fb_20260313_201339_626143.yaml
+- cluster_id: 071a5d288c61
+  category: gevezelik
+  duplicate_count: 1
+  tags:
+  - asiri_uzun_yanit
+  sample_input: 2 ayrı oda istiyorum
+  sample_output: "Teşekkür ederim Işıl Hanım \U0001F33F  \n\n6 kişilik konaklamanız için 2 ayrı oda planlayabiliriz.  \nFiyatları doğru şekilde oluşturabilmem için küçük bir teyit rica edeceğim:\n\nOda dağılımını nasıl tercih edersiniz?\n\n1️⃣ 1. oda: 2 yetişkin + 2 çocuk  \n  2. oda: 2 yetişkin  \n\n2️⃣ Her odada 3 kişi (örneğin 2 yetişkin + 1 çocuk / 2 yetişkin + 1 çocuk)\n\nTercihinizi iletirseniz, seçeneğe göre müsaitlik ve  \nher oda tipi için **İptal edilemez** ve **Ücretsiz İptal** fiyatları hemen paylaşacağım \U0001F338"
+  gold_standard: 'Teşekkür ederim Işıl Hanım 🌿
+
+
+    6 kişilik konaklamanız için 2 ayrı oda planlayabiliriz.
+
+    Fiyatları doğru şekilde oluşturabilmem için küçük bir teyit rica edeceğim:
+
+
+    Oda dağılımını nasıl tercih edersiniz?
+
+
+    1️⃣ 1. oda: 2 yetişkin + 2 çocuk
+
+      2. oda: 2 yetişkin
+
+
+    2️⃣ Her odada 3 kişi (örneğin 2 yetişkin + 1 çocuk / 2 yetişkin + 1 çocuk)
+
+
+    Tercihinizi iletirseniz, seçeneğe göre müsaitlik ve
+
+    her oda tipi fiyatları hemen paylaşacağım 🌸'
+  root_cause_hint: formatting
+  files:
+  - /app/data/chat_lab_feedback/bad_feedback/rating_4/gevezelik/2026-03/fb_20260313_201545_863723.yaml
+- cluster_id: 48f919b95976
+  category: gevezelik
+  duplicate_count: 1
+  tags:
+  - asiri_uzun_yanit
+  sample_input: '1️⃣ 1. oda: 2 yetişkin + 2 çocuk
+
+      2. oda: 2 yetişkin'
+  sample_output: '1. Oda (2 yetişkin + 2 çocuk)
+
+    Exclusive Sokak Manzaralı (40m2)
+
+    İptal edilemez: 645 €
+
+    Ücretsiz İptal: 710 €
+
+
+    Exclusive Havuz Manzaralı (40m2)
+
+    İptal edilemez: 660 €
+
+    Ücretsiz İptal: 725 €
+
+
+    Penthouse - Jakuzili (45m2)
+
+    İptal edilemez: 680 €
+
+    Ücretsiz İptal: 745 €
+
+
+    Premium - Jakuzili (40m2)
+
+    İptal edilemez: 700 €
+
+    Ücretsiz İptal: 770 €
+
+
+    2. Oda (2 yetişkin + 2 çocuk)
+
+    Exclusive Sokak Manzaralı (40m2)
+
+    İptal edilemez: 645 €
+
+    Ücretsiz İptal: 710 €
+
+
+    Exclusive Havuz Manzaralı (40m2)
+
+    İptal edilemez: 660 €
+
+    Ücretsiz İptal: 725 €
+
+
+    Penthouse - Jakuzili (45m2)
+
+    İptal edilemez: 680 €
+
+    Ücretsiz İptal: 745 €
+
+
+    Premium - Jakuzili (40m2)
+
+    İptal edilemez: 700 €
+
+    Ücretsiz İptal: 770 €
+
+
+    3. Oda (2 yetişkin)
+
+    Deluxe (25m2)
+
+    İptal edilemez: 420 €
+
+    Ücretsiz İptal: 460 €
+
+
+    Superior (30m2)
+
+    İptal edilemez: 435 €
+
+    Ücretsiz İptal: 475 €
+
+
+    Exclusive Sokak Manzaralı (40m2)
+
+    İptal edilemez: 450 €
+
+    Ücretsiz İptal: 495 €
+
+
+    Penthouse Land - Jakuzili (25m2)
+
+    İptal edilemez: 450 €
+
+    Ücretsiz İptal: 495 €
+
+
+    Exclusive Havuz Manzaralı (40m2)
+
+    İptal edilemez: 460 €
+
+    Ücretsiz İptal: 510 €
+
+
+    Penthouse - Jakuzili (45m2)
+
+    İptal edilemez: 485 €
+
+    Ücretsiz İptal: 530 €
+
+
+    Premium - Jakuzili (40m2)
+
+    İptal edilemez: 505 €
+
+    Ücretsiz İptal: 555 €
+
+
+    4. Oda (2 yetişkin)
+
+    Deluxe (25m2)
+
+    İptal edilemez: 420 €
+
+    Ücretsiz İptal: 460 €
+
+
+    Superior (30m2)
+
+    İptal edilemez: 435 €
+
+    Ücretsiz İptal: 475 €
+
+
+    Exclusive Sokak Manzaralı (40m2)
+
+    İptal edilemez: 450 €
+
+    Ücretsiz İptal: 495 €
+
+
+    Penthouse Land - Jakuzili (25m2)
+
+    İptal edilemez: 450 €
+
+    Ücretsiz İptal: 495 €
+
+
+    Exclusive Havuz Manzaralı (40m2)
+
+    İptal edilemez: 460 €
+
+    Ücretsiz İptal: 510 €
+
+
+    Penthouse - Jakuzili (45m2)
+
+    İptal edilemez: 485 €
+
+    Ücretsiz İptal: 530 €
+
+
+    Premium - Jakuzili (40m2)
+
+    İptal edilemez: 505 €
+
+    Ücretsiz İptal: 555 €
+
+
+    Ücretsiz iptal seçeneği ile yapılan rezervasyonlarda girişten 5 gün öncesine kadar iptal olması halinde %100 geri ödeme alabilirsiniz.
+
+
+    Rezervasyon onayı için iptal edilemez rezervasyonlarda 1 gecelik ödeme tahsil edilmektedir. Kalan ödemeyi giriş günündeki güncel döviz kuruna göre TL veya döviz olarak yapabilirsiniz.
+
+
+    Nazik bilgilendirme: Oda numarası için önceden garanti veremiyoruz; ancak girişiniz sırasında uygunluk doğrultusunda size memnuniyetle yardımcı oluruz.'
+  gold_standard: '1. Oda (2 yetişkin + 2 çocuk)
+
+    Exclusive Sokak Manzaralı (40m2)
+
+    İptal edilemez: 645 €
+
+    Ücretsiz İptal: 710 €
+
+
+    Exclusive Havuz Manzaralı (40m2)
+
+    İptal edilemez: 660 €
+
+    Ücretsiz İptal: 725 €
+
+
+    Penthouse - Jakuzili (45m2)
+
+    İptal edilemez: 680 €
+
+    Ücretsiz İptal: 745 €
+
+
+    Premium - Jakuzili (40m2)
+
+    İptal edilemez: 700 €
+
+    Ücretsiz İptal: 770 €
+
+
+
+    2. Oda (2 yetişkin)
+
+    Deluxe (25m2)
+
+    İptal edilemez: 420 €
+
+    Ücretsiz İptal: 460 €
+
+
+    Superior (30m2)
+
+    İptal edilemez: 435 €
+
+    Ücretsiz İptal: 475 €
+
+
+    Exclusive Sokak Manzaralı (40m2)
+
+    İptal edilemez: 450 €
+
+    Ücretsiz İptal: 495 €
+
+
+    Penthouse Land - Jakuzili (25m2)
+
+    İptal edilemez: 450 €
+
+    Ücretsiz İptal: 495 €
+
+
+    Exclusive Havuz Manzaralı (40m2)
+
+    İptal edilemez: 460 €
+
+    Ücretsiz İptal: 510 €
+
+
+    Penthouse - Jakuzili (45m2)
+
+    İptal edilemez: 485 €
+
+    Ücretsiz İptal: 530 €
+
+
+    Premium - Jakuzili (40m2)
+
+    İptal edilemez: 505 €
+
+    Ücretsiz İptal: 555 €
+
+
+
+
+    Ücretsiz iptal seçeneği ile yapılan rezervasyonlarda girişten 5 gün öncesine kadar iptal olması halinde %100 geri ödeme alabilirsiniz.
+
+
+    Rezervasyon onayı için iptal edilemez rezervasyonlarda 1 gecelik ödeme tahsil edilmektedir. Kalan ödemeyi giriş günündeki güncel döviz kuruna göre TL veya döviz olarak yapabilirsiniz.
+
+
+    Nazik bilgilendirme: Oda numarası için önceden garanti veremiyoruz; ancak girişiniz sırasında uygunluk doğrultusunda size memnuniyetle yardımcı oluruz.'
+  root_cause_hint: formatting
+  files:
+  - /app/data/chat_lab_feedback/bad_feedback/rating_1/gevezelik/2026-03/fb_20260313_201852_416560.yaml
+recommendations:
+- target_file: hotel_conversational_flow
+  reason: Yanıtlar gereksiz uzunlukta ve kullanıcıyı yormakta; bilgi karmaşası yaratıyor.
+  risk: Kullanıcı memnuniyetsizliği; önemli bilgilerin gözden kaçması.
+  conflict_check: Yeni sadeleştirilmiş format mevcut otel profil rehberleriyle çelişmemeli.
+  test_suggestion: 100 yazışma üzerinden yeni kısa format ile split test; kullanıcı dönüşümlerine ve memnuniyete bak.
+  root_cause_type: formatting
+  confidence: high
+  kassandra_profile_change_required: true
+  scenario_creation_recommended: true
+  duplicate_count: 3

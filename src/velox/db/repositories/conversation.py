@@ -126,13 +126,14 @@ class ConversationRepository:
         """Insert a message into a conversation."""
         row = await fetchrow(
             """
-            INSERT INTO messages (conversation_id, role, content, internal_json, tool_calls)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO messages (conversation_id, role, content, client_message_id, internal_json, tool_calls)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING id, created_at
             """,
             msg.conversation_id,
             msg.role,
             msg.content,
+            msg.client_message_id,
             orjson.dumps(msg.internal_json).decode() if msg.internal_json else None,
             orjson.dumps(msg.tool_calls).decode() if msg.tool_calls else None,
         )
@@ -199,6 +200,32 @@ class ConversationRepository:
         )
         return [self._row_to_message(row) for row in rows]
 
+    async def get_assistant_by_client_message_id(
+        self,
+        conversation_id: UUID,
+        client_message_id: str,
+    ) -> Message | None:
+        """Return assistant message linked to a client-generated message id."""
+        row = await fetchrow(
+            """
+            SELECT *
+            FROM messages
+            WHERE conversation_id = $1
+              AND role = 'assistant'
+              AND (
+                client_message_id = $2
+                OR internal_json->>'client_message_id' = $2
+              )
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            conversation_id,
+            client_message_id,
+        )
+        if row is None:
+            return None
+        return self._row_to_message(row)
+
     @staticmethod
     def _row_to_conversation(row: asyncpg.Record) -> Conversation:
         """Map asyncpg row to Conversation model."""
@@ -225,6 +252,7 @@ class ConversationRepository:
             conversation_id=row["conversation_id"],
             role=row["role"],
             content=row["content"],
+            client_message_id=row.get("client_message_id"),
             internal_json=orjson.loads(row["internal_json"]) if row["internal_json"] else None,
             tool_calls=orjson.loads(row["tool_calls"]) if row["tool_calls"] else None,
             created_at=row["created_at"],

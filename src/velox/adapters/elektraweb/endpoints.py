@@ -19,6 +19,7 @@ from velox.adapters.elektraweb.mapper import (
 
 logger = structlog.get_logger(__name__)
 CHILD_OCCUPANCY_UNVERIFIED = "CHILD_OCCUPANCY_UNVERIFIED"
+PMS_ADULT_AGE_MIN = 13
 
 
 def _requested_child_ages(chd_count: int, chd_ages: list[int] | None) -> list[int]:
@@ -48,6 +49,16 @@ def _child_bucket_counts(chd_ages: list[int]) -> dict[str, int]:
 def _requested_child_count(chd_count: int, chd_ages: list[int] | None) -> int:
     """Return the requested child count using ages when present."""
     return len(_requested_child_ages(chd_count, chd_ages))
+
+
+def _normalize_children_for_pms(chd_count: int, chd_ages: list[int] | None) -> tuple[int, list[int]]:
+    """Treat teen ages as adults for PMS occupancy parity when ages are provided."""
+    ages = _requested_child_ages(chd_count, chd_ages)
+    if not chd_ages:
+        return chd_count, ages
+
+    normalized_child_ages = [age for age in ages if age < PMS_ADULT_AGE_MIN]
+    return len(normalized_child_ages), normalized_child_ages
 
 
 def _apply_child_quote_params(params: dict[str, str | int | bool], chd_count: int, chd_ages: list[int] | None) -> None:
@@ -119,13 +130,14 @@ async def availability(
 ) -> AvailabilityResponse:
     """Check room availability for given dates."""
     client = get_elektraweb_client()
+    normalized_chd_count, normalized_chd_ages = _normalize_children_for_pms(chd_count, chd_ages)
     params: dict[str, str | int] = {
         "fromdate": checkin.isoformat(),
         "todate": checkout.isoformat(),
         "adult": adults,
         "currency": currency,
     }
-    _apply_child_quote_params(params, chd_count, chd_ages)
+    _apply_child_quote_params(params, normalized_chd_count, normalized_chd_ages)
 
     logger.info("elektraweb_availability_request", hotel_id=hotel_id, checkin=str(checkin), checkout=str(checkout))
     raw = await client.get(f"/hotel/{hotel_id}/availability", params=params)
@@ -147,19 +159,23 @@ async def quote(
 ) -> QuoteResponse:
     """Get price quotes/offers for given dates and room configuration."""
     client = get_elektraweb_client()
-    requested_ages = _requested_child_ages(chd_count, chd_ages)
+    normalized_chd_count, normalized_chd_ages = _normalize_children_for_pms(chd_count, chd_ages)
+    requested_children = _requested_child_count(chd_count, chd_ages)
+    adult_equivalent_children = max(requested_children - normalized_chd_count, 0)
+    normalized_adults = adults + adult_equivalent_children
+    requested_ages = _requested_child_ages(normalized_chd_count, normalized_chd_ages)
     requested_children = len(requested_ages)
     requested_buckets = _child_bucket_counts(requested_ages)
     params: dict[str, str | int | bool] = {
         "fromdate": checkin.isoformat(),
         "todate": checkout.isoformat(),
-        "adult": adults,
+        "adult": normalized_adults,
         "currency": currency,
         "language": language,
         "nationality": nationality,
         "onlyBestOffer": only_best_offer,
     }
-    _apply_child_quote_params(params, chd_count, chd_ages)
+    _apply_child_quote_params(params, normalized_chd_count, normalized_chd_ages)
     if cancel_policy_type:
         params["cancelPolicyType"] = cancel_policy_type
 
@@ -167,13 +183,13 @@ async def quote(
     raw = await client.get(f"/hotel/{hotel_id}/price/", params=params)
     if not _quote_response_matches_requested_occupancy(
         raw,
-        adults=adults,
+        adults=normalized_adults,
         requested_buckets=requested_buckets,
     ):
         logger.warning(
             "elektraweb_quote_child_occupancy_mismatch",
             hotel_id=hotel_id,
-            adults=adults,
+            adults=normalized_adults,
             requested_children=requested_children,
             requested_buckets=requested_buckets,
         )
@@ -183,16 +199,162 @@ async def quote(
     return parse_quote(raw)
 
 
+def _safe_int(value: object, default: int = 0) -> int:
+    """Convert arbitrary value to int with default fallback."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_iso_date(value: object) -> str:
+    """Normalize a date-like value to YYYY-MM-DD."""
+    if isinstance(value, date):
+        return value.isoformat()
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if "T" in raw:
+        return raw.split("T", maxsplit=1)[0]
+    if " " in raw:
+        return raw.split(" ", maxsplit=1)[0]
+    return raw
+
+
+def _split_guest_name(full_name: str) -> tuple[str, str]:
+    """Split full name into first and last name with safe fallback."""
+    normalized = " ".join(full_name.strip().split())
+    if not normalized:
+        return "Guest", "Guest"
+    tokens = normalized.split(" ")
+    if len(tokens) == 1:
+        return tokens[0], tokens[0]
+    return tokens[0], " ".join(tokens[1:])
+
+
+def _build_hoteladvisor_insert_payload(hotel_id: int, draft: dict) -> dict:
+    """Build `/Insert/HOTEL_RES` payload for HotelAdvisor integration."""
+    checkin_date = _normalize_iso_date(draft.get("checkin_date"))
+    checkout_date = _normalize_iso_date(draft.get("checkout_date"))
+    try:
+        los = (date.fromisoformat(checkout_date) - date.fromisoformat(checkin_date)).days
+    except ValueError:
+        los = _safe_int(draft.get("los"), 1)
+    los = max(los, 1)
+
+    ages = draft.get("chd_ages")
+    chd_ages = [max(0, _safe_int(age, 0)) for age in ages] if isinstance(ages, list) else []
+    younger_children = len([age for age in chd_ages if 0 < age <= 5])
+    elder_children = len([age for age in chd_ages if age > 5])
+    babies = len([age for age in chd_ages if age <= 0])
+
+    row: dict[str, object] = {
+        "HOTELID": str(hotel_id),
+        "CHECKIN": f"{checkin_date} 14:00:00.000" if checkin_date else None,
+        "CHECKOUT": f"{checkout_date} 12:00:00.000" if checkout_date else None,
+        "LOS": str(los),
+        "ADULT": str(max(_safe_int(draft.get("adults"), 1), 1)),
+        "CHD1": str(younger_children),
+        "CHD2": str(elder_children),
+        "BABY": str(babies),
+        "ROOMCOUNT": str(max(_safe_int(draft.get("room_count"), 1), 1)),
+        "ROOMTYPEID": str(_safe_int(draft.get("room_type_id"), 0)),
+        "GIVENROOMTYPEID": str(_safe_int(draft.get("given_room_type_id", draft.get("room_type_id")), 0)),
+        "BOARDTYPEID": str(_safe_int(draft.get("board_type_id"), 0)),
+        "RATETYPEID": str(_safe_int(draft.get("rate_type_id"), 0)),
+        "RATECODEID": str(_safe_int(draft.get("rate_code_id"), 0)),
+        "CURRENCYID_CURCODE": str(draft.get("currency_display", draft.get("currency", "EUR"))),
+        "TOTALPRICE": str(draft.get("total_price_eur", draft.get("total_price", ""))),
+        "GUESTNAMES": draft.get("guest_name"),
+        "CONTACTPERSON": draft.get("guest_name"),
+        "CONTACTPHONE": draft.get("phone"),
+        "CONTACTEMAIL": draft.get("email"),
+        "NOTES": draft.get("notes"),
+        "RESSTATEID": str(_safe_int(draft.get("res_state_id"), 2)),
+        "RESSUBSTATE": str(draft.get("res_sub_state", "Definite")),
+        "ISAGENCY": bool(draft.get("is_agency", False)),
+    }
+
+    if chd_ages:
+        row["CHD1AGE"] = str(chd_ages[0])
+    if len(chd_ages) > 1:
+        row["CHD2AGE"] = str(chd_ages[1])
+    if len(chd_ages) > 2:
+        row["CHD3AGE"] = str(chd_ages[2])
+    if len(chd_ages) > 3:
+        row["CHD4AGE"] = str(chd_ages[3])
+
+    normalized_row = {key: value for key, value in row.items() if value not in (None, "", "0")}
+    normalized_row["HOTELID"] = str(hotel_id)
+    normalized_row["LOS"] = str(los)
+    normalized_row["ADULT"] = str(max(_safe_int(draft.get("adults"), 1), 1))
+    return {
+        "Action": "Insert",
+        "Object": "HOTEL_RES",
+        "Row": normalized_row,
+        "SelectAfterInsert": ["ID"],
+    }
+
+
+def _build_hoteladvisor_guest_payload(hotel_id: int, reservation_id: str, draft: dict) -> dict | None:
+    """Build `/Execute/SP_HOTELRESGUEST_SAVE` payload when guest fields exist."""
+    guest_name = str(draft.get("guest_name") or "").strip()
+    if not guest_name:
+        return None
+    first_name, last_name = _split_guest_name(guest_name)
+    phone = str(draft.get("phone") or "").strip().replace("+", "")
+    email = str(draft.get("email") or "").strip() or None
+
+    parameters: dict[str, object] = {
+        "HOTELID": hotel_id,
+        "RESID": _safe_int(reservation_id, 0) or reservation_id,
+        "RES_GUEST_ID": draft.get("res_guest_id"),
+        "GUESTID": draft.get("guest_id"),
+        "NAME": first_name,
+        "LNAME": last_name,
+        "PHONE": phone or None,
+        "EMAIL": email,
+        "NATIONALITYID": _safe_int(draft.get("nationality_id"), 0) or None,
+    }
+    normalized = {key: value for key, value in parameters.items() if value not in (None, "")}
+    if "RESID" not in normalized:
+        return None
+    return {
+        "Action": "Execute",
+        "Object": "SP_HOTELRESGUEST_SAVE",
+        "BaseObject": "RES_NAME",
+        "Parameters": normalized,
+    }
+
+
 async def create_reservation(hotel_id: int, draft: dict) -> ReservationResponse:
-    """Create reservation in Elektraweb with fallback paths."""
+    """Create reservation in Elektraweb with HotelAdvisor-first failover strategy."""
     client = get_elektraweb_client()
+    last_error: Exception | None = None
+
+    try:
+        logger.info("elektraweb_create_reservation_attempt", hotel_id=hotel_id, path="/Insert/HOTEL_RES")
+        insert_payload = _build_hoteladvisor_insert_payload(hotel_id, draft)
+        raw = await client.post("/Insert/HOTEL_RES", json_body=insert_payload)
+        parsed = parse_reservation_create(raw)
+        if parsed.reservation_id:
+            guest_payload = _build_hoteladvisor_guest_payload(hotel_id, parsed.reservation_id, draft)
+            if guest_payload is not None:
+                try:
+                    await client.post("/Execute/SP_HOTELRESGUEST_SAVE", json_body=guest_payload)
+                except Exception as guest_error:
+                    logger.warning("elektraweb_guest_save_failed", hotel_id=hotel_id, error=str(guest_error))
+            return parsed
+    except Exception as error:
+        logger.warning("elektraweb_create_reservation_path_failed", path="/Insert/HOTEL_RES", error=str(error))
+        last_error = error
+
     paths = [
         f"/hotel/{hotel_id}/createReservation",
         f"/hotel/{hotel_id}/reservation/create",
         f"/hotel/{hotel_id}/reservations/create",
     ]
 
-    last_error: Exception | None = None
     for path in paths:
         try:
             logger.info("elektraweb_create_reservation_attempt", hotel_id=hotel_id, path=path)
@@ -250,8 +412,17 @@ async def get_reservation(
 async def modify_reservation(hotel_id: int, reservation_id: str, updates: dict) -> dict:
     """Modify an existing reservation."""
     client = get_elektraweb_client()
-    body = {"reservationId": reservation_id, **updates}
     logger.info("elektraweb_modify_reservation_request", hotel_id=hotel_id, reservation_id=reservation_id)
+
+    update_row: dict[str, object] = {"ID": reservation_id, "HOTELID": str(hotel_id)}
+    update_row.update({key: value for key, value in updates.items() if value is not None})
+    hoteladvisor_payload = {"Action": "Update", "Object": "HOTEL_RES", "Row": update_row}
+    try:
+        return await client.post("/Update/HOTEL_RES", json_body=hoteladvisor_payload)
+    except Exception as error:
+        logger.warning("elektraweb_modify_reservation_hoteladvisor_failed", error=str(error))
+
+    body = {"reservationId": reservation_id, **updates}
     return await client.post(f"/hotel/{hotel_id}/updateReservation", json_body=body)
 
 

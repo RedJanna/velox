@@ -3,11 +3,15 @@ services:
     build: .
     ports:
       - "${APP_PORT:-8001}:8001"
+    command: ["python", "-m", "uvicorn", "velox.main:app", "--host", "0.0.0.0", "--port", "8001", "--proxy-headers", "--forwarded-allow-ips=*", "--reload"]
     volumes:
+      - ./src:/app/src
       - ./data/chat_lab_feedback:/app/data/chat_lab_feedback
       - ./data/chat_lab_imports:/app/data/chat_lab_imports
     env_file:
       - .env
+    environment:
+      PYTHONPATH: /app/src
     depends_on:
       db:
         condition: service_healthy

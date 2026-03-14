@@ -60,7 +60,12 @@ def get_tool_definitions() -> list[dict[str, Any]]:
         ),
         _def(
             "stay_create_hold",
-            "Create stay draft hold before admin approval.",
+            (
+                "Create stay draft hold before admin approval. "
+                "ALL required guest fields must be collected and confirmed by the guest before calling this tool. "
+                "cancel_policy_type must be explicitly chosen by the guest (FREE_CANCEL or NON_REFUNDABLE). "
+                "notes contains any special requests or extra notes from the guest (empty string if none)."
+            ),
             {
                 "type": "object",
                 "properties": {
@@ -79,10 +84,19 @@ def get_tool_definitions() -> list[dict[str, Any]]:
                             "total_price_eur": {"type": "number"},
                             "adults": {"type": "integer"},
                             "chd_ages": {"type": "array", "items": {"type": "integer"}},
-                            "guest_name": {"type": "string"},
-                            "phone": {"type": "string"},
+                            "guest_name": {"type": "string", "description": "Full name (ad soyad)"},
+                            "phone": {"type": "string", "description": "E.164 format phone number"},
                             "email": {"type": "string"},
-                            "notes": {"type": "string"},
+                            "nationality": {"type": "string", "description": "ISO 2-letter country code"},
+                            "cancel_policy_type": {
+                                "type": "string",
+                                "enum": ["FREE_CANCEL", "NON_REFUNDABLE"],
+                                "description": "Guest's cancellation policy choice",
+                            },
+                            "notes": {
+                                "type": "string",
+                                "description": "Guest's special requests or extra notes. Empty string if none.",
+                            },
                         },
                         "required": [
                             "checkin_date",
@@ -97,51 +111,8 @@ def get_tool_definitions() -> list[dict[str, Any]]:
                             "adults",
                             "guest_name",
                             "phone",
-                        ],
-                    },
-                },
-                "required": ["hotel_id", "draft"],
-            },
-        ),
-        _def(
-            "booking_create_reservation",
-            "Create final stay reservation in PMS.",
-            {
-                "type": "object",
-                "properties": {
-                    "hotel_id": {"type": "integer"},
-                    "draft": {
-                        "type": "object",
-                        "properties": {
-                            "checkin_date": {"type": "string", "format": "date"},
-                            "checkout_date": {"type": "string", "format": "date"},
-                            "room_type_id": {"type": "integer"},
-                            "board_type_id": {"type": "integer"},
-                            "rate_type_id": {"type": "integer"},
-                            "rate_code_id": {"type": "integer"},
-                            "price_agency_id": {"type": "integer"},
-                            "currency": {"type": "string"},
-                            "total_price": {"type": "number"},
-                            "adults": {"type": "integer"},
-                            "chd_ages": {"type": "array", "items": {"type": "integer"}},
-                            "guest_name": {"type": "string"},
-                            "phone": {"type": "string"},
-                            "email": {"type": "string"},
-                            "notes": {"type": "string"},
-                        },
-                        "required": [
-                            "checkin_date",
-                            "checkout_date",
-                            "room_type_id",
-                            "board_type_id",
-                            "rate_type_id",
-                            "rate_code_id",
-                            "price_agency_id",
-                            "currency",
-                            "total_price",
-                            "adults",
-                            "guest_name",
-                            "phone",
+                            "cancel_policy_type",
+                            "notes",
                         ],
                     },
                 },

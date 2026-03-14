@@ -7,6 +7,24 @@ This file is the **entry point** for all AI coding agents (Codex, Claude, Copilo
 
 ---
 
+## Rule Hierarchy (Kural Hiyerarşisi)
+
+Kurallar arasında çakışma olursa aşağıdaki öncelik sırası geçerlidir.
+Üst sıradaki kural **her zaman** alt sıradakini geçersiz kılar.
+
+| Öncelik | Kaynak | Açıklama |
+|---------|--------|----------|
+| 1 (En yüksek) | `skills/security_privacy.md` | Güvenlik & gizlilik — **asla override edilemez** |
+| 2 | `skills/anti_hallucination.md` | Kaynak doğrulama & QC gate kuralları |
+| 3 | Diğer skill dosyaları | `error_handling`, `whatsapp_format`, `coding_standards`, `testing_qa`, `frontend_standards`, `observability` |
+| 4 | `system_prompt_velox.md` | AI agent davranış & çalışma kuralları |
+| 5 (En düşük) | Task-specific talimatlar | `tasks/` klasöründeki görev dosyaları |
+
+> **Çakışma durumunda:** Dur, çakışmayı geliştirici/admin'e açıkla, kararı bekle.
+> Güvenlik kuralları (Öncelik 1) için beklemeye **gerek yok** — doğrudan güvenlik kuralını uygula.
+
+---
+
 ## How It Works
 
 1. Before starting any task, read this file (`SKILL.md`)
@@ -21,12 +39,14 @@ This file is the **entry point** for all AI coding agents (Codex, Claude, Copilo
 
 | File | Scope | When to Read |
 |------|-------|-------------|
-| `skills/coding_standards.md` | Async patterns, type hints, module size, imports, naming | **Every task** |
+| `skills/coding_standards.md` | Async patterns, type hints, module size, imports, naming | **Every task** (backend) |
+| `skills/frontend_standards.md` | React/TypeScript, component structure, admin panel UI, a11y | **Every frontend/admin panel task** |
 | `skills/security_privacy.md` | PII handling, secrets, input sanitization, payment data | Tasks touching user data, auth, payments |
 | `skills/anti_hallucination.md` | Source hierarchy, QC checks, template-first, no fabrication | Tasks touching LLM, prompts, responses |
 | `skills/error_handling.md` | Retry patterns, fallback chains, user-facing error rules | Tasks touching external APIs, tools, adapters |
 | `skills/whatsapp_format.md` | Message limits, formatting, emoji policy, tone | Tasks touching message output, templates |
 | `skills/testing_qa.md` | Test structure, mock strategy, coverage rules, scenario tests | Tasks that include writing tests |
+| `skills/observability.md` | Health checks, metrics, logging, tracing, alerting | Tasks touching monitoring, logging, health checks |
 
 ---
 
@@ -42,12 +62,12 @@ This file is the **entry point** for all AI coding agents (Codex, Claude, Copilo
 | `06_llm_engine` | `coding_standards`, `anti_hallucination`, `error_handling` |
 | `07_tool_implementations` | `coding_standards`, `error_handling`, `security_privacy` |
 | `08_escalation_engine` | `coding_standards`, `anti_hallucination` |
-| `09_admin_api` | `coding_standards`, `security_privacy` |
+| `09_admin_api` | `coding_standards`, `security_privacy`, `frontend_standards` |
 | `10_webhook_handlers` | `coding_standards`, `error_handling`, `security_privacy` |
 | `11_restaurant_module` | `coding_standards`, `error_handling` |
 | `12_transfer_module` | `coding_standards`, `error_handling` |
 | `13_testing` | `coding_standards`, `testing_qa` |
-| `14_docker_deployment` | `coding_standards`, `security_privacy` |
+| `14_docker_deployment` | `coding_standards`, `security_privacy`, `observability` |
 
 ---
 
@@ -64,7 +84,9 @@ Skills are **living documents**. To update:
 
 ## Conflict Resolution
 
-If a skill rule conflicts with a task instruction:
-1. **Skill wins** for safety/security rules (`security_privacy.md`)
-2. **Task wins** for implementation-specific decisions
-3. If unclear, stop and ask the developer before proceeding
+Çakışma durumunda **Rule Hierarchy** tablosundaki öncelik sırası uygulanır:
+
+1. **Öncelik 1-2 (security, anti-hallucination) her zaman kazanır** — override edilemez
+2. **Skill kazanır** güvenlik/veri bütünlüğü kurallarında
+3. **Task kazanır** implementasyon-spesifik kararlarda (hangi kütüphane, hangi pattern)
+4. **Belirsizse:** Dur, çakışmayı açıkla, geliştirici kararını bekle

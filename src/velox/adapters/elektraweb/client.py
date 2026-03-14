@@ -14,13 +14,17 @@ logger = structlog.get_logger(__name__)
 REQUEST_TIMEOUT = 10.0
 MAX_RETRIES = 3
 RETRY_BACKOFF = [1, 3, 5]
+FALLBACK_BASE_URL = "https://4001.hoteladvisor.net"
+ACTION_OBJECT_PATH_PREFIXES = ("/Insert/", "/Update/", "/Select/", "/Execute/", "/Function/")
 
 
 class ElektrawebClient:
     """Async HTTP client for the Elektraweb PMS API."""
 
     def __init__(self) -> None:
-        self._base_url = settings.elektra_api_base_url.rstrip("/")
+        configured_base_url = settings.elektra_api_base_url.strip()
+        self._base_url = (configured_base_url or "https://bookingapi.elektraweb.com").rstrip("/")
+        self._base_urls = self._build_base_urls(self._base_url)
         self._api_key = settings.elektra_api_key.strip()
         self._raw_booking_credential = os.getenv("Elektra_Booking", "").strip() or os.getenv("ELEKTRA_BOOKING", "").strip()
         self._token: str | None = None
@@ -42,6 +46,26 @@ class ElektrawebClient:
         if self._client and not self._client.is_closed:
             await self._client.aclose()
             self._client = None
+
+    @staticmethod
+    def _build_base_urls(primary_base_url: str) -> list[str]:
+        """Build ordered base URLs for failover: primary then fallback."""
+        urls = [primary_base_url.rstrip("/")]
+        fallback = FALLBACK_BASE_URL.rstrip("/")
+        if fallback not in urls:
+            urls.append(fallback)
+        return urls
+
+    async def _switch_base_url(self, base_url: str) -> None:
+        """Switch active base URL and reset auth/client state for the new host."""
+        normalized = base_url.rstrip("/")
+        if normalized == self._base_url:
+            return
+
+        await self.close()
+        self._base_url = normalized
+        self._token = None
+        self._token_expires_at = None
 
     async def _authenticate(self) -> str:
         """Authenticate with Elektraweb API and get JWT token."""
@@ -123,47 +147,104 @@ class ElektrawebClient:
         params: dict | None = None,
     ) -> dict:
         """Make an authenticated request with retries and token refresh."""
-        client = await self._get_client()
         last_error: Exception | None = None
 
-        for attempt in range(MAX_RETRIES):
-            try:
-                token = await self._get_token()
-                response = await client.request(
-                    method,
-                    path,
-                    json=json_body,
-                    params=params,
-                    headers=self._auth_headers(token),
+        for base_index, base_url in enumerate(self._base_urls, start=1):
+            await self._switch_base_url(base_url)
+            client = await self._get_client()
+            logger.info(
+                "elektraweb_request_base_selected",
+                path=path,
+                base_url=self._base_url,
+                base_index=base_index,
+                base_count=len(self._base_urls),
+            )
+
+            for attempt in range(MAX_RETRIES):
+                try:
+                    token = await self._get_token()
+                    request_headers = self._auth_headers(token)
+                    request_json = json_body
+                    if isinstance(request_json, dict) and path.startswith(ACTION_OBJECT_PATH_PREFIXES):
+                        if "LoginToken" not in request_json:
+                            request_json = {**request_json, "LoginToken": token}
+                        request_headers = {"Content-Type": "application/json"}
+
+                    response = await client.request(
+                        method,
+                        path,
+                        json=request_json,
+                        params=params,
+                        headers=request_headers,
+                    )
+
+                    if response.status_code == 401:
+                        logger.warning("elektraweb_unauthorized_refreshing_token", path=path, attempt=attempt + 1)
+                        self._token = None
+                        self._token_expires_at = None
+                        continue
+
+                    response.raise_for_status()
+                    return response.json()
+                except httpx.TimeoutException as error:
+                    last_error = error
+                    logger.warning(
+                        "elektraweb_timeout",
+                        path=path,
+                        attempt=attempt + 1,
+                        max_retries=MAX_RETRIES,
+                        base_url=self._base_url,
+                    )
+                except httpx.HTTPStatusError as error:
+                    last_error = error
+                    status_code = error.response.status_code
+                    logger.warning(
+                        "elektraweb_http_status_error",
+                        path=path,
+                        status_code=status_code,
+                        attempt=attempt + 1,
+                        base_url=self._base_url,
+                    )
+                    if 400 <= status_code < 500:
+                        break
+                except httpx.RequestError as error:
+                    last_error = error
+                    logger.warning(
+                        "elektraweb_request_error",
+                        path=path,
+                        error=str(error),
+                        attempt=attempt + 1,
+                        base_url=self._base_url,
+                    )
+                except Exception as error:
+                    last_error = error
+                    logger.warning(
+                        "elektraweb_unexpected_error",
+                        path=path,
+                        error_type=type(error).__name__,
+                        base_url=self._base_url,
+                    )
+                    break
+
+                if attempt < MAX_RETRIES - 1:
+                    wait_time = RETRY_BACKOFF[min(attempt, len(RETRY_BACKOFF) - 1)]
+                    logger.info("elektraweb_retry_wait", wait_seconds=wait_time, base_url=self._base_url)
+                    await asyncio.sleep(wait_time)
+
+            if base_index < len(self._base_urls):
+                logger.warning(
+                    "elektraweb_failover_next_base",
+                    path=path,
+                    failed_base_url=self._base_url,
+                    next_base_url=self._base_urls[base_index],
                 )
 
-                if response.status_code == 401:
-                    logger.warning("elektraweb_unauthorized_refreshing_token", path=path, attempt=attempt + 1)
-                    self._token = None
-                    self._token_expires_at = None
-                    continue
-
-                response.raise_for_status()
-                return response.json()
-            except httpx.TimeoutException as error:
-                last_error = error
-                logger.warning("elektraweb_timeout", path=path, attempt=attempt + 1, max_retries=MAX_RETRIES)
-            except httpx.HTTPStatusError as error:
-                last_error = error
-                status_code = error.response.status_code
-                logger.warning("elektraweb_http_status_error", path=path, status_code=status_code, attempt=attempt + 1)
-                if 400 <= status_code < 500:
-                    raise
-            except httpx.RequestError as error:
-                last_error = error
-                logger.warning("elektraweb_request_error", path=path, error=str(error), attempt=attempt + 1)
-
-            if attempt < MAX_RETRIES - 1:
-                wait_time = RETRY_BACKOFF[min(attempt, len(RETRY_BACKOFF) - 1)]
-                logger.info("elektraweb_retry_wait", wait_seconds=wait_time)
-                await asyncio.sleep(wait_time)
-
-        logger.error("elektraweb_request_exhausted", path=path, max_retries=MAX_RETRIES)
+        logger.error(
+            "elektraweb_request_exhausted",
+            path=path,
+            max_retries=MAX_RETRIES,
+            base_urls=self._base_urls,
+        )
         if last_error is not None:
             raise last_error
         raise RuntimeError(f"Elektraweb request failed: {path}")

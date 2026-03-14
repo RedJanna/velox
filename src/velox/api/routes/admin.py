@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime
 from typing import Annotated, Any
 from uuid import UUID, uuid4
 
+import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from passlib.hash import bcrypt
 from pydantic import BaseModel, Field, field_validator
@@ -21,11 +22,13 @@ from velox.config.settings import settings
 from velox.core.hotel_profile_loader import reload_profiles, save_profile_definition
 from velox.core.template_engine import reload_templates
 from velox.db.repositories.conversation import ConversationRepository
+from velox.db.repositories.hotel import NotificationPhoneRepository
 from velox.db.repositories.restaurant import RestaurantRepository
 from velox.db.repositories.transfer import TransferRepository
 from velox.escalation.matrix import reload_matrix
 from velox.models.hotel_profile import FAQEntry, FAQStatus, HotelProfile
 from velox.models.restaurant import RestaurantSlotCreate, RestaurantSlotUpdate
+from velox.models.webhook_events import ApprovalEvent
 from velox.utils.admin_security import (
     DEFAULT_SESSION_PRESET,
     DEFAULT_VERIFICATION_PRESET,
@@ -43,6 +46,7 @@ from velox.utils.admin_security import (
     trusted_device_is_active,
     upsert_trusted_device_record,
 )
+from velox.utils.id_gen import next_sequential_id
 from velox.utils.totp import verify_totp_code
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -758,7 +762,7 @@ async def approve_transfer_hold(
     request: Request,
     user: Annotated[TokenData, Depends(get_current_user)],
 ) -> dict[str, Any]:
-    """Approve transfer hold and linked approval request."""
+    """Approve transfer hold through approval webhook flow."""
     check_permission(user, "holds:approve")
     if not hold_id.startswith("TR_HOLD_"):
         raise HTTPException(status_code=400, detail="Invalid transfer hold id")
@@ -774,24 +778,27 @@ async def approve_transfer_hold(
     if hold.status != HoldStatus.PENDING_APPROVAL:
         raise HTTPException(status_code=409, detail=f"Hold is not pending approval (current: {hold.status})")
 
-    await repository.update_hold_status(
-        hold_id=hold_id,
-        status=HoldStatus.APPROVED.value,
-        approved_by=user.username,
-    )
     db = request.app.state.db_pool
     async with db.acquire() as conn:
-        await conn.execute(
-            """
-            UPDATE approval_requests
-            SET status = 'APPROVED', decided_by_role = $1, decided_by_name = $2, decided_at = now()
-            WHERE reference_id = $3 AND status = 'REQUESTED'
-            """,
-            user.role.value,
-            user.username,
-            hold_id,
+        approval_request_id = await _ensure_approval_request(
+            conn=conn,
+            hotel_id=hotel_id,
+            hold_id=hold_id,
+            hold_type="transfer",
         )
-    return {"status": "approved", "hold_id": hold_id, "hold_type": "transfer"}
+
+    event_processor = getattr(request.app.state, "event_processor", None)
+    if event_processor is None:
+        raise HTTPException(status_code=503, detail="Event processor unavailable")
+    event = ApprovalEvent(
+        hotel_id=hotel_id,
+        approval_request_id=approval_request_id,
+        approved=True,
+        approved_by_role=user.role.value,
+        timestamp=datetime.now(UTC),
+    )
+    result = await event_processor.process_approval_event(event)
+    return {"status": "approved", "hold_id": hold_id, "hold_type": "transfer", "result": result}
 
 
 @router.post("/hotels/{hotel_id}/transfers/holds/{hold_id}/reject")
@@ -802,7 +809,7 @@ async def reject_transfer_hold(
     request: Request,
     user: Annotated[TokenData, Depends(get_current_user)],
 ) -> dict[str, Any]:
-    """Reject transfer hold and linked approval request."""
+    """Reject transfer hold through approval webhook flow."""
     check_permission(user, "holds:reject")
     if not hold_id.startswith("TR_HOLD_"):
         raise HTTPException(status_code=400, detail="Invalid transfer hold id")
@@ -818,24 +825,28 @@ async def reject_transfer_hold(
     if hold.status != HoldStatus.PENDING_APPROVAL:
         raise HTTPException(status_code=409, detail=f"Hold is not pending approval (current: {hold.status})")
 
-    await repository.update_hold_status(
-        hold_id=hold_id,
-        status=HoldStatus.REJECTED.value,
-        rejected_reason=body.reason,
-    )
     db = request.app.state.db_pool
     async with db.acquire() as conn:
-        await conn.execute(
-            """
-            UPDATE approval_requests
-            SET status = 'REJECTED', decided_by_role = $1, decided_by_name = $2, decided_at = now()
-            WHERE reference_id = $3 AND status = 'REQUESTED'
-            """,
-            user.role.value,
-            user.username,
-            hold_id,
+        approval_request_id = await _ensure_approval_request(
+            conn=conn,
+            hotel_id=hotel_id,
+            hold_id=hold_id,
+            hold_type="transfer",
         )
-    return {"status": "rejected", "hold_id": hold_id, "reason": body.reason}
+        await _update_hold_rejection(conn, "transfer", hold_id, body.reason)
+
+    event_processor = getattr(request.app.state, "event_processor", None)
+    if event_processor is None:
+        raise HTTPException(status_code=503, detail="Event processor unavailable")
+    event = ApprovalEvent(
+        hotel_id=hotel_id,
+        approval_request_id=approval_request_id,
+        approved=False,
+        approved_by_role=user.role.value,
+        timestamp=datetime.now(UTC),
+    )
+    result = await event_processor.process_approval_event(event)
+    return {"status": "rejected", "hold_id": hold_id, "reason": body.reason, "result": result}
 
 
 @router.get("/conversations")
@@ -1080,17 +1091,32 @@ async def list_holds(
 
     async with db.acquire() as conn:
         if hold_type in (None, "stay"):
-            query = """
+            query_with_workflow = """
+                SELECT hold_id, 'stay' AS type, hotel_id, status, workflow_state, draft_json,
+                       expires_at, pms_create_started_at, pms_create_completed_at,
+                       manual_review_reason, approval_idempotency_key, create_idempotency_key,
+                       approved_by, created_at, conversation_id
+                FROM stay_holds
+                WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
+            """
+            query_legacy = """
                 SELECT hold_id, 'stay' AS type, hotel_id, status, draft_json,
                        approved_by, created_at, conversation_id
                 FROM stay_holds
                 WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
             """
-            rows = await conn.fetch(
-                query,
-                effective_hotel_id,
-                status_filter,
-            )
+            try:
+                rows = await conn.fetch(
+                    query_with_workflow,
+                    effective_hotel_id,
+                    status_filter,
+                )
+            except asyncpg.UndefinedColumnError:
+                rows = await conn.fetch(
+                    query_legacy,
+                    effective_hotel_id,
+                    status_filter,
+                )
             results.extend(dict(row) for row in rows)
 
         if hold_type in (None, "restaurant"):
@@ -1158,11 +1184,13 @@ async def approve_hold(
     request: Request,
     user: Annotated[TokenData, Depends(get_current_user)],
 ) -> dict[str, Any]:
-    """Approve hold and update related approval request."""
+    """Approve hold and trigger approval webhook flow inside backend."""
     _ = body
     check_permission(user, "holds:approve")
     _table, hold_type = _resolve_hold_target(hold_id)
     db = request.app.state.db_pool
+    effective_hotel_id: int
+    approval_request_id: str
 
     async with db.acquire() as conn:
         row = await _fetch_hold_row(conn, hold_type, hold_id)
@@ -1172,19 +1200,27 @@ async def approve_hold(
             raise HTTPException(status_code=409, detail=f"Hold is not pending approval (current: {row['status']})")
         if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
             raise HTTPException(status_code=403, detail="Access denied")
-
-        await _update_hold_approval(conn, hold_type, hold_id, user.username)
-        await conn.execute(
-            """
-            UPDATE approval_requests
-            SET status = 'APPROVED', decided_by_role = $1, decided_by_name = $2, decided_at = now()
-            WHERE reference_id = $3 AND status = 'REQUESTED'
-            """,
-            user.role.value,
-            user.username,
-            hold_id,
+        effective_hotel_id = int(row["hotel_id"])
+        approval_request_id = await _ensure_approval_request(
+            conn=conn,
+            hotel_id=effective_hotel_id,
+            hold_id=hold_id,
+            hold_type=hold_type,
         )
-    return {"status": "approved", "hold_id": hold_id, "hold_type": hold_type}
+
+    event_processor = getattr(request.app.state, "event_processor", None)
+    if event_processor is None:
+        raise HTTPException(status_code=503, detail="Event processor unavailable")
+
+    event = ApprovalEvent(
+        hotel_id=effective_hotel_id,
+        approval_request_id=approval_request_id,
+        approved=True,
+        approved_by_role=user.role.value,
+        timestamp=datetime.now(UTC),
+    )
+    result = await event_processor.process_approval_event(event)
+    return {"status": "approved", "hold_id": hold_id, "hold_type": hold_type, "result": result}
 
 
 @router.post("/holds/{hold_id}/reject")
@@ -1194,10 +1230,12 @@ async def reject_hold(
     request: Request,
     user: Annotated[TokenData, Depends(get_current_user)],
 ) -> dict[str, Any]:
-    """Reject hold and store reason."""
+    """Reject hold and trigger approval webhook flow inside backend."""
     check_permission(user, "holds:reject")
     _table, hold_type = _resolve_hold_target(hold_id)
     db = request.app.state.db_pool
+    effective_hotel_id: int
+    approval_request_id: str
 
     async with db.acquire() as conn:
         row = await _fetch_hold_row(conn, hold_type, hold_id)
@@ -1207,19 +1245,29 @@ async def reject_hold(
             raise HTTPException(status_code=409, detail=f"Hold is not pending approval (current: {row['status']})")
         if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
             raise HTTPException(status_code=403, detail="Access denied")
-
-        await _update_hold_rejection(conn, hold_type, hold_id, body.reason)
-        await conn.execute(
-            """
-            UPDATE approval_requests
-            SET status = 'REJECTED', decided_by_role = $1, decided_by_name = $2, decided_at = now()
-            WHERE reference_id = $3 AND status = 'REQUESTED'
-            """,
-            user.role.value,
-            user.username,
-            hold_id,
+        effective_hotel_id = int(row["hotel_id"])
+        approval_request_id = await _ensure_approval_request(
+            conn=conn,
+            hotel_id=effective_hotel_id,
+            hold_id=hold_id,
+            hold_type=hold_type,
         )
-    return {"status": "rejected", "hold_id": hold_id, "reason": body.reason}
+        # Rejection reason should still be persisted on hold row.
+        await _update_hold_rejection(conn, hold_type, hold_id, body.reason)
+
+    event_processor = getattr(request.app.state, "event_processor", None)
+    if event_processor is None:
+        raise HTTPException(status_code=503, detail="Event processor unavailable")
+
+    event = ApprovalEvent(
+        hotel_id=effective_hotel_id,
+        approval_request_id=approval_request_id,
+        approved=False,
+        approved_by_role=user.role.value,
+        timestamp=datetime.now(UTC),
+    )
+    result = await event_processor.process_approval_event(event)
+    return {"status": "rejected", "hold_id": hold_id, "reason": body.reason, "result": result}
 
 
 @router.get("/tickets")
@@ -1340,6 +1388,43 @@ async def _fetch_hold_row(conn: Any, hold_type: str, hold_id: str) -> Any:
     return await conn.fetchrow("SELECT * FROM transfer_holds WHERE hold_id = $1", hold_id)
 
 
+async def _ensure_approval_request(conn: Any, hotel_id: int, hold_id: str, hold_type: str) -> str:
+    """Load active approval request id or create a fallback one if missing."""
+    approval_type = hold_type.upper()
+    row = await conn.fetchrow(
+        """
+        SELECT request_id
+        FROM approval_requests
+        WHERE hotel_id = $1 AND reference_id = $2 AND approval_type = $3
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        hotel_id,
+        hold_id,
+        approval_type,
+    )
+    if row is not None:
+        return str(row["request_id"])
+
+    request_id = await next_sequential_id("APR_", "approval_requests", "request_id")
+    details_summary = f"{approval_type} hold approval requested from admin panel: {hold_id}"
+    await conn.execute(
+        """
+        INSERT INTO approval_requests (
+            request_id, hotel_id, approval_type, reference_id, details_summary, required_roles, any_of, status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, false, 'REQUESTED')
+        """,
+        request_id,
+        hotel_id,
+        approval_type,
+        hold_id,
+        details_summary,
+        ["ADMIN"],
+    )
+    return request_id
+
+
 async def _update_hold_approval(conn: Any, hold_type: str, hold_id: str, username: str) -> None:
     """Approve one hold row using a static query per hold type."""
     if hold_type == "stay":
@@ -1414,3 +1499,64 @@ async def _update_hold_rejection(conn: Any, hold_type: str, hold_id: str, reason
         reason,
         hold_id,
     )
+
+
+# ---------------------------------------------------------------------------
+# Notification phones management
+# ---------------------------------------------------------------------------
+
+_notification_phone_repo = NotificationPhoneRepository()
+
+
+class NotificationPhoneAdd(BaseModel):
+    phone: str
+    label: str = ""
+
+    @field_validator("phone")
+    @classmethod
+    def normalize_phone(cls, value: str) -> str:
+        cleaned = "".join(c for c in value.strip() if c.isdigit() or c == "+")
+        if cleaned.startswith("00"):
+            cleaned = f"+{cleaned[2:]}"
+        if cleaned and not cleaned.startswith("+"):
+            cleaned = f"+{cleaned}"
+        digit_count = len(cleaned.replace("+", ""))
+        if digit_count < 10 or digit_count > 15:
+            raise ValueError("Telefon numarasi 10-15 rakam icermelidir.")
+        return cleaned
+
+
+@router.get("/notification-phones")
+async def list_notification_phones(
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> list[dict[str, Any]]:
+    """List active notification phones for the hotel."""
+    check_permission(user, "notification_phones", "read")
+    return await _notification_phone_repo.list_active(user.hotel_id)
+
+
+@router.post("/notification-phones", status_code=201)
+async def add_notification_phone(
+    body: NotificationPhoneAdd,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Add a notification phone number."""
+    check_permission(user, "notification_phones", "write")
+    return await _notification_phone_repo.add(user.hotel_id, body.phone, body.label)
+
+
+@router.delete("/notification-phones/{phone}")
+async def remove_notification_phone(
+    phone: str,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, str]:
+    """Remove a notification phone. Default admin phone cannot be removed."""
+    check_permission(user, "notification_phones", "write")
+    decoded_phone = phone.replace("_", "+")
+    try:
+        removed = await _notification_phone_repo.remove(user.hotel_id, decoded_phone)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not removed:
+        raise HTTPException(status_code=404, detail="Numara bulunamadi.")
+    return {"status": "removed", "phone": decoded_phone}

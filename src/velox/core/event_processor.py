@@ -11,7 +11,19 @@ import orjson
 import structlog
 
 from velox.adapters.whatsapp.client import get_whatsapp_client
-from velox.config.constants import MAX_TOOL_RETRIES, TOOL_RETRY_BACKOFF_SECONDS
+from velox.config.constants import MAX_TOOL_RETRIES, TOOL_RETRY_BACKOFF_SECONDS, HoldStatus
+from velox.core.hold_workflow import HoldWorkflowEvent, HoldWorkflowState, apply_hold_transition
+from velox.core.idempotency import (
+    IDEMPOTENCY_NAMESPACE_APPROVAL,
+    IDEMPOTENCY_NAMESPACE_CREATE,
+    IdempotencyInput,
+    build_idempotency_key,
+)
+from velox.core.reconciliation import (
+    ReconciliationAction,
+    ReconciliationInput,
+    decide_reconciliation_action,
+)
 from velox.db.repositories.conversation import ConversationRepository
 from velox.models.conversation import Message
 from velox.models.webhook_events import ApprovalEvent, PaymentEvent, TransferEvent
@@ -82,26 +94,146 @@ class EventProcessor:
 
             if not event.approved:
                 await self._update_hold_status(conn, approval_type, reference_id, status="REJECTED")
+                await self._upsert_stay_workflow_metadata(
+                    conn,
+                    reference_id=reference_id,
+                    workflow_state=HoldWorkflowState.rejected.value,
+                )
                 user_message = (
                     "Talebiniz su an onaylanamadi. Ekibimiz alternatifler icin size yardimci olacaktir."
                 )
             elif approval_type == "STAY":
+                approval_idempotency_key = build_idempotency_key(
+                    IdempotencyInput(
+                        namespace=IDEMPOTENCY_NAMESPACE_APPROVAL,
+                        reference_id=reference_id,
+                        hotel_id=event.hotel_id,
+                    )
+                )
+                create_idempotency_key = build_idempotency_key(
+                    IdempotencyInput(
+                        namespace=IDEMPOTENCY_NAMESPACE_CREATE,
+                        reference_id=reference_id,
+                        hotel_id=event.hotel_id,
+                    )
+                )
+                if self._is_duplicate_stay_approval(hold, approval_idempotency_key):
+                    logger.info(
+                        "approval_event_duplicate_ignored",
+                        approval_request_id=event.approval_request_id,
+                        hotel_id=event.hotel_id,
+                        reference_id=reference_id,
+                    )
+                    return {
+                        "approval_request_id": event.approval_request_id,
+                        "status": "processed",
+                        "approved": event.approved,
+                        "duplicate": True,
+                    }
+
+                pms_pending_transition = apply_hold_transition(
+                    current_state=HoldWorkflowState.pending_approval,
+                    event=HoldWorkflowEvent.admin_approved,
+                )
                 await self._update_hold_status(
                     conn,
                     approval_type,
                     reference_id,
-                    status="APPROVED",
+                    status=pms_pending_transition.to_state.value,
                     approved_by=event.approved_by_role,
                     approved_at=event.timestamp,
                 )
+                await self._upsert_stay_workflow_metadata(
+                    conn,
+                    reference_id=reference_id,
+                    workflow_state=pms_pending_transition.to_state.value,
+                    approval_idempotency_key=approval_idempotency_key,
+                    create_idempotency_key=create_idempotency_key,
+                    pms_create_started=True,
+                )
 
                 draft = self._extract_stay_draft(hold)
-                booking_result = await self._dispatch_with_retry(
-                    "booking_create_reservation",
-                    hotel_id=event.hotel_id,
-                    draft=draft,
-                )
+                try:
+                    booking_result = await self._dispatch_with_retry(
+                        "booking_create_reservation",
+                        hotel_id=event.hotel_id,
+                        draft=draft,
+                        approval_context="ADMIN_APPROVED",
+                        admin_approved=True,
+                    )
+                except Exception as exc:
+                    is_timeout = isinstance(exc, TimeoutError | asyncio.TimeoutError)
+                    reconciliation_action = decide_reconciliation_action(
+                        ReconciliationInput(
+                            create_http_timeout=is_timeout,
+                            create_response_success=False,
+                            reservation_found_by_id=False,
+                            reservation_found_by_voucher=False,
+                            readback_attempts_exhausted=True,
+                        )
+                    )
+                    failed_state = (
+                        HoldStatus.MANUAL_REVIEW.value
+                        if reconciliation_action == ReconciliationAction.MANUAL_REVIEW
+                        else HoldStatus.PMS_FAILED.value
+                    )
+                    await self._update_hold_status(conn, approval_type, reference_id, status=failed_state)
+                    await self._upsert_stay_workflow_metadata(
+                        conn,
+                        reference_id=reference_id,
+                        workflow_state=failed_state,
+                        manual_review_reason=(
+                            f"create_failed:{type(exc).__name__}:{reconciliation_action.value}"
+                        ),
+                        pms_create_completed=True,
+                    )
+                    tool_results["booking_create_reservation"] = {
+                        "success": False,
+                        "error_type": type(exc).__name__,
+                        "reconciliation_action": reconciliation_action.value,
+                    }
+                    user_message = (
+                        "Talebiniz alindi ancak rezervasyon onayinda teknik bir dogrulama gerekiyor. "
+                        "Ekibimiz en kisa surede sizinle iletisime gececektir."
+                    )
+                    await self.inject_system_event(
+                        conversation_id,
+                        {
+                            "event_type": "approval.updated",
+                            "approval_request_id": event.approval_request_id,
+                            "approval_type": approval_type,
+                            "approved": event.approved,
+                            "reference_id": reference_id,
+                            "tool_results": tool_results,
+                            "timestamp": event.timestamp.isoformat(),
+                        },
+                    )
+                    await self._append_assistant_message(conversation_id, user_message)
+                    await self._send_user_message(phone, user_message)
+                    return {
+                        "approval_request_id": event.approval_request_id,
+                        "status": "processed",
+                        "approved": event.approved,
+                        "reconciliation_action": reconciliation_action.value,
+                    }
+
                 tool_results["booking_create_reservation"] = booking_result
+                pms_created_transition = apply_hold_transition(
+                    current_state=pms_pending_transition.to_state,
+                    event=HoldWorkflowEvent.pms_create_succeeded,
+                )
+                await self._update_hold_status(
+                    conn,
+                    approval_type,
+                    reference_id,
+                    status=pms_created_transition.to_state.value,
+                )
+                await self._upsert_stay_workflow_metadata(
+                    conn,
+                    reference_id=reference_id,
+                    workflow_state=pms_created_transition.to_state.value,
+                    pms_create_completed=True,
+                )
 
                 reservation_id = str(booking_result.get("reservation_id", "")).strip()
                 voucher_no = booking_result.get("voucher_no")
@@ -139,6 +271,21 @@ class EventProcessor:
                     **payment_payload,
                 )
                 tool_results["payment_request_prepayment"] = payment_result
+                payment_pending_transition = apply_hold_transition(
+                    current_state=pms_created_transition.to_state,
+                    event=HoldWorkflowEvent.payment_requested,
+                )
+                await self._update_hold_status(
+                    conn,
+                    approval_type,
+                    reference_id,
+                    status=payment_pending_transition.to_state.value,
+                )
+                await self._upsert_stay_workflow_metadata(
+                    conn,
+                    reference_id=reference_id,
+                    workflow_state=payment_pending_transition.to_state.value,
+                )
 
                 if due_mode == "NOW":
                     user_message = (
@@ -259,6 +406,16 @@ class EventProcessor:
                     "yardimci olacaktir."
                 )
             else:
+                if hold is not None:
+                    await conn.execute(
+                        """
+                        UPDATE stay_holds
+                        SET status = 'PAYMENT_EXPIRED', updated_at = now()
+                        WHERE hold_id = $1
+                        """,
+                        hold["hold_id"],
+                        timeout=DB_TIMEOUT_SECONDS,
+                    )
                 user_message = (
                     "Odeme suresi doldu. Devam etmek isterseniz satis ekibimiz odeme adimlarinda size "
                     "yardimci olacaktir."
@@ -528,6 +685,107 @@ class EventProcessor:
         return (checkin_date - timedelta(days=7)).isoformat()
 
     @staticmethod
+    async def _upsert_stay_workflow_metadata(
+        conn: asyncpg.Connection,
+        *,
+        reference_id: str,
+        workflow_state: str | None = None,
+        approval_idempotency_key: str | None = None,
+        create_idempotency_key: str | None = None,
+        manual_review_reason: str | None = None,
+        pms_create_started: bool = False,
+        pms_create_completed: bool = False,
+    ) -> None:
+        """Persist stay workflow metadata when workflow columns are available."""
+        try:
+            if workflow_state is not None:
+                await conn.execute(
+                    """
+                    UPDATE stay_holds
+                    SET workflow_state = $2, updated_at = now()
+                    WHERE hold_id = $1
+                    """,
+                    reference_id,
+                    workflow_state,
+                    timeout=DB_TIMEOUT_SECONDS,
+                )
+            if approval_idempotency_key is not None:
+                await conn.execute(
+                    """
+                    UPDATE stay_holds
+                    SET approval_idempotency_key = $2, updated_at = now()
+                    WHERE hold_id = $1
+                    """,
+                    reference_id,
+                    approval_idempotency_key,
+                    timeout=DB_TIMEOUT_SECONDS,
+                )
+            if create_idempotency_key is not None:
+                await conn.execute(
+                    """
+                    UPDATE stay_holds
+                    SET create_idempotency_key = $2, updated_at = now()
+                    WHERE hold_id = $1
+                    """,
+                    reference_id,
+                    create_idempotency_key,
+                    timeout=DB_TIMEOUT_SECONDS,
+                )
+            if manual_review_reason is not None:
+                await conn.execute(
+                    """
+                    UPDATE stay_holds
+                    SET manual_review_reason = $2, updated_at = now()
+                    WHERE hold_id = $1
+                    """,
+                    reference_id,
+                    manual_review_reason,
+                    timeout=DB_TIMEOUT_SECONDS,
+                )
+            if pms_create_started:
+                await conn.execute(
+                    """
+                    UPDATE stay_holds
+                    SET pms_create_started_at = now(), updated_at = now()
+                    WHERE hold_id = $1
+                    """,
+                    reference_id,
+                    timeout=DB_TIMEOUT_SECONDS,
+                )
+            if pms_create_completed:
+                await conn.execute(
+                    """
+                    UPDATE stay_holds
+                    SET pms_create_completed_at = now(), updated_at = now()
+                    WHERE hold_id = $1
+                    """,
+                    reference_id,
+                    timeout=DB_TIMEOUT_SECONDS,
+                )
+        except asyncpg.UndefinedColumnError:
+            logger.warning("stay_workflow_columns_missing", hold_id=reference_id)
+
+    @staticmethod
+    def _is_duplicate_stay_approval(hold: asyncpg.Record, approval_idempotency_key: str) -> bool:
+        """Checks whether stay approval event was already processed."""
+        if "approval_idempotency_key" not in hold:
+            return False
+        existing_key = hold["approval_idempotency_key"]
+        if not existing_key:
+            return False
+        if str(existing_key) != approval_idempotency_key:
+            return False
+
+        current_status = str(hold["status"]).upper()
+        return current_status in {
+            HoldStatus.PMS_PENDING.value,
+            HoldStatus.PMS_CREATED.value,
+            HoldStatus.PAYMENT_PENDING.value,
+            HoldStatus.CONFIRMED.value,
+            HoldStatus.MANUAL_REVIEW.value,
+        }
+
+    @staticmethod
     def _extract_phone(approval_type: str, hold: asyncpg.Record | None) -> str:
         """Extract raw phone from hold data when available."""
         if hold is None:
@@ -538,5 +796,5 @@ class EventProcessor:
                 phone = draft.get("phone")
                 return str(phone) if phone else ""
             return ""
-        phone = hold["phone"] if "phone" in hold else None
+        phone = hold.get("phone", None)
         return str(phone) if phone else ""

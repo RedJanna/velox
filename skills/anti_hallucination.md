@@ -1,5 +1,9 @@
 # Skill: Anti-Hallucination & Quality Control
 
+> **Hiyerarşi:** Bu dosya `SKILL.md` hiyerarşisinde **Öncelik 2** seviyesindedir.
+> Sadece `security_privacy.md` bu dosyanın kurallarını geçersiz kılabilir.
+> Diğer tüm skill dosyaları, `system_prompt_velox.md` ve task talimatları bu kurallara tabidir.
+
 ## Rules
 
 1. **Source hierarchy** — The LLM may only state "facility facts" from these sources, in priority order:
@@ -19,14 +23,77 @@
    - QC6: Escalation gate — any risk_flags? Is L1/L2/L3 needed?
    - QC7: Session gate — is conversation still active? Is context consistent?
 
+   **QC gate performans bütçesi:**
+
+   > ⚠️ QC gate misafir yanıt süresini şişirmemeli. Toplam bütçe: **maksimum 500ms**.
+
+   | Kontrol | Maks. süre | Yöntem | Paralel mi? |
+   |---------|-----------|--------|-------------|
+   | QC1: Intent/entity | 50ms | In-memory regex + dict lookup | ✅ Evet |
+   | QC2: Source check | 100ms | Response text vs kaynak karşılaştırma | ✅ Evet |
+   | QC3: Policy gate | 50ms | Policy rules dict lookup | ✅ Evet |
+   | QC4: Security | 50ms | PII/payment pattern regex | ✅ Evet |
+   | QC5: Format | 30ms | Length + structure check | ✅ Evet |
+   | QC6: Escalation | 50ms | Risk flag evaluation | ✅ Evet |
+   | QC7: Session | 50ms | Redis session check | ✅ Evet |
+   | **Toplam (paralel)** | **≤ 150ms** | `asyncio.gather` ile paralel | — |
+   | **Toplam (seri, worst case)** | **≤ 500ms** | Fallback: Redis yavaşsa | — |
+
+   **Kurallar:**
+   - QC check'leri **`asyncio.gather`** ile paralel çalıştırılır (seri değil)
+   - Tek bir QC check 500ms'yi aşarsa → o check **timeout** olur ve `QC_TIMEOUT` risk flag'i eklenir
+   - QC gate toplamı 500ms'yi aşarsa → yanıt yine gönderilir ama `QC_SLOW` uyarısı loglanır
+   - QC check'ler **LLM çağrısı yapmaz** — sadece in-memory/Redis operasyonları
+
+   **QC fail durumunda öncelik sırası:**
+   1. QC4 (Security) fail → **hemen insan devri** (bekleme yok)
+   2. QC6 (Escalation) fail → **risk seviyesine göre** L1/L2/L3 devri
+   3. QC3 (Policy) fail → **yanıtı düzelt** veya insan devri
+   4. QC2 (Source) fail → **tool çağır** veya "doğrulamam gerekiyor" de
+   5. QC1 (Intent) fail → **misafire soru sor** (netleştirme)
+   6. QC5 (Format) fail → **yanıtı yeniden formatla** (otomatik)
+   7. QC7 (Session) fail → **session'ı yenile** veya yeni konuşma başlat
+
 4. **EUR is the base currency** — Otelin ana para birimi **€ (EUR)**’dur ve bütün hesaplar **temelde EUR üzerinden** yapılır. **Elektraweb’ten gelen EUR fiyatı** referans (asıl) fiyattır.
-   - **Para birimi simgeleri:** € = **EURO (EUR)**, ₺ = **Türk Lirası (TRY)**, $ = **Dolar (USD)**, £ = **Sterlin (GBP)**, ₽ = **Rus Rublesi (RUB)**.
+
+   ### 4.1 Tanınan para birimleri
+
+   | Kategori | Para birimleri | Fiyat gösterimi | Ödeme kabul |
+   |----------|---------------|-----------------|-------------|
+   | **Birincil** | € EUR | ✅ Her zaman (referans) | ✅ Evet |
+   | **Ödeme destekli** | ₺ TRY, $ USD, £ GBP | ✅ Tool/HOTEL_PROFILE verisi varsa | ✅ Evet |
+   | **Sadece bilgi** | ₽ RUB | ✅ Tool/HOTEL_PROFILE verisi varsa | ❌ Hayır |
+   | **Tanınan ama resmî teklif yok** | د.إ AED, ر.س SAR, CHF, SEK, NOK, DKK, PLN, CZK, ILS, CNY, JPY, KRW, INR, BRL, ZAR, AUD, CAD, NZD, HKD, SGD, THB, MYR, IDR, PHP, EGP, QAR, BHD, KWD, OMR | ❌ Resmî teklif çıkartılamaz | ❌ Hayır |
+
+   ### 4.2 Temel kurallar
+
    - Sistem **kendisi kur hesabı yapmaz** ve “yaklaşık” dönüşüm uydurmaz.
-   - Misafire fiyat bilgisi **€ / ₺ / $ / £ / ₽** cinsinden verilebilir **ama sadece** şu durumda: İstenen para birimindeki tutar **tool çıktısı** (resmî teklif/ödeme sonucu) ya da **HOTEL_PROFILE** içinde **hazır** olarak geliyorsa.
+   - Misafire fiyat bilgisi **sadece** şu durumda verilebilir: İstenen para birimindeki tutar **tool çıktısı** (resmî teklif/ödeme sonucu) ya da **HOTEL_PROFILE** içinde **hazır** olarak geliyorsa.
    - Resmî bir dövizli tutar paylaşılıyorsa **geçerlilik süresi 1 gündür (24 saat)**; bu süre dolduysa yeniden resmî teklif alın.
-   - Eğer istenen para biriminde **resmî tutar yoksa**, EUR tutarını paylaş ve: “İsterseniz size [para birimi] cinsinden **resmî bir teklif** çıkarabilirim; nihai tutar ödeme anında sistemin verdiği kur/tutar üzerinden netleşir.” de.
-   - **Ödeme para birimleri:** Ödeme yalnızca **€ (EUR), ₺ (TRY), $ (USD), £ (GBP)** ile kabul edilir. **₽ (RUB) ile ödeme kabul edilmez** (sadece fiyat bilgisi verilebilir).
-   - Misafir **ödeme yapmak/ödeme para birimi** ile ilgili bir cümle kurarsa (ör. “RUB ile ödeyebilir miyim?”, “USD ile ödeme yapacağım”), **insan devri** yap: durumu not et ve misafire “Ödeme para birimi ve yöntemleri için sizi ilgili ekibe yönlendiriyorum.” şeklinde kısa bir mesaj gönder.
+
+   ### 4.3 Bilinen para biriminde resmî tutar yoksa
+
+   EUR tutarını paylaş ve misafirin diline uygun şablonu kullan:
+
+   - **TR:** “Fiyatımız *[tutar] EUR*’dur. İsterseniz size [para birimi] cinsinden resmî bir teklif çıkarabilirim; nihai tutar ödeme anında sistemin verdiği kur üzerinden netleşir.”
+   - **EN:** “The rate is *[amount] EUR*. I can prepare an official quote in [currency] if you’d like; the final amount will be based on the exchange rate at the time of payment.”
+   - **RU:** “Стоимость составляет *[сумма] EUR*. Могу подготовить официальное предложение в [валюта]; окончательная сумма определяется по курсу на момент оплаты.”
+   - **DE:** “Der Preis beträgt *[Betrag] EUR*. Gerne erstelle ich Ihnen ein offizielles Angebot in [Währung]; der endgültige Betrag richtet sich nach dem Wechselkurs zum Zeitpunkt der Zahlung.”
+
+   ### 4.4 Tanınmayan para birimi istenirse
+
+   Misafir tabloda **hiç olmayan** bir para biriminden bahsederse:
+   - EUR fiyatını paylaş
+   - “Bu para biriminde resmî teklif çıkarma imkânımız bulunmuyor. Fiyatlarımız EUR bazlıdır.” de
+   - İnsan devri **gerekmez** (sadece bilgilendirme yeterli)
+
+   ### 4.5 Ödeme para birimi konuşmaları → İnsan devri
+
+   - **Ödeme para birimleri:** Ödeme yalnızca **€ (EUR), ₺ (TRY), $ (USD), £ (GBP)** ile kabul edilir.
+   - **₽ (RUB) ile ödeme kabul edilmez** (sadece fiyat bilgisi verilebilir).
+   - **Tanınan ama ödeme desteklenmeyen** para birimlerinde (AED, SAR, CHF vb.) ödeme kabul edilmez.
+   - Misafir **ödeme yapmak / ödeme para birimi** ile ilgili bir cümle kurarsa (ör. “RUB ile ödeyebilir miyim?”, “AED ile ödeme yapacağım”), **insan devri** yap: durumu not et ve misafire “Ödeme para birimi ve yöntemleri için sizi ilgili ekibe yönlendiriyorum.” şeklinde kısa bir mesaj gönder.
+   - **İstisna:** EUR, TRY, USD, GBP ile ödeme konuşmaları normal akışta devam eder (insan devri gerekmez, ödeme tool’u kullanılır).
 
 5. **No internet assumptions** — The LLM does not have internet access during runtime. Never say "according to the website" or reference external URLs not in HOTEL_PROFILE.
 
@@ -105,5 +172,12 @@ def select_template(
 - [ ] QC1-QC7 checks are implemented and run before every response
 - [ ] Template selection is attempted before free text generation
 - [ ] TEMPLATE_MISSING risk flag is logged when no template found
-- [ ] EUR is always stated as definitive; other currencies say "at time of payment"
+- [ ] EUR her zaman referans fiyat olarak gösteriliyor; diğer para birimleri "ödeme anında kur" notu ile
+- [ ] Tanınan para birimi tablosundaki kategorilere uygun davranılıyor (ödeme destekli vs sadece bilgi vs tanınmayan)
+- [ ] Tanınmayan para birimlerinde EUR fiyat + bilgilendirme yapılıyor (insan devri yok)
+- [ ] Ödeme desteklenmeyen para biriminde ödeme konuşması → insan devri
 - [ ] No hardcoded hotel facts in prompt builder — all from HOTEL_PROFILE
+- [ ] QC check'ler `asyncio.gather` ile paralel çalışıyor (seri değil)
+- [ ] QC gate toplam süresi ≤500ms (logda `qc_duration_ms` alanı var)
+- [ ] QC fail durumunda öncelik sırası uygulanıyor (Security > Escalation > Policy > Source > Intent > Format > Session)
+- [ ] Tek QC check timeout'u tanımlı (500ms) ve `QC_TIMEOUT` flag'i loglanıyor

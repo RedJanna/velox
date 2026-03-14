@@ -11,7 +11,6 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from redis.asyncio.client import Redis
-from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from velox.adapters.elektraweb.client import close_elektraweb_client
@@ -143,7 +142,6 @@ app = FastAPI(
 )
 if settings.app_env == "production":
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
-    app.add_middleware(HTTPSRedirectMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Get-Date -Format ''yyyy-MM-dd HH:mm:ss''\")"
+    ]
+  }
+}

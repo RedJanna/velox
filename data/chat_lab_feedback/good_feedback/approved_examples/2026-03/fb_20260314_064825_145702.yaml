@@ -1,0 +1,112 @@
+schema_version: chat_lab_feedback.v1
+feedback_id: fb_20260314_064825_145702
+status: new
+approved_example: true
+created_at: '2026-03-14T06:48:25.145871+00:00'
+rating: 5
+rating_label: Mukemmel
+category: approved_example
+category_label: Ozel Kategori
+tags: []
+gold_standard: null
+notes: null
+source_type: live_test_chat
+storage_group: good_feedback
+input: 21 nisan ile 22 nisan tarihlerinde 1 yetişkin için Deluxe odaya rezervasyon oluşturmak istiyorum
+output: "Talebiniz için 21 Nisan – 22 Nisan (1 gece), 1 yetişkin, **Deluxe Oda (Oda Kahvaltı)** fiyatlarımız:\n\n**Deluxe Oda**  \n• İptal edilemez: **83,13 EUR**  \n• Ücretsiz İptal: **91,44 EUR**\n\n1) Ücretsiz iptal seçeneği ile yapılan rezervasyonlarda girişten 5 gün öncesine kadar iptal olması halinde %100 geri ödeme alabilirsiniz.  \n2) Rezervasyon onayı için iptal edilemez rezervasyonlarda 1 gecelik ödeme tahsil edilmektedir. Kalan ödemeyi giriş günündeki güncel döviz kuruna göre TL veya döviz olarak yapabilirsiniz.  \n3) Nazik bilgilendirme: Oda numarası için önceden garanti veremiyoruz; ancak girişiniz sırasında uygunluk doğrultusunda size memnuniyetle yardımcı oluruz.\n\nRezervasyonu hangi iptal koşulu ile oluşturmak istersiniz?  \nAyrıca rezervasyon için ad-soyad ve telefon numaranızı paylaşabilir misiniz?"
+conversation_id: 98138a06-422f-4e2f-bc8d-77f8a16d6848
+assistant_message_id: 3cb3ad68-69db-47da-8e4b-3cd855f5a1ac
+timestamp: '2026-03-14T06:47:22.017252+00:00'
+language: tr
+intent: stay_booking_create
+state: NEEDS_CONFIRMATION
+risk_flags: []
+tool_calls: []
+model: gpt-5.2-chat-latest
+excerpt:
+- id: 013721ad-77be-4d5e-9fe4-4dc6840f3afc
+  role: user
+  content: merhaba
+  created_at: '2026-03-14T06:47:03.532616+00:00'
+  internal_json:
+    route_audit:
+      route: /api/v1/test/chat
+      received_at: '2026-03-14T06:47:03.532442+00:00'
+    source_type: live_test_chat
+    client_message_id: cl_1773470820952_vy8zpg10
+- id: adeb8e9b-659b-4ebf-9ee8-4ff79d3359a2
+  role: assistant
+  content: "Merhaba! \U0001F33F  \nKassandra Oludeniz’e hoş geldiniz.\n\nSize nasıl yardımcı olabilirim?  \nTarih bilgisi, fiyat sorgusu, transfer ya da restoran rezervasyonu konusunda destek olabilirim."
+  created_at: '2026-03-14T06:47:06.445880+00:00'
+  internal_json:
+    state: GREETING
+    intent: greeting
+    handoff:
+      needed: false
+      reason: ''
+      ticket_id: ''
+    entities: {}
+    language: tr
+    next_step: Kullanıcının niyetini ve talebini bekle.
+    escalation:
+      level: L0
+      reason: ''
+      sla_hint: low
+      dedupe_key: ''
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls: []
+    notifications: []
+    client_message_id: cl_1773470820952_vy8zpg10
+    required_questions: []
+- id: 7c9a4275-8bfc-4e8e-bf07-662976bddb2c
+  role: user
+  content: 21 nisan ile 22 nisan tarihlerinde 1 yetişkin için Deluxe odaya rezervasyon oluşturmak istiyorum
+  created_at: '2026-03-14T06:47:11.279055+00:00'
+  internal_json:
+    route_audit:
+      route: /api/v1/test/chat
+      received_at: '2026-03-14T06:47:11.278940+00:00'
+    source_type: live_test_chat
+    client_message_id: cl_1773470829262_p3mwax8z
+- id: 3cb3ad68-69db-47da-8e4b-3cd855f5a1ac
+  role: assistant
+  content: "Talebiniz için 21 Nisan – 22 Nisan (1 gece), 1 yetişkin, **Deluxe Oda (Oda Kahvaltı)** fiyatlarımız:\n\n**Deluxe Oda**  \n• İptal edilemez: **83,13 EUR**  \n• Ücretsiz İptal: **91,44 EUR**\n\n1) Ücretsiz iptal seçeneği ile yapılan rezervasyonlarda girişten 5 gün öncesine kadar iptal olması halinde %100 geri ödeme alabilirsiniz.  \n2) Rezervasyon onayı için iptal edilemez rezervasyonlarda 1 gecelik ödeme tahsil edilmektedir. Kalan ödemeyi giriş günündeki güncel döviz kuruna göre TL veya döviz olarak yapabilirsiniz.  \n3) Nazik bilgilendirme: Oda numarası için önceden garanti veremiyoruz; ancak girişiniz sırasında uygunluk doğrultusunda size memnuniyetle yardımcı oluruz.\n\nRezervasyonu hangi iptal koşulu ile oluşturmak istersiniz?  \nAyrıca rezervasyon için ad-soyad ve telefon numaranızı paylaşabilir misiniz?"
+  created_at: '2026-03-14T06:47:22.017252+00:00'
+  internal_json:
+    state: NEEDS_CONFIRMATION
+    intent: stay_booking_create
+    handoff:
+      needed: false
+      reason: ''
+    entities:
+      adults: 1
+      chd_ages: []
+      currency: EUR
+      chd_count: 0
+      nationality: TR
+      checkin_date: '2026-04-21'
+      room_type_id: 396094
+      board_type_id: 44512
+      checkout_date: '2026-04-22'
+    language: tr
+    next_step: Kullanici iptal kosulunu sececek ve ad-soyad + telefon paylasacak; ardindan stay_create_hold cagrilacak.
+    escalation:
+      level: L0
+      reason: normal_booking_flow
+      sla_hint: low
+      dedupe_key: ''
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls:
+    - tool: booking_availability
+      status: completed
+    - tool: booking_quote
+      status: completed
+    notifications: []
+    client_message_id: cl_1773470829262_p3mwax8z
+    required_questions:
+    - cancel_policy_type
+    - guest_name
+    - phone
+source_file: null

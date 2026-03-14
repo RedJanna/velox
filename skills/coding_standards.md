@@ -1,5 +1,9 @@
 # Skill: Coding Standards (v2)
 
+> **Hiyerarşi:** Bu dosya `SKILL.md` hiyerarşisinde **Öncelik 3** seviyesindedir.
+> `security_privacy.md` ve `anti_hallucination.md` kuralları bu dosyadan önce gelir.
+> **Kapsam:** Backend (Python/FastAPI). Frontend kuralları için → `frontend_standards.md`
+
 > Bu doküman, ekipte herkesin **aynı dilde** ve **aynı düzenle** kod yazması için bir “işletme kılavuzu”dur.
 > Kod bilmiyorsanız şöyle düşünün: Bu, mutfakta **her aşçının aynı tarife ve hijyen kuralına uyması** gibi.
 
@@ -159,27 +163,92 @@ class ReservationRepository:
 
 ---
 
-## Geliştirme Önerileri (Dokümana ekleyebileceğimiz şeyler)
+## Dependency Management (Bağımlılık Yönetimi)
 
-Aşağıdakiler “ekip büyüyünce hayat kurtaran” bölümler olur:
+- **Araç:** `uv` (tercih edilen) veya `pip-tools`
+- **Lock dosyası:** `uv.lock` veya `requirements.lock` — commit edilir
+- **Yeni bağımlılık ekleme:** PR açıklamasında neden gerekli olduğu belirtilir
+- **Güvenlik taraması:** `pip-audit` ile bilinen açıklar taranır (CI'da zorunlu)
 
-1) **“İyi örnek / kötü örnek”** mini galerisi  
-   - bloklayan kod vs bekleyen kod  
-   - hardcoded vs config  
-   - kötü isim vs iyi isim
+```bash
+# uv ile bağımlılık ekleme
+uv add httpx
 
-2) **Dosya & klasör düzeni**  
-   - `api/`, `services/`, `repositories/`, `models/`, `config/` gibi önerilen yapı
+# Lock dosyasını güncelleme
+uv lock
 
-3) **Kod inceleme (PR) kontrol listesi**  
-   - “Bu değişiklik kişisel veri logluyor mu?”  
-   - “Hata olursa insan devri var mı?” (error_handling.md ile uyum)
+# Güvenlik taraması
+pip-audit
+```
 
-4) **Log standardı**  
-   - Hangi olaylar loglanır, hangi alanlar asla yazılmaz (telefon, kart vs.)
+---
 
-5) **Komutlar (tek satır kullanım)**  
-   - `ruff check` / `mypy --strict` ne yapar, nasıl çalıştırılır (kısa açıklama)
+## Pre-commit Hooks (Otomatik Kontroller)
+
+Her commit öncesi aşağıdaki kontroller otomatik çalışır:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: Ruff lint
+        entry: ruff check --fix
+        language: system
+        types: [python]
+
+      - id: ruff-format
+        name: Ruff format
+        entry: ruff format
+        language: system
+        types: [python]
+
+      - id: mypy
+        name: MyPy type check
+        entry: mypy --strict
+        language: system
+        types: [python]
+
+      - id: no-secrets
+        name: Secret detection
+        entry: grep -rn “PRIVATE_KEY\|password\s*=\s*['\”]” --include=”*.py”
+        language: system
+        types: [python]
+        pass_filenames: false
+```
+
+**Kurulum:** `pre-commit install` (bir kez, repo clone sonrası)
+
+---
+
+## PR Kontrol Listesi (Code Review)
+
+Her PR'da reviewer şunları kontrol eder:
+
+- [ ] Kişisel veri loglanıyor mu? (telefon/isim/e-posta → yasak)
+- [ ] Hata olursa insan devri var mı? (error_handling.md uyumu)
+- [ ] Yeni bağımlılık eklendiyse gerekçe var mı?
+- [ ] SQL birleştirme yok, parametreli sorgu var mı?
+- [ ] Async olmayan I/O var mı? (requests, time.sleep → yasak)
+- [ ] Hardcoded otel/ayar değeri var mı?
+- [ ] Test yazılmış mı? (yeni fonksiyon = yeni test)
+- [ ] `ruff check` ve `mypy --strict` geçiyor mu?
+
+---
+
+## Geliştirici Komutları (Tek Satır)
+
+| Komut | Ne yapar? |
+|-------|----------|
+| `ruff check .` | Lint kontrolü (hata bulur) |
+| `ruff check --fix .` | Lint + otomatik düzeltme |
+| `ruff format .` | Kod formatı düzeltme |
+| `mypy --strict src/` | Tip kontrolü (type hints) |
+| `pytest` | Tüm testleri çalıştır |
+| `pytest --cov=src/velox` | Testler + coverage raporu |
+| `pip-audit` | Bağımlılık güvenlik taraması |
+| `pre-commit run --all-files` | Tüm pre-commit hook'ları çalıştır |
 
 ---
 

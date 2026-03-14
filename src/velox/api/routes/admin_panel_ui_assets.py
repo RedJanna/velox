@@ -197,6 +197,7 @@ function bindRefs() {
     'dashboardCards','dashboardQueues','conversationFilters','conversationTableBody','conversationDetail',
     'holdFilters','holdTableBody','ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor',
     'faqFilters','faqTableBody','faqDetail',
+    'notifPhoneTableBody','addNotifPhoneForm',
     'hotelProfileMeta','slotFilters','slotTableBody','slotCreateForm','systemChecks','systemMeta',
     'sessionSummary','sessionPreferencesForm','sessionRememberToggle','sessionPreferenceFields',
     'systemVerificationOptions','systemSessionOptions','sessionOtpField','trustedDevicePanel','forgetDeviceButton',
@@ -237,6 +238,7 @@ function bindEvents() {
     event.preventDefault();
     loadFaqs();
   });
+  refs.addNotifPhoneForm.addEventListener('submit', onAddNotifPhone);
   refs.decisionForm.addEventListener('submit', onDecisionSubmit);
   document.querySelectorAll('[data-nav]').forEach(button => {
     button.addEventListener('click', () => setView(button.dataset.nav));
@@ -566,6 +568,7 @@ function setView(view) {
     hotels: ['Hotel Profile', 'Dinamik hotel verisini panelden düzenleyip runtime cache ile eşitleyin.'],
     faq: ['FAQ Yonetimi', 'Hazır yanıt bilgisini soru-cevap bazında izleyin ve uygunsuz içeriği anında devreden çıkarın.'],
     restaurant: ['Restoran Slotları', 'Kapasite, alan ve tarih bazlı slot yönetimini kontrol edin.'],
+    notifications: ['Bildirim Numaralari', 'Rezervasyon onay talebi olusturuldugunda WhatsApp mesaji gonderilecek numaralari yonetin.'],
     system: ['Sistem ve Domain', 'Alan adı, readiness, konfigürasyon yenileme ve güven katmanlarını izleyin.'],
     chatlab: ['Chat Lab', 'Canlı test, feedback kaydı, transcript import ve genel rapor paneli.'],
   }[view] || ['Admin Panel', 'Operasyon merkezi'];
@@ -580,6 +583,7 @@ function setView(view) {
   if (view === 'hotels') loadHotelProfileSection();
   if (view === 'faq') loadFaqs();
   if (view === 'restaurant') loadRestaurantSlots();
+  if (view === 'notifications') loadNotifPhones();
   if (view === 'system') loadSystemOverview();
   if (view === 'chatlab') loadChatLab();
 }
@@ -1554,5 +1558,66 @@ function asObject(value) {
     }
   }
   return {};
+}
+
+// ---------------------------------------------------------------------------
+// Notification phones
+// ---------------------------------------------------------------------------
+
+async function loadNotifPhones() {
+  try {
+    const phones = await apiFetch('/notification-phones');
+    renderNotifPhones(phones);
+  } catch (err) {
+    toast('Bildirim numaralari yuklenemedi: ' + (err.message || err), 'danger');
+  }
+}
+
+function renderNotifPhones(phones) {
+  if (!refs.notifPhoneTableBody) return;
+  if (!phones || !phones.length) {
+    refs.notifPhoneTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Kayit yok</td></tr>';
+    return;
+  }
+  refs.notifPhoneTableBody.innerHTML = phones.map(p => {
+    const isDefault = p.is_default;
+    const removeBtn = isDefault
+      ? '<span class="badge dark">Varsayilan</span>'
+      : `<button class="inline-button danger" onclick="removeNotifPhone('${escapeHtml(p.phone)}')">Kaldir</button>`;
+    return `<tr>
+      <td><code>${escapeHtml(p.phone)}</code></td>
+      <td>${escapeHtml(p.label || '-')}</td>
+      <td>${isDefault ? 'Evet' : 'Hayir'}</td>
+      <td>${removeBtn}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function onAddNotifPhone(event) {
+  event.preventDefault();
+  const form = refs.addNotifPhoneForm;
+  const phone = form.phone.value.trim();
+  const label = form.label.value.trim();
+  if (!phone) return;
+  try {
+    await apiFetch('/notification-phones', {method: 'POST', body: {phone, label}});
+    toast('Numara eklendi', 'ok');
+    form.reset();
+    await loadNotifPhones();
+  } catch (err) {
+    toast('Numara eklenemedi: ' + (err.message || err), 'danger');
+  }
+}
+
+async function removeNotifPhone(phone) {
+  if (!confirm('Bu numarayi kaldirmak istediginize emin misiniz?')) return;
+  const encoded = phone.replace('+', '_');
+  try {
+    await apiFetch('/notification-phones/' + encoded, {method: 'DELETE'});
+    toast('Numara kaldirildi', 'ok');
+    await loadNotifPhones();
+  } catch (err) {
+    toast('Numara kaldirilamadi: ' + (err.message || err), 'danger');
+  }
 }
 """

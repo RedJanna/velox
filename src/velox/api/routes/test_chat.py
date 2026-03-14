@@ -1,8 +1,11 @@
 """Chat Lab endpoints and UI for admin-operated testing workflows."""
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Annotated, Any
+from uuid import uuid4
 
+import asyncpg
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse
@@ -19,6 +22,7 @@ from velox.api.routes.test_chat_export import (
 from velox.api.routes.test_chat_ui import TEST_CHAT_HTML
 from velox.api.routes.whatsapp_webhook import (
     _detect_message_language,
+    _extract_user_message_parts,
     _hash_phone,
     _mask_phone,
     _normalize_text,
@@ -63,6 +67,10 @@ ui_router = APIRouter(tags=["test-chat-ui"])
 formatter = WhatsAppFormatter()
 
 TEST_PHONE_PREFIX = "test_"
+_chat_locks: dict[str, asyncio.Lock] = {}
+_chat_locks_guard = asyncio.Lock()
+IDEMPOTENT_ASSISTANT_WAIT_ATTEMPTS = 20
+IDEMPOTENT_ASSISTANT_WAIT_SECONDS = 0.1
 
 
 class TestChatRequest(BaseModel):
@@ -70,6 +78,7 @@ class TestChatRequest(BaseModel):
 
     message: str = Field(min_length=1, max_length=4096)
     phone: str = Field(default="test_user_123")
+    client_message_id: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class TestChatResponse(BaseModel):
@@ -92,6 +101,30 @@ def _ensure_test_phone(phone: str) -> str:
     if phone.startswith(TEST_PHONE_PREFIX):
         return phone
     return f"{TEST_PHONE_PREFIX}{phone}"
+
+
+async def _get_chat_lock(phone_hash: str) -> asyncio.Lock:
+    """Return one per-phone lock for serializing Chat Lab turns."""
+    async with _chat_locks_guard:
+        lock = _chat_locks.get(phone_hash)
+        if lock is None:
+            lock = asyncio.Lock()
+            _chat_locks[phone_hash] = lock
+        return lock
+
+
+async def _wait_for_assistant_by_client_id(
+    repository: ConversationRepository,
+    conversation_id: Any,
+    client_message_id: str,
+) -> Message | None:
+    """Poll shortly for assistant message created by another concurrent worker."""
+    for _ in range(IDEMPOTENT_ASSISTANT_WAIT_ATTEMPTS):
+        existing = await repository.get_assistant_by_client_message_id(conversation_id, client_message_id)
+        if existing is not None:
+            return existing
+        await asyncio.sleep(IDEMPOTENT_ASSISTANT_WAIT_SECONDS)
+    return None
 
 
 def _serialize_message(message: Message) -> dict[str, Any]:
@@ -139,76 +172,163 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
     phone = _ensure_test_phone(body.phone)
     repository = ConversationRepository()
     phone_hash = _hash_phone(phone)
-    conversation = await repository.get_active_by_phone(settings.elektra_hotel_id, phone_hash)
+    chat_lock = await _get_chat_lock(phone_hash)
+    normalized_client_message_id = (body.client_message_id or "").strip() or f"cl_{uuid4().hex}"
 
-    if conversation is None:
-        initial_language = _detect_message_language(body.message, "tr")
-        conversation = Conversation(
-            hotel_id=settings.elektra_hotel_id,
-            phone_hash=phone_hash,
-            phone_display=_mask_phone(phone),
-            language=initial_language,
+    async with chat_lock:
+        conversation = await repository.get_active_by_phone(settings.elektra_hotel_id, phone_hash)
+
+        if conversation is None:
+            initial_language = _detect_message_language(body.message, "tr")
+            conversation = Conversation(
+                hotel_id=settings.elektra_hotel_id,
+                phone_hash=phone_hash,
+                phone_display=_mask_phone(phone),
+                language=initial_language,
+            )
+            conversation = await repository.create(conversation)
+        if conversation.id is None:
+            raise HTTPException(status_code=500, detail="Conversation id is missing")
+
+        existing_assistant = await repository.get_assistant_by_client_message_id(
+            conversation.id,
+            normalized_client_message_id,
         )
-        conversation = await repository.create(conversation)
-    if conversation.id is None:
-        raise HTTPException(status_code=500, detail="Conversation id is missing")
+        if existing_assistant is not None:
+            latest_conversation = await repository.get_by_id(conversation.id)
+            safe_conversation = latest_conversation or conversation
+            internal_json = (
+                existing_assistant.internal_json
+                if isinstance(existing_assistant.internal_json, dict)
+                else {}
+            )
+            return TestChatResponse(
+                reply=existing_assistant.content,
+                assistant_message_id=str(existing_assistant.id),
+                internal_json=internal_json,
+                conversation=_serialize_conversation(safe_conversation),
+                timestamp=datetime.now(UTC).isoformat(),
+            )
 
-    normalized = _normalize_text(body.message)
-    detected_language = _detect_message_language(normalized, conversation.language)
-    if conversation.language != detected_language:
-        conversation.language = detected_language
-        await repository.update_language(conversation.id, detected_language)
+        normalized = _normalize_text(body.message)
+        detected_language = _detect_message_language(normalized, conversation.language)
+        if conversation.language != detected_language:
+            conversation.language = detected_language
+            await repository.update_language(conversation.id, detected_language)
 
-    user_message = Message(
-        conversation_id=conversation.id,
-        role="user",
-        content=normalized,
-        internal_json={
-            "source_type": "live_test_chat",
-            "route_audit": {
-                "route": "/api/v1/test/chat",
-                "received_at": datetime.now(UTC).isoformat(),
+        user_message = Message(
+            conversation_id=conversation.id,
+            role="user",
+            content=normalized,
+            client_message_id=normalized_client_message_id,
+            internal_json={
+                "source_type": "live_test_chat",
+                "client_message_id": normalized_client_message_id,
+                "route_audit": {
+                    "route": "/api/v1/test/chat",
+                    "received_at": datetime.now(UTC).isoformat(),
+                },
             },
-        },
-    )
-    await repository.add_message(user_message)
-    conversation.messages = await repository.get_recent_messages(conversation.id, count=20)
+        )
+        try:
+            await repository.add_message(user_message)
+        except asyncpg.UniqueViolationError:
+            existing_assistant = await _wait_for_assistant_by_client_id(
+                repository,
+                conversation.id,
+                normalized_client_message_id,
+            )
+            if existing_assistant is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Duplicate request is already being processed",
+                ) from None
+            latest_conversation = await repository.get_by_id(conversation.id)
+            safe_conversation = latest_conversation or conversation
+            internal_json = (
+                existing_assistant.internal_json
+                if isinstance(existing_assistant.internal_json, dict)
+                else {}
+            )
+            return TestChatResponse(
+                reply=existing_assistant.content,
+                assistant_message_id=str(existing_assistant.id),
+                internal_json=internal_json,
+                conversation=_serialize_conversation(safe_conversation),
+                timestamp=datetime.now(UTC).isoformat(),
+            )
+        conversation.messages = await repository.get_recent_messages(conversation.id, count=20)
 
-    llm_response = await _run_message_pipeline(
-        conversation=conversation,
-        normalized_text=normalized,
-        dispatcher=getattr(request.app.state, "tool_dispatcher", None),
-        expected_language=detected_language,
-    )
-    current_state_value = (
-        str(conversation.current_state.value)
-        if hasattr(conversation.current_state, "value")
-        else str(conversation.current_state or "GREETING")
-    )
-    await repository.update_state(
-        conversation_id=conversation.id,
-        state=str(llm_response.internal_json.state or current_state_value),
-        intent=str(llm_response.internal_json.intent or "").strip() or None,
-        entities=llm_response.internal_json.entities or None,
-        risk_flags=llm_response.internal_json.risk_flags or None,
-    )
+        llm_response = await _run_message_pipeline(
+            conversation=conversation,
+            normalized_text=normalized,
+            dispatcher=getattr(request.app.state, "tool_dispatcher", None),
+            expected_language=detected_language,
+        )
+        current_state_value = (
+            str(conversation.current_state.value)
+            if hasattr(conversation.current_state, "value")
+            else str(conversation.current_state or "GREETING")
+        )
+        await repository.update_state(
+            conversation_id=conversation.id,
+            state=str(llm_response.internal_json.state or current_state_value),
+            intent=str(llm_response.internal_json.intent or "").strip() or None,
+            entities=llm_response.internal_json.entities or None,
+            risk_flags=llm_response.internal_json.risk_flags or None,
+        )
 
-    reply_text = formatter.truncate(llm_response.user_message)
-    assistant_message = Message(
-        conversation_id=conversation.id,
-        role="assistant",
-        content=reply_text,
-        internal_json=llm_response.internal_json.model_dump(mode="json"),
-    )
-    assistant_message = await repository.add_message(assistant_message)
+        outbound_messages = _extract_user_message_parts(llm_response)
+        if not outbound_messages:
+            outbound_messages = [llm_response.user_message]
+        reply_text = formatter.truncate(outbound_messages[0])
+        assistant_internal = llm_response.internal_json.model_dump(mode="json")
+        assistant_internal["client_message_id"] = normalized_client_message_id
+        if len(outbound_messages) > 1:
+            assistant_internal["user_message_parts"] = [formatter.truncate(message) for message in outbound_messages]
 
-    return TestChatResponse(
-        reply=reply_text,
-        assistant_message_id=str(assistant_message.id),
-        internal_json=llm_response.internal_json.model_dump(mode="json"),
-        conversation=_serialize_conversation(conversation),
-        timestamp=datetime.now().isoformat(),
-    )
+        assistant_message: Message | None = None
+        for index, raw_message in enumerate(outbound_messages, start=1):
+            part_client_message_id = normalized_client_message_id
+            if index > 1:
+                part_client_message_id = f"{normalized_client_message_id}__part{index}"
+
+            part_text = formatter.truncate(raw_message)
+            part_internal = dict(assistant_internal)
+            part_internal["message_part_index"] = index
+            part_internal["message_part_total"] = len(outbound_messages)
+
+            candidate = Message(
+                conversation_id=conversation.id,
+                role="assistant",
+                content=part_text,
+                client_message_id=part_client_message_id,
+                internal_json=part_internal,
+            )
+            try:
+                saved_message = await repository.add_message(candidate)
+            except asyncpg.UniqueViolationError:
+                existing_assistant = await repository.get_assistant_by_client_message_id(
+                    conversation.id,
+                    part_client_message_id,
+                )
+                if existing_assistant is None:
+                    raise
+                saved_message = existing_assistant
+
+            if assistant_message is None:
+                assistant_message = saved_message
+
+        if assistant_message is None:
+            raise HTTPException(status_code=500, detail="Assistant message was not created")
+
+        return TestChatResponse(
+            reply=reply_text,
+            assistant_message_id=str(assistant_message.id),
+            internal_json=assistant_internal,
+            conversation=_serialize_conversation(conversation),
+            timestamp=datetime.now(UTC).isoformat(),
+        )
 
 
 @router.get("/chat/history")

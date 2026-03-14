@@ -3,14 +3,19 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
+# 1) Sadece dependency tanımlarını kopyala ve kur (cache-friendly)
 COPY pyproject.toml README.md ./
-COPY src/ src/
+COPY src/velox/__init__.py src/velox/__init__.py
 RUN pip install --no-cache-dir --target=/deps .
+
+# 2) Sonra kaynak kodu kopyala (bu katman sık değişir ama pip install cache'i korunur)
+COPY src/ src/
 
 # Runtime stage
 FROM python:3.11-slim AS runtime
 
 WORKDIR /app
+ENV PYTHONPATH=/app/src
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \

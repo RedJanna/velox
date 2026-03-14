@@ -52,8 +52,9 @@ def render_admin_panel_html() -> str:
         <button data-nav="hotels"><span class="nav-label"><strong>Hotel Profile</strong><span>Dinamik bilgi yönetimi</span></span><span>05</span></button>
         <button data-nav="faq"><span class="nav-label"><strong>FAQ Yonetimi</strong><span>Soru-cevap ve moderasyon</span></span><span>06</span></button>
         <button data-nav="restaurant"><span class="nav-label"><strong>Restoran Slotlari</strong><span>Kapasite ve zamanlama</span></span><span>07</span></button>
-        <button data-nav="system"><span class="nav-label"><strong>Sistem</strong><span>Domain, readiness, reload</span></span><span>08</span></button>
-        <button data-nav="chatlab"><span class="nav-label"><strong>Chat Lab</strong><span>Canli test ve feedback</span></span><span>09</span></button>
+        <button data-nav="notifications"><span class="nav-label"><strong>Bildirim Numaralari</strong><span>WhatsApp admin alicilari</span></span><span>08</span></button>
+        <button data-nav="system"><span class="nav-label"><strong>Sistem</strong><span>Domain, readiness, reload</span></span><span>09</span></button>
+        <button data-nav="chatlab"><span class="nav-label"><strong>Chat Lab</strong><span>Canli test ve feedback</span></span><span>10</span></button>
       </nav>
 
       <section class="sidebar-card">
@@ -396,6 +397,25 @@ def render_admin_panel_html() -> str:
               <div class="field"><label>Toplam kapasite</label><input name="total_capacity" type="number" min="1" required></div>
               <div class="field"><label>Aktif</label><input name="is_active" type="checkbox" checked style="width:20px;height:20px"></div>
               <div class="field full"><button class="inline-button primary" type="submit">Slot Araligi Olustur</button></div>
+            </form>
+          </article>
+        </section>
+
+        <section data-view="notifications" class="section-grid" hidden>
+          <article class="module-card">
+            <div class="module-header">
+              <div><h3>Bildirim Numaralari</h3><p>Rezervasyon onay talebi olusturuldugunda WhatsApp mesaji gonderilecek admin numaralari. Varsayilan numara kaldirilAmaz.</p></div>
+            </div>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Telefon</th><th>Etiket</th><th>Varsayilan</th><th>Aksiyon</th></tr></thead>
+                <tbody id="notifPhoneTableBody"></tbody>
+              </table>
+            </div>
+            <form id="addNotifPhoneForm" class="dense-form" style="margin-top:16px">
+              <div class="field"><label>Telefon numarasi</label><input name="phone" placeholder="+905XXXXXXXXX" required></div>
+              <div class="field"><label>Etiket (opsiyonel)</label><input name="label" placeholder="Orn: Satis muduru"></div>
+              <div class="field full"><button class="inline-button primary" type="submit">Numara Ekle</button></div>
             </form>
           </article>
         </section>

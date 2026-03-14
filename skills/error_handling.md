@@ -1,5 +1,8 @@
 # Skill: Error Handling (v2)
 
+> **Hiyerarşi:** Bu dosya `SKILL.md` hiyerarşisinde **Öncelik 3** seviyesindedir.
+> `security_privacy.md` ve `anti_hallucination.md` kuralları bu dosyadan önce gelir.
+
 > Kod bilmeyen biri için kısa benzetme: Bu doküman, resepsiyondaki “Bir şey ters giderse ne yapacağız?” prosedürüdür.
 > Telefon düşmezse 3 kere deneriz, yine olmazsa “konuyu ekibe devrediyoruz” deriz ve misafiri panikletmeyiz.
 
@@ -85,9 +88,39 @@ Misafirin göreceği tek şey bunun gibi olmalı:
 Eğer bir servis **60 saniye içinde 5+ kez** patlıyorsa:
 - O servisi “şu an sorunlu” olarak işaretle (`TOOL_UNAVAILABLE`)
 - Bir süre o servisi çağırmayı bırak (aynı duvara çarpmayı bırak)
-- Sonraki sağlık kontrolünde düzelirse tekrar dene
 
-**Benzetme:** Elektrik sigortası atınca aynı anda tekrar tekrar açmaya çalışmazsın.
+### Circuit breaker durumları ve geçişleri
+
+```
+CLOSED (normal) ──5 hata/60sn──▶ OPEN (devre dışı)
+                                     │
+                                  30 sn bekle
+                                     │
+                                     ▼
+                               HALF-OPEN (deneme)
+                                   /        \
+                              başarılı     başarısız
+                                 │            │
+                                 ▼            ▼
+                              CLOSED        OPEN
+                             (normal)    (tekrar bekle)
+```
+
+| Durum | Açıklama | Süre |
+|-------|----------|------|
+| **CLOSED** | Normal çalışma, tüm istekler gider | — |
+| **OPEN** | Servis devre dışı, hiç istek gitmez, doğrudan fallback çalışır | **30 saniye** |
+| **HALF-OPEN** | Tek bir deneme isteği gönderilir (sağlık kontrolü) | Tek istek |
+
+- **OPEN → HALF-OPEN geçişi:** 30 saniye sonra otomatik (bu süre `settings.py`'dan gelir)
+- **HALF-OPEN → CLOSED:** Deneme başarılıysa normal moda dön
+- **HALF-OPEN → OPEN:** Deneme başarısızsa tekrar 30 sn bekle
+- **Sağlık kontrolü:** HALF-OPEN'da gönderilen istek, gerçek bir kullanıcı isteğidir (ayrı health endpoint değil)
+
+> **Kural:** Circuit breaker durumu **Redis'te** tutulur (tüm instance'lar görsün).
+> Redis çökmüşse in-memory fallback kullanılır (instance-local).
+
+**Benzetme:** Elektrik sigortası atınca 30 sn bekle, sonra bir kez dene, çalışıyorsa aç.
 
 ---
 
@@ -106,6 +139,24 @@ Ama şunlar bloke olur:
 - Rezervasyon oluşturma / değiştirme / iptal
 
 **Benzetme:** Asansör bozulduysa merdivenle bazı işler yürür ama ağır eşya taşıma zorlaşır.
+
+### 6.1 Cascading failure tablosu: “Bu çökerse ne olur?”
+
+Her kritik bağımlılık için “çökerse ne olur, ne yapılır?” tablosu:
+
+| Bağımlılık | Çökerse ne etkilenir? | Fallback | Misafire etki | Admin bildirim |
+|------------|----------------------|----------|---------------|----------------|
+| **Elektraweb** | Oda müsaitliği, fiyat teklifi, rezervasyon CRUD | SSS/restoran/transfer/handoff çalışır. Müsaitlik isteklerine: “Ekibimize iletiyorum.” | Kısmi — bilgi soruları çalışır | ⚠️ Hemen alert |
+| **PostgreSQL (DB)** | Konuşma geçmişi, ticket, log yazma | In-memory queue → DB gelince replay. Yeni konuşmalar başlatılabilir ama geçmiş yüklenemez. | Yüksek — geçmiş kayıp riski | 🔴 Kritik alert |
+| **Redis** | Session yönetimi, rate limiting, cache | In-memory dict fallback (tek instance, kısa ömürlü). Rate limiting gevşer. | Orta — session kayıp olabilir | ⚠️ Hemen alert |
+| **OpenAI (LLM)** | Tüm akıllı yanıtlar, intent algılama | Template-only mod: misafir mesajına en yakın hazır şablonu gönder + insan devri. | Yüksek — sadece şablonlar çalışır | ⚠️ Hemen alert |
+| **WhatsApp API** | Mesaj gönderimi | Mesajları kuyruğa al (DB/Redis), API gelince sırayla gönder. Gelen webhook'ları işlemeye devam et. | Çok yüksek — misafir cevap alamaz | 🔴 Kritik alert |
+| **Redis + DB birlikte** | Neredeyse her şey | Sistemi **maintenance moduna** al. Tüm isteklere sabit mesaj: “Kısa süreliğine bakımdayız.” | Tam — sistem durur | 🔴 Acil müdahale |
+
+> **Kural:** Her bağımlılık için fallback kodu **önceden yazılmış ve test edilmiş** olmalıdır.
+> “Çökünce düşünürüz” yaklaşımı **yasaktır**.
+
+**Benzetme:** Otelin acil durum planı: “yangın olursa hangi kapıdan çık, su kesilirse ne yap” — önceden planlanmış.
 
 ---
 
@@ -126,7 +177,7 @@ Her hata, ekip tarafından hızlı bulunabilsin diye standart bilgilerle kaydedi
 
 ---
 
-## 8) Devre (handoff) kuralları
+## 8) Devre (handoff) kuralları ve SLA
 
 3 deneme bitti ve hâlâ sorun varsa:
 - `TOOL_ERROR_REPEAT` risk işareti ekle
@@ -135,6 +186,41 @@ Her hata, ekip tarafından hızlı bulunabilsin diye standart bilgilerle kaydedi
 
 **Misafir ödeme ile ilgili bir şey söylerse** (örn. “USD ile ödeyeceğim”, “kart numaram...”) bu da riskli olduğundan:
 - Teknik hata olmasa bile **insan devri** yapılmalı (security_privacy.md ve anti_hallucination kurallarıyla uyumlu)
+
+### 8.1 Handoff SLA (Yanıt Süresi Taahhüdü)
+
+İnsan devri yapıldığında misafir **cevapsız kalmamalıdır**.
+
+| Escalation seviyesi | İlk yanıt süresi (SLA) | Takip mekanizması |
+|---------------------|------------------------|-------------------|
+| **L1** (genel sorular, bilgi) | **30 dakika** | 30 dk sonra admin'e hatırlatma |
+| **L2** (ödeme, teknik hata, şikâyet) | **15 dakika** | 15 dk sonra hatırlatma, 45 dk sonra L3'e escalate |
+| **L3** (hukuki, güvenlik, kriz) | **5 dakika** | 5 dk sonra hatırlatma, 15 dk sonra SUPER_ADMIN'e |
+
+### 8.2 Follow-up mekanizması (otomatik hatırlatma)
+
+İnsan devri sonrası **insan yanıt vermezse** sistem otomatik adım atar:
+
+1. **SLA süresinin %100'ü dolduğunda:** Admin panelde + bildirim kanalında (Slack/email) hatırlatma
+2. **SLA süresinin %300'ü dolduğunda:** Bir üst seviyeye escalation (L1→L2, L2→L3)
+3. **SLA süresinin %500'ü dolduğunda:** Misafire proaktif mesaj gönder:
+   - TR: “Talebiniz ekibimize iletildi. En kısa sürede sizinle iletişime geçilecektir. Anlayışınız için teşekkür ederiz.”
+   - EN: “Your request has been forwarded to our team. We will contact you as soon as possible. Thank you for your patience.”
+
+> **Kural:** Misafire proaktif mesaj **en fazla 1 kez** gönderilir (spam olmasın).
+> Ticket kapatılana kadar admin panelde **açık** olarak görünür.
+
+### 8.3 Ticket durumları
+
+| Durum | Anlamı |
+|-------|--------|
+| `OPEN` | Oluşturuldu, henüz kimse yanıt vermedi |
+| `IN_PROGRESS` | Ekip üyesi atandı / yanıt hazırlanıyor |
+| `WAITING_GUEST` | Misafirden bilgi/onay bekleniyor |
+| `RESOLVED` | Çözüldü, misafir bilgilendirildi |
+| `EXPIRED` | SLA aşıldı, escalate edildi |
+
+**Benzetme:** Otelde “şu misafirin talebi 15 dakikadır cevapsız — müdür devralıyor” sistemi.
 
 ---
 
@@ -156,6 +242,14 @@ Her hata, ekip tarafından hızlı bulunabilsin diye standart bilgilerle kaydedi
 - [ ] Kayıtlar standart alanlarla tutuluyor (servis, hotel_id, attempt, duration)
 - [ ] Elektraweb yokken SSS/restoran/transfer/handoff çalışıyor
 - [ ] Sürekli bozulmada servis çağrısı kesiliyor (`TOOL_UNAVAILABLE`)
+- [ ] Circuit breaker 3 durumlu (CLOSED/OPEN/HALF-OPEN) ve recovery süresi tanımlı (30sn)
+- [ ] Her kritik bağımlılık için cascading failure fallback'i yazılmış ve test edilmiş
+- [ ] DB çökünce in-memory queue + replay mekanizması var
+- [ ] Redis çökünce in-memory dict fallback var
+- [ ] LLM çökünce template-only mod + insan devri çalışıyor
+- [ ] Handoff SLA süreleri tanımlı (L1: 30dk, L2: 15dk, L3: 5dk)
+- [ ] Handoff follow-up otomatik hatırlatması aktif
+- [ ] Ticket durumları (OPEN/IN_PROGRESS/WAITING_GUEST/RESOLVED/EXPIRED) takip ediliyor
 
 ---
 

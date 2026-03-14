@@ -1,0 +1,637 @@
+schema_version: chat_lab_feedback.v1
+feedback_id: fb_20260313_201852_416560
+status: new
+approved_example: false
+created_at: '2026-03-13T20:18:52.416626+00:00'
+rating: 1
+rating_label: Kesinlikle Yanlis
+category: gevezelik
+category_label: Gevezelik / Uzunluk
+tags:
+- asiri_uzun_yanit
+gold_standard: '1. Oda (2 yetişkin + 2 çocuk)
+
+  Exclusive Sokak Manzaralı (40m2)
+
+  İptal edilemez: 645 €
+
+  Ücretsiz İptal: 710 €
+
+
+  Exclusive Havuz Manzaralı (40m2)
+
+  İptal edilemez: 660 €
+
+  Ücretsiz İptal: 725 €
+
+
+  Penthouse - Jakuzili (45m2)
+
+  İptal edilemez: 680 €
+
+  Ücretsiz İptal: 745 €
+
+
+  Premium - Jakuzili (40m2)
+
+  İptal edilemez: 700 €
+
+  Ücretsiz İptal: 770 €
+
+
+
+  2. Oda (2 yetişkin)
+
+  Deluxe (25m2)
+
+  İptal edilemez: 420 €
+
+  Ücretsiz İptal: 460 €
+
+
+  Superior (30m2)
+
+  İptal edilemez: 435 €
+
+  Ücretsiz İptal: 475 €
+
+
+  Exclusive Sokak Manzaralı (40m2)
+
+  İptal edilemez: 450 €
+
+  Ücretsiz İptal: 495 €
+
+
+  Penthouse Land - Jakuzili (25m2)
+
+  İptal edilemez: 450 €
+
+  Ücretsiz İptal: 495 €
+
+
+  Exclusive Havuz Manzaralı (40m2)
+
+  İptal edilemez: 460 €
+
+  Ücretsiz İptal: 510 €
+
+
+  Penthouse - Jakuzili (45m2)
+
+  İptal edilemez: 485 €
+
+  Ücretsiz İptal: 530 €
+
+
+  Premium - Jakuzili (40m2)
+
+  İptal edilemez: 505 €
+
+  Ücretsiz İptal: 555 €
+
+
+
+
+  Ücretsiz iptal seçeneği ile yapılan rezervasyonlarda girişten 5 gün öncesine kadar iptal olması halinde %100 geri ödeme alabilirsiniz.
+
+
+  Rezervasyon onayı için iptal edilemez rezervasyonlarda 1 gecelik ödeme tahsil edilmektedir. Kalan ödemeyi giriş günündeki güncel döviz kuruna göre TL veya döviz olarak yapabilirsiniz.
+
+
+  Nazik bilgilendirme: Oda numarası için önceden garanti veremiyoruz; ancak girişiniz sırasında uygunluk doğrultusunda size memnuniyetle yardımcı oluruz.'
+notes: 3. ve 4. oda fiyatlarını vermene gerek yok ! 2 farklı aile var ve sende 2 farklı fiyat vereceksin!
+source_type: live_test_chat
+storage_group: bad_feedback
+input: '1️⃣ 1. oda: 2 yetişkin + 2 çocuk
+
+    2. oda: 2 yetişkin'
+output: '1. Oda (2 yetişkin + 2 çocuk)
+
+  Exclusive Sokak Manzaralı (40m2)
+
+  İptal edilemez: 645 €
+
+  Ücretsiz İptal: 710 €
+
+
+  Exclusive Havuz Manzaralı (40m2)
+
+  İptal edilemez: 660 €
+
+  Ücretsiz İptal: 725 €
+
+
+  Penthouse - Jakuzili (45m2)
+
+  İptal edilemez: 680 €
+
+  Ücretsiz İptal: 745 €
+
+
+  Premium - Jakuzili (40m2)
+
+  İptal edilemez: 700 €
+
+  Ücretsiz İptal: 770 €
+
+
+  2. Oda (2 yetişkin + 2 çocuk)
+
+  Exclusive Sokak Manzaralı (40m2)
+
+  İptal edilemez: 645 €
+
+  Ücretsiz İptal: 710 €
+
+
+  Exclusive Havuz Manzaralı (40m2)
+
+  İptal edilemez: 660 €
+
+  Ücretsiz İptal: 725 €
+
+
+  Penthouse - Jakuzili (45m2)
+
+  İptal edilemez: 680 €
+
+  Ücretsiz İptal: 745 €
+
+
+  Premium - Jakuzili (40m2)
+
+  İptal edilemez: 700 €
+
+  Ücretsiz İptal: 770 €
+
+
+  3. Oda (2 yetişkin)
+
+  Deluxe (25m2)
+
+  İptal edilemez: 420 €
+
+  Ücretsiz İptal: 460 €
+
+
+  Superior (30m2)
+
+  İptal edilemez: 435 €
+
+  Ücretsiz İptal: 475 €
+
+
+  Exclusive Sokak Manzaralı (40m2)
+
+  İptal edilemez: 450 €
+
+  Ücretsiz İptal: 495 €
+
+
+  Penthouse Land - Jakuzili (25m2)
+
+  İptal edilemez: 450 €
+
+  Ücretsiz İptal: 495 €
+
+
+  Exclusive Havuz Manzaralı (40m2)
+
+  İptal edilemez: 460 €
+
+  Ücretsiz İptal: 510 €
+
+
+  Penthouse - Jakuzili (45m2)
+
+  İptal edilemez: 485 €
+
+  Ücretsiz İptal: 530 €
+
+
+  Premium - Jakuzili (40m2)
+
+  İptal edilemez: 505 €
+
+  Ücretsiz İptal: 555 €
+
+
+  4. Oda (2 yetişkin)
+
+  Deluxe (25m2)
+
+  İptal edilemez: 420 €
+
+  Ücretsiz İptal: 460 €
+
+
+  Superior (30m2)
+
+  İptal edilemez: 435 €
+
+  Ücretsiz İptal: 475 €
+
+
+  Exclusive Sokak Manzaralı (40m2)
+
+  İptal edilemez: 450 €
+
+  Ücretsiz İptal: 495 €
+
+
+  Penthouse Land - Jakuzili (25m2)
+
+  İptal edilemez: 450 €
+
+  Ücretsiz İptal: 495 €
+
+
+  Exclusive Havuz Manzaralı (40m2)
+
+  İptal edilemez: 460 €
+
+  Ücretsiz İptal: 510 €
+
+
+  Penthouse - Jakuzili (45m2)
+
+  İptal edilemez: 485 €
+
+  Ücretsiz İptal: 530 €
+
+
+  Premium - Jakuzili (40m2)
+
+  İptal edilemez: 505 €
+
+  Ücretsiz İptal: 555 €
+
+
+  Ücretsiz iptal seçeneği ile yapılan rezervasyonlarda girişten 5 gün öncesine kadar iptal olması halinde %100 geri ödeme alabilirsiniz.
+
+
+  Rezervasyon onayı için iptal edilemez rezervasyonlarda 1 gecelik ödeme tahsil edilmektedir. Kalan ödemeyi giriş günündeki güncel döviz kuruna göre TL veya döviz olarak yapabilirsiniz.
+
+
+  Nazik bilgilendirme: Oda numarası için önceden garanti veremiyoruz; ancak girişiniz sırasında uygunluk doğrultusunda size memnuniyetle yardımcı oluruz.'
+conversation_id: 7344850c-a269-4f96-94b0-65dcfefc1c66
+assistant_message_id: 0c6e9b8d-56e5-44c0-89c2-cef233e4a958
+timestamp: '2026-03-13T20:15:28.610954+00:00'
+language: tr
+intent: stay_quote
+state: CONFIRMED
+risk_flags: []
+tool_calls: []
+model: gpt-5.2-chat-latest
+excerpt:
+- id: 9fdb0445-3801-4852-bafe-d91c4f453566
+  role: user
+  content: Merhaba
+  created_at: '2026-03-13T20:12:06.199397+00:00'
+  internal_json:
+    route_audit:
+      route: /api/v1/test/chat
+      received_at: '2026-03-13T20:12:06.199133+00:00'
+    source_type: live_test_chat
+    client_message_id: cl_1773432726094_n2j24z7z
+- id: dcee8988-8f05-424d-bc1a-9d7c609fca67
+  role: assistant
+  content: "Merhaba \U0001F33F  \nKassandra Oludeniz’e hoş geldiniz.\n\nSize nasıl yardımcı olabilirim?  \n• Oda müsaitlik ve fiyat bilgisi  \n• Restoran rezervasyonu  \n• Havalimanı transferi  \n• Mevcut rezervasyon işlemleri  \n\nTalebinizi kısaca paylaşmanız yeterli \U0001F60A"
+  created_at: '2026-03-13T20:12:10.277093+00:00'
+  internal_json:
+    state: GREETING
+    intent: other
+    handoff:
+      needed: false
+      reason: ''
+    entities: {}
+    language: tr
+    next_step: Kullanicinin talebini belirtmesini bekle
+    escalation:
+      level: L0
+      reason: ''
+      sla_hint: low
+      dedupe_key: ''
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls: []
+    notifications: []
+    client_message_id: cl_1773432726094_n2j24z7z
+    required_questions: []
+- id: 4ca00a60-c6bd-4fc4-ab65-cb7d5cab3d82
+  role: user
+  content: 'Merhaba,
+
+
+    20.08.2026 – 22.08.2026 tarihleri arasında konaklama için müsaitlik sormak istiyorum.
+
+    Toplam 6 kişi olacağız:
+
+    4 yetişkin
+
+    2 çocuk (15 ve 13 yaşlarında)
+
+
+    Bu tarihler için uygun oda veya aile odası var mı?
+
+    Mümkünse fiyat bilgisi ve oda seçeneklerini de paylaşabilir misiniz?
+
+
+    Teşekkür ederim.
+
+    Işıl'
+  created_at: '2026-03-13T20:12:13.970422+00:00'
+  internal_json:
+    route_audit:
+      route: /api/v1/test/chat
+      received_at: '2026-03-13T20:12:13.970309+00:00'
+    source_type: live_test_chat
+    client_message_id: cl_1773432733889_cr7vpg78
+- id: bdfe0a47-9d13-4108-91a4-4488e6c8fda7
+  role: assistant
+  content: "Merhaba Işıl Hanım \U0001F33F  \n\n20.08.2026 – 22.08.2026 tarihleri için yaptığım ilk kontrolde, sistemimiz 6 kişi (4 yetişkin + 15 ve 13 yaş) konaklaması için fiyat teklifi oluşturamadı.\n\nOtelimizde tek bir odada maksimum kapasite **4 kişi** olduğu için, 6 kişilik konaklama için genellikle:\n\n• **2 oda kombinasyonu** (örneğin 2× Exclusive / 2× Premium vb.)  \nşeklinde planlama yapılmaktadır.\n\nSize en uygun ve ekonomik kombinasyonu net fiyatlarıyla birlikte sunabilmem için kısa bir teyit rica ediyorum:\n\n\U0001F449 6 kişi için **2 ayrı oda** şeklinde konaklama sizin için uygun mudur?  \n(Odaların yan yana olması talebiniz varsa da belirtebilirsiniz.)\n\nOnayınızla birlikte, uygun oda kombinasyonlarını ve her oda tipi için  \n**İptal edilemez** ve **Ücretsiz İptal** fiyat seçeneklerini detaylı olarak paylaşacağım.\n\nMemnuniyetle yardımcı olurum \U0001F338"
+  created_at: '2026-03-13T20:12:28.370779+00:00'
+  internal_json:
+    state: ''
+    intent: ''
+    handoff:
+      needed: false
+    entities: {}
+    language: tr
+    next_step: ''
+    escalation:
+      level: L0
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls: []
+    notifications: []
+    client_message_id: cl_1773432733889_cr7vpg78
+    required_questions: []
+- id: 02713079-4be9-4950-816c-78bd02e1cc1c
+  role: user
+  content: 2 ayrı oda istiyorum
+  created_at: '2026-03-13T20:13:57.623516+00:00'
+  internal_json:
+    route_audit:
+      route: /api/v1/test/chat
+      received_at: '2026-03-13T20:13:57.623334+00:00'
+    source_type: live_test_chat
+    client_message_id: cl_1773432837591_9yq7p7p4
+- id: 17e7ae42-2ab5-46c7-a1ea-c36c941ecdfe
+  role: assistant
+  content: "Teşekkür ederim Işıl Hanım \U0001F33F  \n\n6 kişilik konaklamanız için 2 ayrı oda planlayabiliriz.  \nFiyatları doğru şekilde oluşturabilmem için küçük bir teyit rica edeceğim:\n\nOda dağılımını nasıl tercih edersiniz?\n\n1️⃣ 1. oda: 2 yetişkin + 2 çocuk  \n  2. oda: 2 yetişkin  \n\n2️⃣ Her odada 3 kişi (örneğin 2 yetişkin + 1 çocuk / 2 yetişkin + 1 çocuk)\n\nTercihinizi iletirseniz, seçeneğe göre müsaitlik ve  \nher oda tipi için **İptal edilemez** ve **Ücretsiz İptal** fiyatları hemen paylaşacağım \U0001F338"
+  created_at: '2026-03-13T20:14:07.204657+00:00'
+  internal_json:
+    state: NEEDS_VERIFICATION
+    intent: stay_quote
+    handoff:
+      needed: false
+      reason: ''
+    entities:
+      adults: 4
+      chd_ages:
+      - 15
+      - 13
+      currency: EUR
+      chd_count: 2
+      nationality: TR
+      checkin_date: '2026-08-20'
+      checkout_date: '2026-08-22'
+    language: tr
+    next_step: Oda dağılımı netleşince booking.availability ve booking.quote çağrılacak.
+    escalation:
+      level: L0
+      reason: Eksik oda dağılım bilgisi
+      sla_hint: low
+      dedupe_key: ''
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls: []
+    notifications: []
+    client_message_id: cl_1773432837591_9yq7p7p4
+    required_questions:
+    - Oda dağılım tercihi (2+2 & 2) mi yoksa (3+3) mi?
+- id: 9a5c8352-c299-4933-844c-0e6e8212cdb6
+  role: user
+  content: '1️⃣ 1. oda: 2 yetişkin + 2 çocuk
+
+      2. oda: 2 yetişkin'
+  created_at: '2026-03-13T20:15:13.017917+00:00'
+  internal_json:
+    route_audit:
+      route: /api/v1/test/chat
+      received_at: '2026-03-13T20:15:13.017798+00:00'
+    source_type: live_test_chat
+    client_message_id: cl_1773432912767_r1yz959m
+- id: 0c6e9b8d-56e5-44c0-89c2-cef233e4a958
+  role: assistant
+  content: '1. Oda (2 yetişkin + 2 çocuk)
+
+    Exclusive Sokak Manzaralı (40m2)
+
+    İptal edilemez: 645 €
+
+    Ücretsiz İptal: 710 €
+
+
+    Exclusive Havuz Manzaralı (40m2)
+
+    İptal edilemez: 660 €
+
+    Ücretsiz İptal: 725 €
+
+
+    Penthouse - Jakuzili (45m2)
+
+    İptal edilemez: 680 €
+
+    Ücretsiz İptal: 745 €
+
+
+    Premium - Jakuzili (40m2)
+
+    İptal edilemez: 700 €
+
+    Ücretsiz İptal: 770 €
+
+
+    2. Oda (2 yetişkin + 2 çocuk)
+
+    Exclusive Sokak Manzaralı (40m2)
+
+    İptal edilemez: 645 €
+
+    Ücretsiz İptal: 710 €
+
+
+    Exclusive Havuz Manzaralı (40m2)
+
+    İptal edilemez: 660 €
+
+    Ücretsiz İptal: 725 €
+
+
+    Penthouse - Jakuzili (45m2)
+
+    İptal edilemez: 680 €
+
+    Ücretsiz İptal: 745 €
+
+
+    Premium - Jakuzili (40m2)
+
+    İptal edilemez: 700 €
+
+    Ücretsiz İptal: 770 €
+
+
+    3. Oda (2 yetişkin)
+
+    Deluxe (25m2)
+
+    İptal edilemez: 420 €
+
+    Ücretsiz İptal: 460 €
+
+
+    Superior (30m2)
+
+    İptal edilemez: 435 €
+
+    Ücretsiz İptal: 475 €
+
+
+    Exclusive Sokak Manzaralı (40m2)
+
+    İptal edilemez: 450 €
+
+    Ücretsiz İptal: 495 €
+
+
+    Penthouse Land - Jakuzili (25m2)
+
+    İptal edilemez: 450 €
+
+    Ücretsiz İptal: 495 €
+
+
+    Exclusive Havuz Manzaralı (40m2)
+
+    İptal edilemez: 460 €
+
+    Ücretsiz İptal: 510 €
+
+
+    Penthouse - Jakuzili (45m2)
+
+    İptal edilemez: 485 €
+
+    Ücretsiz İptal: 530 €
+
+
+    Premium - Jakuzili (40m2)
+
+    İptal edilemez: 505 €
+
+    Ücretsiz İptal: 555 €
+
+
+    4. Oda (2 yetişkin)
+
+    Deluxe (25m2)
+
+    İptal edilemez: 420 €
+
+    Ücretsiz İptal: 460 €
+
+
+    Superior (30m2)
+
+    İptal edilemez: 435 €
+
+    Ücretsiz İptal: 475 €
+
+
+    Exclusive Sokak Manzaralı (40m2)
+
+    İptal edilemez: 450 €
+
+    Ücretsiz İptal: 495 €
+
+
+    Penthouse Land - Jakuzili (25m2)
+
+    İptal edilemez: 450 €
+
+    Ücretsiz İptal: 495 €
+
+
+    Exclusive Havuz Manzaralı (40m2)
+
+    İptal edilemez: 460 €
+
+    Ücretsiz İptal: 510 €
+
+
+    Penthouse - Jakuzili (45m2)
+
+    İptal edilemez: 485 €
+
+    Ücretsiz İptal: 530 €
+
+
+    Premium - Jakuzili (40m2)
+
+    İptal edilemez: 505 €
+
+    Ücretsiz İptal: 555 €
+
+
+    Ücretsiz iptal seçeneği ile yapılan rezervasyonlarda girişten 5 gün öncesine kadar iptal olması halinde %100 geri ödeme alabilirsiniz.
+
+
+    Rezervasyon onayı için iptal edilemez rezervasyonlarda 1 gecelik ödeme tahsil edilmektedir. Kalan ödemeyi giriş günündeki güncel döviz kuruna göre TL veya döviz olarak yapabilirsiniz.
+
+
+    Nazik bilgilendirme: Oda numarası için önceden garanti veremiyoruz; ancak girişiniz sırasında uygunluk doğrultusunda size memnuniyetle yardımcı oluruz.'
+  created_at: '2026-03-13T20:15:28.610954+00:00'
+  internal_json:
+    state: CONFIRMED
+    intent: stay_quote
+    handoff:
+      needed: false
+      reason: null
+      ticket_id: null
+    entities:
+      adults: 4
+      chd_ages:
+      - 15
+      - 13
+      currency: EUR
+      chd_count: 2
+      nationality: TR
+      checkin_date: '2026-08-20'
+      checkout_date: '2026-08-22'
+    language: tr
+    next_step: guest_room_selection_for_hold
+    escalation:
+      level: L0
+      reason: null
+      sla_hint: low
+      dedupe_key: null
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls:
+    - tool: booking_quote
+      room_1:
+        adults: 2
+        chd_count: 2
+    - tool: booking_quote
+      room_2:
+        adults: 2
+        chd_count: 0
+    notifications: []
+    client_message_id: cl_1773432912767_r1yz959m
+    required_questions: []
+source_file: null

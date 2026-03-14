@@ -156,6 +156,7 @@ const state = {
   importFile: '',
   roleMapping: {},
   messages: [],
+  isSending: false,
   conversation: null,
   importMetadata: {},
   catalog: {
@@ -293,9 +294,9 @@ function adminToken() {
 }
 
 function ensureAdminSession() {
-  if (adminToken()) return true;
-  window.location.href = ADMIN_ENTRY_PATH;
-  return false;
+  // Access control is enforced by backend (cookie or bearer).
+  // Do not force localStorage token on page load; cookie-only sessions are valid.
+  return true;
 }
 
 async function apiFetch(path, options = {}) {
@@ -305,6 +306,7 @@ async function apiFetch(path, options = {}) {
   const response = await fetch(API + path, {
     ...options,
     headers,
+    credentials: 'same-origin',
   });
   let data = null;
   let rawText = '';
@@ -318,8 +320,16 @@ async function apiFetch(path, options = {}) {
     }
   }
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      window.location.href = ADMIN_ENTRY_PATH;
+    if (response.status === 401) {
+      if (window.parent !== window) {
+        window.parent.postMessage({type: 'chatlab:auth-required'}, '*');
+      } else {
+        window.location.href = ADMIN_ENTRY_PATH;
+      }
+      throw new Error('Oturum suresi doldu. Lutfen tekrar giris yapin.');
+    }
+    if (response.status === 403) {
+      throw new Error('Chat Lab erisimi icin admin yetkisi gerekiyor.');
     }
     throw new Error(extractApiErrorMessage(data, rawText));
   }
@@ -566,8 +576,8 @@ function currentRoleMapping() {
 }
 
 function setComposerMode(isLive) {
-  el('msg-input').disabled = !isLive;
-  el('send-btn').disabled = !isLive;
+  el('msg-input').disabled = !isLive || state.isSending;
+  el('send-btn').disabled = !isLive || state.isSending;
   el('export-btn').disabled = !isLive;
   el('msg-input').placeholder = isLive
     ? 'Mesajinizi yazin...'
@@ -610,12 +620,19 @@ async function loadHistory() {
 
 async function sendMessage() {
   if (state.sourceType !== 'live_test_chat') return;
+  if (state.isSending) return;
   const message = el('msg-input').value.trim();
   if (!message) return;
 
+  state.isSending = true;
+  setComposerMode(true);
   showTyping();
   try {
-    const payload = {message: message, phone: el('phone-input').value.trim() || 'test_user_123'};
+    const payload = {
+      message: message,
+      phone: el('phone-input').value.trim() || 'test_user_123',
+      client_message_id: `cl_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+    };
     const data = await apiFetch('/chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -646,6 +663,8 @@ async function sendMessage() {
     el('source-banner').textContent = error.message || 'Mesaj gonderilemedi.';
   } finally {
     hideTyping();
+    state.isSending = false;
+    setComposerMode(state.sourceType === 'live_test_chat');
   }
 }
 
@@ -882,6 +901,8 @@ function toggleDebug() {
 }
 
 function wireEvents() {
+  if (_eventsBound) return;
+  _eventsBound = true;
   el('send-btn').addEventListener('click', sendMessage);
   el('msg-input').addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -913,14 +934,35 @@ function wireEvents() {
 }
 
 async function boot() {
-  if (!ensureAdminSession()) return;
+  if (_booted) return;
+  // When embedded in an iframe, wait for parent to send the auth token first.
+  if (window.parent !== window && !adminToken()) return;
+  _booted = true;
   wireEvents();
   renderCategoryOptions();
   renderTagOptions();
-  await Promise.all([loadCatalog(), loadModels(), refreshImportFiles()]);
+  try {
+    await Promise.all([loadCatalog(), loadModels(), refreshImportFiles()]);
+  } catch (error) {
+    console.error('Chat Lab boot error:', error);
+    _booted = false;
+    return;
+  }
   setComposerMode(true);
   await loadHistory();
 }
 
+let _eventsBound = false;
+let _booted = false;
+
 window.addEventListener('load', boot);
+
+// Accept auth token from parent admin panel when running inside an iframe.
+window.addEventListener('message', event => {
+  if (event.origin !== window.location.origin) return;
+  if (event.data && event.data.type === 'chatlab:token' && event.data.token) {
+    window.localStorage.setItem(ADMIN_TOKEN_KEY, event.data.token);
+    boot();
+  }
+});
 """

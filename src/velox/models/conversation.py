@@ -13,6 +13,7 @@ class Message(BaseModel):
     conversation_id: UUID
     role: str  # user, assistant, system
     content: str
+    client_message_id: str | None = None
     internal_json: dict | None = None
     tool_calls: list[dict] | None = None
     created_at: datetime = Field(default_factory=datetime.now)

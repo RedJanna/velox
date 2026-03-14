@@ -1,5 +1,8 @@
 # Skill: Testing & Quality Assurance (v2)
 
+> **Hiyerarşi:** Bu dosya `SKILL.md` hiyerarşisinde **Öncelik 3** seviyesindedir.
+> `security_privacy.md` ve `anti_hallucination.md` kuralları bu dosyadan önce gelir.
+
 > Kod bilmeyen biri için benzetme: Bu doküman “**prova planı**”dır.
 > - **Kısa prova (mutfak tadımı):** Tek bir yemeği (tek bir fonksiyonu) deneriz.
 > - **Genel prova (salonda prova):** Birkaç ekip birlikte çalışır (mesaj akışı).
@@ -143,6 +146,37 @@ Bu bölüm, “gerçeğe dayalı test” kısmını daha da sağlamlaştırır.
   4) Ödeme/currency gibi risklerde insan devri oluyor mu?
 
 ---
+
+## 3.5) Performans / Yük Testi (Load Testing)
+
+> Sistem production'da aynı anda **50+ misafiri** karşılayabilmeli.
+> Bu bölüm, bu kapasitenin nasıl test edileceğini tanımlar.
+
+### Ne test edilir?
+
+| Senaryo | Hedef metrik | Kabul kriteri |
+|---------|-------------|---------------|
+| Eşzamanlı 50 misafir mesaj gönderimi | Yanıt süresi p95 | < 5 saniye |
+| Eşzamanlı 100 webhook isteği | Throughput | > 50 req/sn |
+| LLM çağrısı yoğunluğu | Hata oranı | < %5 |
+| DB connection pool doygunluğu | Pool kullanımı | < %80 |
+| Redis session yoğunluğu | Bellek kullanımı | Alarm eşiği altında |
+
+### Araçlar
+- **Locust** veya **k6** ile HTTP yük testi
+- Staging ortamında çalıştırılır (production'da **asla**)
+- Test verileri: sahte misafir profilleri (gerçek veri kullanılmaz)
+
+### Ne zaman yapılır?
+- Release öncesi (zorunlu)
+- Mimari değişiklik sonrası (zorunlu)
+- Aylık rutin (önerilen)
+
+### Raporlama
+- p50, p95, p99 yanıt süreleri
+- Hata oranı
+- Throughput (req/sn)
+- Kaynak kullanımı (CPU, RAM, DB pool, Redis memory)
 
 ---
 
@@ -408,7 +442,9 @@ class TestScenarioS001HotelReservation:
 - `time.sleep()` YASAK (async uyumlu bekleme kullan).
 - Hata akışlarını atlamak YASAK (timeout, fail, invalid input test edilecek).
 - Fixture yerine rastgele hardcode test verisi YASAK.
-- 30 satırı aşan test YASAK (böl).
+- **Unit test:** 30 satırı aşmak yasak (böl).
+- **Scenario/integration test:** 60 satıra kadar tolere edilir (multi-step akışlar doğal olarak uzundur).
+- 60 satırı aşan scenario test varsa helper fonksiyona böl (ör. `_step_greeting()`, `_step_confirm()`).
 
 > Not: Staging/E2E testleri bu yasaktan ayrı bir pakettir. Orada “gerçek bağlantılar” **izinli** olabilir ama sadece test hesaplarıyla.
 

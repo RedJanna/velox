@@ -7,7 +7,7 @@ import asyncpg
 import orjson
 import structlog
 
-from velox.db.database import execute, fetchrow
+from velox.db.database import execute, fetch, fetchrow
 from velox.utils.id_gen import next_sequential_id
 
 logger = structlog.get_logger(__name__)
@@ -262,6 +262,69 @@ class NotificationRepository:
         if row is None:
             raise RuntimeError("Failed to create notification.")
         return {"notification_id": row["notification_id"], "status": row["status"]}
+
+
+class NotificationPhoneRepository:
+    """CRUD operations for notification_phones table."""
+
+    DEFAULT_PHONE = "+905304498453"
+
+    async def list_active(self, hotel_id: int) -> list[dict[str, object]]:
+        """Return active notification phones for a hotel."""
+        rows = await fetch(
+            """
+            SELECT id, hotel_id, phone, label, is_default, active, created_at
+            FROM notification_phones
+            WHERE hotel_id = $1 AND active = TRUE
+            ORDER BY is_default DESC, created_at
+            """,
+            hotel_id,
+        )
+        return [dict(row) for row in rows]
+
+    async def add(self, hotel_id: int, phone: str, label: str = "") -> dict[str, object]:
+        """Add a notification phone. Returns existing row on conflict."""
+        row = await fetchrow(
+            """
+            INSERT INTO notification_phones (hotel_id, phone, label)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (hotel_id, phone) DO UPDATE SET
+                active = TRUE, label = EXCLUDED.label, updated_at = now()
+            RETURNING id, hotel_id, phone, label, is_default, active, created_at
+            """,
+            hotel_id,
+            phone,
+            label,
+        )
+        if row is None:
+            raise RuntimeError("Failed to add notification phone.")
+        return dict(row)
+
+    async def remove(self, hotel_id: int, phone: str) -> bool:
+        """Soft-delete a notification phone. Default phone cannot be removed."""
+        if phone == self.DEFAULT_PHONE:
+            raise ValueError("Varsayilan admin numarasi kaldirilAmaz.")
+        result = await execute(
+            """
+            UPDATE notification_phones
+            SET active = FALSE, updated_at = now()
+            WHERE hotel_id = $1 AND phone = $2 AND is_default = FALSE
+            """,
+            hotel_id,
+            phone,
+        )
+        return result != "UPDATE 0"
+
+    async def get_active_phones(self, hotel_id: int) -> list[str]:
+        """Return only phone strings for active notification recipients."""
+        rows = await fetch(
+            "SELECT phone FROM notification_phones WHERE hotel_id = $1 AND active = TRUE",
+            hotel_id,
+        )
+        phones = [row["phone"] for row in rows]
+        if self.DEFAULT_PHONE not in phones:
+            phones.insert(0, self.DEFAULT_PHONE)
+        return phones
 
 
 class CrmLogRepository:

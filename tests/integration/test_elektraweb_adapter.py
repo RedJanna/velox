@@ -9,6 +9,7 @@ import pytest
 from velox.adapters.elektraweb import client as client_module
 from velox.adapters.elektraweb import endpoints
 from velox.adapters.elektraweb.client import ElektrawebClient
+from velox.adapters.elektraweb.mapper import parse_reservation_create
 
 
 def _response(status_code: int, payload: dict) -> httpx.Response:
@@ -159,6 +160,50 @@ async def test_quote_parses_live_room_and_rate_fields(monkeypatch: pytest.Monkey
 
 
 @pytest.mark.asyncio
+async def test_quote_normalizes_teen_children_into_adults(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Teen ages should be normalized to adults for PMS quote compatibility."""
+    mock_client = AsyncMock()
+    mock_client.get.return_value = [
+        {
+            "id": "of1",
+            "room-type-id": 66,
+            "board-type-id": 2,
+            "rate-type-id": 10,
+            "rate-code-id": 101,
+            "price-agency-id": 1,
+            "currency": "EUR",
+            "price": "220.0",
+            "discounted-price": "200.0",
+            "pax-count": {
+                "adult": 4,
+                "elder-child-count": 0,
+                "younger-child-count": 0,
+                "baby-count": 0,
+            },
+            "cancellation-penalty": {},
+        }
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+
+    result = await endpoints.quote(
+        hotel_id=21966,
+        checkin=date(2026, 8, 20),
+        checkout=date(2026, 8, 22),
+        adults=2,
+        chd_ages=[15, 13],
+        currency="EUR",
+        nationality="TR",
+    )
+
+    assert len(result.offers) == 1
+    _, kwargs = mock_client.get.await_args
+    params = kwargs["params"]
+    assert params["adult"] == 4
+    assert "chdCount" not in params
+    assert "childage" not in params
+
+
+@pytest.mark.asyncio
 async def test_quote_raises_when_child_occupancy_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
     """Child quote requests must fail if PMS returns adult-only occupancy."""
     mock_client = AsyncMock()
@@ -262,9 +307,23 @@ async def test_error_handling_on_500(monkeypatch: pytest.MonkeyPatch) -> None:
     """Server-side 500 responses should retry and then raise."""
     client = ElektrawebClient()
     http = AsyncMock()
-    http.request.side_effect = [_response(500, {"detail": "err"})] * 3
+    http.request.side_effect = [_response(500, {"detail": "err"})] * 6
     monkeypatch.setattr(client, "_get_client", AsyncMock(return_value=http))
     monkeypatch.setattr(client, "_get_token", AsyncMock(return_value="tok"))
     monkeypatch.setattr(client_module.asyncio, "sleep", AsyncMock())
     with pytest.raises(httpx.HTTPStatusError):
         await client.request("GET", "/hotel/21966/availability")
+
+
+def test_parse_reservation_create_supports_hoteladvisor_primary_key() -> None:
+    """HOTEL_RES insert response should map PrimaryKey to reservation_id."""
+    parsed = parse_reservation_create(
+        {
+            "Success": True,
+            "PrimaryKey": 89985306,
+            "Row": {"ID": 89985306},
+            "Message": "OK",
+        }
+    )
+    assert parsed.reservation_id == "89985306"
+    assert parsed.state == "OK"

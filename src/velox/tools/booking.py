@@ -11,6 +11,7 @@ from velox.adapters.elektraweb import (
     modify_reservation,
     quote,
 )
+from velox.tools.approval import ApprovalRequestTool
 from velox.models.reservation import BookingAvailabilityRequest, BookingQuoteRequest, StayDraft, StayHold
 from velox.db.repositories.reservation import ReservationRepository
 from velox.tools.base import BaseTool
@@ -58,8 +59,13 @@ class BookingQuoteTool(BaseTool):
 class StayCreateHoldTool(BaseTool):
     """Tool for creating a stay hold in DB."""
 
-    def __init__(self, reservation_repository: ReservationRepository) -> None:
+    def __init__(
+        self,
+        reservation_repository: ReservationRepository,
+        approval_tool: ApprovalRequestTool | None = None,
+    ) -> None:
         self._reservation_repository = reservation_repository
+        self._approval_tool = approval_tool
 
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         self.validate_required(kwargs, ["hotel_id", "draft"])
@@ -72,12 +78,44 @@ class StayCreateHoldTool(BaseTool):
             draft_json=draft.model_dump(mode="json"),
         )
         created = await self._reservation_repository.create_hold(hold)
+
+        chd_info = ""
+        if draft.chd_ages:
+            chd_info = f", {len(draft.chd_ages)} cocuk (yas: {', '.join(str(a) for a in draft.chd_ages)})"
+
+        cancel_label = "Ucretsiz iptal" if draft.cancel_policy_type.value == "FREE_CANCEL" else "Iptal edilemez"
+        notes_line = f"\nNot: {draft.notes}" if draft.notes else ""
+
+        details_summary = (
+            f"Konaklama talebi\n"
+            f"Tarih: {draft.checkin_date} - {draft.checkout_date}\n"
+            f"Kisi: {draft.adults} yetiskin{chd_info}\n"
+            f"Misafir: {draft.guest_name}\n"
+            f"Telefon: {draft.phone}\n"
+            f"Toplam: {Decimal(draft.total_price_eur)} EUR\n"
+            f"Iptal: {cancel_label}"
+            f"{notes_line}"
+        )
+
+        approval_result: dict[str, Any] = {"approval_request_id": None, "status": "REQUESTED"}
+        if self._approval_tool is not None:
+            approval_result = await self._approval_tool.execute(
+                hotel_id=int(kwargs["hotel_id"]),
+                approval_type="STAY",
+                reference_id=created.hold_id,
+                details_summary=details_summary,
+                required_roles=["ADMIN"],
+                any_of=False,
+            )
         return {
             "stay_hold_id": created.hold_id,
             "status": created.status.value,
+            "approval_request_id": approval_result.get("approval_request_id"),
+            "approval_status": approval_result.get("status"),
             "summary": (
                 f"{draft.checkin_date} - {draft.checkout_date}, "
-                f"{draft.adults} adults, {Decimal(draft.total_price_eur)} EUR"
+                f"{draft.adults} yetiskin{chd_info}, {Decimal(draft.total_price_eur)} EUR, "
+                f"{cancel_label}"
             ),
         }
 
@@ -87,6 +125,13 @@ class BookingCreateReservationTool(BaseTool):
 
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         self.validate_required(kwargs, ["hotel_id", "draft"])
+        approval_context = str(kwargs.get("approval_context", "")).upper()
+        admin_approved = bool(kwargs.get("admin_approved"))
+        if approval_context != "ADMIN_APPROVED" and not admin_approved:
+            raise ValueError(
+                "booking_create_reservation is admin-only. Use stay_create_hold + approval_request from guest flow."
+            )
+
         hotel_id = int(kwargs["hotel_id"])
         response = await create_reservation(hotel_id=hotel_id, draft=dict(kwargs["draft"]))
         return response.model_dump(mode="json")

@@ -40,6 +40,13 @@ PAYMENT_DATA_PATTERN = re.compile(
     r"(\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b)|(\bcvv\b)|(\botp\b)",
     flags=re.IGNORECASE,
 )
+PAYMENT_TOPIC_PATTERN = re.compile(
+    r"(odeme|ödeme|payment|havale|banka|iban|kart|mail order|pos|charge|refund)",
+    flags=re.IGNORECASE,
+)
+PAYMENT_REFERENCE_PATTERN = re.compile(
+    r"\b(?:S_HOLD_[A-Z0-9_]+|APR_[A-Z0-9_]+|PAY_[A-Z0-9_]+|[A-Z]{1,4}\d{4,})\b"
+)
 
 TR_FREE_CANCEL_NOTE = (
     "Ücretsiz iptal seçeneği ile yapılan rezervasyonlarda girişten 5 gün öncesine kadar "
@@ -56,6 +63,10 @@ TR_ROOM_NUMBER_NOTE = (
 TR_CHILD_OCCUPANCY_NOTE = (
     "Çocuklu konaklamalarda yanlış fiyat vermemek için resmi fiyatınızı manuel olarak "
     "kontrol edip size ileteceğiz."
+)
+TR_ROOM_SPLIT_REQUIRED_NOTE = (
+    "Toplam kişi sayınız oda başı kapasiteyi aştığı için konaklamayı 2 oda olarak planlamamız gerekiyor. "
+    "Oda dağılımını (ör. 3+3 veya 4+2) paylaşırsanız her iki iptal politikası için toplam fiyatı iletebilirim."
 )
 PRICE_ROUNDING_INCREMENT = Decimal("5")
 SUPPORTED_LANGUAGE_CODES = set(SUPPORTED_LANGUAGES)
@@ -252,6 +263,167 @@ def _payment_warning_message(language: str = "tr") -> str:
     )
 
 
+def _stay_pending_approval_message(language: str = "tr") -> str:
+    """Guest-facing hold acknowledgement before admin approval."""
+    if language == "en":
+        return (
+            "Your reservation request has been received. "
+            "It is not finalized yet.\n\n"
+            "After our guest relations team reviews and approves it, we will send your confirmation."
+        )
+    if language == "ru":
+        return (
+            "Мы получили ваш запрос на бронирование. "
+            "Он пока не подтвержден.\n\n"
+            "После проверки и подтверждения нашим представителем мы отправим вам уведомление."
+        )
+    return (
+        "Rezervasyon talebinizi aldik. Talebiniz henuz kesinlesmedi.\n\n"
+        "Musteri temsilcimiz kontrol edip onayladiktan sonra size onay bilgisini iletecegiz."
+    )
+
+
+def _payment_intake_prompt(language: str, missing_fields: list[str]) -> str:
+    """Build payment handoff intake question based on missing fields."""
+    missing_reference = "reference_id" in missing_fields
+    missing_name = "full_name" in missing_fields
+
+    if language == "en":
+        if missing_reference and missing_name:
+            return (
+                "I can connect you to our payment team.\n\n"
+                "To proceed, please share:\n"
+                "1. Reservation/hold reference\n"
+                "2. Full name"
+            )
+        if missing_reference:
+            return "Please share your reservation/hold reference so I can connect you to the payment team."
+        return "Please share your full name so I can forward your payment request to our team."
+
+    if language == "ru":
+        if missing_reference and missing_name:
+            return (
+                "Я могу передать ваш запрос платежной команде.\n\n"
+                "Для продолжения, пожалуйста, укажите:\n"
+                "1. Номер бронирования/холда\n"
+                "2. Имя и фамилию"
+            )
+        if missing_reference:
+            return "Пожалуйста, укажите номер бронирования/холда для передачи запроса платежной команде."
+        return "Пожалуйста, укажите имя и фамилию для передачи вашего платежного запроса команде."
+
+    if missing_reference and missing_name:
+        return (
+            "Odeme ekibimize yonlendirebilmem icin lutfen su bilgileri paylasin:\n"
+            "1. Rezervasyon/hold referansi\n"
+            "2. Ad soyad"
+        )
+    if missing_reference:
+        return "Odeme surecini ekibe aktarabilmem icin lutfen rezervasyon/hold referansinizi paylasin."
+    return "Odeme surecini ekibe aktarabilmem icin lutfen ad soyad bilginizi paylasin."
+
+
+def _payment_intake_completed_message(language: str) -> str:
+    """Acknowledgement after payment intake is complete."""
+    if language == "en":
+        return "Thank you. I have forwarded your payment request to our live team. They will contact you shortly."
+    if language == "ru":
+        return "Спасибо. Я передал(а) ваш платежный запрос нашей команде. С вами свяжутся в ближайшее время."
+    return "Tesekkur ederim. Odeme talebinizi canli ekibimize aktardim. En kisa surede sizinle iletisime gececekler."
+
+
+def _extract_payment_reference(text: str) -> str | None:
+    """Extract reservation/hold reference from payment-related text."""
+    match = PAYMENT_REFERENCE_PATTERN.search(text)
+    if not match:
+        return None
+    return match.group(0).strip()
+
+
+def _extract_payment_full_name(text: str) -> str | None:
+    """Extract full name from simple self-identification patterns."""
+    pattern = re.compile(
+        r"(?:ad[ıi]m|ismim|ad soyad(?:im)?|name)\s*[:\-]\s*([a-zA-ZçğıöşüÇĞİÖŞÜ ]{3,80})",
+        re.IGNORECASE,
+    )
+    match = pattern.search(text.strip())
+    if match:
+        candidate = " ".join(match.group(1).split())
+        if len(candidate) >= 3:
+            return candidate
+    return None
+
+
+def _has_payment_intake_state(conversation: Conversation) -> bool:
+    """Return True when payment intake has already started in conversation entities."""
+    entities = conversation.entities_json if isinstance(conversation.entities_json, dict) else {}
+    payment_intake = entities.get("payment_intake")
+    return isinstance(payment_intake, dict) and bool(payment_intake.get("in_progress"))
+
+
+def _build_payment_intake_response(
+    conversation: Conversation,
+    normalized_text: str,
+    target_language: str,
+) -> LLMResponse | None:
+    """Collect minimum payment handoff fields before routing to human team."""
+    intake_active = _has_payment_intake_state(conversation)
+    payment_related = PAYMENT_TOPIC_PATTERN.search(normalized_text) is not None
+    if not payment_related and not intake_active:
+        return None
+
+    entities = conversation.entities_json if isinstance(conversation.entities_json, dict) else {}
+    intake_state_raw = entities.get("payment_intake")
+    intake_state = dict(intake_state_raw) if isinstance(intake_state_raw, dict) else {}
+    intake_state["in_progress"] = True
+
+    if not intake_state.get("reference_id"):
+        extracted_reference = _extract_payment_reference(normalized_text)
+        if extracted_reference:
+            intake_state["reference_id"] = extracted_reference
+
+    if not intake_state.get("full_name"):
+        extracted_name = _extract_payment_full_name(normalized_text)
+        if extracted_name:
+            intake_state["full_name"] = extracted_name
+
+    intake_state["last_guest_message"] = normalized_text
+    missing_fields: list[str] = []
+    if not intake_state.get("reference_id"):
+        missing_fields.append("reference_id")
+    if not intake_state.get("full_name"):
+        missing_fields.append("full_name")
+
+    if missing_fields:
+        return LLMResponse(
+            user_message=_payment_intake_prompt(target_language, missing_fields),
+            internal_json=InternalJSON(
+                language=target_language,
+                intent="payment_inquiry",
+                state="NEEDS_VERIFICATION",
+                entities={"payment_intake": intake_state},
+                required_questions=missing_fields,
+                risk_flags=[],
+                handoff={"needed": False, "reason": None},
+                next_step="collect_payment_handoff_fields",
+            ),
+        )
+
+    intake_state["in_progress"] = False
+    return LLMResponse(
+        user_message=_payment_intake_completed_message(target_language),
+        internal_json=InternalJSON(
+            language=target_language,
+            intent="payment_inquiry",
+            state="HANDOFF",
+            entities={"payment_intake": intake_state},
+            risk_flags=["PAYMENT_CONFUSION"],
+            handoff={"needed": True, "reason": "payment_manual_handoff"},
+            next_step="handoff_to_sales",
+        ),
+    )
+
+
 def _default_reply_message(language: str = "tr") -> str:
     """Fallback response before LLM pipeline is integrated."""
     if language == "en":
@@ -350,6 +522,54 @@ def _extract_quote_offers(executed_calls: list[dict[str, Any]]) -> list[dict[str
     return []
 
 
+def _extract_quote_call_payloads(executed_calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return ordered booking_quote calls with parsed arguments and offers."""
+    payloads: list[dict[str, Any]] = []
+    for call in executed_calls:
+        if str(call.get("name") or "") != "booking_quote":
+            continue
+        result = _loads_tool_payload(call.get("result"))
+        offers = result.get("offers")
+        if not isinstance(offers, list):
+            continue
+        parsed_offers = [item for item in offers if isinstance(item, dict)]
+        if not parsed_offers:
+            continue
+        payloads.append(
+            {
+                "arguments": _loads_tool_payload(call.get("arguments")),
+                "offers": parsed_offers,
+            }
+        )
+    return payloads
+
+
+def _extract_available_room_type_ids(executed_calls: list[dict[str, Any]]) -> list[int]:
+    """Collect unique available room_type_id values from booking_availability calls."""
+    room_type_ids: list[int] = []
+    seen: set[int] = set()
+    for call in executed_calls:
+        if str(call.get("name") or "") != "booking_availability":
+            continue
+        result = _loads_tool_payload(call.get("result"))
+        rows = result.get("rows")
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            if bool(row.get("stop_sell")):
+                continue
+            if int(row.get("room_to_sell", 0) or 0) <= 0:
+                continue
+            room_type_id = int(row.get("room_type_id", 0) or 0)
+            if room_type_id <= 0 or room_type_id in seen:
+                continue
+            seen.add(room_type_id)
+            room_type_ids.append(room_type_id)
+    return room_type_ids
+
+
 def _extract_requested_occupancy(executed_calls: list[dict[str, Any]]) -> dict[str, Any]:
     """Extract stay quote occupancy from executed booking tool arguments."""
     for call in executed_calls:
@@ -369,6 +589,64 @@ def _extract_requested_occupancy(executed_calls: list[dict[str, Any]]) -> dict[s
     return {}
 
 
+def _max_room_capacity(hotel_id: int) -> int:
+    """Return max room capacity from profile room types."""
+    profile = get_profile(hotel_id)
+    if profile is None:
+        return 4
+    capacities = [int(getattr(room_type, "max_pax", 0) or 0) for room_type in getattr(profile, "room_types", [])]
+    valid_capacities = [capacity for capacity in capacities if capacity > 0]
+    return max(valid_capacities) if valid_capacities else 4
+
+
+def _format_available_room_names(hotel_id: int, room_type_ids: list[int]) -> list[str]:
+    """Resolve available room_type_id values to profile-driven Turkish labels."""
+    if not room_type_ids:
+        return []
+    profile = get_profile(hotel_id)
+    if profile is None:
+        return []
+    room_names: list[str] = []
+    for room_type in getattr(profile, "room_types", []):
+        pms_room_type_id = int(getattr(room_type, "pms_room_type_id", 0) or 0)
+        if pms_room_type_id in room_type_ids:
+            room_names.append(str(getattr(getattr(room_type, "name", None), "tr", "") or "").strip())
+    return [name for name in room_names if name]
+
+
+def _requires_multi_room_split(hotel_id: int, entities: dict[str, Any]) -> bool:
+    """Return True when requested party size exceeds single-room capacity."""
+    adults = int(entities.get("adults", 0) or 0)
+    children = int(entities.get("chd_count", 0) or 0)
+    total_guests = adults + children
+    return total_guests > _max_room_capacity(hotel_id)
+
+
+def _build_room_split_verification_response(hotel_id: int, executed_calls: list[dict[str, Any]]) -> LLMResponse:
+    """Create deterministic room-split follow-up when pricing needs room distribution first."""
+    entities = _extract_requested_occupancy(executed_calls)
+    available_names = _format_available_room_names(hotel_id, _extract_available_room_type_ids(executed_calls))
+
+    lines = [TR_ROOM_SPLIT_REQUIRED_NOTE]
+    if available_names:
+        room_lines = "\n".join(f"• {name}" for name in available_names)
+        lines.append(f"Müsait görünen oda tipleri:\n{room_lines}")
+    lines.append("2 oda konaklamayı kabul ediyor musunuz ve oda dağılımınız nasıl olsun?")
+
+    return LLMResponse(
+        user_message="\n\n".join(lines),
+        internal_json=InternalJSON(
+            language="tr",
+            intent="stay_availability",
+            state="NEEDS_VERIFICATION",
+            entities=entities,
+            required_questions=["Oda dağılım tercihiniz nedir? (3+3, 4+2 vb.)"],
+            handoff={"needed": False, "reason": None},
+            next_step="collect_room_split_then_quote",
+        ),
+    )
+
+
 def _has_child_quote_mismatch(executed_calls: list[dict[str, Any]]) -> bool:
     """Return True when booking quote failed because child occupancy was ignored."""
     for call in executed_calls:
@@ -381,9 +659,14 @@ def _has_child_quote_mismatch(executed_calls: list[dict[str, Any]]) -> bool:
     return False
 
 
-def _build_child_quote_handoff_response(executed_calls: list[dict[str, Any]]) -> LLMResponse:
+def _build_child_quote_handoff_response(
+    hotel_id: int,
+    executed_calls: list[dict[str, Any]],
+) -> LLMResponse:
     """Create a deterministic fallback when PMS ignores requested child occupancy."""
     entities = _extract_requested_occupancy(executed_calls)
+    if _requires_multi_room_split(hotel_id, entities):
+        return _build_room_split_verification_response(hotel_id, executed_calls)
     return LLMResponse(
         user_message=TR_CHILD_OCCUPANCY_NOTE,
         internal_json=InternalJSON(
@@ -715,25 +998,71 @@ def _format_offer_price(offer: dict[str, Any]) -> str:
     return f"{rounded_amount} {currency_code}"
 
 
-def _build_deterministic_turkish_stay_quote_reply(
-    hotel_id: int,
-    executed_calls: list[dict[str, Any]],
+def _occupancy_label(adults: int, children: int) -> str:
+    """Render Turkish occupancy label."""
+    label = f"{adults} yetişkin"
+    if children > 0:
+        label = f"{label} + {children} çocuk"
+    return label
+
+
+def _quote_group_key(arguments: dict[str, Any]) -> tuple[Any, ...]:
+    """Build stable grouping key for quote payloads by occupancy/date."""
+    raw_ages = arguments.get("chd_ages")
+    ages: tuple[int, ...] = ()
+    if isinstance(raw_ages, list):
+        normalized = [_to_int(age, -1) for age in raw_ages]
+        ages = tuple(age for age in normalized if age >= 0)
+    return (
+        str(arguments.get("checkin_date") or "").strip(),
+        str(arguments.get("checkout_date") or "").strip(),
+        _to_int(arguments.get("adults"), 0),
+        _to_int(arguments.get("chd_count"), len(ages)),
+        ages,
+    )
+
+
+def _group_quote_payloads(payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Merge quote payloads that belong to the same room occupancy/date request."""
+    grouped: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for payload in payloads:
+        arguments = payload.get("arguments")
+        if not isinstance(arguments, dict):
+            arguments = {}
+        key = _quote_group_key(arguments)
+        bucket = grouped.setdefault(
+            key,
+            {
+                "arguments": arguments,
+                "offers": [],
+            },
+        )
+        offers = payload.get("offers")
+        if isinstance(offers, list):
+            bucket["offers"].extend(offer for offer in offers if isinstance(offer, dict))
+    return list(grouped.values())
+
+
+def _night_count_from_args(arguments: dict[str, Any]) -> int:
+    """Compute stay night count from quote arguments."""
+    checkin = str(arguments.get("checkin_date") or "").strip()
+    checkout = str(arguments.get("checkout_date") or "").strip()
+    try:
+        checkin_date = datetime.strptime(checkin, "%Y-%m-%d").date()
+        checkout_date = datetime.strptime(checkout, "%Y-%m-%d").date()
+    except ValueError:
+        return 0
+    return max((checkout_date - checkin_date).days, 0)
+
+
+def _build_offer_blocks_for_payload(
+    offers_for_call: list[dict[str, Any]],
+    profile: Any | None,
+    room_order: dict[int, int],
 ) -> str | None:
-    """Format Turkish quote replies directly from booking_quote tool output."""
-    offers = _extract_quote_offers(executed_calls)
-    if not offers:
-        return None
-
-    profile = get_profile(hotel_id)
-    room_order: dict[int, int] = {}
-    if profile is not None:
-        room_order = {
-            int(getattr(room, "pms_room_type_id", 0) or 0): index
-            for index, room in enumerate(getattr(profile, "room_types", []))
-        }
-
+    """Build deterministic room blocks from merged quote offers."""
     grouped_offers: dict[Any, dict[str, Any]] = {}
-    for offer in offers:
+    for offer in offers_for_call:
         policy_key = _resolve_quote_policy_key(offer, profile)
         if policy_key is None:
             continue
@@ -790,6 +1119,94 @@ def _build_deterministic_turkish_stay_quote_reply(
     return "\n\n".join(blocks)
 
 
+def _build_stay_quote_message_for_payload(
+    payload: dict[str, Any],
+    profile: Any | None,
+    room_order: dict[int, int],
+    room_header: str | None = None,
+) -> str | None:
+    """Build one Turkish customer-facing quote message for one room occupancy."""
+    arguments = payload.get("arguments") if isinstance(payload.get("arguments"), dict) else {}
+    offers = payload.get("offers")
+    if not isinstance(offers, list):
+        return None
+    offer_blocks = _build_offer_blocks_for_payload(offers, profile=profile, room_order=room_order)
+    if not offer_blocks:
+        return None
+
+    checkin = str(arguments.get("checkin_date") or "").strip()
+    checkout = str(arguments.get("checkout_date") or "").strip()
+    nights = _night_count_from_args(arguments)
+    adults = _to_int(arguments.get("adults"), 0)
+    children = _to_int(arguments.get("chd_count"), 0)
+
+    lines: list[str] = []
+    if room_header:
+        lines.append(room_header)
+        lines.append("")
+    lines.append("Otelimize göstermiş olduğunuz ilgi için teşekkür ederiz.")
+    lines.append("")
+    if checkin and checkout and nights > 0 and adults > 0:
+        lines.append(f"{checkin} - {checkout} tarihleri arasında {nights} gece")
+        lines.append(f"kahvaltı dahil {_occupancy_label(adults, children)} fiyatlarımız aşağıdaki gibidir;")
+        lines.append("")
+    lines.append(offer_blocks)
+    return "\n".join(lines).strip()
+
+
+def _build_deterministic_turkish_stay_quote_messages(
+    hotel_id: int,
+    executed_calls: list[dict[str, Any]],
+) -> list[str]:
+    """Format Turkish quote replies as one or multiple customer messages."""
+    payloads = _extract_quote_call_payloads(executed_calls)
+    if not payloads:
+        offers = _extract_quote_offers(executed_calls)
+        if not offers:
+            return []
+        payloads = [{"arguments": {}, "offers": offers}]
+    grouped_payloads = _group_quote_payloads(payloads)
+
+    profile = get_profile(hotel_id)
+    room_order: dict[int, int] = {}
+    if profile is not None:
+        room_order = {
+            int(getattr(room, "pms_room_type_id", 0) or 0): index
+            for index, room in enumerate(getattr(profile, "room_types", []))
+        }
+
+    if len(grouped_payloads) == 1:
+        single_message = _build_stay_quote_message_for_payload(
+            grouped_payloads[0],
+            profile=profile,
+            room_order=room_order,
+        )
+        return [single_message] if single_message else []
+
+    messages: list[str] = []
+    for index, payload in enumerate(grouped_payloads, start=1):
+        message = _build_stay_quote_message_for_payload(
+            payload,
+            profile=profile,
+            room_order=room_order,
+            room_header=f"{index}. Oda",
+        )
+        if message:
+            messages.append(message)
+    return messages
+
+
+def _build_deterministic_turkish_stay_quote_reply(
+    hotel_id: int,
+    executed_calls: list[dict[str, Any]],
+) -> str | None:
+    """Return the first deterministic Turkish quote message for compatibility."""
+    messages = _build_deterministic_turkish_stay_quote_messages(hotel_id, executed_calls)
+    if not messages:
+        return None
+    return messages[0]
+
+
 def _normalize_turkish_stay_quote_reply(reply_text: str, user_text: str) -> str:
     """Apply deterministic Turkish pricing wording and required notes."""
     normalized_reply = (
@@ -826,6 +1243,303 @@ def _executed_booking_quote(executed_calls: list[dict[str, Any]]) -> bool:
     return any(str(call.get("name") or "") == "booking_quote" for call in executed_calls)
 
 
+def _executed_stay_hold_submission(executed_calls: list[dict[str, Any]]) -> bool:
+    """Return True when stay hold + approval flow has been triggered."""
+    saw_stay_hold = False
+    saw_approval = False
+
+    for call in executed_calls:
+        name = str(call.get("name") or "")
+        if name == "approval_request":
+            saw_approval = True
+            continue
+        if name != "stay_create_hold":
+            continue
+
+        saw_stay_hold = True
+        result = _loads_tool_payload(call.get("result"))
+        approval_request_id = str(result.get("approval_request_id") or "").strip()
+        if approval_request_id:
+            saw_approval = True
+
+    return saw_stay_hold and saw_approval
+
+
+def _extract_user_message_parts(response: LLMResponse) -> list[str]:
+    """Extract one or many outbound user messages from response payload."""
+    entities = response.internal_json.entities if isinstance(response.internal_json.entities, dict) else {}
+    raw_parts = entities.get("user_message_parts")
+    if isinstance(raw_parts, list):
+        parts = [str(item).strip() for item in raw_parts if isinstance(item, str) and item.strip()]
+        if parts:
+            return parts
+    default_message = str(response.user_message or "").strip()
+    return [default_message] if default_message else []
+
+
+def _to_int(value: Any, default: int = 0) -> int:
+    """Convert arbitrary values into int safely."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_cancel_policy(value: Any) -> str:
+    """Normalize cancellation policy to FREE_CANCEL or NON_REFUNDABLE."""
+    normalized = _canonical_text(str(value or ""))
+    if normalized in {"nonrefundable", "iptaledilemez", "iadeyapilmaz"}:
+        return "NON_REFUNDABLE"
+    if normalized in {"freecancel", "ucretsiziptal"}:
+        return "FREE_CANCEL"
+    return "FREE_CANCEL"
+
+
+def _should_auto_submit_stay_hold(internal_json: InternalJSON) -> bool:
+    """Return True when parsed response indicates stay hold must be submitted now."""
+    if str(internal_json.intent or "").lower() != "stay_booking_create":
+        return False
+
+    state = str(internal_json.state or "").upper()
+    if state not in {"READY_FOR_TOOL", "NEEDS_CONFIRMATION"}:
+        return False
+
+    next_step = _canonical_text(str(internal_json.next_step or ""))
+    return "createstayhold" in next_step and "approval" in next_step
+
+
+def _resolve_requested_room_type_id(entities: dict[str, Any], profile: Any | None) -> int:
+    """Resolve requested room type id to PMS room_type_id when possible."""
+    room_id = _to_int(entities.get("room_type_id"), 0)
+    if room_id > 0 and profile is not None:
+        for room in getattr(profile, "room_types", []):
+            profile_room_id = _to_int(getattr(room, "id", 0), 0)
+            pms_room_id = _to_int(getattr(room, "pms_room_type_id", 0), 0)
+            if room_id == pms_room_id and pms_room_id > 0:
+                return pms_room_id
+            if room_id == profile_room_id and pms_room_id > 0:
+                return pms_room_id
+    if room_id > 0:
+        return room_id
+
+    requested_name = _canonical_text(str(entities.get("room_type") or entities.get("room_name") or ""))
+    if not requested_name or profile is None:
+        return 0
+
+    for room in getattr(profile, "room_types", []):
+        localized_name = getattr(room, "name", None)
+        candidates = (
+            _canonical_text(str(getattr(localized_name, "tr", ""))),
+            _canonical_text(str(getattr(localized_name, "en", ""))),
+        )
+        if requested_name not in candidates:
+            continue
+        return _to_int(getattr(room, "pms_room_type_id", 0), 0)
+    return 0
+
+
+def _select_offer_for_stay_hold(
+    offers: list[dict[str, Any]],
+    requested_room_type_id: int,
+    cancel_policy_type: str,
+    profile: Any | None,
+) -> dict[str, Any] | None:
+    """Pick the best matching quote offer for hold creation."""
+    if not offers:
+        return None
+
+    def _matches(offer: dict[str, Any], *, check_room: bool, check_policy: bool) -> bool:
+        if check_room and requested_room_type_id > 0:
+            if _to_int(offer.get("room_type_id"), 0) != requested_room_type_id:
+                return False
+        if check_policy:
+            resolved = _resolve_quote_policy_key(offer, profile)
+            if resolved and resolved != cancel_policy_type:
+                return False
+        return True
+
+    candidate_sets = (
+        [offer for offer in offers if _matches(offer, check_room=True, check_policy=True)],
+        [offer for offer in offers if _matches(offer, check_room=True, check_policy=False)],
+        [offer for offer in offers if _matches(offer, check_room=False, check_policy=True)],
+        list(offers),
+    )
+    for candidates in candidate_sets:
+        if not candidates:
+            continue
+        return min(
+            candidates,
+            key=lambda offer: (
+                _decimal_from_value(offer.get("discounted_price", offer.get("price", 0))),
+                _to_int(offer.get("room_type_id"), 0),
+            ),
+        )
+    return None
+
+
+def _build_stay_draft_from_offer(
+    entities: dict[str, Any],
+    offer: dict[str, Any],
+    cancel_policy_type: str,
+) -> dict[str, Any] | None:
+    """Build stay_create_hold draft payload from entities and selected quote offer."""
+    checkin_date = str(entities.get("checkin_date") or "").strip()
+    checkout_date = str(entities.get("checkout_date") or "").strip()
+    guest_name = str(entities.get("guest_name") or "").strip()
+    phone = str(entities.get("phone") or "").strip()
+    adults = _to_int(entities.get("adults"), 0)
+    room_type_id = _to_int(offer.get("room_type_id"), 0)
+    board_type_id = _to_int(offer.get("board_type_id", entities.get("board_type_id", 0)), 0)
+    rate_type_id = _to_int(offer.get("rate_type_id"), 0)
+    rate_code_id = _to_int(offer.get("rate_code_id"), 0)
+    if (
+        not checkin_date
+        or not checkout_date
+        or not guest_name
+        or not phone
+        or adults <= 0
+        or room_type_id <= 0
+        or board_type_id <= 0
+        or rate_type_id <= 0
+        or rate_code_id <= 0
+    ):
+        return None
+
+    total_price = _decimal_from_value(offer.get("discounted_price", offer.get("price", 0)))
+    if total_price <= 0:
+        total_price = _decimal_from_value(offer.get("price", 0))
+    if total_price <= 0:
+        return None
+
+    chd_ages: list[int] = []
+    raw_chd_ages = entities.get("chd_ages")
+    if isinstance(raw_chd_ages, list):
+        for age in raw_chd_ages:
+            normalized_age = _to_int(age, -1)
+            if normalized_age >= 0:
+                chd_ages.append(normalized_age)
+
+    draft: dict[str, Any] = {
+        "checkin_date": checkin_date,
+        "checkout_date": checkout_date,
+        "room_type_id": room_type_id,
+        "board_type_id": board_type_id,
+        "rate_type_id": rate_type_id,
+        "rate_code_id": rate_code_id,
+        "price_agency_id": offer.get("price_agency_id"),
+        "currency_display": str(offer.get("currency_code") or entities.get("currency") or "EUR").upper(),
+        "total_price_eur": float(total_price),
+        "adults": adults,
+        "chd_ages": chd_ages,
+        "guest_name": guest_name,
+        "phone": phone,
+        "email": entities.get("email"),
+        "nationality": str(entities.get("nationality") or "TR").upper(),
+        "cancel_policy_type": cancel_policy_type,
+        "notes": entities.get("notes"),
+    }
+    return draft
+
+
+async def _auto_submit_stay_hold(
+    conversation: Conversation,
+    entities: dict[str, Any],
+    language: str,
+    dispatcher: Any,
+) -> list[dict[str, Any]]:
+    """Fallback: create stay hold deterministically when LLM skips tool calls."""
+    profile = get_profile(conversation.hotel_id)
+    requested_room_type_id = _resolve_requested_room_type_id(entities, profile)
+    if requested_room_type_id <= 0:
+        return []
+
+    checkin_date = str(entities.get("checkin_date") or "").strip()
+    checkout_date = str(entities.get("checkout_date") or "").strip()
+    adults = _to_int(entities.get("adults"), 0)
+    if not checkin_date or not checkout_date or adults <= 0:
+        return []
+
+    cancel_policy_type = _normalize_cancel_policy(entities.get("cancel_policy_type"))
+    quote_language = str(entities.get("language") or language or "tr").upper()
+    if quote_language not in {"TR", "EN"}:
+        quote_language = "TR"
+
+    quote_args: dict[str, Any] = {
+        "hotel_id": conversation.hotel_id,
+        "checkin_date": checkin_date,
+        "checkout_date": checkout_date,
+        "adults": adults,
+        "chd_count": _to_int(entities.get("chd_count"), 0),
+        "chd_ages": entities.get("chd_ages") if isinstance(entities.get("chd_ages"), list) else [],
+        "currency": str(entities.get("currency") or "EUR").upper(),
+        "language": quote_language,
+        "nationality": str(entities.get("nationality") or "TR").upper(),
+        "cancel_policy_type": cancel_policy_type,
+    }
+    quote_result = await dispatcher.dispatch("booking_quote", **quote_args)
+    if not isinstance(quote_result, dict) or quote_result.get("error"):
+        logger.warning("stay_hold_auto_submit_quote_failed")
+        return []
+
+    offers = quote_result.get("offers")
+    if not isinstance(offers, list):
+        return []
+    parsed_offers = [offer for offer in offers if isinstance(offer, dict)]
+    selected_offer = _select_offer_for_stay_hold(
+        parsed_offers,
+        requested_room_type_id=requested_room_type_id,
+        cancel_policy_type=cancel_policy_type,
+        profile=profile,
+    )
+    if selected_offer is None:
+        return []
+
+    draft = _build_stay_draft_from_offer(entities, selected_offer, cancel_policy_type)
+    if draft is None:
+        return []
+
+    hold_args: dict[str, Any] = {
+        "hotel_id": conversation.hotel_id,
+        "draft": draft,
+    }
+    if conversation.id is not None:
+        hold_args["conversation_id"] = str(conversation.id)
+
+    hold_result = await dispatcher.dispatch("stay_create_hold", **hold_args)
+    if not isinstance(hold_result, dict) or hold_result.get("error"):
+        logger.warning("stay_hold_auto_submit_create_failed")
+        return []
+
+    fallback_calls: list[dict[str, Any]] = [
+        {"name": "booking_quote", "arguments": quote_args, "result": quote_result},
+        {"name": "stay_create_hold", "arguments": hold_args, "result": hold_result},
+    ]
+    approval_request_id = str(hold_result.get("approval_request_id") or "").strip()
+    if approval_request_id:
+        fallback_calls.append(
+            {
+                "name": "approval_request",
+                "arguments": {
+                    "hotel_id": conversation.hotel_id,
+                    "approval_type": "STAY",
+                    "reference_id": str(hold_result.get("stay_hold_id") or ""),
+                    "required_roles": ["ADMIN"],
+                },
+                "result": {
+                    "approval_request_id": approval_request_id,
+                    "status": hold_result.get("approval_status", "REQUESTED"),
+                },
+            }
+        )
+
+    logger.info(
+        "stay_hold_auto_submitted",
+        hold_id=hold_result.get("stay_hold_id"),
+        approval_request_id=approval_request_id or None,
+    )
+    return fallback_calls
+
+
 async def _run_message_pipeline(
     conversation: Conversation,
     normalized_text: str,
@@ -849,6 +1563,14 @@ async def _run_message_pipeline(
                 next_step="handoff_to_sales",
             ),
         )
+
+    payment_intake_response = _build_payment_intake_response(
+        conversation=conversation,
+        normalized_text=normalized_text,
+        target_language=target_language,
+    )
+    if payment_intake_response is not None:
+        return payment_intake_response
 
     try:
         prompt_builder = get_prompt_builder()
@@ -877,7 +1599,7 @@ async def _run_message_pipeline(
 
         if _has_child_quote_mismatch(executed_calls):
             logger.warning("stay_quote_child_occupancy_manual_verification")
-            return _build_child_quote_handoff_response(executed_calls)
+            return _build_child_quote_handoff_response(conversation.hotel_id, executed_calls)
 
         parsed = ResponseParser.parse(content)
         intent = str(parsed.internal_json.intent or "").lower()
@@ -900,14 +1622,40 @@ async def _run_message_pipeline(
         if language == "tr" and _is_child_bedding_question(normalized_text, entities):
             parsed.user_message = _build_turkish_child_bedding_reply(conversation.hotel_id, entities)
             return parsed
+        if (
+            dispatcher is not None
+            and not _executed_stay_hold_submission(executed_calls)
+            and _should_auto_submit_stay_hold(parsed.internal_json)
+        ):
+            fallback_calls = await _auto_submit_stay_hold(
+                conversation=conversation,
+                entities=entities,
+                language=language,
+                dispatcher=dispatcher,
+            )
+            if fallback_calls:
+                executed_calls.extend(fallback_calls)
         if intent == "stay_quote" and language == "tr" and _executed_booking_quote(executed_calls):
-            deterministic_reply = _build_deterministic_turkish_stay_quote_reply(
+            deterministic_messages = _build_deterministic_turkish_stay_quote_messages(
                 conversation.hotel_id,
                 executed_calls,
             )
-            if deterministic_reply:
-                parsed.user_message = deterministic_reply
-            parsed.user_message = _normalize_turkish_stay_quote_reply(parsed.user_message, normalized_text)
+            if deterministic_messages:
+                normalized_messages = [
+                    _normalize_turkish_stay_quote_reply(message, normalized_text)
+                    for message in deterministic_messages
+                ]
+                parsed.user_message = normalized_messages[0]
+                if len(normalized_messages) > 1:
+                    entities = parsed.internal_json.entities if isinstance(parsed.internal_json.entities, dict) else {}
+                    entities["user_message_parts"] = normalized_messages
+                    parsed.internal_json.entities = entities
+            else:
+                parsed.user_message = _normalize_turkish_stay_quote_reply(parsed.user_message, normalized_text)
+        if _executed_stay_hold_submission(executed_calls):
+            parsed.user_message = _stay_pending_approval_message(language)
+            parsed.internal_json.state = "PENDING_APPROVAL"
+            parsed.internal_json.next_step = "await_admin_approval"
         return parsed
     except LLMUnavailableError:
         logger.warning("llm_unavailable_fallback")
@@ -1039,17 +1787,26 @@ async def _process_incoming_message(
             risk_flags=next_risk_flags,
         )
 
-        reply_text = formatter.truncate(llm_response.user_message)
-        await whatsapp_client.send_text_message(to=incoming.phone, body=reply_text)
+        message_parts = _extract_user_message_parts(llm_response)
+        if not message_parts:
+            message_parts = [llm_response.user_message]
 
-        assistant_msg = Message(
-            conversation_id=conversation.id,
-            role="assistant",
-            content=reply_text,
-            internal_json=llm_response.internal_json.model_dump(mode="json"),
-        )
-        await conversation_repository.add_message(assistant_msg)
-        conversation.messages.append(assistant_msg)
+        for index, raw_message in enumerate(message_parts, start=1):
+            reply_text = formatter.truncate(raw_message)
+            await whatsapp_client.send_text_message(to=incoming.phone, body=reply_text)
+
+            assistant_internal_json = llm_response.internal_json.model_dump(mode="json")
+            assistant_internal_json["message_part_index"] = index
+            assistant_internal_json["message_part_total"] = len(message_parts)
+
+            assistant_msg = Message(
+                conversation_id=conversation.id,
+                role="assistant",
+                content=reply_text,
+                internal_json=assistant_internal_json,
+            )
+            await conversation_repository.add_message(assistant_msg)
+            conversation.messages.append(assistant_msg)
 
         if escalation_engine is not None and db_pool is not None and "handoff" in tools and "notify" in tools:
             escalation_result = await post_process_escalation(

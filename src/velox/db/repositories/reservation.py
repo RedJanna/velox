@@ -20,18 +20,33 @@ class ReservationRepository:
         """Insert a new stay hold."""
         hold.hold_id = await next_sequential_id("S_HOLD_", "stay_holds", "hold_id")
 
-        row = await fetchrow(
-            """
-            INSERT INTO stay_holds (hold_id, hotel_id, conversation_id, draft_json, status)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id, created_at, updated_at
-            """,
-            hold.hold_id,
-            hold.hotel_id,
-            hold.conversation_id,
-            orjson.dumps(hold.draft_json).decode(),
-            hold.status.value,
-        )
+        try:
+            row = await fetchrow(
+                """
+                INSERT INTO stay_holds (hold_id, hotel_id, conversation_id, draft_json, status, workflow_state)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING id, created_at, updated_at
+                """,
+                hold.hold_id,
+                hold.hotel_id,
+                hold.conversation_id,
+                orjson.dumps(hold.draft_json).decode(),
+                hold.status.value,
+                hold.workflow_state or hold.status.value,
+            )
+        except asyncpg.UndefinedColumnError:
+            row = await fetchrow(
+                """
+                INSERT INTO stay_holds (hold_id, hotel_id, conversation_id, draft_json, status)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING id, created_at, updated_at
+                """,
+                hold.hold_id,
+                hold.hotel_id,
+                hold.conversation_id,
+                orjson.dumps(hold.draft_json).decode(),
+                hold.status.value,
+            )
         if row is None:
             raise RuntimeError("Failed to create stay hold.")
 
@@ -72,25 +87,132 @@ class ReservationRepository:
         rejected_reason: str | None = None,
     ) -> None:
         """Update stay hold status and related approval/booking fields."""
-        await execute(
-            """
-            UPDATE stay_holds
-            SET status = $2,
-                approved_by = COALESCE($3, approved_by),
-                approved_at = CASE WHEN $2 = 'APPROVED' THEN now() ELSE approved_at END,
-                pms_reservation_id = COALESCE($4, pms_reservation_id),
-                voucher_no = COALESCE($5, voucher_no),
-                rejected_reason = COALESCE($6, rejected_reason),
-                updated_at = now()
-            WHERE hold_id = $1
-            """,
-            hold_id,
-            status,
-            approved_by,
-            pms_reservation_id,
-            voucher_no,
-            rejected_reason,
-        )
+        try:
+            await execute(
+                """
+                UPDATE stay_holds
+                SET status = $2,
+                    workflow_state = $2,
+                    approved_by = COALESCE($3, approved_by),
+                    approved_at = CASE WHEN $2 = 'APPROVED' THEN now() ELSE approved_at END,
+                    pms_reservation_id = COALESCE($4, pms_reservation_id),
+                    voucher_no = COALESCE($5, voucher_no),
+                    rejected_reason = COALESCE($6, rejected_reason),
+                    updated_at = now()
+                WHERE hold_id = $1
+                """,
+                hold_id,
+                status,
+                approved_by,
+                pms_reservation_id,
+                voucher_no,
+                rejected_reason,
+            )
+        except asyncpg.UndefinedColumnError:
+            await execute(
+                """
+                UPDATE stay_holds
+                SET status = $2,
+                    approved_by = COALESCE($3, approved_by),
+                    approved_at = CASE WHEN $2 = 'APPROVED' THEN now() ELSE approved_at END,
+                    pms_reservation_id = COALESCE($4, pms_reservation_id),
+                    voucher_no = COALESCE($5, voucher_no),
+                    rejected_reason = COALESCE($6, rejected_reason),
+                    updated_at = now()
+                WHERE hold_id = $1
+                """,
+                hold_id,
+                status,
+                approved_by,
+                pms_reservation_id,
+                voucher_no,
+                rejected_reason,
+            )
+
+    async def update_workflow_metadata(
+        self,
+        hold_id: str,
+        *,
+        workflow_state: str | None = None,
+        expires_at: str | None = None,
+        pms_create_started: bool = False,
+        pms_create_completed: bool = False,
+        manual_review_reason: str | None = None,
+        approval_idempotency_key: str | None = None,
+        create_idempotency_key: str | None = None,
+    ) -> None:
+        """Persist workflow metadata fields on stay hold."""
+        try:
+            if workflow_state is not None:
+                await execute(
+                    """
+                    UPDATE stay_holds
+                    SET workflow_state = $2, updated_at = now()
+                    WHERE hold_id = $1
+                    """,
+                    hold_id,
+                    workflow_state,
+                )
+            if expires_at is not None:
+                await execute(
+                    """
+                    UPDATE stay_holds
+                    SET expires_at = $2::timestamptz, updated_at = now()
+                    WHERE hold_id = $1
+                    """,
+                    hold_id,
+                    expires_at,
+                )
+            if pms_create_started:
+                await execute(
+                    """
+                    UPDATE stay_holds
+                    SET pms_create_started_at = now(), updated_at = now()
+                    WHERE hold_id = $1
+                    """,
+                    hold_id,
+                )
+            if pms_create_completed:
+                await execute(
+                    """
+                    UPDATE stay_holds
+                    SET pms_create_completed_at = now(), updated_at = now()
+                    WHERE hold_id = $1
+                    """,
+                    hold_id,
+                )
+            if manual_review_reason is not None:
+                await execute(
+                    """
+                    UPDATE stay_holds
+                    SET manual_review_reason = $2, updated_at = now()
+                    WHERE hold_id = $1
+                    """,
+                    hold_id,
+                    manual_review_reason,
+                )
+            if approval_idempotency_key is not None:
+                await execute(
+                    """
+                    UPDATE stay_holds
+                    SET approval_idempotency_key = $2, updated_at = now()
+                    WHERE hold_id = $1
+                    """,
+                    hold_id,
+                    approval_idempotency_key,
+                )
+            if create_idempotency_key is not None:
+                await execute(
+                    """
+                    UPDATE stay_holds
+                    SET create_idempotency_key = $2, updated_at = now()
+                    WHERE hold_id = $1
+                    """,
+                    hold_id,
+                    create_idempotency_key,
+                )
+        except asyncpg.UndefinedColumnError:
+            logger.warning("stay_workflow_columns_missing", hold_id=hold_id)
 
     @staticmethod
     def _row_to_hold(row: asyncpg.Record) -> StayHold:
@@ -107,5 +229,12 @@ class ReservationRepository:
             approved_by=row["approved_by"],
             approved_at=row["approved_at"],
             rejected_reason=row["rejected_reason"],
+            workflow_state=row.get("workflow_state", None),
+            expires_at=row.get("expires_at", None),
+            pms_create_started_at=row.get("pms_create_started_at", None),
+            pms_create_completed_at=row.get("pms_create_completed_at", None),
+            manual_review_reason=row.get("manual_review_reason", None),
+            approval_idempotency_key=row.get("approval_idempotency_key", None),
+            create_idempotency_key=row.get("create_idempotency_key", None),
             created_at=row["created_at"],
         )
