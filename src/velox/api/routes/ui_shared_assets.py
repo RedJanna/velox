@@ -104,13 +104,19 @@ function isoToLocalInput(value) {
   return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
 }
 
+function findExplicitLabel(scope, nodeId) {
+  var labels = Array.from((scope || document).querySelectorAll('label[for]'));
+  return labels.find(function(label) {
+    return label.getAttribute('for') === nodeId;
+  }) || null;
+}
+
 function findLabelText(node, root) {
   if (!node) return '';
   var scope = root || document;
   var text = '';
   if (node.id) {
-    var safeId = node.id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-    var explicitLabel = scope.querySelector('label[for="' + safeId + '"]') || document.querySelector('label[for="' + safeId + '"]');
+    var explicitLabel = findExplicitLabel(scope, node.id) || (scope !== document ? findExplicitLabel(document, node.id) : null);
     text = explicitLabel ? explicitLabel.textContent : '';
   }
   if (!text) {

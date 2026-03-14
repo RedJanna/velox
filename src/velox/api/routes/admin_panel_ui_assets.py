@@ -209,6 +209,7 @@ const refs = {};
 document.addEventListener('DOMContentLoaded', () => {
   startInteractiveLabelObserver(document.body);
   bindRefs();
+  stripSensitiveQueryParams();
   bindEvents();
   boot();
 });
@@ -289,6 +290,19 @@ function bindEvents() {
   });
   window.addEventListener('resize', closeSidebar);
   bindDelegatedEvents();
+}
+
+function stripSensitiveQueryParams() {
+  const url = new URL(window.location.href);
+  const sensitiveKeys = ['username', 'password', 'otp_code', 'remember_device'];
+  const hadSensitiveParams = sensitiveKeys.some(key => url.searchParams.has(key));
+  if (!hadSensitiveParams) {
+    return;
+  }
+  sensitiveKeys.forEach(key => url.searchParams.delete(key));
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState({}, document.title, nextUrl);
+  notify('URL icindeki giris parametreleri guvenlik icin temizlendi. Girisi formdan yapin.', 'warn');
 }
 
 function isMobileLayout() {

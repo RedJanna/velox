@@ -101,7 +101,7 @@ def render_admin_panel_html() -> str:
             <h3>Panel Girisi</h3>
             <p>Kullanici adi, sifre ve Google Authenticator kodu ile giris yapin. Tanimli cihazlarda kod adimi atlanabilir.</p>
             <div id="trustedSessionBanner" class="helper-panel mb-md" hidden></div>
-            <form id="loginForm" class="field-grid">
+            <form id="loginForm" class="field-grid" method="post">
               <div class="field">
                 <label for="login-username">Kullanıcı adı</label>
                 <input id="login-username" name="username" autocomplete="username" required>
@@ -149,7 +149,7 @@ def render_admin_panel_html() -> str:
             <h3>İlk Kurulum</h3>
             <p>Henuz yonetici hesabi yoksa buradan ilk hesabi olusturun ve Google Authenticator'i baglatin.</p>
             <div id="bootstrapSummary" class="helper-panel"></div>
-            <form id="bootstrapForm" class="field-grid mt-md">
+            <form id="bootstrapForm" class="field-grid mt-md" method="post">
               <div class="field">
                 <label for="bootstrap-hotel">Hotel</label>
                 <select id="bootstrap-hotel" name="hotel_id" required></select>
@@ -179,7 +179,7 @@ def render_admin_panel_html() -> str:
                 <strong>2FA Kurtarma</strong>
                 <p>Hesap var ama Google Authenticator kurulumu kaybolduysa, bootstrap token ile yeni QR uretebilirsiniz.</p>
               </div>
-              <form id="totpRecoveryForm" class="field-grid">
+              <form id="totpRecoveryForm" class="field-grid" method="post">
                 <div class="field">
                   <label for="recovery-username">Kullanici adi</label>
                   <input id="recovery-username" name="username" required>
@@ -213,7 +213,7 @@ def render_admin_panel_html() -> str:
                 <p id="otpUri" class="mono"></p>
               </div>
             </div>
-            <form id="otpVerifyForm" class="field-grid mt-md" hidden>
+            <form id="otpVerifyForm" class="field-grid mt-md" method="post" hidden>
               <div class="field full">
                 <label for="otp-verify-code">Google Authenticator kodu</label>
                 <input id="otp-verify-code" name="otp_code" inputmode="numeric" pattern="[0-9]*" placeholder="6 haneli kod" required>

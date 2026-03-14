@@ -1,5 +1,6 @@
 """Regression checks for admin panel and Chat Lab inline scripts."""
 
+from velox.api.routes.admin_panel_ui import render_admin_panel_html
 from velox.api.routes.admin_panel_ui_assets import ADMIN_PANEL_SCRIPT
 from velox.api.routes.test_chat_ui_assets import TEST_CHAT_SCRIPT
 
@@ -15,3 +16,17 @@ def test_chat_lab_boot_no_longer_requires_parent_token() -> None:
 
 def test_chat_lab_does_not_persist_admin_token_in_localstorage() -> None:
     assert "localStorage.setItem" not in TEST_CHAT_SCRIPT
+
+
+def test_admin_panel_shared_label_helper_avoids_broken_regex_escape() -> None:
+    assert "findExplicitLabel(" in ADMIN_PANEL_SCRIPT
+    assert "var safeId =" not in ADMIN_PANEL_SCRIPT
+    assert "replace(/\\/g" not in ADMIN_PANEL_SCRIPT
+
+
+def test_admin_auth_forms_do_not_fallback_to_get_submission() -> None:
+    html = render_admin_panel_html()
+    assert '<form id="loginForm" class="field-grid" method="post">' in html
+    assert '<form id="bootstrapForm" class="field-grid mt-md" method="post">' in html
+    assert '<form id="totpRecoveryForm" class="field-grid" method="post">' in html
+    assert '<form id="otpVerifyForm" class="field-grid mt-md" method="post" hidden>' in html
