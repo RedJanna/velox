@@ -1,11 +1,13 @@
 # Environment
 .env
+.env.*
 .env.local
 .env.production
 
 # Python
 __pycache__/
 *.py[cod]
+*.pyc
 *$py.class
 *.so
 dist/
@@ -32,9 +34,12 @@ env/
 .coverage
 htmlcov/
 .mypy_cache/
+.ruff_cache/
 
 # Docker
 *.log
+docker-compose.override.yml
+logs/
 
 # OS
 .DS_Store
@@ -44,6 +49,10 @@ desktop.ini
 # Secrets
 *.pem
 *.key
+credentials.*
+secrets.*
+**/secret_*
+*.p12
 credentials.json
 sensitive_environment_variables.txt
 sensitive_environment_variables*.txt
