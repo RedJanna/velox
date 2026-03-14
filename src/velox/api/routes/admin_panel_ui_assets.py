@@ -114,6 +114,7 @@ thead th{padding:14px 16px;font-size:12px;letter-spacing:.06em;text-transform:up
 tbody td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:top;font-size:14px;line-height:1.45}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover{background:#fffcf7}
+.holds-table tbody tr.is-selected td{background:#f0f8f7}
 .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:800}
 .pill.pending{background:#fff2dd;color:#92400e}.pill.open{background:#e8f3f1;color:#115e59}.pill.closed{background:#e5e7eb;color:#374151}.pill.high{background:#fde7e5;color:#991b1b}.pill.medium{background:#eef4ff;color:#1d4ed8}.pill.low{background:#ecfdf3;color:#166534}
 .pill.success{background:#ecfdf3;color:#166534}.pill.warn{background:#fff2dd;color:#92400e}.pill.danger{background:#fde7e5;color:#991b1b}.pill.info{background:#e8f3f1;color:#115e59}
@@ -125,6 +126,7 @@ tbody tr:hover{background:#fffcf7}
 .hold-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .hold-summary-grid span{font-size:12px;color:var(--muted)}
 .hold-summary-grid strong{display:block;font-size:13px;color:var(--ink)}
+.hold-detail-actions{position:sticky;bottom:0;background:var(--surface);padding-top:12px}
 .queue-list{display:flex;flex-direction:column;gap:10px}
 .queue-item{padding:14px 16px;border-radius:18px;background:var(--surface-2);border:1px solid var(--line)}
 .queue-item strong{display:block}
@@ -201,6 +203,8 @@ const state = {
   conversations: [],
   conversationDetail: null,
   holds: [],
+  selectedHoldId: '',
+  selectedHold: null,
   tickets: [],
   faqs: [],
   faqDetail: null,
@@ -231,6 +235,7 @@ function bindRefs() {
     'otpSetup','otpSecret','otpUri','otpQrImage','otpVerifyForm','otpVerifyHint','currentUser','currentRole','hotelScope','hotelSelect','nav','pageTitle','pageLead',
     'dashboardCards','dashboardQueues','conversationFilters','conversationTableBody','conversationDetail',
     'holdFilters','holdTableBody','ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor',
+    'holdDetail',
     'faqFilters','faqTableBody','faqDetail',
     'notifPhoneTableBody','addNotifPhoneForm',
     'hotelProfileMeta','slotFilters','slotTableBody','slotCreateForm','systemChecks','systemMeta',
@@ -333,12 +338,17 @@ function bindDelegatedEvents() {
   // Single delegated click handler on panelView covers all dynamic table actions.
   // This avoids re-binding listeners every time a table is re-rendered.
   refs.panelView.addEventListener('click', async event => {
-    const target = event.target.closest('[data-open-conversation],[data-approve-hold],[data-reject-hold],[data-save-ticket]');
+    const target = event.target.closest('[data-open-conversation],[data-open-hold],[data-approve-hold],[data-reject-hold],[data-save-ticket]');
     if (!target) return;
 
     // Conversation detail
     if (target.dataset.openConversation) {
       loadConversationDetail(target.dataset.openConversation);
+      return;
+    }
+
+    if (target.dataset.openHold) {
+      selectHold(target.dataset.openHold);
       return;
     }
 
@@ -905,7 +915,13 @@ async function loadHolds() {
   if (form.get('status')) params.set('status', String(form.get('status')));
   const response = await apiFetch(`/holds?${params.toString()}`);
   state.holds = response.items || [];
+  const selectedExists = state.holds.some(item => String(item.hold_id) === String(state.selectedHoldId));
+  if (!selectedExists) {
+    state.selectedHoldId = state.holds.length ? String(state.holds[0].hold_id) : '';
+  }
+  state.selectedHold = state.holds.find(item => String(item.hold_id) === String(state.selectedHoldId)) || null;
   refs.holdTableBody.innerHTML = renderHoldRows(state.holds);
+  renderHoldDetail(state.selectedHold);
 }
 
 function renderHoldRows(items) {
@@ -913,12 +929,9 @@ function renderHoldRows(items) {
     return `<tr><td colspan="6"><div class="empty-state"><p>Onay akışında kayıt yok.</p></div></td></tr>`;
   }
   return items.map(item => `
-    <tr>
+    <tr class="${String(item.hold_id) === String(state.selectedHoldId) ? 'is-selected' : ''}">
       <td>
-        <div class="hold-action-stack">
-          <button class="action-button primary" data-approve-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' holdunu onayla')}">Onayla</button>
-          <button class="action-button danger" data-reject-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' holdunu reddet')}">Reddet</button>
-        </div>
+        <button class="inline-button secondary" data-open-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' detayini ac')}">Detay</button>
       </td>
       <td>
         <div class="stack">
@@ -928,10 +941,66 @@ function renderHoldRows(items) {
       </td>
       <td><span class="pill ${holdStatusClass(item.status)}">${escapeHtml(item.status)}</span></td>
       <td>${formatHoldSummary(item)}</td>
-      <td>${formatHoldTechnicalState(item)}</td>
       <td>${formatDate(item.created_at)}</td>
+      <td>${formatHoldTechnicalState(item)}</td>
     </tr>
   `).join('');
+}
+
+function selectHold(holdId) {
+  state.selectedHoldId = String(holdId || '');
+  state.selectedHold = state.holds.find(item => String(item.hold_id) === state.selectedHoldId) || null;
+  refs.holdTableBody.innerHTML = renderHoldRows(state.holds);
+  renderHoldDetail(state.selectedHold);
+}
+
+function renderHoldDetail(item) {
+  if (!item) {
+    refs.holdDetail.innerHTML = '<div class="empty-state"><p>Detay ve aksiyonlar icin listeden bir hold secin.</p></div>';
+    return;
+  }
+
+  refs.holdDetail.innerHTML = `
+    <div class="module-header">
+      <div>
+        <h3>${escapeHtml(String(item.hold_id || 'Hold'))}</h3>
+        <p>${escapeHtml(String(item.type || '-').toUpperCase())} · Hotel ${escapeHtml(String(item.hotel_id || '-'))}</p>
+      </div>
+      <span class="pill ${holdStatusClass(item.status)}">${escapeHtml(item.status)}</span>
+    </div>
+    <div class="hold-summary-grid mb-md">
+      ${formatHoldSummaryDetailCell('Misafir', holdDraftField(item, 'guest_name', '-'))}
+      ${formatHoldSummaryDetailCell('Tarih', `${holdDraftField(item, 'checkin_date', '-')} → ${holdDraftField(item, 'checkout_date', '-')}`)}
+      ${formatHoldSummaryDetailCell('Kisi', `${holdDraftField(item, 'adults', '0')}Y / ${holdChildrenCount(item)}C`)}
+      ${formatHoldSummaryDetailCell('Toplam', `${holdDraftField(item, 'total_price_eur', '-')} EUR`)}
+      ${formatHoldSummaryDetailCell('Politika', holdDraftField(item, 'cancel_policy_type', '-'))}
+      ${formatHoldSummaryDetailCell('Telefon', holdDraftField(item, 'phone', '-'))}
+    </div>
+    <div class="helper-box">
+      <strong>Teknik Durum</strong>
+      ${formatHoldTechnicalState(item)}
+    </div>
+    <div class="dialog-actions hold-detail-actions mt-lg">
+      <button class="action-button primary" data-approve-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' holdunu onayla')}">Onayla</button>
+      <button class="action-button danger" data-reject-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' holdunu reddet')}">Reddet</button>
+    </div>
+  `;
+}
+
+function holdDraftField(item, key, fallback) {
+  const draft = item && item.draft_json && typeof item.draft_json === 'object' ? item.draft_json : {};
+  const value = draft[key];
+  if (value === null || value === undefined || value === '') return String(fallback);
+  return String(value);
+}
+
+function holdChildrenCount(item) {
+  const draft = item && item.draft_json && typeof item.draft_json === 'object' ? item.draft_json : {};
+  return Array.isArray(draft.chd_ages) ? draft.chd_ages.length : 0;
+}
+
+function formatHoldSummaryDetailCell(label, value) {
+  return `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></div>`;
 }
 
 function holdStatusClass(status) {
@@ -944,16 +1013,13 @@ function holdStatusClass(status) {
 }
 
 function formatHoldSummary(item) {
-  const draft = item.draft_json && typeof item.draft_json === 'object' ? item.draft_json : {};
-  const checkin = draft.checkin_date ? String(draft.checkin_date) : '-';
-  const checkout = draft.checkout_date ? String(draft.checkout_date) : '-';
-  const guest = draft.guest_name ? String(draft.guest_name) : '-';
-  const adults = Number(draft.adults || 0);
-  const children = Array.isArray(draft.chd_ages) ? draft.chd_ages.length : 0;
-  const total = draft.total_price_eur !== undefined && draft.total_price_eur !== null
-    ? `${escapeHtml(String(draft.total_price_eur))} EUR`
-    : '-';
-  const cancelPolicy = draft.cancel_policy_type ? String(draft.cancel_policy_type) : '-';
+  const checkin = holdDraftField(item, 'checkin_date', '-');
+  const checkout = holdDraftField(item, 'checkout_date', '-');
+  const guest = holdDraftField(item, 'guest_name', '-');
+  const adults = Number(holdDraftField(item, 'adults', '0') || 0);
+  const children = holdChildrenCount(item);
+  const total = `${escapeHtml(holdDraftField(item, 'total_price_eur', '-'))} EUR`;
+  const cancelPolicy = holdDraftField(item, 'cancel_policy_type', '-');
   return `
     <div class="hold-summary-grid">
       <div><span>Misafir</span><strong>${escapeHtml(guest)}</strong></div>

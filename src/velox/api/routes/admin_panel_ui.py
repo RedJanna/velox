@@ -265,39 +265,44 @@ def render_admin_panel_html() -> str:
         </section>
 
         <section data-view="holds" class="section-grid" hidden>
-          <article class="module-card">
-            <div class="module-header">
-              <div><h3>Birleşik Hold Masası</h3><p>Konaklama, restoran ve transfer taleplerini tek kurgu ile yönetin.</p></div>
-            </div>
-            <form id="holdFilters" class="toolbar">
-              <select name="hold_type" aria-label="Hold tipi">
-                <option value="">Tum tipler</option>
-                <option value="stay">Stay</option>
-                <option value="restaurant">Restaurant</option>
-                <option value="transfer">Transfer</option>
-              </select>
-              <select name="status" aria-label="Hold durumu">
-                <option value="">Tum statuler</option>
-                <option value="PENDING_APPROVAL">PENDING_APPROVAL</option>
-                <option value="PMS_PENDING">PMS_PENDING</option>
-                <option value="PMS_CREATED">PMS_CREATED</option>
-                <option value="PAYMENT_PENDING">PAYMENT_PENDING</option>
-                <option value="PAYMENT_EXPIRED">PAYMENT_EXPIRED</option>
-                <option value="MANUAL_REVIEW">MANUAL_REVIEW</option>
-                <option value="PMS_FAILED">PMS_FAILED</option>
-                <option value="APPROVED">APPROVED</option>
-                <option value="CONFIRMED">CONFIRMED</option>
-                <option value="REJECTED">REJECTED</option>
-              </select>
-              <button class="primary" type="submit">Filtrele</button>
-            </form>
-            <div class="table-shell">
-              <table class="holds-table">
-                <thead><tr><th>Aksiyon</th><th>Hold</th><th>Durum</th><th>Rezervasyon Ozeti</th><th>Teknik Durum</th><th>Zaman</th></tr></thead>
-                <tbody id="holdTableBody"></tbody>
-              </table>
-            </div>
-          </article>
+          <div class="split">
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Birleşik Hold Masası</h3><p>Konaklama, restoran ve transfer taleplerini tek kurgu ile yönetin.</p></div>
+              </div>
+              <form id="holdFilters" class="toolbar">
+                <select name="hold_type" aria-label="Hold tipi">
+                  <option value="">Tum tipler</option>
+                  <option value="stay">Stay</option>
+                  <option value="restaurant">Restaurant</option>
+                  <option value="transfer">Transfer</option>
+                </select>
+                <select name="status" aria-label="Hold durumu">
+                  <option value="">Tum statuler</option>
+                  <option value="PENDING_APPROVAL">PENDING_APPROVAL</option>
+                  <option value="PMS_PENDING">PMS_PENDING</option>
+                  <option value="PMS_CREATED">PMS_CREATED</option>
+                  <option value="PAYMENT_PENDING">PAYMENT_PENDING</option>
+                  <option value="PAYMENT_EXPIRED">PAYMENT_EXPIRED</option>
+                  <option value="MANUAL_REVIEW">MANUAL_REVIEW</option>
+                  <option value="PMS_FAILED">PMS_FAILED</option>
+                  <option value="APPROVED">APPROVED</option>
+                  <option value="CONFIRMED">CONFIRMED</option>
+                  <option value="REJECTED">REJECTED</option>
+                </select>
+                <button class="primary" type="submit">Filtrele</button>
+              </form>
+              <div class="table-shell">
+                <table class="holds-table">
+                  <thead><tr><th>Ac</th><th>Hold</th><th>Durum</th><th>Rezervasyon Ozeti</th><th>Zaman</th><th>Teknik Durum</th></tr></thead>
+                  <tbody id="holdTableBody"></tbody>
+                </table>
+              </div>
+            </article>
+            <article id="holdDetail" class="module-card">
+              <div class="empty-state"><p>Detay ve aksiyonlar icin listeden bir hold secin.</p></div>
+            </article>
+          </div>
         </section>
 
         <section data-view="tickets" class="section-grid" hidden>
