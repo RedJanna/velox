@@ -2,6 +2,8 @@
 
 # ruff: noqa: E501
 
+from velox.api.routes.ui_shared_assets import UI_SHARED_SCRIPT
+
 ADMIN_PANEL_STYLE = """\
 *,*::before,*::after{box-sizing:border-box}
 :root{
@@ -137,6 +139,16 @@ tbody tr:hover{background:#fffcf7}
 .status-block{padding:16px;border-radius:18px;border:1px solid var(--line);background:var(--surface)}
 .status-block h4{margin:0 0 8px;font-size:13px}
 .status-block pre{margin:0;font-family:var(--mono);font-size:12px;white-space:pre-wrap}
+.mt-sm{margin-top:10px}.mt-md{margin-top:14px}.mt-lg{margin-top:16px}
+.mb-md{margin-bottom:14px}
+.min-w-select{min-width:240px}
+.checkbox-field{width:20px;height:20px}
+.card-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.chatlab-frame{width:100%;height:calc(100vh - 80px);border:none;border-radius:12px}
+.dialog-textarea{min-height:120px}
+.inline-flex-center{display:flex;align-items:center;gap:8px}
+.pill-closed{background:#e5e7eb;color:#6b7280;font-size:11px}
+.action-button-sm{font-size:12px;padding:6px 14px}
 @media(max-width:1240px){
   .card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .split,.auth-grid{grid-template-columns:1fr}
@@ -151,7 +163,7 @@ tbody tr:hover{background:#fffcf7}
 }
 """
 
-ADMIN_PANEL_SCRIPT = """\
+ADMIN_PANEL_SCRIPT = UI_SHARED_SCRIPT + """\
 const CONFIG = window.ADMIN_PANEL_CONFIG || {};
 const API_ROOT = '/api/v1/admin';
 const READY_URL = '/api/v1/health/ready';
@@ -253,6 +265,60 @@ function bindEvents() {
     if (event.data && event.data.type === 'chatlab:auth-required') {
       // Re-obtain a fresh token and send it to the iframe
       await loadChatLab();
+    }
+  });
+  bindDelegatedEvents();
+}
+
+function bindDelegatedEvents() {
+  // Single delegated click handler on panelView covers all dynamic table actions.
+  // This avoids re-binding listeners every time a table is re-rendered.
+  refs.panelView.addEventListener('click', async event => {
+    const target = event.target.closest('[data-open-conversation],[data-approve-hold],[data-reject-hold],[data-save-ticket]');
+    if (!target) return;
+
+    // Conversation detail
+    if (target.dataset.openConversation) {
+      loadConversationDetail(target.dataset.openConversation);
+      return;
+    }
+
+    // Hold approve
+    if (target.dataset.approveHold) {
+      try {
+        await apiFetch(`/holds/${target.dataset.approveHold}/approve`, {method: 'POST', body: {notes: ''}});
+        notify('Hold onaylandi.', 'success');
+        loadHolds();
+        loadDashboard();
+      } catch (error) {
+        notify(error.message, 'error');
+      }
+      return;
+    }
+
+    // Hold reject
+    if (target.dataset.rejectHold) {
+      refs.decisionMode.value = 'reject';
+      refs.decisionHoldId.value = target.dataset.rejectHold;
+      refs.decisionTitle.textContent = 'Hold reddet';
+      refs.decisionLead.textContent = 'Bu islem misafir akisina olumsuz yansir. Nedeni acik yazin.';
+      refs.decisionReason.value = '';
+      refs.decisionDialog.showModal();
+      return;
+    }
+
+    // Ticket save
+    if (target.dataset.saveTicket) {
+      const ticketId = target.dataset.saveTicket;
+      const statusField = document.querySelector(`[data-ticket-status="${ticketId}"]`);
+      try {
+        await apiFetch(`/tickets/${ticketId}`, {method: 'PUT', body: {status: statusField.value}});
+        notify('Ticket guncellendi.', 'success');
+        loadTickets();
+        loadDashboard();
+      } catch (error) {
+        notify(error.message, 'error');
+      }
     }
   });
 }
@@ -561,17 +627,17 @@ function setView(view) {
   });
 
   const meta = {
-    dashboard: ['Operasyon Özeti', 'Tek bakışta normal, riskli ve sıradaki aksiyonu birlikte gösterir.'],
-    conversations: ['Konuşmalar', 'Mesaj akışını, risk bayraklarını ve karar bağlamını tek yerde toplar.'],
-    holds: ['Onay Bekleyen Kayıtlar', 'Konaklama, restoran ve transfer taleplerini tek kararla yönetin.'],
-    tickets: ['Handoff ve Takip', 'Aciliyet, sahiplik ve kapanış durumlarını kaybetmeden ekip yönetin.'],
-    hotels: ['Hotel Profile', 'Dinamik hotel verisini panelden düzenleyip runtime cache ile eşitleyin.'],
-    faq: ['FAQ Yonetimi', 'Hazır yanıt bilgisini soru-cevap bazında izleyin ve uygunsuz içeriği anında devreden çıkarın.'],
-    restaurant: ['Restoran Slotları', 'Kapasite, alan ve tarih bazlı slot yönetimini kontrol edin.'],
-    notifications: ['Bildirim Numaralari', 'Rezervasyon onay talebi olusturuldugunda WhatsApp mesaji gonderilecek numaralari yonetin.'],
-    system: ['Sistem ve Domain', 'Alan adı, readiness, konfigürasyon yenileme ve güven katmanlarını izleyin.'],
-    chatlab: ['Chat Lab', 'Canlı test, feedback kaydı, transcript import ve genel rapor paneli.'],
-  }[view] || ['Admin Panel', 'Operasyon merkezi'];
+    dashboard: ['Genel Bakis', 'Aktif konusmalar, bekleyen onaylar ve acik talepleri tek ekranda gorun.'],
+    conversations: ['Konusmalar', 'Misafir mesajlarini, durumlarini ve gecmisini inceleyin.'],
+    holds: ['Onay Bekleyenler', 'Konaklama, restoran ve transfer taleplerini onaylayin veya reddedin.'],
+    tickets: ['Destek Talepleri', 'Ekibe aktarilan gorevleri oncelik ve duruma gore takip edin.'],
+    hotels: ['Otel Bilgileri', 'Otel profilini duzenleyin ve degisiklikleri sisteme uygulatin.'],
+    faq: ['Sik Sorulan Sorular', 'Hazir yanitlari yonetin, uygunsuz icerigi hizlica kaldirin.'],
+    restaurant: ['Restoran Yonetimi', 'Tarih ve saat bazli masa kapasitelerini ayarlayin.'],
+    notifications: ['Bildirim Ayarlari', 'Rezervasyon onaylari icin WhatsApp bildirim numaralarini yonetin.'],
+    system: ['Sistem Durumu', 'Sunucu sagligi, alan adi ve guvenlik ayarlarini kontrol edin.'],
+    chatlab: ['Test Paneli', 'Yapay zekayi canli test edin, puanlayin ve raporlayin.'],
+  }[view] || ['Admin Panel', 'Yonetim merkezi'];
 
   refs.pageTitle.textContent = meta[0];
   refs.pageLead.textContent = meta[1];
@@ -698,7 +764,6 @@ async function loadConversations() {
   const response = await apiFetch(`/conversations?${params.toString()}`);
   state.conversations = response.items || [];
   refs.conversationTableBody.innerHTML = renderConversationRows(state.conversations);
-  bindConversationActions();
   if (state.conversations.length && !state.conversationDetail) {
     loadConversationDetail(state.conversations[0].id);
   } else if (!state.conversations.length) {
@@ -722,11 +787,7 @@ function renderConversationRows(items) {
   `).join('');
 }
 
-function bindConversationActions() {
-  document.querySelectorAll('[data-open-conversation]').forEach(button => {
-    button.addEventListener('click', () => loadConversationDetail(button.dataset.openConversation));
-  });
-}
+// Event delegation: conversation table clicks handled by container listener (see bindDelegatedEvents)
 
 async function loadConversationDetail(conversationId) {
   const response = await apiFetch(`/conversations/${conversationId}`);
@@ -740,9 +801,9 @@ async function loadConversationDetail(conversationId) {
         <h3>Konuşma Detayı</h3>
         <p>${escapeHtml(response.conversation.phone_display || 'Maskeli kullanici')} · ${escapeHtml(resolvedState)}</p>
       </div>
-      <div style="display:flex;align-items:center;gap:8px">
+      <div class="inline-flex-center">
         <div class="badge dark">${escapeHtml(resolvedIntent)}</div>
-        ${response.conversation.is_active ? `<button class="action-button danger" style="font-size:12px;padding:6px 14px" data-reset-conversation="${escapeHtml(String(response.conversation.id))}">Sıfırla</button>` : '<span class="pill" style="background:#e5e7eb;color:#6b7280;font-size:11px">Kapalı</span>'}
+        ${response.conversation.is_active ? `<button class="action-button danger action-button-sm" data-reset-conversation="${escapeHtml(String(response.conversation.id))}">Sifirla</button>` : '<span class="pill pill-closed">Kapali</span>'}
       </div>
     </div>
     ${renderUserAuditSection(audit)}
@@ -780,7 +841,6 @@ async function loadHolds() {
   const response = await apiFetch(`/holds?${params.toString()}`);
   state.holds = response.items || [];
   refs.holdTableBody.innerHTML = renderHoldRows(state.holds);
-  bindHoldActions();
 }
 
 function renderHoldRows(items) {
@@ -804,30 +864,7 @@ function renderHoldRows(items) {
   `).join('');
 }
 
-function bindHoldActions() {
-  document.querySelectorAll('[data-approve-hold]').forEach(button => {
-    button.addEventListener('click', async () => {
-      try {
-        await apiFetch(`/holds/${button.dataset.approveHold}/approve`, {method: 'POST', body: {notes: ''}});
-        notify('Hold onaylandı.', 'success');
-        loadHolds();
-        loadDashboard();
-      } catch (error) {
-        notify(error.message, 'error');
-      }
-    });
-  });
-  document.querySelectorAll('[data-reject-hold]').forEach(button => {
-    button.addEventListener('click', () => {
-      refs.decisionMode.value = 'reject';
-      refs.decisionHoldId.value = button.dataset.rejectHold;
-      refs.decisionTitle.textContent = 'Hold reddet';
-      refs.decisionLead.textContent = 'Bu işlem misafir akışına olumsuz yansır. Nedeni açık yazın.';
-      refs.decisionReason.value = '';
-      refs.decisionDialog.showModal();
-    });
-  });
-}
+// Hold actions handled by delegated event listener (see bindDelegatedEvents)
 
 async function onDecisionSubmit(event) {
   event.preventDefault();
@@ -857,7 +894,6 @@ async function loadTickets() {
   const response = await apiFetch(`/tickets?${params.toString()}`);
   state.tickets = response.items || [];
   refs.ticketTableBody.innerHTML = renderTicketRows(state.tickets);
-  bindTicketActions();
 }
 
 function renderTicketRows(items) {
@@ -884,22 +920,7 @@ function renderTicketRows(items) {
   `).join('');
 }
 
-function bindTicketActions() {
-  document.querySelectorAll('[data-save-ticket]').forEach(button => {
-    button.addEventListener('click', async () => {
-      const ticketId = button.dataset.saveTicket;
-      const statusField = document.querySelector(`[data-ticket-status="${ticketId}"]`);
-      try {
-        await apiFetch(`/tickets/${ticketId}`, {method: 'PUT', body: {status: statusField.value}});
-        notify('Ticket güncellendi.', 'success');
-        loadTickets();
-        loadDashboard();
-      } catch (error) {
-        notify(error.message, 'error');
-      }
-    });
-  });
-}
+// Ticket actions handled by delegated event listener (see bindDelegatedEvents)
 
 async function loadFaqs() {
   const hotelId = state.selectedHotelId;
@@ -1040,7 +1061,7 @@ function renderFaqDetail(item) {
         <pre>${escapeHtml(item.answer?.en || '-')}</pre>
       </div>
     </div>
-    <div class="helper-panel" style="margin-top:12px">
+    <div class="helper-panel mt-md">
       <div class="helper-box">
         <strong>Varyantlar</strong>
         <p class="mono">TR: ${escapeHtml((variants.tr || []).join(' | ') || '-')}</p>
@@ -1476,28 +1497,9 @@ async function refreshAccessSession({silent = false} = {}) {
   return state.refreshPromise;
 }
 
+// extractErrorMessage wraps shared extractErrorDetail for admin panel compat
 function extractErrorMessage(payload) {
-  if (typeof payload?.detail === 'string' && payload.detail.trim()) {
-    return payload.detail;
-  }
-  if (Array.isArray(payload?.detail) && payload.detail.length > 0) {
-    const messages = payload.detail.map(item => {
-      if (typeof item === 'string') return item;
-      if (item && typeof item.msg === 'string') return item.msg;
-      return '';
-    }).filter(Boolean);
-    if (messages.length > 0) {
-      return messages.join(' | ');
-    }
-  }
-  if (typeof payload?.message === 'string' && payload.message.trim()) {
-    return payload.message;
-  }
-  return 'Beklenmeyen panel hatası.';
-}
-
-function formToJson(form) {
-  return Object.fromEntries(new FormData(form).entries());
+  return extractErrorDetail(payload, '');
 }
 
 function getSelectedChoice(form, name, fallback) {
@@ -1505,59 +1507,11 @@ function getSelectedChoice(form, name, fallback) {
   return field ? field.value : fallback;
 }
 
-function readCookie(name) {
-  const encoded = `${name}=`;
-  return document.cookie.split(';').map(item => item.trim()).find(item => item.startsWith(encoded))?.slice(encoded.length) || '';
-}
-
-function isSafeMethod(method) {
-  return ['GET', 'HEAD', 'OPTIONS'].includes(String(method || 'GET').toUpperCase());
-}
-
 function notify(message, tone = 'info') {
   refs.toast.textContent = message;
   refs.toast.className = `toast ${tone} is-visible`;
   window.clearTimeout(notify.timer);
   notify.timer = window.setTimeout(() => refs.toast.className = `toast ${tone}`, 2800);
-}
-
-function formatDate(value) {
-  if (!value) return '-';
-  try {
-    return new Date(value).toLocaleString('tr-TR', {dateStyle: 'short', timeStyle: 'short'});
-  } catch (_error) {
-    return String(value);
-  }
-}
-
-function defaultDate(offsetDays = 0) {
-  const date = new Date();
-  date.setDate(date.getDate() + offsetDays);
-  return date.toISOString().slice(0, 10);
-}
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function asObject(value) {
-  if (value && typeof value === 'object') return value;
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      if (parsed && typeof parsed === 'object') {
-        return parsed;
-      }
-    } catch (_error) {
-      return {};
-    }
-  }
-  return {};
 }
 
 // ---------------------------------------------------------------------------
@@ -1576,14 +1530,14 @@ async function loadNotifPhones() {
 function renderNotifPhones(phones) {
   if (!refs.notifPhoneTableBody) return;
   if (!phones || !phones.length) {
-    refs.notifPhoneTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Kayit yok</td></tr>';
+    refs.notifPhoneTableBody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><p>Kayit yok</p></div></td></tr>';
     return;
   }
   refs.notifPhoneTableBody.innerHTML = phones.map(p => {
     const isDefault = p.is_default;
     const removeBtn = isDefault
       ? '<span class="badge dark">Varsayilan</span>'
-      : `<button class="inline-button danger" onclick="removeNotifPhone('${escapeHtml(p.phone)}')">Kaldir</button>`;
+      : `<button class="inline-button danger" data-remove-phone="${escapeHtml(p.phone)}">Kaldir</button>`;
     return `<tr>
       <td><code>${escapeHtml(p.phone)}</code></td>
       <td>${escapeHtml(p.label || '-')}</td>
@@ -1591,6 +1545,13 @@ function renderNotifPhones(phones) {
       <td>${removeBtn}</td>
     </tr>`;
   }).join('');
+  bindNotifPhoneActions();
+}
+
+function bindNotifPhoneActions() {
+  document.querySelectorAll('[data-remove-phone]').forEach(button => {
+    button.addEventListener('click', () => removeNotifPhone(button.dataset.removePhone));
+  });
 }
 
 async function onAddNotifPhone(event) {

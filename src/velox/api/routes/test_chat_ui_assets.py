@@ -2,6 +2,8 @@
 
 # ruff: noqa: E501
 
+from velox.api.routes.ui_shared_assets import UI_SHARED_SCRIPT
+
 TEST_CHAT_STYLE = """\
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -104,7 +106,7 @@ body{overflow:hidden}
 }
 """
 
-TEST_CHAT_SCRIPT = """\
+TEST_CHAT_SCRIPT = UI_SHARED_SCRIPT + """\
 const API = '/api/v1/test';
 const ADMIN_ENTRY_PATH = '/admin';
 const DEFAULT_FEEDBACK_SCALES = [
@@ -190,23 +192,8 @@ const L1_FLAGS = ['VIP_REQUEST','ALLERGY_ALERT','ACCESSIBILITY_NEED','CHILD_SAFE
 
 const el = id => document.getElementById(id);
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function formatMessageHtml(text) {
-  return escapeHtml(text).replace(/\\n/g, '<br>');
-}
-
-function fmtTime(iso) {
-  try { return new Date(iso).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}); }
-  catch { return ''; }
-}
+// escapeHtml, formatMessageHtml, formatTime provided by UI_SHARED_SCRIPT
+const fmtTime = formatTime;
 
 function flagLevel(flag) {
   if (L3_FLAGS.includes(flag)) return 'l3';
@@ -336,24 +323,9 @@ async function apiFetch(path, options = {}) {
   return data || {};
 }
 
+// extractApiErrorMessage wraps shared extractErrorDetail
 function extractApiErrorMessage(data, rawText) {
-  if (typeof data?.detail === 'string' && data.detail.trim()) {
-    return data.detail.trim();
-  }
-  if (Array.isArray(data?.detail) && data.detail.length) {
-    return data.detail
-      .map(item => {
-        if (typeof item === 'string') return item;
-        const location = Array.isArray(item?.loc) ? item.loc.join(' > ') : 'field';
-        const message = item?.msg || JSON.stringify(item);
-        return `${location}: ${message}`;
-      })
-      .join(' | ');
-  }
-  if (rawText && rawText.trim()) {
-    return rawText.trim().slice(0, 400);
-  }
-  return 'Islem tamamlanamadi.';
+  return extractErrorDetail(data, rawText);
 }
 
 function showTyping() {
@@ -888,13 +860,7 @@ async function changeModel() {
   });
 }
 
-function isoToLocalInput(value) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const pad = part => String(part).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
+// isoToLocalInput provided by UI_SHARED_SCRIPT
 
 function toggleDebug() {
   el('debug-panel').classList.toggle('collapsed');

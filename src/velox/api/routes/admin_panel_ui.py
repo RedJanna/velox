@@ -40,21 +40,21 @@ def render_admin_panel_html() -> str:
         <div class="brand-mark">NX</div>
         <div>
           <h1>NexlumeAI<br>Admin</h1>
-          <p>Tek domain, tek operasyon yüzeyi. Konuşma, onay, ticket ve konfigürasyon aynı merkezde.</p>
+          <p>Misafir konusmalari, onaylar ve otel ayarlari tek yerden yonetilir.</p>
         </div>
       </div>
 
       <nav id="nav" class="nav" aria-label="Admin navigasyon">
-        <button data-nav="dashboard"><span class="nav-label"><strong>Dashboard</strong><span>Durum farkındalığı</span></span><span>01</span></button>
-        <button data-nav="conversations"><span class="nav-label"><strong>Konuşmalar</strong><span>Bağlam ve risk takibi</span></span><span>02</span></button>
-        <button data-nav="holds"><span class="nav-label"><strong>Holdlar</strong><span>Onay ve red aksiyonları</span></span><span>03</span></button>
-        <button data-nav="tickets"><span class="nav-label"><strong>Ticketlar</strong><span>Handoff ve sahiplik</span></span><span>04</span></button>
-        <button data-nav="hotels"><span class="nav-label"><strong>Hotel Profile</strong><span>Dinamik bilgi yönetimi</span></span><span>05</span></button>
-        <button data-nav="faq"><span class="nav-label"><strong>FAQ Yonetimi</strong><span>Soru-cevap ve moderasyon</span></span><span>06</span></button>
-        <button data-nav="restaurant"><span class="nav-label"><strong>Restoran Slotlari</strong><span>Kapasite ve zamanlama</span></span><span>07</span></button>
-        <button data-nav="notifications"><span class="nav-label"><strong>Bildirim Numaralari</strong><span>WhatsApp admin alicilari</span></span><span>08</span></button>
-        <button data-nav="system"><span class="nav-label"><strong>Sistem</strong><span>Domain, readiness, reload</span></span><span>09</span></button>
-        <button data-nav="chatlab"><span class="nav-label"><strong>Chat Lab</strong><span>Canli test ve feedback</span></span><span>10</span></button>
+        <button data-nav="dashboard"><span class="nav-label"><strong>Genel Bakis</strong><span>Anlık durum ozeti</span></span><span>01</span></button>
+        <button data-nav="conversations"><span class="nav-label"><strong>Konusmalar</strong><span>Misafir mesajlari ve gecmis</span></span><span>02</span></button>
+        <button data-nav="holds"><span class="nav-label"><strong>Onay Bekleyenler</strong><span>Rezervasyon onay ve red islemleri</span></span><span>03</span></button>
+        <button data-nav="tickets"><span class="nav-label"><strong>Destek Talepleri</strong><span>Ekibe aktarilan gorevler</span></span><span>04</span></button>
+        <button data-nav="hotels"><span class="nav-label"><strong>Otel Bilgileri</strong><span>Otel profil ve ayarlari</span></span><span>05</span></button>
+        <button data-nav="faq"><span class="nav-label"><strong>Sik Sorulan Sorular</strong><span>Hazir yanit yonetimi</span></span><span>06</span></button>
+        <button data-nav="restaurant"><span class="nav-label"><strong>Restoran Yonetimi</strong><span>Masa ve kapasite ayarlari</span></span><span>07</span></button>
+        <button data-nav="notifications"><span class="nav-label"><strong>Bildirim Ayarlari</strong><span>WhatsApp bildirim numaralari</span></span><span>08</span></button>
+        <button data-nav="system"><span class="nav-label"><strong>Sistem Durumu</strong><span>Sunucu ve baglanti kontrolleri</span></span><span>09</span></button>
+        <button data-nav="chatlab"><span class="nav-label"><strong>Test Paneli</strong><span>Canli test ve degerlendirme</span></span><span>10</span></button>
       </nav>
 
       <section class="sidebar-card">
@@ -67,7 +67,7 @@ def render_admin_panel_html() -> str:
         <h2>Scope</h2>
         <label for="hotelSelect">Hotel</label>
         <select id="hotelSelect" class="sidebar-select"></select>
-        <p style="margin-top:10px">Aktif scope: <strong id="hotelScope">-</strong></p>
+        <p class="mt-sm">Aktif scope: <strong id="hotelScope">-</strong></p>
       </section>
 
       <section class="sidebar-card">
@@ -82,13 +82,13 @@ def render_admin_panel_html() -> str:
     <main class="workspace">
       <header class="topbar">
         <div>
-          <div class="badge dark">nexlumeai.com operasyon alani</div>
-          <h2 id="pageTitle">Operasyon Özeti</h2>
-          <p id="pageLead">Admin paneli kokpit mantığıyla çalışır: kritik sinyali gizlemez, aksiyonu merkezde tutar.</p>
+          <div class="badge dark">NexlumeAI Yonetim Paneli</div>
+          <h2 id="pageTitle">Genel Bakis</h2>
+          <p id="pageLead">Aktif konusmalar, bekleyen onaylar ve acik talepleri tek ekranda gorun.</p>
         </div>
         <div class="topbar-aside">
-          <div class="badge info">Tek merkezli kontrol</div>
-          <div class="badge warn">Riskli aksiyonlar gorunur</div>
+          <div class="badge info">Merkezi yonetim</div>
+          <div class="badge warn">Onay gerektiren islemler gorunur</div>
         </div>
       </header>
 
@@ -96,8 +96,8 @@ def render_admin_panel_html() -> str:
         <div class="auth-grid">
           <article class="auth-card">
             <h3>Panel Girisi</h3>
-            <p>Ilk dogrulamadan sonra ayni cihaz icin giris adimlari kisaltilabilir; yine de kritik guvenlik akisi Google Authenticator temellidir.</p>
-            <div id="trustedSessionBanner" class="helper-panel" style="margin-bottom:14px" hidden></div>
+            <p>Kullanici adi, sifre ve Google Authenticator kodu ile giris yapin. Tanimli cihazlarda kod adimi atlanabilir.</p>
+            <div id="trustedSessionBanner" class="helper-panel mb-md" hidden></div>
             <form id="loginForm" class="field-grid">
               <div class="field">
                 <label for="login-username">Kullanıcı adı</label>
@@ -144,9 +144,9 @@ def render_admin_panel_html() -> str:
 
           <article id="bootstrapCard" class="auth-card">
             <h3>İlk Kurulum</h3>
-            <p>Yönetici kaydı yoksa panel kilitli kalmaz; ilk hesap güvenli bootstrap akışıyla üretilir.</p>
+            <p>Henuz yonetici hesabi yoksa buradan ilk hesabi olusturun ve Google Authenticator'i baglatin.</p>
             <div id="bootstrapSummary" class="helper-panel"></div>
-            <form id="bootstrapForm" class="field-grid" style="margin-top:14px">
+            <form id="bootstrapForm" class="field-grid mt-md">
               <div class="field">
                 <label for="bootstrap-hotel">Hotel</label>
                 <select id="bootstrap-hotel" name="hotel_id" required></select>
@@ -171,7 +171,7 @@ def render_admin_panel_html() -> str:
                 <button class="sidebar-button primary" type="submit">İlk Admin Hesabını Oluştur</button>
               </div>
             </form>
-            <section id="totpRecovery" class="helper-panel" style="margin-top:14px" hidden>
+            <section id="totpRecovery" class="helper-panel mt-md" hidden>
               <div class="helper-box">
                 <strong>2FA Kurtarma</strong>
                 <p>Hesap var ama Google Authenticator kurulumu kaybolduysa, bootstrap token ile yeni QR uretebilirsiniz.</p>
@@ -210,7 +210,7 @@ def render_admin_panel_html() -> str:
                 <p id="otpUri" class="mono"></p>
               </div>
             </div>
-            <form id="otpVerifyForm" class="field-grid" style="margin-top:12px" hidden>
+            <form id="otpVerifyForm" class="field-grid mt-md" hidden>
               <div class="field full">
                 <label for="otp-verify-code">Google Authenticator kodu</label>
                 <input id="otp-verify-code" name="otp_code" inputmode="numeric" pattern="[0-9]*" placeholder="6 haneli kod" required>
@@ -227,7 +227,7 @@ def render_admin_panel_html() -> str:
       <section id="panelView" class="panel" hidden>
         <section data-view="dashboard" class="section-grid">
           <div id="dashboardCards" class="card-grid"></div>
-          <div id="dashboardQueues" class="card-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))"></div>
+          <div id="dashboardQueues" class="card-grid card-grid-3"></div>
         </section>
 
         <section data-view="conversations" class="section-grid" hidden>
@@ -325,11 +325,11 @@ def render_admin_panel_html() -> str:
             <div class="module-header">
               <div><h3>Hotel Profile Editor</h3><p>Panelden guncellenen veri YAML kaynagina yazilir ve runtime cache yenilenir.</p></div>
               <div class="module-actions">
-                <select id="hotelProfileSelect" class="sidebar-select" style="min-width:240px"></select>
+                <select id="hotelProfileSelect" class="sidebar-select min-w-select"></select>
                 <button id="saveHotelProfile" class="inline-button primary" type="button">Profile Kaydet</button>
               </div>
             </div>
-            <div id="hotelProfileMeta" class="helper-panel" style="margin-bottom:14px"></div>
+            <div id="hotelProfileMeta" class="helper-panel mb-md"></div>
             <div class="field full">
               <label for="hotelProfileEditor">profile_json</label>
               <textarea id="hotelProfileEditor"></textarea>
@@ -395,7 +395,7 @@ def render_admin_panel_html() -> str:
               <div class="field"><label>Saat</label><input name="time" type="time" required></div>
               <div class="field"><label>Alan</label><select name="area"><option value="outdoor">outdoor</option><option value="indoor">indoor</option></select></div>
               <div class="field"><label>Toplam kapasite</label><input name="total_capacity" type="number" min="1" required></div>
-              <div class="field"><label>Aktif</label><input name="is_active" type="checkbox" checked style="width:20px;height:20px"></div>
+              <div class="field"><label>Aktif</label><input name="is_active" type="checkbox" checked class="checkbox-field"></div>
               <div class="field full"><button class="inline-button primary" type="submit">Slot Araligi Olustur</button></div>
             </form>
           </article>
@@ -412,7 +412,7 @@ def render_admin_panel_html() -> str:
                 <tbody id="notifPhoneTableBody"></tbody>
               </table>
             </div>
-            <form id="addNotifPhoneForm" class="dense-form" style="margin-top:16px">
+            <form id="addNotifPhoneForm" class="dense-form mt-lg">
               <div class="field"><label>Telefon numarasi</label><input name="phone" placeholder="+905XXXXXXXXX" required></div>
               <div class="field"><label>Etiket (opsiyonel)</label><input name="label" placeholder="Orn: Satis muduru"></div>
               <div class="field full"><button class="inline-button primary" type="submit">Numara Ekle</button></div>
@@ -426,7 +426,7 @@ def render_admin_panel_html() -> str:
               <div class="module-header">
                 <div><h3>Sistem Kontrolleri</h3><p>Readiness, domain ve bootstrap guvenlik durumu ayni ekranda gorunur kalir.</p></div>
               </div>
-              <div id="systemMeta" class="helper-panel" style="margin-bottom:14px"></div>
+              <div id="systemMeta" class="helper-panel mb-md"></div>
               <div id="systemChecks" class="status-list"></div>
             </article>
 
@@ -434,7 +434,7 @@ def render_admin_panel_html() -> str:
               <div class="module-header">
                 <div><h3>Guvenlik ve Oturum</h3><p>Sik giris yapan ekipler icin dogrulama tekrari ve cihaz hatirlama suresini buradan yonetin.</p></div>
               </div>
-              <div id="sessionSummary" class="helper-panel" style="margin-bottom:14px"></div>
+              <div id="sessionSummary" class="helper-panel mb-md"></div>
               <form id="sessionPreferencesForm" class="field-grid">
                 <div class="field full">
                   <label class="toggle-row" for="sessionRememberToggle">
@@ -468,8 +468,8 @@ def render_admin_panel_html() -> str:
                   <button class="inline-button primary" type="submit">Oturum Tercihlerini Kaydet</button>
                 </div>
               </form>
-              <div id="trustedDevicePanel" class="helper-panel" style="margin-top:14px"></div>
-              <div class="module-actions" style="margin-top:14px">
+              <div id="trustedDevicePanel" class="helper-panel mt-md"></div>
+              <div class="module-actions mt-md">
                 <button id="forgetDeviceButton" class="inline-button danger" type="button">Bu Cihazi Unut</button>
               </div>
             </article>
@@ -477,7 +477,7 @@ def render_admin_panel_html() -> str:
         </section>
 
         <section data-view="chatlab" class="section-grid" hidden>
-          <iframe id="chatlab-frame" style="width:100%;height:calc(100vh - 80px);border:none;border-radius:12px"></iframe>
+          <iframe id="chatlab-frame" class="chatlab-frame"></iframe>
         </section>
       </section>
     </main>
@@ -493,7 +493,7 @@ def render_admin_panel_html() -> str:
         <input id="decisionHoldId" type="hidden">
         <input id="decisionMode" type="hidden">
         <label for="decisionReason">Gerekce</label>
-        <textarea id="decisionReason" required style="min-height:120px"></textarea>
+        <textarea id="decisionReason" required class="dialog-textarea"></textarea>
         <div class="dialog-actions">
           <button id="closeDecision" class="inline-button secondary" type="button">Vazgec</button>
           <button class="inline-button danger" type="submit">Reddi Uygula</button>
