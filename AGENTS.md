@@ -1,7 +1,7 @@
 # Velox (NexlumeAI) — Codex Project Guide
 
-> **Sürüm:** v3.1 | **Son güncelleme:** 2026-03-13 16:59:24
-> **Değişiklik özeti:** Admin panel auth için trusted device / kısa ömürlü cookie oturum kuralı eklendi.
+> **Sürüm:** v3.2 | **Son güncelleme:** 2026-03-14 14:35:58
+> **Değişiklik özeti:** Migration çalıştırma adımı manuel takipten otomasyon-first sürece taşındı.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -124,6 +124,7 @@ Execute tasks in `tasks/` directory sequentially:
 7. **Async everywhere**: Use async/await for all I/O operations.
 8. **Type hints**: Use Pydantic models and Python type hints everywhere.
 9. **Admin auth**: Access token kısa ömürlü kalır; tekrar TOTP azaltma sadece doğrulanmış trusted device ile yapılır, 2FA kapatılmaz.
+10. **Migration disiplini**: DB schema değişikliği (yeni tablo/sütun/index/constraint) içeren her işte migration dosyası zorunludur ve deploy akışında otomatik çalıştırılır; sadece manuel psql adımına bırakılmaz.
 
 ## Auto-Commit Rule
 After completing each task, you MUST commit your changes:
@@ -135,6 +136,17 @@ Replace `XX` with the task number and provide a brief summary. Example:
 git add -A && git commit -m "Task 04: Elektraweb PMS adapter with JWT auth and retry"
 ```
 This is mandatory — do NOT skip the commit step.
+
+### Migration Automation Policy (Manual adımı azaltmak için zorunlu akış)
+
+- **Amaç:** Kod değişikliği sonrası "migration çalıştırmayı unutma" riskini ortadan kaldırmak.
+- **Kural 1:** Migration gerektiren her task'ta migration dosyası aynı commit içinde yer alır.
+- **Kural 2:** Migration uygulama adımı mümkünse tek komutla standartlaştırılır (`make migrate` veya eşdeğer script).
+- **Kural 3:** Lokal geliştirmede backend başlatmadan önce migration komutu çalıştırılır; manuel SQL komutu istisna/fallback olarak kalır.
+- **Kural 4:** CI/CD hattında migration kontrolü zorunludur; migration uygulanmadan deploy tamamlanmış sayılmaz.
+- **Kural 5:** Runtime'da migration eksikliği tespit edilirse endpoint 500 yerine anlamlı 503 + aksiyon mesajı döndürmelidir.
+
+> **Standartlaştırma notu:** Projede bir migration wrapper komutu tanımlandığında AGENTS.md ve README aynı komutu referans almalıdır.
 
 > **⚠️ Güvenlik notu:** `git add -A` kullanırken `.gitignore` dosyasının güncel olduğundan emin ol.
 > `.env`, `*.pem`, `credentials.*`, `secrets.*` gibi hassas dosyalar `.gitignore`'da **mutlaka** listelenmeli.
