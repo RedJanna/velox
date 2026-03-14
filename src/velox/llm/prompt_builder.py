@@ -85,7 +85,8 @@ class PromptBuilder:
             f"- summarize_large_price_lists={str(summarize_large_lists).lower()}\n"
             f"- ask_before_full_price_dump={str(ask_before_full_dump).lower()}\n"
             "- Do not repeat already confirmed details unless the guest asks again or data changes.\n"
-            "- For long room-price outputs, share a compact shortlist first and offer full breakdown on request."
+            "- For long room-price outputs, share a compact shortlist first and offer full breakdown on request.\n"
+            "- During reservation data collection, ask for exactly one missing field per turn."
         )
 
     def build_system_prompt(self, hotel_id: int) -> str:

@@ -1277,6 +1277,129 @@ def _extract_user_message_parts(response: LLMResponse) -> list[str]:
     return [default_message] if default_message else []
 
 
+def _canonical_required_question_key(question: str) -> str:
+    """Map free-form required question labels to a canonical field key."""
+    normalized = _canonical_text(question)
+    if any(token in normalized for token in ("checkin", "giris")):
+        return "checkin_date"
+    if any(token in normalized for token in ("checkout", "cikis")):
+        return "checkout_date"
+    if any(token in normalized for token in ("adult", "yetiskin", "kisicount", "kis sayisi", "pax")):
+        return "adults"
+    if any(token in normalized for token in ("chd", "cocuk", "child", "yas", "age")):
+        return "chd_ages"
+    if any(token in normalized for token in ("guestname", "fullname", "adsoyad", "isim")):
+        return "guest_name"
+    if "phone" in normalized or "telefon" in normalized:
+        return "phone"
+    if "email" in normalized or "eposta" in normalized:
+        return "email"
+    if any(token in normalized for token in ("cancelpolicy", "iptal", "refund")):
+        return "cancel_policy_type"
+    if "roomdistribution" in normalized or "odadagilim" in normalized:
+        return "room_distribution"
+    if any(token in normalized for token in ("route", "guzergah", "nereden", "nereye")):
+        return "route"
+    if "date" in normalized or "tarih" in normalized:
+        return "date"
+    if "time" in normalized or "saat" in normalized:
+        return "time"
+    if any(token in normalized for token in ("party", "paxcount", "kisisayisi")):
+        return "party_size"
+    if any(token in normalized for token in ("notes", "not", "specialrequest", "ozelistek")):
+        return "notes"
+    return question.strip()
+
+
+def _single_field_prompt(language: str, required_question: str) -> str:
+    """Build one-step follow-up prompt for a single missing reservation field."""
+    key = _canonical_required_question_key(required_question)
+    prompts = {
+        "tr": {
+            "checkin_date": "Rezervasyon için önce giriş tarihinizi paylaşır mısınız? (GG.AA.YYYY)",
+            "checkout_date": "Çıkış tarihinizi paylaşır mısınız? (GG.AA.YYYY)",
+            "adults": "Kaç yetişkin konaklayacaksınız?",
+            "chd_ages": "Çocuk varsa yaşlarını tek tek paylaşır mısınız? (ör. 4, 9)",
+            "guest_name": "Rezervasyon için ad soyad bilginizi paylaşır mısınız?",
+            "phone": "İletişim için telefon numaranızı paylaşır mısınız? (+90 ile)",
+            "email": "E-posta adresinizi paylaşır mısınız? (opsiyonel)",
+            "cancel_policy_type": "Hangi iptal politikasıyla devam edelim: İptal edilemez mi, Ücretsiz İptal mi?",
+            "room_distribution": "Oda dağılımını nasıl planlayalım? (ör. 3+3 veya 4+2)",
+            "route": "Transfer için güzergâhı paylaşır mısınız? (nereden -> nereye)",
+            "date": "Rezervasyon tarihi nedir?",
+            "time": "Saat bilgisini paylaşır mısınız?",
+            "party_size": "Kaç kişi için rezervasyon yapalım?",
+            "notes": "Eklemek istediğiniz özel bir not var mı?",
+        },
+        "en": {
+            "checkin_date": "Please share your check-in date first. (DD.MM.YYYY)",
+            "checkout_date": "Please share your check-out date. (DD.MM.YYYY)",
+            "adults": "How many adults will stay?",
+            "chd_ages": "If there are children, please share each age. (e.g. 4, 9)",
+            "guest_name": "Please share the full name for the reservation.",
+            "phone": "Please share your phone number for contact. (+country code)",
+            "email": "Please share your email address. (optional)",
+            "cancel_policy_type": "Which cancellation policy do you prefer: Non-refundable or Free Cancellation?",
+            "room_distribution": "How would you like to split the rooms? (e.g. 3+3 or 4+2)",
+            "route": "Please share the transfer route. (from -> to)",
+            "date": "What is the reservation date?",
+            "time": "Please share the preferred time.",
+            "party_size": "How many guests should I reserve for?",
+            "notes": "Any special note you would like to add?",
+        },
+        "ru": {
+            "checkin_date": "Пожалуйста, сначала укажите дату заезда. (ДД.ММ.ГГГГ)",
+            "checkout_date": "Пожалуйста, укажите дату выезда. (ДД.ММ.ГГГГ)",
+            "adults": "Сколько взрослых будет проживать?",
+            "chd_ages": "Если есть дети, укажите возраст каждого. (например, 4, 9)",
+            "guest_name": "Пожалуйста, укажите имя и фамилию для бронирования.",
+            "phone": "Пожалуйста, укажите ваш номер телефона для связи.",
+            "email": "Пожалуйста, укажите ваш e-mail. (необязательно)",
+            "cancel_policy_type": "Какой вариант отмены предпочитаете: невозвратный или бесплатная отмена?",
+            "room_distribution": "Как разделим размещение по комнатам? (например, 3+3 или 4+2)",
+            "route": "Пожалуйста, укажите маршрут трансфера. (откуда -> куда)",
+            "date": "Какая дата бронирования?",
+            "time": "Пожалуйста, укажите время.",
+            "party_size": "На сколько гостей оформить бронь?",
+            "notes": "Есть ли особые пожелания?",
+        },
+    }
+    language_code = language if language in prompts else "tr"
+    prompt = prompts[language_code].get(key)
+    if prompt:
+        return prompt
+    if language_code == "en":
+        return f"Please share this detail so I can continue: {required_question}"
+    if language_code == "ru":
+        return f"Пожалуйста, уточните эту информацию, чтобы я продолжил(а): {required_question}"
+    return f"Devam edebilmem için şu bilgiyi paylaşır mısınız: {required_question}"
+
+
+def _enforce_single_step_collection(response: LLMResponse) -> None:
+    """Force reservation verification to collect one field at a time."""
+    state = str(response.internal_json.state or "").upper()
+    if state != "NEEDS_VERIFICATION":
+        return
+
+    intent = str(response.internal_json.intent or "").lower().strip()
+    if not any(intent.startswith(prefix) for prefix in ("stay_", "restaurant_", "transfer_")):
+        return
+
+    required = [
+        str(item).strip()
+        for item in response.internal_json.required_questions
+        if isinstance(item, str) and str(item).strip()
+    ]
+    if not required:
+        return
+
+    first_required = required[0]
+    response.internal_json.required_questions = [first_required]
+    if len(required) > 1 or not str(response.user_message or "").strip():
+        language = str(response.internal_json.language or "tr").lower()
+        response.user_message = _single_field_prompt(language, first_required)
+
+
 def _to_int(value: Any, default: int = 0) -> int:
     """Convert arbitrary values into int safely."""
     try:
@@ -1656,6 +1779,7 @@ async def _run_message_pipeline(
             parsed.user_message = _stay_pending_approval_message(language)
             parsed.internal_json.state = "PENDING_APPROVAL"
             parsed.internal_json.next_step = "await_admin_approval"
+        _enforce_single_step_collection(parsed)
         return parsed
     except LLMUnavailableError:
         logger.warning("llm_unavailable_fallback")

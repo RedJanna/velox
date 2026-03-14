@@ -9,7 +9,7 @@ from fastapi import FastAPI
 
 from velox.adapters.whatsapp.webhook import IncomingMessage
 from velox.api.routes import whatsapp_webhook
-from velox.models.conversation import Conversation
+from velox.models.conversation import Conversation, InternalJSON, LLMResponse
 
 
 @pytest.fixture
@@ -383,6 +383,28 @@ def test_payment_intake_requests_reference_and_name_before_handoff() -> None:
     assert "reference_id" in response.internal_json.required_questions
     assert "full_name" in response.internal_json.required_questions
     assert "Odeme ekibimize yonlendirebilmem" in response.user_message
+
+
+def test_enforce_single_step_collection_reduces_required_questions() -> None:
+    """Reservation verification should request only one missing field per turn."""
+    response = LLMResponse(
+        user_message="Lütfen giriş, çıkış ve yetişkin sayısını paylaşın.",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="stay_booking_create",
+            state="NEEDS_VERIFICATION",
+            entities={},
+            required_questions=["checkin_date", "checkout_date", "adults"],
+            handoff={"needed": False, "reason": None},
+            next_step="collect_missing_slots",
+        ),
+    )
+
+    whatsapp_webhook._enforce_single_step_collection(response)
+
+    assert response.internal_json.required_questions == ["checkin_date"]
+    assert "giriş tarihinizi" in response.user_message
+    assert "çıkış" not in response.user_message.casefold()
 
 
 def test_payment_intake_completes_then_routes_to_handoff() -> None:

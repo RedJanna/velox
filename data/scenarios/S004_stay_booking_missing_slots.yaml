@@ -3,7 +3,7 @@
 
 code: "S004"
 name: "Konaklama Rezervasyon - Eksik Bilgi"
-description: "Misafir eksik veya belirsiz bilgi verir. Sistem tek mesajda tum eksik slotlari sormali."
+description: "Misafir eksik veya belirsiz bilgi verir. Sistem eksik slotlari adim adim ve tek tek sormali."
 category: "stay"
 language: "tr"
 tags: ["stay", "booking", "missing_slots", "slot_filling"]
@@ -16,7 +16,7 @@ steps:
     expect_reply_contains: ["tarih", "kisi"]
     expect_reply_must_not: []
     expect_risk_flags: []
-    note: "Intent var ama 3 kritik slot eksik: checkin, checkout, adults. Hepsi TEK mesajda sorulmali."
+    note: "Intent var ama 3 kritik slot eksik: checkin, checkout, adults. Sistem once tek alan sorup yanita gore siradaki alana gecmeli."
 
   - user: "Temmuz'da gelecegiz"
     expect_intent: "stay_booking_create"
@@ -25,7 +25,7 @@ steps:
     expect_reply_contains: ["tarih"]
     expect_reply_must_not: []
     expect_risk_flags: []
-    note: "'Temmuz' belirsiz. Kesin giris/cikis tarihleri ve kisi sayisi sorulmali."
+    note: "'Temmuz' belirsiz. Bu adimda yalnizca ilgili eksik alan netlestirilmeli; birden fazla alan ayni anda istenmemeli."
 
   - user: "5-10 Temmuz, 2 kisi"
     expect_intent: "stay_availability"
