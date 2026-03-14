@@ -1138,7 +1138,7 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
     stay_select = (
         """
         SELECT hold_id, 'stay' AS type, hotel_id, status,
-               workflow_state, draft_json, expires_at, pms_create_started_at, pms_create_completed_at,
+               workflow_state, draft_json::jsonb AS draft_json, expires_at, pms_create_started_at, pms_create_completed_at,
                manual_review_reason, approval_idempotency_key, create_idempotency_key,
                approved_by, created_at, conversation_id
         FROM stay_holds
@@ -1147,7 +1147,7 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
         if include_stay_workflow
         else """
         SELECT hold_id, 'stay' AS type, hotel_id, status,
-               NULL::text AS workflow_state, draft_json, NULL::timestamptz AS expires_at,
+               NULL::text AS workflow_state, draft_json::jsonb AS draft_json, NULL::timestamptz AS expires_at,
                NULL::timestamptz AS pms_create_started_at, NULL::timestamptz AS pms_create_completed_at,
                NULL::text AS manual_review_reason, NULL::text AS approval_idempotency_key,
                NULL::text AS create_idempotency_key, approved_by, created_at, conversation_id
@@ -1158,7 +1158,7 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
     restaurant_select = """
         SELECT hold_id, 'restaurant' AS type, hotel_id, status,
                NULL::text AS workflow_state,
-               json_build_object(
+               jsonb_build_object(
                    'date', date,
                    'time', time,
                    'party_size', party_size,
@@ -1175,7 +1175,7 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
     transfer_select = """
         SELECT hold_id, 'transfer' AS type, hotel_id, status,
                NULL::text AS workflow_state,
-               json_build_object(
+               jsonb_build_object(
                    'route', route,
                    'date', date,
                    'time', time,

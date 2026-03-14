@@ -41,6 +41,8 @@ class _FakeConnection:
 
     async def fetch(self, query: str, *args: Any) -> list[dict[str, Any]]:
         _ = args
+        if self._legacy_fallback and "json_build_object(" in query:
+            raise asyncpg.CannotCoerceError("UNION could not convert type json to jsonb")
         if "FROM stay_holds" in query:
             if "workflow_state" in query and "NULL::text AS workflow_state" not in query:
                 self._workflow_query_called = True
@@ -142,3 +144,21 @@ async def test_list_holds_falls_back_when_workflow_columns_missing() -> None:
     item = result["items"][0]
     assert item["status"] == "PENDING_APPROVAL"
     assert conn._workflow_query_called is True
+
+
+@pytest.mark.asyncio
+async def test_list_holds_legacy_fallback_uses_jsonb_union_compatible_query() -> None:
+    conn = _FakeConnection(legacy_fallback=True)
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(db_pool=_FakePool(conn))))
+
+    result = await admin.list_holds(
+        request=request,
+        user=_build_user(),
+        hotel_id=21966,
+        hold_type=None,
+        status_filter=None,
+        page=1,
+        per_page=20,
+    )
+
+    assert result["total"] == 1
