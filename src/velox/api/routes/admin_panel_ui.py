@@ -33,7 +33,7 @@ def render_admin_panel_html() -> str:
   <style>{ADMIN_PANEL_STYLE}</style>
 </head>
 <body>
-  <div id="toast" class="toast info"></div>
+  <div id="toast" class="toast info" role="status" aria-live="polite"></div>
   <div class="shell">
     <aside id="sidebar" class="sidebar">
       <div class="brand">
