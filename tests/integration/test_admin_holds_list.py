@@ -42,7 +42,7 @@ class _FakeConnection:
     async def fetch(self, query: str, *args: Any) -> list[dict[str, Any]]:
         _ = args
         if "FROM stay_holds" in query:
-            if "workflow_state" in query:
+            if "workflow_state" in query and "NULL::text AS workflow_state" not in query:
                 self._workflow_query_called = True
                 if self._legacy_fallback:
                     raise asyncpg.UndefinedColumnError("workflow_state does not exist")
@@ -71,13 +71,24 @@ class _FakeConnection:
                     "type": "stay",
                     "hotel_id": 21966,
                     "status": "PENDING_APPROVAL",
+                    "workflow_state": None,
                     "draft_json": {"guest_name": "Test User"},
+                    "expires_at": None,
+                    "pms_create_started_at": None,
+                    "pms_create_completed_at": None,
+                    "manual_review_reason": None,
+                    "approval_idempotency_key": None,
+                    "create_idempotency_key": None,
                     "approved_by": None,
                     "created_at": datetime.now(UTC),
                     "conversation_id": None,
                 }
             ]
         return []
+
+    async def fetchval(self, query: str, *args: Any) -> int:
+        _ = (query, args)
+        return 1
 
 
 def _build_user() -> TokenData:
@@ -131,4 +142,3 @@ async def test_list_holds_falls_back_when_workflow_columns_missing() -> None:
     item = result["items"][0]
     assert item["status"] == "PENDING_APPROVAL"
     assert conn._workflow_query_called is True
-

@@ -1086,87 +1086,136 @@ async def list_holds(
         raise HTTPException(status_code=400, detail="Invalid hold status")
 
     db = request.app.state.db_pool
-    results: list[dict[str, Any]] = []
     effective_hotel_id = hotel_id if user.role == Role.ADMIN else user.hotel_id
+    offset = (page - 1) * per_page
+    queries = _build_unified_hold_queries(hold_type=hold_type, include_stay_workflow=True)
 
     async with db.acquire() as conn:
-        if hold_type in (None, "stay"):
-            query_with_workflow = """
-                SELECT hold_id, 'stay' AS type, hotel_id, status, workflow_state, draft_json,
-                       expires_at, pms_create_started_at, pms_create_completed_at,
-                       manual_review_reason, approval_idempotency_key, create_idempotency_key,
-                       approved_by, created_at, conversation_id
-                FROM stay_holds
-                WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
-            """
-            query_legacy = """
-                SELECT hold_id, 'stay' AS type, hotel_id, status, draft_json,
-                       approved_by, created_at, conversation_id
-                FROM stay_holds
-                WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
-            """
-            try:
-                rows = await conn.fetch(
-                    query_with_workflow,
+        try:
+            rows = await conn.fetch(
+                queries.items_query,
+                effective_hotel_id,
+                status_filter,
+                per_page,
+                offset,
+            )
+            total = int(
+                await conn.fetchval(
+                    queries.count_query,
                     effective_hotel_id,
                     status_filter,
                 )
-            except asyncpg.UndefinedColumnError:
-                rows = await conn.fetch(
-                    query_legacy,
+                or 0
+            )
+        except asyncpg.UndefinedColumnError:
+            legacy_queries = _build_unified_hold_queries(hold_type=hold_type, include_stay_workflow=False)
+            rows = await conn.fetch(
+                legacy_queries.items_query,
+                effective_hotel_id,
+                status_filter,
+                per_page,
+                offset,
+            )
+            total = int(
+                await conn.fetchval(
+                    legacy_queries.count_query,
                     effective_hotel_id,
                     status_filter,
                 )
-            results.extend(dict(row) for row in rows)
-
-        if hold_type in (None, "restaurant"):
-            query = """
-                SELECT hold_id, 'restaurant' AS type, hotel_id, status,
-                       json_build_object(
-                           'date', date,
-                           'time', time,
-                           'party_size', party_size,
-                           'guest_name', guest_name,
-                           'area', area
-                       ) AS draft_json,
-                       approved_by, created_at, conversation_id
-                FROM restaurant_holds
-                WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
-            """
-            rows = await conn.fetch(
-                query,
-                effective_hotel_id,
-                status_filter,
+                or 0
             )
-            results.extend(dict(row) for row in rows)
 
-        if hold_type in (None, "transfer"):
-            query = """
-                SELECT hold_id, 'transfer' AS type, hotel_id, status,
-                       json_build_object(
-                           'route', route,
-                           'date', date,
-                           'time', time,
-                           'pax_count', pax_count,
-                           'guest_name', guest_name,
-                           'price_eur', price_eur
-                       ) AS draft_json,
-                       approved_by, created_at, conversation_id
-                FROM transfer_holds
-                WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
-            """
-            rows = await conn.fetch(
-                query,
-                effective_hotel_id,
-                status_filter,
-            )
-            results.extend(dict(row) for row in rows)
+    return {"items": [dict(row) for row in rows], "total": total, "page": page, "per_page": per_page}
 
-    results.sort(key=lambda row: row["created_at"], reverse=True)
-    total = len(results)
-    offset = (page - 1) * per_page
-    paged_items = results[offset : offset + per_page]
-    return {"items": paged_items, "total": total, "page": page, "per_page": per_page}
+
+class _UnifiedHoldQueries(BaseModel):
+    items_query: str
+    count_query: str
+
+
+def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow: bool) -> _UnifiedHoldQueries:
+    """Return SQL queries for paginated unified hold listing."""
+    stay_select = (
+        """
+        SELECT hold_id, 'stay' AS type, hotel_id, status,
+               workflow_state, draft_json, expires_at, pms_create_started_at, pms_create_completed_at,
+               manual_review_reason, approval_idempotency_key, create_idempotency_key,
+               approved_by, created_at, conversation_id
+        FROM stay_holds
+        WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
+        """
+        if include_stay_workflow
+        else """
+        SELECT hold_id, 'stay' AS type, hotel_id, status,
+               NULL::text AS workflow_state, draft_json, NULL::timestamptz AS expires_at,
+               NULL::timestamptz AS pms_create_started_at, NULL::timestamptz AS pms_create_completed_at,
+               NULL::text AS manual_review_reason, NULL::text AS approval_idempotency_key,
+               NULL::text AS create_idempotency_key, approved_by, created_at, conversation_id
+        FROM stay_holds
+        WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
+        """
+    )
+    restaurant_select = """
+        SELECT hold_id, 'restaurant' AS type, hotel_id, status,
+               NULL::text AS workflow_state,
+               json_build_object(
+                   'date', date,
+                   'time', time,
+                   'party_size', party_size,
+                   'guest_name', guest_name,
+                   'area', area
+               ) AS draft_json,
+               NULL::timestamptz AS expires_at, NULL::timestamptz AS pms_create_started_at,
+               NULL::timestamptz AS pms_create_completed_at, NULL::text AS manual_review_reason,
+               NULL::text AS approval_idempotency_key, NULL::text AS create_idempotency_key,
+               approved_by, created_at, conversation_id
+        FROM restaurant_holds
+        WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
+    """
+    transfer_select = """
+        SELECT hold_id, 'transfer' AS type, hotel_id, status,
+               NULL::text AS workflow_state,
+               json_build_object(
+                   'route', route,
+                   'date', date,
+                   'time', time,
+                   'pax_count', pax_count,
+                   'guest_name', guest_name,
+                   'price_eur', price_eur
+               ) AS draft_json,
+               NULL::timestamptz AS expires_at, NULL::timestamptz AS pms_create_started_at,
+               NULL::timestamptz AS pms_create_completed_at, NULL::text AS manual_review_reason,
+               NULL::text AS approval_idempotency_key, NULL::text AS create_idempotency_key,
+               approved_by, created_at, conversation_id
+        FROM transfer_holds
+        WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
+    """
+
+    parts: list[str] = []
+    if hold_type in (None, "stay"):
+        parts.append(stay_select.strip())
+    if hold_type in (None, "restaurant"):
+        parts.append(restaurant_select.strip())
+    if hold_type in (None, "transfer"):
+        parts.append(transfer_select.strip())
+
+    union_sql = "\nUNION ALL\n".join(parts)
+    return _UnifiedHoldQueries(
+        items_query=(
+            "WITH unified_holds AS (\n"
+            f"{union_sql}\n"
+            ")\n"
+            "SELECT * FROM unified_holds\n"
+            "ORDER BY created_at DESC\n"
+            "LIMIT $3 OFFSET $4"
+        ),
+        count_query=(
+            "WITH unified_holds AS (\n"
+            f"{union_sql}\n"
+            ")\n"
+            "SELECT COUNT(*) FROM unified_holds"
+        ),
+    )
 
 
 def _resolve_hold_target(hold_id: str) -> tuple[str, str]:
