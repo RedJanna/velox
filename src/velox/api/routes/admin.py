@@ -1137,22 +1137,61 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
     """Return SQL queries for paginated unified hold listing."""
     stay_select = (
         """
-        SELECT hold_id, 'stay' AS type, hotel_id, status,
-               workflow_state, draft_json::jsonb AS draft_json, expires_at, pms_create_started_at, pms_create_completed_at,
-               manual_review_reason, approval_idempotency_key, create_idempotency_key,
-               pms_reservation_id, voucher_no, approved_by, approved_at, created_at, conversation_id
-        FROM stay_holds
-        WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
+        SELECT sh.hold_id, 'stay' AS type, sh.hotel_id, sh.status,
+               sh.workflow_state, sh.draft_json::jsonb AS draft_json, sh.expires_at,
+               sh.pms_create_started_at, sh.pms_create_completed_at, sh.manual_review_reason,
+               sh.approval_idempotency_key, sh.create_idempotency_key,
+               sh.pms_reservation_id, sh.voucher_no, sh.approved_by, sh.approved_at,
+               approval_meta.approval_decided_at, payment_meta.payment_requested_at,
+               sh.created_at, sh.conversation_id
+        FROM stay_holds sh
+        LEFT JOIN LATERAL (
+            SELECT ar.decided_at AS approval_decided_at
+            FROM approval_requests ar
+            WHERE ar.hotel_id = sh.hotel_id
+              AND ar.reference_id = sh.hold_id
+              AND ar.approval_type = 'STAY'
+            ORDER BY ar.created_at DESC
+            LIMIT 1
+        ) AS approval_meta ON true
+        LEFT JOIN LATERAL (
+            SELECT pr.created_at AS payment_requested_at
+            FROM payment_requests pr
+            WHERE pr.hotel_id = sh.hotel_id
+              AND (pr.reference_id = sh.pms_reservation_id OR pr.reference_id = sh.hold_id)
+            ORDER BY pr.created_at DESC
+            LIMIT 1
+        ) AS payment_meta ON true
+        WHERE ($1::int IS NULL OR sh.hotel_id = $1) AND ($2::text IS NULL OR sh.status = $2)
         """
         if include_stay_workflow
         else """
-        SELECT hold_id, 'stay' AS type, hotel_id, status,
-               NULL::text AS workflow_state, draft_json::jsonb AS draft_json, NULL::timestamptz AS expires_at,
+        SELECT sh.hold_id, 'stay' AS type, sh.hotel_id, sh.status,
+               NULL::text AS workflow_state, sh.draft_json::jsonb AS draft_json, NULL::timestamptz AS expires_at,
                 NULL::timestamptz AS pms_create_started_at, NULL::timestamptz AS pms_create_completed_at,
                 NULL::text AS manual_review_reason, NULL::text AS approval_idempotency_key,
-               NULL::text AS create_idempotency_key, pms_reservation_id, voucher_no, approved_by, approved_at, created_at, conversation_id
-        FROM stay_holds
-        WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
+               NULL::text AS create_idempotency_key, sh.pms_reservation_id, sh.voucher_no, sh.approved_by, sh.approved_at,
+               approval_meta.approval_decided_at, payment_meta.payment_requested_at,
+               sh.created_at, sh.conversation_id
+        FROM stay_holds sh
+        LEFT JOIN LATERAL (
+            SELECT ar.decided_at AS approval_decided_at
+            FROM approval_requests ar
+            WHERE ar.hotel_id = sh.hotel_id
+              AND ar.reference_id = sh.hold_id
+              AND ar.approval_type = 'STAY'
+            ORDER BY ar.created_at DESC
+            LIMIT 1
+        ) AS approval_meta ON true
+        LEFT JOIN LATERAL (
+            SELECT pr.created_at AS payment_requested_at
+            FROM payment_requests pr
+            WHERE pr.hotel_id = sh.hotel_id
+              AND (pr.reference_id = sh.pms_reservation_id OR pr.reference_id = sh.hold_id)
+            ORDER BY pr.created_at DESC
+            LIMIT 1
+        ) AS payment_meta ON true
+        WHERE ($1::int IS NULL OR sh.hotel_id = $1) AND ($2::text IS NULL OR sh.status = $2)
         """
     )
     restaurant_select = """
@@ -1168,7 +1207,9 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
                 NULL::timestamptz AS expires_at, NULL::timestamptz AS pms_create_started_at,
                 NULL::timestamptz AS pms_create_completed_at, NULL::text AS manual_review_reason,
                 NULL::text AS approval_idempotency_key, NULL::text AS create_idempotency_key,
-               NULL::text AS pms_reservation_id, NULL::text AS voucher_no, approved_by, approved_at, created_at, conversation_id
+               NULL::text AS pms_reservation_id, NULL::text AS voucher_no, approved_by, approved_at,
+               NULL::timestamptz AS approval_decided_at, NULL::timestamptz AS payment_requested_at,
+               created_at, conversation_id
         FROM restaurant_holds
         WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
     """
@@ -1186,7 +1227,9 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
                 NULL::timestamptz AS expires_at, NULL::timestamptz AS pms_create_started_at,
                 NULL::timestamptz AS pms_create_completed_at, NULL::text AS manual_review_reason,
                 NULL::text AS approval_idempotency_key, NULL::text AS create_idempotency_key,
-               NULL::text AS pms_reservation_id, NULL::text AS voucher_no, approved_by, approved_at, created_at, conversation_id
+               NULL::text AS pms_reservation_id, NULL::text AS voucher_no, approved_by, approved_at,
+               NULL::timestamptz AS approval_decided_at, NULL::timestamptz AS payment_requested_at,
+               created_at, conversation_id
         FROM transfer_holds
         WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
     """

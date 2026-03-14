@@ -1078,6 +1078,7 @@ function mapManualReviewReason(reason) {
 }
 
 function formatHoldTimeline(item) {
+  const approvalTimestamp = item.approval_decided_at || item.approved_at || null;
   const rows = [
     {
       label: 'Hold olusturuldu',
@@ -1086,8 +1087,8 @@ function formatHoldTimeline(item) {
     },
     {
       label: 'Admin onayi',
-      value: item.approved_at ? formatDate(item.approved_at) : 'Bekleniyor',
-      level: item.approved_at ? 'done' : 'warn',
+      value: approvalTimestamp ? formatDate(approvalTimestamp) : 'Bekleniyor',
+      level: approvalTimestamp ? 'done' : 'warn',
     },
     {
       label: 'PMS create basladi',
@@ -1098,6 +1099,11 @@ function formatHoldTimeline(item) {
       label: 'PMS create tamamlandi',
       value: item.pms_create_completed_at ? formatDate(item.pms_create_completed_at) : 'Tamamlanmadi',
       level: item.pms_create_completed_at ? 'done' : 'warn',
+    },
+    {
+      label: 'Odeme talebi',
+      value: item.payment_requested_at ? formatDate(item.payment_requested_at) : 'Olusturulmadi',
+      level: item.payment_requested_at ? 'done' : 'warn',
     },
     {
       label: 'Mevcut workflow',
