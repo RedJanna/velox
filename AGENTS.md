@@ -1,7 +1,7 @@
 # Velox (NexlumeAI) — Codex Project Guide
 
-> **Sürüm:** v3.3 | **Son güncelleme:** 2026-03-14 14:48:46
-> **Değişiklik özeti:** Migration eksikliği durumunda LLM'in izin isteyerek tek satır operasyon komutu üretme/uygulama kuralı eklendi.
+> **Sürüm:** v3.4 | **Son güncelleme:** 2026-03-14 19:56:02
+> **Değişiklik özeti:** Admin panel frontend asset'leri yardımcı modüle bölündü ve embedded UI modül yapısı güncellendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -378,6 +378,6 @@ src/velox/
 ├── policies/                  # Business rules (approval, payment, cancellation)
 ├── models/                    # Pydantic data models
 ├── db/                        # Database connection, repositories, migrations
-├── api/                       # FastAPI routes + middleware
+├── api/                       # FastAPI routes, middleware, embedded admin/chat-lab UI modules
 └── utils/                     # Logging, i18n, validators
 ```

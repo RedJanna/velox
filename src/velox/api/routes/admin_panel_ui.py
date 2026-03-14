@@ -240,7 +240,7 @@ def render_admin_panel_html() -> str:
                 <div><h3>Konuşma Listesi</h3><p>Filtreleri sade tutun, riskli olanları hızlıca açın.</p></div>
               </div>
               <form id="conversationFilters" class="toolbar">
-                <select name="status">
+                <select name="status" aria-label="Konusma durumu">
                   <option value="">Tum durumlar</option>
                   <option value="GREETING">GREETING</option>
                   <option value="PENDING_APPROVAL">PENDING_APPROVAL</option>
@@ -270,13 +270,13 @@ def render_admin_panel_html() -> str:
               <div><h3>Birleşik Hold Masası</h3><p>Konaklama, restoran ve transfer taleplerini tek kurgu ile yönetin.</p></div>
             </div>
             <form id="holdFilters" class="toolbar">
-              <select name="hold_type">
+              <select name="hold_type" aria-label="Hold tipi">
                 <option value="">Tum tipler</option>
                 <option value="stay">Stay</option>
                 <option value="restaurant">Restaurant</option>
                 <option value="transfer">Transfer</option>
               </select>
-              <select name="status">
+              <select name="status" aria-label="Hold durumu">
                 <option value="">Tum statuler</option>
                 <option value="PENDING_APPROVAL">PENDING_APPROVAL</option>
                 <option value="APPROVED">APPROVED</option>
@@ -299,14 +299,14 @@ def render_admin_panel_html() -> str:
               <div><h3>Ticket Takibi</h3><p>Sahiplik ve kapanış durumunu kaybetmeden ekip akışına müdahale edin.</p></div>
             </div>
             <form id="ticketFilters" class="toolbar">
-              <select name="status">
+              <select name="status" aria-label="Ticket durumu">
                 <option value="">Tum statuler</option>
                 <option value="OPEN">OPEN</option>
                 <option value="IN_PROGRESS">IN_PROGRESS</option>
                 <option value="RESOLVED">RESOLVED</option>
                 <option value="CLOSED">CLOSED</option>
               </select>
-              <select name="priority">
+              <select name="priority" aria-label="Ticket onceligi">
                 <option value="">Tum oncelikler</option>
                 <option value="high">high</option>
                 <option value="medium">medium</option>
@@ -328,7 +328,7 @@ def render_admin_panel_html() -> str:
             <div class="module-header">
               <div><h3>Hotel Profile Editor</h3><p>Panelden guncellenen veri YAML kaynagina yazilir ve runtime cache yenilenir.</p></div>
               <div class="module-actions">
-                <select id="hotelProfileSelect" class="sidebar-select min-w-select"></select>
+                <select id="hotelProfileSelect" class="sidebar-select min-w-select" aria-label="Hotel profile secimi"></select>
                 <button id="saveHotelProfile" class="inline-button primary" type="button">Profile Kaydet</button>
               </div>
             </div>
@@ -347,14 +347,14 @@ def render_admin_panel_html() -> str:
                 <div><h3>FAQ Kayitlari</h3><p>Sadece aktif kayitlar cevap motorunda kullanilir. Uygunsuz icerikleri aninda kaldirin.</p></div>
               </div>
               <form id="faqFilters" class="toolbar">
-                <select name="status">
+                <select name="status" aria-label="FAQ durumu">
                   <option value="">Tum durumlar</option>
                   <option value="DRAFT">DRAFT</option>
                   <option value="ACTIVE">ACTIVE</option>
                   <option value="PAUSED">PAUSED</option>
                   <option value="REMOVED">REMOVED</option>
                 </select>
-                <input name="q" placeholder="Konu, soru veya cevap ara">
+                <input name="q" placeholder="Konu, soru veya cevap ara" aria-label="FAQ arama metni">
                 <button class="primary" type="submit">Filtrele</button>
               </form>
               <div class="table-shell">
@@ -376,9 +376,9 @@ def render_admin_panel_html() -> str:
               <div><h3>Slot Yonetimi</h3><p>Kapasiteyi tarih ve saat bazli tut, dar ekranda bile kritik kolonlari kaybetme.</p></div>
             </div>
             <form id="slotFilters" class="toolbar">
-              <input name="date_from" type="date">
-              <input name="date_to" type="date">
-              <button id="loadSlotsButton" class="primary" type="button">Slotlari Getir</button>
+              <input name="date_from" type="date" aria-label="Slot baslangic tarihi">
+              <input name="date_to" type="date" aria-label="Slot bitis tarihi">
+              <button id="loadSlotsButton" class="primary" type="button" aria-label="Slotlari getir">Slotlari Getir</button>
             </form>
             <div class="table-shell">
               <table>
@@ -393,12 +393,12 @@ def render_admin_panel_html() -> str:
               <div><h3>Yeni Slot Araligi</h3><p>Toplu kapasite acmak icin tarih araligini tek formdan olusturun.</p></div>
             </div>
             <form id="slotCreateForm" class="dense-form">
-              <div class="field"><label>Tarih baslangic</label><input name="date_from" type="date" required></div>
-              <div class="field"><label>Tarih bitis</label><input name="date_to" type="date" required></div>
-              <div class="field"><label>Saat</label><input name="time" type="time" required></div>
-              <div class="field"><label>Alan</label><select name="area"><option value="outdoor">outdoor</option><option value="indoor">indoor</option></select></div>
-              <div class="field"><label>Toplam kapasite</label><input name="total_capacity" type="number" min="1" required></div>
-              <div class="field"><label>Aktif</label><input name="is_active" type="checkbox" checked class="checkbox-field"></div>
+              <div class="field"><label>Tarih baslangic</label><input name="date_from" type="date" required aria-label="Yeni slot baslangic tarihi"></div>
+              <div class="field"><label>Tarih bitis</label><input name="date_to" type="date" required aria-label="Yeni slot bitis tarihi"></div>
+              <div class="field"><label>Saat</label><input name="time" type="time" required aria-label="Yeni slot saati"></div>
+              <div class="field"><label>Alan</label><select name="area" aria-label="Yeni slot alani"><option value="outdoor">outdoor</option><option value="indoor">indoor</option></select></div>
+              <div class="field"><label>Toplam kapasite</label><input name="total_capacity" type="number" min="1" required aria-label="Yeni slot toplam kapasitesi"></div>
+              <div class="field"><label>Aktif</label><input name="is_active" type="checkbox" checked class="checkbox-field" aria-label="Yeni slot aktif mi"></div>
               <div class="field full"><button class="inline-button primary" type="submit">Slot Araligi Olustur</button></div>
             </form>
           </article>
@@ -416,8 +416,8 @@ def render_admin_panel_html() -> str:
               </table>
             </div>
             <form id="addNotifPhoneForm" class="dense-form mt-lg">
-              <div class="field"><label>Telefon numarasi</label><input name="phone" placeholder="+905XXXXXXXXX" required></div>
-              <div class="field"><label>Etiket (opsiyonel)</label><input name="label" placeholder="Orn: Satis muduru"></div>
+              <div class="field"><label>Telefon numarasi</label><input name="phone" placeholder="+905XXXXXXXXX" required aria-label="Bildirim telefon numarasi"></div>
+              <div class="field"><label>Etiket (opsiyonel)</label><input name="label" placeholder="Orn: Satis muduru" aria-label="Bildirim etiketi"></div>
               <div class="field full"><button class="inline-button primary" type="submit">Numara Ekle</button></div>
             </form>
           </article>
@@ -496,7 +496,7 @@ def render_admin_panel_html() -> str:
         <input id="decisionHoldId" type="hidden">
         <input id="decisionMode" type="hidden">
         <label for="decisionReason">Gerekce</label>
-        <textarea id="decisionReason" required class="dialog-textarea"></textarea>
+        <textarea id="decisionReason" required class="dialog-textarea" aria-label="Red gerekcesi"></textarea>
         <div class="dialog-actions">
           <button id="closeDecision" class="inline-button secondary" type="button">Vazgec</button>
           <button class="inline-button danger" type="submit">Reddi Uygula</button>

@@ -19,6 +19,7 @@ TEST_CHAT_HTML = (
 </style>
 </head>
 <body>
+<div id="toast" class="toast info" role="status" aria-live="polite"></div>
 <div class="app">
   <div class="header">
     <div class="header-brand">
@@ -170,7 +171,7 @@ TEST_CHAT_HTML = (
               </label>
             </div>
             <button class="btn btn-save btn-block mt-md" id="feedback-submit" type="button">Geri Bildirimi Kaydet</button>
-            <div class="meta-box hidden mt-sm" id="feedback-result"></div>
+            <div class="meta-box hidden mt-sm" id="feedback-result" aria-live="polite"></div>
           </div>
         </div>
         <div class="debug-section">
@@ -189,7 +190,7 @@ TEST_CHAT_HTML = (
             <input id="report-date-to" class="debug-input" type="datetime-local">
           </div>
           <button class="btn btn-primary btn-block mt-md" id="report-submit" type="button">Genel Rapor Uret</button>
-          <div class="list mt-sm" id="report-result"></div>
+          <div class="list mt-sm" id="report-result" aria-live="polite"></div>
         </div>
       </div>
     </div>

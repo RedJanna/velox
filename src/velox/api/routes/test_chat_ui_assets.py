@@ -39,6 +39,9 @@ body{overflow:hidden}
 .btn:hover{transform:translateY(-1px)}.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
 .btn-reset{background:#fee2e2;color:#991b1b}.btn-save{background:var(--amber);color:#4a3405}.btn-ghost{background:rgba(18,33,59,.08);color:var(--ink)}.btn-primary{background:var(--teal);color:#fff}
 .btn-toggle{display:none}
+.toast{position:fixed;top:18px;right:18px;min-width:240px;max-width:360px;padding:12px 14px;border-radius:16px;box-shadow:var(--shadow);z-index:60;background:var(--navy);color:#fff;opacity:0;pointer-events:none;transform:translateY(-8px);transition:.18s ease}
+.toast.is-visible{opacity:1;transform:none}
+.toast.info{background:var(--navy)}.toast.success{background:var(--teal)}.toast.warn{background:#92400e}.toast.error{background:#991b1b}
 .main{display:flex;flex:1;min-height:0}
 .chat-panel{flex:1;display:flex;flex-direction:column;min-width:0}
 .messages{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:12px}
@@ -127,6 +130,7 @@ TEST_CHAT_SCRIPT = UI_SHARED_SCRIPT + """\
 const API = '/api/v1/test';
 const ADMIN_ENTRY_PATH = '/admin';
 const CSRF_COOKIE = 'velox_admin_csrf';
+const TOAST_TIMEOUT_MS = 2800;
 const DEFAULT_FEEDBACK_SCALES = [
   {rating: 1, label: 'Kesinlikle Yanlis', summary: 'Yanit tamamen hatali.', tooltip: 'Bilgi tamamen yanlis mi? Burayi sec ve dogruyu sisteme ogret.', correction_required: true},
   {rating: 2, label: 'Hatali Anlatim', summary: 'Bilgi ozunde dogru ama anlatim bozuk.', tooltip: 'Bilgi dogru ama anlatim bozuk mu?', correction_required: true},
@@ -189,6 +193,7 @@ const state = {
   feedbackStates: new Map(),
   selectedFeedback: null,
   manualTagTouched: false,
+  refreshPromise: null,
 };
 const CATEGORY_PRIORITY = ['yanlis_bilgi', 'eksik_bilgi', 'baglam_kopuklugu', 'intent_iskalama', 'mantik_celiskisi', 'format_ihlali', 'gevezelik', 'alakasiz_yanit', 'uydurma_bilgi', 'ton_politika_ihlali', 'ozel_kategori'];
 const CATEGORY_TAG_SUGGESTIONS = {
@@ -298,6 +303,43 @@ function adminToken() {
   return state.adminToken || '';
 }
 
+let _refreshResolver = null;
+let _refreshTimer = null;
+
+function notify(message, tone = 'info') {
+  const toast = el('toast');
+  if (!toast || !message) return;
+  toast.textContent = message;
+  toast.className = `toast ${tone} is-visible`;
+  window.clearTimeout(notify.timer);
+  notify.timer = window.setTimeout(() => {
+    toast.className = `toast ${tone}`;
+  }, TOAST_TIMEOUT_MS);
+}
+
+function finishParentRefresh(success) {
+  if (_refreshTimer) {
+    window.clearTimeout(_refreshTimer);
+    _refreshTimer = null;
+  }
+  if (_refreshResolver) {
+    _refreshResolver(Boolean(success));
+    _refreshResolver = null;
+  }
+  state.refreshPromise = null;
+}
+
+function requestParentSessionRefresh() {
+  if (window.parent === window) return Promise.resolve(false);
+  if (state.refreshPromise) return state.refreshPromise;
+  state.refreshPromise = new Promise(resolve => {
+    _refreshResolver = resolve;
+    _refreshTimer = window.setTimeout(() => finishParentRefresh(false), 4000);
+    window.parent.postMessage({type: 'chatlab:auth-required'}, window.location.origin);
+  });
+  return state.refreshPromise;
+}
+
 function ensureAdminSession() {
   // Access control is enforced by backend (cookie or bearer).
   // Do not require a bearer token on page load; cookie-only sessions are valid.
@@ -306,6 +348,7 @@ function ensureAdminSession() {
 
 async function apiFetch(path, options = {}) {
   const headers = {...(options.headers || {})};
+  const allowRefresh = options.allowRefresh !== false;
   const method = String(options.method || 'GET').toUpperCase();
   if (!isSafeMethod(method)) {
     const csrfToken = readCookie(CSRF_COOKIE);
@@ -315,11 +358,16 @@ async function apiFetch(path, options = {}) {
   }
   const token = adminToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(API + path, {
-    ...options,
-    headers,
-    credentials: 'same-origin',
-  });
+  let response;
+  try {
+    response = await fetch(API + path, {
+      ...options,
+      headers,
+      credentials: 'same-origin',
+    });
+  } catch (_error) {
+    throw new Error('Baglanti sorunu. Lutfen tekrar deneyin.');
+  }
   let data = null;
   let rawText = '';
   try {
@@ -332,6 +380,12 @@ async function apiFetch(path, options = {}) {
     }
   }
   if (!response.ok) {
+    if (response.status === 401 && allowRefresh) {
+      const refreshed = await requestParentSessionRefresh();
+      if (refreshed) {
+        return apiFetch(path, {...options, allowRefresh: false});
+      }
+    }
     if (response.status === 401) {
       if (window.parent !== window) {
         window.parent.postMessage({type: 'chatlab:auth-required'}, window.location.origin);
@@ -421,6 +475,7 @@ function buildFeedbackBar(messageId) {
     button.className = 'feedback-score';
     button.textContent = item.rating;
     button.title = item.tooltip;
+    button.setAttribute('aria-label', `Mesaj puani ${item.rating}: ${item.label}`);
     const selected = state.selectedFeedback && state.selectedFeedback.messageId === messageId && state.selectedFeedback.rating === item.rating;
     if ((saved && saved.rating === item.rating) || selected) button.classList.add('is-active');
     button.addEventListener('click', () => selectFeedback(messageId, item.rating));
@@ -555,7 +610,7 @@ function renderRoleMappingPanel(response) {
   fields.innerHTML = (response.participants || []).map(item => `
     <div class="field-stack">
       <label>${escapeHtml(item.label || item.phone)}</label>
-      <select class="debug-select role-mapping-select" data-phone="${escapeHtml(item.phone)}">
+      <select class="debug-select role-mapping-select" data-phone="${escapeHtml(item.phone)}" aria-label="${escapeHtml((item.label || item.phone) + ' rol secimi')}">
         <option value="user" ${item.suggested_role === 'user' ? 'selected' : ''}>Musteri</option>
         <option value="assistant" ${item.suggested_role === 'assistant' ? 'selected' : ''}>Asistan</option>
         <option value="system" ${item.suggested_role === 'system' ? 'selected' : ''}>Sistem</option>
@@ -608,11 +663,15 @@ function refreshDebugFromLatestAssistant() {
 async function loadHistory() {
   if (state.sourceType !== 'live_test_chat') return;
   const phone = encodeURIComponent(el('phone-input').value.trim() || 'test_user_123');
-  const data = await apiFetch(`/chat/history?phone=${phone}`);
-  state.messages = data.messages || [];
-  state.conversation = data.conversation || null;
-  renderMessages();
-  refreshDebugFromLatestAssistant();
+  try {
+    const data = await apiFetch(`/chat/history?phone=${phone}`);
+    state.messages = data.messages || [];
+    state.conversation = data.conversation || null;
+    renderMessages();
+    refreshDebugFromLatestAssistant();
+  } catch (error) {
+    notify(error.message || 'Konusma gecmisi yuklenemedi.', 'error');
+  }
 }
 
 async function sendMessage() {
@@ -656,8 +715,9 @@ async function sendMessage() {
     el('msg-input').value = '';
     renderMessages();
     updateDebug(state.messages[state.messages.length - 1]);
+    notify('Mesaj gonderildi.', 'success');
   } catch (error) {
-    el('source-banner').textContent = error.message || 'Mesaj gonderilemedi.';
+    notify(error.message || 'Mesaj gonderilemedi.', 'error');
   } finally {
     hideTyping();
     state.isSending = false;
@@ -679,14 +739,19 @@ async function resetConversation() {
   }
 
   const phone = encodeURIComponent(el('phone-input').value.trim() || 'test_user_123');
-  await apiFetch(`/chat/reset?phone=${phone}`, {method: 'POST'});
-  state.messages = [];
-  state.conversation = null;
-  state.feedbackStates.clear();
-  state.selectedFeedback = null;
-  renderMessages();
-  renderFeedbackStudio();
-  updateDebug(null);
+  try {
+    await apiFetch(`/chat/reset?phone=${phone}`, {method: 'POST'});
+    state.messages = [];
+    state.conversation = null;
+    state.feedbackStates.clear();
+    state.selectedFeedback = null;
+    renderMessages();
+    renderFeedbackStudio();
+    updateDebug(null);
+    notify('Konusma sifirlandi.', 'success');
+  } catch (error) {
+    notify(error.message || 'Konusma sifirlanamadi.', 'error');
+  }
 }
 
 async function downloadConversation() {
@@ -697,8 +762,12 @@ async function downloadConversation() {
 }
 
 async function refreshImportFiles() {
-  const data = await apiFetch('/chat/import-files');
-  renderImportOptions(data.items || []);
+  try {
+    const data = await apiFetch('/chat/import-files');
+    renderImportOptions(data.items || []);
+  } catch (error) {
+    notify(error.message || 'Import listesi yuklenemedi.', 'error');
+  }
 }
 
 async function loadSelectedImport(roleMapping = {}) {
@@ -714,11 +783,17 @@ async function loadSelectedImport(roleMapping = {}) {
     return;
   }
 
-  const data = await apiFetch('/chat/import-load', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({filename: filename, role_mapping: roleMapping}),
-  });
+  let data;
+  try {
+    data = await apiFetch('/chat/import-load', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({filename: filename, role_mapping: roleMapping}),
+    });
+  } catch (error) {
+    notify(error.message || 'Import yuklenemedi.', 'error');
+    return;
+  }
   state.sourceType = data.source_type;
   state.importFile = data.file_name;
   state.importMetadata = {...(data.metadata || {}), conversation_id: data.conversation_id, source_label: data.source_label};
@@ -803,9 +878,11 @@ async function submitFeedback() {
     renderMessages();
     el('feedback-result').classList.remove('hidden');
     el('feedback-result').textContent = `Kayit: ${data.storage_path}`;
+    notify('Geri bildirim kaydedildi.', 'success');
   } catch (error) {
     el('feedback-result').classList.remove('hidden');
     el('feedback-result').textContent = error.message || 'Geri bildirim kaydedilemedi.';
+    notify(error.message || 'Geri bildirim kaydedilemedi.', 'error');
   }
 }
 
@@ -838,8 +915,10 @@ async function generateReport() {
         <strong>${escapeHtml(data.selected_model || '-')} | ${escapeHtml(data.report_path || '-')}</strong>
         <span>${escapeHtml(data.summary || '-')}</span>
       </div>${items}`;
+    notify('Rapor olusturuldu.', 'success');
   } catch (error) {
     el('report-result').textContent = error.message || 'Rapor olusturulamadi.';
+    notify(error.message || 'Rapor olusturulamadi.', 'error');
   }
 }
 
@@ -861,7 +940,7 @@ async function loadCatalog() {
       categories: DEFAULT_FEEDBACK_CATEGORIES,
       tags: DEFAULT_FEEDBACK_TAGS,
     };
-    el('source-banner').textContent = error.message || 'Feedback katalogu alinamadi; varsayilan puanlar kullaniliyor.';
+    notify(error.message || 'Feedback katalogu alinamadi; varsayilan puanlar kullaniliyor.', 'warn');
   }
   renderCategoryOptions();
   renderTagOptions();
@@ -870,19 +949,28 @@ async function loadCatalog() {
 }
 
 async function loadModels() {
-  const data = await apiFetch('/models');
-  el('model-select').innerHTML = (data.models || []).map(model => `
-    <option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join('');
-  if (data.current) el('model-select').value = data.current;
+  try {
+    const data = await apiFetch('/models');
+    el('model-select').innerHTML = (data.models || []).map(model => `
+      <option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join('');
+    if (data.current) el('model-select').value = data.current;
+  } catch (error) {
+    notify(error.message || 'Model listesi yuklenemedi.', 'error');
+  }
 }
 
 async function changeModel() {
   const model = el('model-select').value;
-  await apiFetch('/model', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({model: model}),
-  });
+  try {
+    await apiFetch('/model', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({model: model}),
+    });
+    notify('Model guncellendi.', 'success');
+  } catch (error) {
+    notify(error.message || 'Model guncellenemedi.', 'error');
+  }
 }
 
 // isoToLocalInput provided by UI_SHARED_SCRIPT
@@ -927,13 +1015,14 @@ function wireEvents() {
 async function boot() {
   if (_booted) return;
   _booted = true;
+  startInteractiveLabelObserver(document.body);
   wireEvents();
   renderCategoryOptions();
   renderTagOptions();
   try {
     await Promise.all([loadCatalog(), loadModels(), refreshImportFiles()]);
   } catch (error) {
-    el('source-banner').textContent = error.message || 'Panel baslatilamadi. Lutfen tekrar deneyin.';
+    notify(error.message || 'Panel baslatilamadi. Lutfen tekrar deneyin.', 'error');
     _booted = false;
     return;
   }
@@ -949,9 +1038,12 @@ window.addEventListener('load', boot);
 // Accept auth token from parent admin panel when running inside an iframe.
 window.addEventListener('message', event => {
   if (event.origin !== window.location.origin) return;
-  if (event.data && event.data.type === 'chatlab:token' && event.data.token) {
-    state.adminToken = String(event.data.token);
-    boot();
+  if (event.data && event.data.type === 'chatlab:token') {
+    state.adminToken = String(event.data.token || '');
+    finishParentRefresh(Boolean(state.adminToken));
+    if (state.adminToken) {
+      boot();
+    }
   }
 });
 """

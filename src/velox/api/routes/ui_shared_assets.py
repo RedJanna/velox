@@ -103,4 +103,56 @@ function isoToLocalInput(value) {
   var pad = function(part) { return String(part).padStart(2, '0'); };
   return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
 }
+
+function findLabelText(node, root) {
+  if (!node) return '';
+  var scope = root || document;
+  var text = '';
+  if (node.id) {
+    var safeId = node.id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    var explicitLabel = scope.querySelector('label[for="' + safeId + '"]') || document.querySelector('label[for="' + safeId + '"]');
+    text = explicitLabel ? explicitLabel.textContent : '';
+  }
+  if (!text) {
+    var wrappingLabel = node.closest('label');
+    text = wrappingLabel ? wrappingLabel.textContent : '';
+  }
+  if (!text && node.tagName === 'BUTTON') {
+    text = node.textContent || node.title || '';
+  }
+  if (!text) {
+    text = node.getAttribute('placeholder') || node.getAttribute('name') || '';
+  }
+  return String(text || '').replace(/\\s+/g, ' ').trim();
+}
+
+function ensureInteractiveLabels(root) {
+  var scope = root || document;
+  scope.querySelectorAll('button, input, select, textarea').forEach(function(node) {
+    if (node.type === 'hidden') return;
+    if (node.hasAttribute('aria-label') || node.hasAttribute('aria-labelledby')) return;
+    var label = findLabelText(node, scope);
+    if (label) {
+      node.setAttribute('aria-label', label);
+    }
+  });
+}
+
+var _interactiveLabelObserverStarted = false;
+
+function startInteractiveLabelObserver(root) {
+  var scope = root || document.body;
+  ensureInteractiveLabels(document);
+  if (_interactiveLabelObserverStarted || typeof MutationObserver === 'undefined' || !scope) return;
+  _interactiveLabelObserverStarted = true;
+  var observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      mutation.addedNodes.forEach(function(node) {
+        if (!(node instanceof Element)) return;
+        ensureInteractiveLabels(node);
+      });
+    });
+  });
+  observer.observe(scope, {childList: true, subtree: true});
+}
 """
