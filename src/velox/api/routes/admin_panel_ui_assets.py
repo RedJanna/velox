@@ -127,6 +127,14 @@ tbody tr:hover{background:#fffcf7}
 .hold-summary-grid span{font-size:12px;color:var(--muted)}
 .hold-summary-grid strong{display:block;font-size:13px;color:var(--ink)}
 .hold-detail-actions{position:sticky;bottom:0;background:var(--surface);padding-top:12px}
+.hold-timeline{display:flex;flex-direction:column;gap:8px}
+.hold-timeline-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:12px;background:var(--surface);border:1px solid var(--line)}
+.hold-timeline-item strong{display:block;font-size:13px}
+.hold-timeline-item span{font-size:12px;color:var(--muted)}
+.hold-timeline-dot{width:10px;height:10px;border-radius:999px;margin-top:5px;background:#d1d5db}
+.hold-timeline-dot.done{background:#0f766e}
+.hold-timeline-dot.warn{background:#b45309}
+.hold-timeline-dot.danger{background:#b42318}
 .queue-list{display:flex;flex-direction:column;gap:10px}
 .queue-item{padding:14px 16px;border-radius:18px;background:var(--surface-2);border:1px solid var(--line)}
 .queue-item strong{display:block}
@@ -980,6 +988,10 @@ function renderHoldDetail(item) {
       <strong>Teknik Durum</strong>
       ${formatHoldTechnicalState(item)}
     </div>
+    <div class="helper-box mt-md">
+      <strong>Islem Zaman Cizelgesi</strong>
+      ${formatHoldTimeline(item)}
+    </div>
     <div class="dialog-actions hold-detail-actions mt-lg">
       <button class="action-button primary" data-approve-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' holdunu onayla')}">Onayla</button>
       <button class="action-button danger" data-reject-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' holdunu reddet')}">Reddet</button>
@@ -1036,7 +1048,7 @@ function formatHoldTechnicalState(item) {
   const workflowState = item.workflow_state ? String(item.workflow_state) : '-';
   const reservationId = item.pms_reservation_id ? String(item.pms_reservation_id) : '-';
   const voucherNo = item.voucher_no ? String(item.voucher_no) : '-';
-  const manualReason = item.manual_review_reason ? String(item.manual_review_reason) : '-';
+  const manualReason = mapManualReviewReason(item.manual_review_reason);
   return `
     <div class="stack">
       <span class="muted">Workflow: <strong>${escapeHtml(workflowState)}</strong></span>
@@ -1045,6 +1057,74 @@ function formatHoldTechnicalState(item) {
       <span class="muted">Not: <strong>${escapeHtml(manualReason)}</strong></span>
     </div>
   `;
+}
+
+function mapManualReviewReason(reason) {
+  const normalized = String(reason || '').trim();
+  if (!normalized) return '-';
+  if (normalized === 'create_missing_identifiers') {
+    return 'PMS create yanitinda reservation id/voucher gelmedi.';
+  }
+  if (normalized === 'create_unverified_after_readback') {
+    return 'Create sonrasi readback dogrulamasi basarisiz.';
+  }
+  if (normalized.startsWith('create_failed:')) {
+    const parts = normalized.split(':');
+    const errorType = parts[1] || 'UnknownError';
+    const action = parts[2] || 'manual_review';
+    return `PMS create hatasi (${errorType}), aksiyon: ${action}.`;
+  }
+  return normalized;
+}
+
+function formatHoldTimeline(item) {
+  const rows = [
+    {
+      label: 'Hold olusturuldu',
+      value: item.created_at ? formatDate(item.created_at) : '-',
+      level: 'done',
+    },
+    {
+      label: 'Admin onayi',
+      value: item.approved_at ? formatDate(item.approved_at) : 'Bekleniyor',
+      level: item.approved_at ? 'done' : 'warn',
+    },
+    {
+      label: 'PMS create basladi',
+      value: item.pms_create_started_at ? formatDate(item.pms_create_started_at) : 'Baslamadi',
+      level: item.pms_create_started_at ? 'done' : 'warn',
+    },
+    {
+      label: 'PMS create tamamlandi',
+      value: item.pms_create_completed_at ? formatDate(item.pms_create_completed_at) : 'Tamamlanmadi',
+      level: item.pms_create_completed_at ? 'done' : 'warn',
+    },
+    {
+      label: 'Mevcut workflow',
+      value: String(item.workflow_state || item.status || '-'),
+      level: holdTimelineLevel(item),
+    },
+  ];
+  return `
+    <div class="hold-timeline">
+      ${rows.map(row => `
+        <div class="hold-timeline-item">
+          <span class="hold-timeline-dot ${escapeHtml(row.level)}"></span>
+          <div>
+            <strong>${escapeHtml(row.label)}</strong>
+            <span>${escapeHtml(row.value)}</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function holdTimelineLevel(item) {
+  const status = String(item.status || '').toUpperCase();
+  if (['MANUAL_REVIEW', 'PMS_FAILED', 'REJECTED'].includes(status)) return 'danger';
+  if (['PMS_PENDING', 'PENDING_APPROVAL', 'PAYMENT_PENDING'].includes(status)) return 'warn';
+  return 'done';
 }
 
 // Hold actions handled by delegated event listener (see bindDelegatedEvents)

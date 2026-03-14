@@ -1140,7 +1140,7 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
         SELECT hold_id, 'stay' AS type, hotel_id, status,
                workflow_state, draft_json::jsonb AS draft_json, expires_at, pms_create_started_at, pms_create_completed_at,
                manual_review_reason, approval_idempotency_key, create_idempotency_key,
-               pms_reservation_id, voucher_no, approved_by, created_at, conversation_id
+               pms_reservation_id, voucher_no, approved_by, approved_at, created_at, conversation_id
         FROM stay_holds
         WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
         """
@@ -1148,9 +1148,9 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
         else """
         SELECT hold_id, 'stay' AS type, hotel_id, status,
                NULL::text AS workflow_state, draft_json::jsonb AS draft_json, NULL::timestamptz AS expires_at,
-               NULL::timestamptz AS pms_create_started_at, NULL::timestamptz AS pms_create_completed_at,
-               NULL::text AS manual_review_reason, NULL::text AS approval_idempotency_key,
-               NULL::text AS create_idempotency_key, pms_reservation_id, voucher_no, approved_by, created_at, conversation_id
+                NULL::timestamptz AS pms_create_started_at, NULL::timestamptz AS pms_create_completed_at,
+                NULL::text AS manual_review_reason, NULL::text AS approval_idempotency_key,
+               NULL::text AS create_idempotency_key, pms_reservation_id, voucher_no, approved_by, approved_at, created_at, conversation_id
         FROM stay_holds
         WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
         """
@@ -1165,10 +1165,10 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
                    'guest_name', guest_name,
                    'area', area
                ) AS draft_json,
-               NULL::timestamptz AS expires_at, NULL::timestamptz AS pms_create_started_at,
-               NULL::timestamptz AS pms_create_completed_at, NULL::text AS manual_review_reason,
-               NULL::text AS approval_idempotency_key, NULL::text AS create_idempotency_key,
-               NULL::text AS pms_reservation_id, NULL::text AS voucher_no, approved_by, created_at, conversation_id
+                NULL::timestamptz AS expires_at, NULL::timestamptz AS pms_create_started_at,
+                NULL::timestamptz AS pms_create_completed_at, NULL::text AS manual_review_reason,
+                NULL::text AS approval_idempotency_key, NULL::text AS create_idempotency_key,
+               NULL::text AS pms_reservation_id, NULL::text AS voucher_no, approved_by, approved_at, created_at, conversation_id
         FROM restaurant_holds
         WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
     """
@@ -1183,10 +1183,10 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
                    'guest_name', guest_name,
                    'price_eur', price_eur
                ) AS draft_json,
-               NULL::timestamptz AS expires_at, NULL::timestamptz AS pms_create_started_at,
-               NULL::timestamptz AS pms_create_completed_at, NULL::text AS manual_review_reason,
-               NULL::text AS approval_idempotency_key, NULL::text AS create_idempotency_key,
-               NULL::text AS pms_reservation_id, NULL::text AS voucher_no, approved_by, created_at, conversation_id
+                NULL::timestamptz AS expires_at, NULL::timestamptz AS pms_create_started_at,
+                NULL::timestamptz AS pms_create_completed_at, NULL::text AS manual_review_reason,
+                NULL::text AS approval_idempotency_key, NULL::text AS create_idempotency_key,
+               NULL::text AS pms_reservation_id, NULL::text AS voucher_no, approved_by, approved_at, created_at, conversation_id
         FROM transfer_holds
         WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
     """
