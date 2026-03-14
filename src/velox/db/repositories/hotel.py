@@ -268,9 +268,31 @@ class NotificationPhoneRepository:
     """CRUD operations for notification_phones table."""
 
     DEFAULT_PHONE = "+905304498453"
+    DEFAULT_LABEL = "Admin (varsayilan)"
+
+    async def _ensure_default_phone(self, hotel_id: int) -> None:
+        """Ensure the mandatory default admin notification phone exists and stays active."""
+        await execute(
+            """
+            INSERT INTO notification_phones (hotel_id, phone, label, is_default, active)
+            VALUES ($1, $2, $3, TRUE, TRUE)
+            ON CONFLICT (hotel_id, phone) DO UPDATE SET
+                is_default = TRUE,
+                active = TRUE,
+                label = CASE
+                    WHEN notification_phones.label = '' THEN EXCLUDED.label
+                    ELSE notification_phones.label
+                END,
+                updated_at = now()
+            """,
+            hotel_id,
+            self.DEFAULT_PHONE,
+            self.DEFAULT_LABEL,
+        )
 
     async def list_active(self, hotel_id: int) -> list[dict[str, object]]:
         """Return active notification phones for a hotel."""
+        await self._ensure_default_phone(hotel_id)
         rows = await fetch(
             """
             SELECT id, hotel_id, phone, label, is_default, active, created_at
@@ -284,6 +306,7 @@ class NotificationPhoneRepository:
 
     async def add(self, hotel_id: int, phone: str, label: str = "") -> dict[str, object]:
         """Add a notification phone. Returns existing row on conflict."""
+        await self._ensure_default_phone(hotel_id)
         row = await fetchrow(
             """
             INSERT INTO notification_phones (hotel_id, phone, label)

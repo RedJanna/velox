@@ -1581,7 +1581,13 @@ async def list_notification_phones(
 ) -> list[dict[str, Any]]:
     """List active notification phones for the hotel."""
     check_permission(user, "notification_phones:read")
-    return await _notification_phone_repo.list_active(user.hotel_id)
+    try:
+        return await _notification_phone_repo.list_active(user.hotel_id)
+    except asyncpg.UndefinedTableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="notification_phones tablosu bulunamadi. Migration 004 uygulanmali.",
+        ) from exc
 
 
 @router.post("/notification-phones", status_code=201)
@@ -1591,7 +1597,13 @@ async def add_notification_phone(
 ) -> dict[str, Any]:
     """Add a notification phone number."""
     check_permission(user, "notification_phones:write")
-    return await _notification_phone_repo.add(user.hotel_id, body.phone, body.label)
+    try:
+        return await _notification_phone_repo.add(user.hotel_id, body.phone, body.label)
+    except asyncpg.UndefinedTableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="notification_phones tablosu bulunamadi. Migration 004 uygulanmali.",
+        ) from exc
 
 
 @router.delete("/notification-phones/{phone}")
@@ -1604,6 +1616,11 @@ async def remove_notification_phone(
     decoded_phone = phone.replace("_", "+")
     try:
         removed = await _notification_phone_repo.remove(user.hotel_id, decoded_phone)
+    except asyncpg.UndefinedTableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="notification_phones tablosu bulunamadi. Migration 004 uygulanmali.",
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not removed:

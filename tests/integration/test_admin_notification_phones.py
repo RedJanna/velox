@@ -83,3 +83,21 @@ async def test_notification_phones_add_allows_ops(admin_client: httpx.AsyncClien
     payload = response.json()
     assert payload["phone"] == "+905300000001"
     assert payload["active"] is True
+
+
+async def test_notification_phones_returns_503_when_table_missing(
+    admin_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _raise_undefined(_hotel_id: int) -> list[dict[str, object]]:
+        raise admin.asyncpg.UndefinedTableError("notification_phones missing")
+
+    monkeypatch.setattr(admin._notification_phone_repo, "list_active", _raise_undefined)
+
+    response = await admin_client.get(
+        "/api/v1/admin/notification-phones",
+        headers=_auth_header(role=Role.ADMIN),
+    )
+
+    assert response.status_code == 503
+    assert "Migration 004" in response.json()["detail"]
