@@ -47,8 +47,8 @@ TEST_CHAT_HTML = (
           <option value="">Yeni Test</option>
         </select>
       </div>
-      <button class="btn btn-ghost" id="refresh-imports" type="button">Importlar</button>
-      <button class="btn btn-reset" id="reset-btn" type="button">Reset</button>
+      <button class="btn btn-ghost" id="refresh-imports" type="button" aria-label="Import listesini yenile">Importlar</button>
+      <button class="btn btn-reset" id="reset-btn" type="button" aria-label="Konusmayi sifirla">Reset</button>
       <div class="field">
         <label for="save-format">Export</label>
         <select id="save-format" class="header-select">
@@ -58,17 +58,17 @@ TEST_CHAT_HTML = (
           <option value="pdf">.pdf</option>
         </select>
       </div>
-      <button class="btn btn-save" id="export-btn" type="button">Disa Aktar</button>
-      <button class="btn btn-toggle" id="toggle-debug" type="button">Panel</button>
+      <button class="btn btn-save" id="export-btn" type="button" aria-label="Konusma kaydini disa aktar">Disa Aktar</button>
+      <button class="btn btn-toggle" id="toggle-debug" type="button" aria-label="Analiz panelini ac veya kapat">Panel</button>
     </div>
   </div>
 
   <div class="main">
     <div class="chat-panel">
-      <div class="messages" id="messages"></div>
+      <div class="messages" id="messages" role="log" aria-live="polite" aria-label="Mesaj akisi"></div>
       <div class="input-bar">
-        <textarea id="msg-input" rows="1" placeholder="Mesajinizi yazin..."></textarea>
-        <button class="btn btn-primary btn-send" id="send-btn" type="button">
+        <textarea id="msg-input" rows="1" placeholder="Mesajinizi yazin..." aria-label="Mesaj girisi"></textarea>
+        <button class="btn btn-primary btn-send" id="send-btn" type="button" aria-label="Mesaji gonder">
           <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         </button>
       </div>
@@ -119,7 +119,7 @@ TEST_CHAT_HTML = (
             </div>
           </div>
           <div id="role-mapping-fields"></div>
-          <button class="btn btn-primary" id="role-mapping-submit" type="button" style="margin-top:10px;width:100%">Importu Onayla</button>
+          <button class="btn btn-primary btn-block mt-sm" id="role-mapping-submit" type="button">Importu Onayla</button>
         </div>
         <div class="debug-section">
           <div class="studio-head">
@@ -131,8 +131,8 @@ TEST_CHAT_HTML = (
           <div id="feedback-empty" class="feedback-muted">Bir asistan mesajinin altindaki 1-5 puan dugmelerinden birini secin.</div>
           <div id="feedback-active" class="hidden">
             <div class="feedback-chip" id="feedback-rating-chip">Puan secilmedi</div>
-            <div class="feedback-muted" id="feedback-rating-help" style="margin-top:8px">-</div>
-            <div class="meta-box" id="feedback-meta" style="margin-top:10px"></div>
+            <div class="feedback-muted mt-xs" id="feedback-rating-help">-</div>
+            <div class="meta-box mt-sm" id="feedback-meta"></div>
             <div class="field-stack">
               <label for="feedback-category">Hata Kategorizasyonu</label>
               <select id="feedback-category" class="debug-select"></select>
@@ -169,8 +169,8 @@ TEST_CHAT_HTML = (
                 <span class="check-copy"><strong>Onayli Ornek</strong><span>5 puanli cevabi approved_examples havuzuna ekler.</span></span>
               </label>
             </div>
-            <button class="btn btn-save" id="feedback-submit" type="button" style="margin-top:12px;width:100%">Geri Bildirimi Kaydet</button>
-            <div class="meta-box hidden" id="feedback-result" style="margin-top:10px"></div>
+            <button class="btn btn-save btn-block mt-md" id="feedback-submit" type="button">Geri Bildirimi Kaydet</button>
+            <div class="meta-box hidden mt-sm" id="feedback-result"></div>
           </div>
         </div>
         <div class="debug-section">
@@ -188,8 +188,8 @@ TEST_CHAT_HTML = (
             <label for="report-date-to">Bitis</label>
             <input id="report-date-to" class="debug-input" type="datetime-local">
           </div>
-          <button class="btn btn-primary" id="report-submit" type="button" style="margin-top:12px;width:100%">Genel Rapor Uret</button>
-          <div class="list" id="report-result" style="margin-top:10px"></div>
+          <button class="btn btn-primary btn-block mt-md" id="report-submit" type="button">Genel Rapor Uret</button>
+          <div class="list mt-sm" id="report-result"></div>
         </div>
       </div>
     </div>

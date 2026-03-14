@@ -52,7 +52,12 @@ button,input,select,textarea{font:inherit}
 .topbar{background:rgba(255,253,248,.9);border-radius:30px;padding:22px 26px;box-shadow:var(--shadow);display:flex;align-items:flex-start;justify-content:space-between;gap:18px;backdrop-filter:blur(18px)}
 .topbar h2{margin:0;font-family:var(--serif);font-size:30px;line-height:1}
 .topbar p{margin:8px 0 0;color:var(--muted);max-width:760px;line-height:1.55}
+.topbar-actions{display:flex;align-items:flex-start;gap:10px}
 .topbar-aside{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end}
+.sidebar-toggle{display:none;border:none;border-radius:12px;padding:10px 14px;background:#13253e;color:#fff;font-weight:800;cursor:pointer}
+.sidebar-toggle:focus-visible,.nav button:focus-visible,.sidebar-button:focus-visible,.toolbar button:focus-visible,.inline-button:focus-visible,.action-button:focus-visible{
+  outline:2px solid rgba(187,138,42,.9);outline-offset:2px
+}
 .badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:.03em}
 .badge.info{background:#e8f3f1;color:#115e59}.badge.warn{background:#fff2dd;color:#92400e}.badge.danger{background:#fde7e5;color:#991b1b}.badge.dark{background:#13253e;color:#fff}
 .toast{position:fixed;top:24px;right:24px;min-width:260px;max-width:420px;padding:14px 16px;border-radius:18px;box-shadow:var(--shadow);z-index:60;background:#102033;color:#fff;opacity:0;pointer-events:none;transform:translateY(-8px);transition:.18s ease}
@@ -155,7 +160,11 @@ tbody tr:hover{background:#fffcf7}
 }
 @media(max-width:980px){
   body{padding:12px}.shell{grid-template-columns:1fr}
-  .sidebar{padding:18px;border-radius:24px}
+  .sidebar{position:fixed;left:12px;top:12px;bottom:12px;z-index:70;width:min(86vw,320px);padding:18px;border-radius:24px;transform:translateX(-112%);transition:transform .2s ease}
+  .sidebar.is-open{transform:translateX(0)}
+  .sidebar-toggle{display:inline-flex;align-items:center;justify-content:center}
+  .topbar-actions{width:100%;justify-content:space-between;align-items:center}
+  .topbar-aside{justify-content:flex-start}
   .field-grid,.dense-form,.status-list{grid-template-columns:1fr}
   .topbar{padding:18px 20px;border-radius:24px;flex-direction:column}
   .card-grid{grid-template-columns:1fr}
@@ -202,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function bindRefs() {
   [
+    'sidebar','sidebarToggle',
     'toast','authView','panelView','loginForm','bootstrapForm','bootstrapCard','bootstrapSummary',
     'totpRecovery','totpRecoveryForm','trustedSessionBanner','loginOtpField','rememberDeviceToggle',
     'loginRememberOptions','loginVerificationOptions','loginSessionOptions',
@@ -221,6 +231,7 @@ function bindRefs() {
 }
 
 function bindEvents() {
+  refs.sidebarToggle?.addEventListener('click', toggleSidebar);
   refs.loginForm.addEventListener('submit', onLogin);
   refs.bootstrapForm.addEventListener('submit', onBootstrap);
   refs.totpRecoveryForm.addEventListener('submit', onTotpRecovery);
@@ -253,7 +264,12 @@ function bindEvents() {
   refs.addNotifPhoneForm.addEventListener('submit', onAddNotifPhone);
   refs.decisionForm.addEventListener('submit', onDecisionSubmit);
   document.querySelectorAll('[data-nav]').forEach(button => {
-    button.addEventListener('click', () => setView(button.dataset.nav));
+    const label = button.querySelector('.nav-label strong')?.textContent || 'Navigasyon';
+    button.setAttribute('aria-label', label.trim());
+    button.addEventListener('click', () => {
+      setView(button.dataset.nav);
+      closeSidebar();
+    });
   });
   document.getElementById('saveHotelProfile').addEventListener('click', saveHotelProfile);
   document.getElementById('loadSlotsButton').addEventListener('click', event => {
@@ -267,7 +283,24 @@ function bindEvents() {
       await loadChatLab();
     }
   });
+  window.addEventListener('resize', closeSidebar);
   bindDelegatedEvents();
+}
+
+function isMobileLayout() {
+  return window.matchMedia('(max-width: 980px)').matches;
+}
+
+function closeSidebar() {
+  if (!refs.sidebar || !refs.sidebarToggle) return;
+  refs.sidebar.classList.remove('is-open');
+  refs.sidebarToggle.setAttribute('aria-expanded', 'false');
+}
+
+function toggleSidebar() {
+  if (!refs.sidebar || !refs.sidebarToggle || !isMobileLayout()) return;
+  refs.sidebar.classList.toggle('is-open');
+  refs.sidebarToggle.setAttribute('aria-expanded', refs.sidebar.classList.contains('is-open') ? 'true' : 'false');
 }
 
 function bindDelegatedEvents() {

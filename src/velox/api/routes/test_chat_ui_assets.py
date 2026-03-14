@@ -31,6 +31,9 @@ body{overflow:hidden}
 .header-select:focus,.header-input:focus,.input-bar textarea:focus,.debug-input:focus,.debug-select:focus,.debug-textarea:focus{
   border-color:var(--teal);box-shadow:0 0 0 3px rgba(21,117,111,.12)
 }
+.btn:focus-visible,.header-select:focus-visible,.header-input:focus-visible,.input-bar textarea:focus-visible,.debug-input:focus-visible,.debug-select:focus-visible,.debug-textarea:focus-visible{
+  outline:2px solid rgba(231,191,95,.9);outline-offset:2px
+}
 .header-select-model{min-width:170px}.header-select-import{min-width:220px}.header-input{width:150px}
 .btn{height:38px;border:none;border-radius:12px;padding:0 14px;font-size:13px;font-weight:700;cursor:pointer;transition:transform .15s ease,opacity .15s ease}
 .btn:hover{transform:translateY(-1px)}.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
@@ -97,9 +100,23 @@ body{overflow:hidden}
 .list{display:flex;flex-direction:column;gap:8px}
 .list-item{padding:10px 12px;border-radius:14px;background:rgba(2,6,23,.24);border:1px solid rgba(255,255,255,.08)}
 .list-item strong{display:block;font-size:12px}.list-item span{display:block;font-size:11px;color:rgba(255,255,255,.64);margin-top:3px}
+.mt-xs{margin-top:8px}.mt-sm{margin-top:10px}.mt-md{margin-top:12px}
+.btn-block{width:100%}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes bounce{to{opacity:.35;transform:translateY(-4px)}}
-@media(max-width:1040px){
+@media(max-width:1240px){
+  .header{padding:12px 18px}
+  .header-controls{gap:8px}
+  .msg{max-width:86%}
+}
+@media(max-width:980px){
+  body{overflow:auto}
+  .app{height:auto;min-height:100vh}
+  .header{flex-direction:column;align-items:stretch;gap:12px}
+  .header-controls{margin-left:0;justify-content:flex-start}
+  .field{flex:1 1 100%}
+  .header-select,.header-input{width:100%}
+  .main{min-height:calc(100vh - 170px)}
   .debug-panel{position:fixed;inset:0 0 0 auto;z-index:30;width:min(90vw,410px)}
   .btn-toggle{display:inline-flex;align-items:center;justify-content:center}
   .msg{max-width:90%}
@@ -109,6 +126,7 @@ body{overflow:hidden}
 TEST_CHAT_SCRIPT = UI_SHARED_SCRIPT + """\
 const API = '/api/v1/test';
 const ADMIN_ENTRY_PATH = '/admin';
+const CSRF_COOKIE = 'velox_admin_csrf';
 const DEFAULT_FEEDBACK_SCALES = [
   {rating: 1, label: 'Kesinlikle Yanlis', summary: 'Yanit tamamen hatali.', tooltip: 'Bilgi tamamen yanlis mi? Burayi sec ve dogruyu sisteme ogret.', correction_required: true},
   {rating: 2, label: 'Hatali Anlatim', summary: 'Bilgi ozunde dogru ama anlatim bozuk.', tooltip: 'Bilgi dogru ama anlatim bozuk mu?', correction_required: true},
@@ -288,6 +306,13 @@ function ensureAdminSession() {
 
 async function apiFetch(path, options = {}) {
   const headers = {...(options.headers || {})};
+  const method = String(options.method || 'GET').toUpperCase();
+  if (!isSafeMethod(method)) {
+    const csrfToken = readCookie(CSRF_COOKIE);
+    if (csrfToken && !headers['X-CSRF-Token']) {
+      headers['X-CSRF-Token'] = csrfToken;
+    }
+  }
   const token = adminToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   const response = await fetch(API + path, {
@@ -309,7 +334,7 @@ async function apiFetch(path, options = {}) {
   if (!response.ok) {
     if (response.status === 401) {
       if (window.parent !== window) {
-        window.parent.postMessage({type: 'chatlab:auth-required'}, '*');
+        window.parent.postMessage({type: 'chatlab:auth-required'}, window.location.origin);
       } else {
         window.location.href = ADMIN_ENTRY_PATH;
       }
@@ -908,7 +933,7 @@ async function boot() {
   try {
     await Promise.all([loadCatalog(), loadModels(), refreshImportFiles()]);
   } catch (error) {
-    console.error('Chat Lab boot error:', error);
+    el('source-banner').textContent = error.message || 'Panel baslatilamadi. Lutfen tekrar deneyin.';
     _booted = false;
     return;
   }

@@ -35,7 +35,7 @@ def render_admin_panel_html() -> str:
 <body>
   <div id="toast" class="toast info"></div>
   <div class="shell">
-    <aside class="sidebar">
+    <aside id="sidebar" class="sidebar">
       <div class="brand">
         <div class="brand-mark">NX</div>
         <div>
@@ -86,9 +86,12 @@ def render_admin_panel_html() -> str:
           <h2 id="pageTitle">Genel Bakis</h2>
           <p id="pageLead">Aktif konusmalar, bekleyen onaylar ve acik talepleri tek ekranda gorun.</p>
         </div>
-        <div class="topbar-aside">
-          <div class="badge info">Merkezi yonetim</div>
-          <div class="badge warn">Onay gerektiren islemler gorunur</div>
+        <div class="topbar-actions">
+          <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Navigasyon menusu" aria-expanded="false">Menü</button>
+          <div class="topbar-aside">
+            <div class="badge info">Merkezi yonetim</div>
+            <div class="badge warn">Onay gerektiren islemler gorunur</div>
+          </div>
         </div>
       </header>
 
