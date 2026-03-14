@@ -1531,7 +1531,7 @@ async def list_notification_phones(
     user: Annotated[TokenData, Depends(get_current_user)],
 ) -> list[dict[str, Any]]:
     """List active notification phones for the hotel."""
-    check_permission(user, "notification_phones", "read")
+    check_permission(user, "notification_phones:read")
     return await _notification_phone_repo.list_active(user.hotel_id)
 
 
@@ -1541,7 +1541,7 @@ async def add_notification_phone(
     user: Annotated[TokenData, Depends(get_current_user)],
 ) -> dict[str, Any]:
     """Add a notification phone number."""
-    check_permission(user, "notification_phones", "write")
+    check_permission(user, "notification_phones:write")
     return await _notification_phone_repo.add(user.hotel_id, body.phone, body.label)
 
 
@@ -1551,7 +1551,7 @@ async def remove_notification_phone(
     user: Annotated[TokenData, Depends(get_current_user)],
 ) -> dict[str, str]:
     """Remove a notification phone. Default admin phone cannot be removed."""
-    check_permission(user, "notification_phones", "write")
+    check_permission(user, "notification_phones:write")
     decoded_phone = phone.replace("_", "+")
     try:
         removed = await _notification_phone_repo.remove(user.hotel_id, decoded_phone)

@@ -106,7 +106,6 @@ body{overflow:hidden}
 
 TEST_CHAT_SCRIPT = """\
 const API = '/api/v1/test';
-const ADMIN_TOKEN_KEY = 'velox.admin.token';
 const ADMIN_ENTRY_PATH = '/admin';
 const DEFAULT_FEEDBACK_SCALES = [
   {rating: 1, label: 'Kesinlikle Yanlis', summary: 'Yanit tamamen hatali.', tooltip: 'Bilgi tamamen yanlis mi? Burayi sec ve dogruyu sisteme ogret.', correction_required: true},
@@ -152,6 +151,7 @@ const DEFAULT_FEEDBACK_TAGS = [
 ];
 
 const state = {
+  adminToken: '',
   sourceType: 'live_test_chat',
   importFile: '',
   roleMapping: {},
@@ -290,12 +290,12 @@ function applyCategorySuggestions(force = false) {
 }
 
 function adminToken() {
-  return window.localStorage.getItem(ADMIN_TOKEN_KEY) || '';
+  return state.adminToken || '';
 }
 
 function ensureAdminSession() {
   // Access control is enforced by backend (cookie or bearer).
-  // Do not force localStorage token on page load; cookie-only sessions are valid.
+  // Do not require a bearer token on page load; cookie-only sessions are valid.
   return true;
 }
 
@@ -935,8 +935,6 @@ function wireEvents() {
 
 async function boot() {
   if (_booted) return;
-  // When embedded in an iframe, wait for parent to send the auth token first.
-  if (window.parent !== window && !adminToken()) return;
   _booted = true;
   wireEvents();
   renderCategoryOptions();
@@ -961,7 +959,7 @@ window.addEventListener('load', boot);
 window.addEventListener('message', event => {
   if (event.origin !== window.location.origin) return;
   if (event.data && event.data.type === 'chatlab:token' && event.data.token) {
-    window.localStorage.setItem(ADMIN_TOKEN_KEY, event.data.token);
+    state.adminToken = String(event.data.token);
     boot();
   }
 });

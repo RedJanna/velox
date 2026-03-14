@@ -139,6 +139,8 @@ ROLE_PERMISSIONS: dict[Role, set[str]] = {
         "holds:reject",
         "tickets:read",
         "tickets:write",
+        "notification_phones:read",
+        "notification_phones:write",
     },
     Role.SALES: {
         "hotels:read",
@@ -147,6 +149,7 @@ ROLE_PERMISSIONS: dict[Role, set[str]] = {
         "holds:approve",
         "holds:reject",
         "tickets:read",
+        "notification_phones:read",
     },
     Role.OPS: {
         "hotels:read",
@@ -156,6 +159,8 @@ ROLE_PERMISSIONS: dict[Role, set[str]] = {
         "holds:reject",
         "tickets:read",
         "tickets:write",
+        "notification_phones:read",
+        "notification_phones:write",
     },
     Role.CHEF: {
         "hotels:read",

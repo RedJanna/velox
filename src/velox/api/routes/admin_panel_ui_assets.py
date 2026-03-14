@@ -1569,7 +1569,7 @@ async function loadNotifPhones() {
     const phones = await apiFetch('/notification-phones');
     renderNotifPhones(phones);
   } catch (err) {
-    toast('Bildirim numaralari yuklenemedi: ' + (err.message || err), 'danger');
+    notify('Bildirim numaralari yuklenemedi: ' + (err.message || err), 'error');
   }
 }
 
@@ -1601,11 +1601,11 @@ async function onAddNotifPhone(event) {
   if (!phone) return;
   try {
     await apiFetch('/notification-phones', {method: 'POST', body: {phone, label}});
-    toast('Numara eklendi', 'ok');
+    notify('Numara eklendi', 'success');
     form.reset();
     await loadNotifPhones();
   } catch (err) {
-    toast('Numara eklenemedi: ' + (err.message || err), 'danger');
+    notify('Numara eklenemedi: ' + (err.message || err), 'error');
   }
 }
 
@@ -1614,10 +1614,10 @@ async function removeNotifPhone(phone) {
   const encoded = phone.replace('+', '_');
   try {
     await apiFetch('/notification-phones/' + encoded, {method: 'DELETE'});
-    toast('Numara kaldirildi', 'ok');
+    notify('Numara kaldirildi', 'success');
     await loadNotifPhones();
   } catch (err) {
-    toast('Numara kaldirilamadi: ' + (err.message || err), 'danger');
+    notify('Numara kaldirilamadi: ' + (err.message || err), 'error');
   }
 }
 """
