@@ -1424,11 +1424,15 @@ def _should_auto_submit_stay_hold(internal_json: InternalJSON) -> bool:
         return False
 
     state = str(internal_json.state or "").upper()
-    if state not in {"READY_FOR_TOOL", "NEEDS_CONFIRMATION"}:
+    if state not in {"READY_FOR_TOOL", "NEEDS_CONFIRMATION", "PENDING_APPROVAL"}:
         return False
 
     next_step = _canonical_text(str(internal_json.next_step or ""))
-    return "createstayhold" in next_step and "approval" in next_step
+    if not next_step:
+        return state in {"READY_FOR_TOOL", "NEEDS_CONFIRMATION"}
+    if "createstayhold" in next_step and "approval" in next_step:
+        return True
+    return next_step in {"adminapprovalwait", "awaitadminapproval"}
 
 
 def _resolve_requested_room_type_id(entities: dict[str, Any], profile: Any | None) -> int:

@@ -206,3 +206,44 @@ async def test_process_approval_event_stay_missing_reservation_identifiers_goes_
     ]
     assert "PMS_PENDING" in status_updates
     assert "MANUAL_REVIEW" in status_updates
+
+
+@pytest.mark.asyncio
+async def test_process_approval_event_manual_review_status_is_not_treated_as_duplicate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    existing_idempotency_key = build_idempotency_key(
+        IdempotencyInput(
+            namespace=IDEMPOTENCY_NAMESPACE_APPROVAL,
+            reference_id="S_HOLD_0001",
+            hotel_id=21966,
+        )
+    )
+    hold_row = {
+        "hold_id": "S_HOLD_0001",
+        "hotel_id": 21966,
+        "conversation_id": None,
+        "status": "MANUAL_REVIEW",
+        "approval_idempotency_key": existing_idempotency_key,
+        "draft_json": {
+            "phone": "",
+            "checkin_date": "2026-09-10",
+            "total_price_eur": 200,
+            "currency_display": "EUR",
+            "cancel_policy_type": "FREE_CANCEL",
+        },
+    }
+    processor, _conn, dispatcher = _build_processor(hold_row, monkeypatch=monkeypatch)
+
+    event = ApprovalEvent(
+        hotel_id=21966,
+        approval_request_id="APR-1",
+        approved=True,
+        approved_by_role="ADMIN",
+        timestamp=datetime.now(UTC),
+    )
+    result = await processor.process_approval_event(event)
+
+    assert result.get("duplicate") is not True
+    tool_names = [name for name, _ in dispatcher.calls]
+    assert "booking_create_reservation" in tool_names

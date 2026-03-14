@@ -910,7 +910,6 @@ class EventProcessor:
             HoldStatus.PMS_CREATED.value,
             HoldStatus.PAYMENT_PENDING.value,
             HoldStatus.CONFIRMED.value,
-            HoldStatus.MANUAL_REVIEW.value,
         }
 
     @staticmethod
