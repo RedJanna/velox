@@ -219,11 +219,18 @@ class EventProcessor:
                     }
 
                 tool_results["booking_create_reservation"] = booking_result
-                reservation_id = str(booking_result.get("reservation_id", "")).strip()
+                provider_create_reservation_id = str(booking_result.get("reservation_id", "")).strip() or None
                 voucher_no = str(booking_result.get("voucher_no", "")).strip() or None
+                reservation_id: str | None = None
+                if provider_create_reservation_id:
+                    logger.info(
+                        "elektra_create_reservation_id_ignored_until_readback",
+                        hold_id=reference_id,
+                        provider_reservation_id=provider_create_reservation_id,
+                    )
 
-                # Create response without reservation identifiers is considered uncertain and blocked.
-                if not reservation_id and not voucher_no:
+                # Create response without voucher is considered uncertain and blocked.
+                if not voucher_no:
                     reconciliation_action = ReconciliationAction.MANUAL_REVIEW
                     failed_state = HoldStatus.MANUAL_REVIEW.value
                     await self._update_hold_status(conn, approval_type, reference_id, status=failed_state)
@@ -382,7 +389,7 @@ class EventProcessor:
 
                 payment_payload: dict[str, Any] = {
                     "hotel_id": event.hotel_id,
-                    "reference_id": reservation_id or reference_id,
+                    "reference_id": verified_reservation_id or reference_id,
                     "amount": float(draft.get("total_price_eur", 0.0)),
                     "currency": str(draft.get("currency_display", "EUR")),
                     "methods": ["BANK_TRANSFER", "PAYMENT_LINK", "MAIL_ORDER"],

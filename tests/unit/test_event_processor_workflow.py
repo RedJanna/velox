@@ -210,6 +210,42 @@ async def test_process_approval_event_stay_missing_reservation_identifiers_goes_
 
 
 @pytest.mark.asyncio
+async def test_process_approval_event_stay_create_reservation_id_without_voucher_goes_manual_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hold_row = {
+        "hold_id": "S_HOLD_0001",
+        "hotel_id": 21966,
+        "conversation_id": None,
+        "status": "PENDING_APPROVAL",
+        "approval_idempotency_key": None,
+        "draft_json": {
+            "phone": "",
+            "checkin_date": "2026-09-10",
+            "total_price_eur": 200,
+            "currency_display": "EUR",
+            "cancel_policy_type": "FREE_CANCEL",
+        },
+    }
+    processor, _conn, dispatcher = _build_processor(hold_row, monkeypatch=monkeypatch)
+    dispatcher.create_result = {"reservation_id": "TMP-ONLY", "voucher_no": ""}
+
+    event = ApprovalEvent(
+        hotel_id=21966,
+        approval_request_id="APR-1",
+        approved=True,
+        approved_by_role="ADMIN",
+        timestamp=datetime.now(UTC),
+    )
+    result = await processor.process_approval_event(event)
+
+    assert result["status"] == "processed"
+    assert result["reconciliation_action"] == "manual_review"
+    tool_names = [name for name, _ in dispatcher.calls]
+    assert tool_names == ["booking_create_reservation"]
+
+
+@pytest.mark.asyncio
 async def test_process_approval_event_manual_review_status_is_not_treated_as_duplicate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -304,7 +340,7 @@ async def test_process_approval_event_does_not_persist_unverified_create_identif
 
 
 @pytest.mark.asyncio
-async def test_process_approval_event_persists_verified_readback_identifier(
+async def test_process_approval_event_persists_verified_readback_voucher_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     hold_row = {
@@ -346,7 +382,7 @@ async def test_process_approval_event_persists_verified_readback_identifier(
         for query, args in conn.executed
         if "SET pms_reservation_id = COALESCE($2, pms_reservation_id)" in query
     ]
-    assert ("TMP-9", "V-9") in persisted_ids
+    assert (None, "V-9") in persisted_ids
 
 
 @pytest.mark.asyncio
