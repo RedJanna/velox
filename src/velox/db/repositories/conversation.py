@@ -77,7 +77,7 @@ class ConversationRepository:
         conversation_id: UUID,
         state: str,
         intent: str | None = None,
-        entities: dict | None = None,
+        entities: dict[str, Any] | None = None,
         risk_flags: list[str] | None = None,
     ) -> None:
         """Update state, intent, entities, and risk flags for a conversation."""

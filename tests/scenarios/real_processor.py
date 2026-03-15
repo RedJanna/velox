@@ -29,7 +29,7 @@ from velox.config.constants import ConversationState  # noqa: E402
 from velox.config.settings import settings  # noqa: E402
 from velox.escalation.risk_detector import detect_all_risk_flags  # noqa: E402
 from velox.llm.response_parser import ResponseParser  # noqa: E402
-from velox.models.conversation import Conversation, InternalJSON, Message  # noqa: E402
+from velox.models.conversation import Conversation, Message  # noqa: E402
 
 
 class RealPipelineProcessor:

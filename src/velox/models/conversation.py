@@ -1,6 +1,7 @@
 """Conversation and Message data models."""
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -14,8 +15,8 @@ class Message(BaseModel):
     role: str  # user, assistant, system
     content: str
     client_message_id: str | None = None
-    internal_json: dict | None = None
-    tool_calls: list[dict] | None = None
+    internal_json: dict[str, Any] | None = None
+    tool_calls: list[dict[str, Any]] | None = None
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -27,7 +28,7 @@ class Conversation(BaseModel):
     language: str = "tr"
     current_state: ConversationState = ConversationState.GREETING
     current_intent: Intent | None = None
-    entities_json: dict = Field(default_factory=dict)
+    entities_json: dict[str, Any] = Field(default_factory=dict)
     risk_flags: list[str] = Field(default_factory=list)
     is_active: bool = True
     last_message_at: datetime = Field(default_factory=datetime.now)
@@ -40,13 +41,13 @@ class InternalJSON(BaseModel):
     language: str = "tr"
     intent: str = ""
     state: str = ""
-    entities: dict = Field(default_factory=dict)
+    entities: dict[str, Any] = Field(default_factory=dict)
     required_questions: list[str] = Field(default_factory=list)
-    tool_calls: list[dict] = Field(default_factory=list)
-    notifications: list[dict] = Field(default_factory=list)
-    handoff: dict = Field(default_factory=lambda: {"needed": False})
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    notifications: list[dict[str, Any]] = Field(default_factory=list)
+    handoff: dict[str, Any] = Field(default_factory=lambda: {"needed": False})
     risk_flags: list[str] = Field(default_factory=list)
-    escalation: dict = Field(default_factory=lambda: {"level": "L0", "route_to_role": "NONE"})
+    escalation: dict[str, Any] = Field(default_factory=lambda: {"level": "L0", "route_to_role": "NONE"})
     next_step: str = ""
 
 

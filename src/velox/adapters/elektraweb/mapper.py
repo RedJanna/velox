@@ -2,6 +2,7 @@
 
 import re
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -13,7 +14,7 @@ def kebab_to_snake(name: str) -> str:
     return normalized.lower()
 
 
-def normalize_keys(data: dict | list) -> dict | list:
+def normalize_keys(data: dict[str, Any] | list[Any]) -> dict[str, Any] | list[Any]:
     """Recursively normalize dict/list keys to snake_case."""
     if isinstance(data, dict):
         return {kebab_to_snake(key): normalize_keys(value) for key, value in data.items()}
@@ -37,7 +38,7 @@ class AvailabilityResponse(BaseModel):
 
     available: bool = False
     rows: list[AvailabilityRow] = Field(default_factory=list)
-    derived: dict = Field(default_factory=dict)
+    derived: dict[str, Any] = Field(default_factory=dict)
     notes: str = ""
 
 
@@ -58,7 +59,7 @@ class BookingOffer(BaseModel):
     discounted_price: Decimal
     room_area: int | None = None
     cancel_possible: bool = False
-    cancellation_penalty: dict = Field(default_factory=dict)
+    cancellation_penalty: dict[str, Any] = Field(default_factory=dict)
 
 
 class QuoteResponse(BaseModel):
@@ -84,10 +85,10 @@ class ReservationDetailResponse(BaseModel):
     voucher_no: str = ""
     total_price: Decimal | None = None
     state: str = ""
-    raw_data: dict = Field(default_factory=dict)
+    raw_data: dict[str, Any] = Field(default_factory=dict)
 
 
-def parse_availability(raw: dict | list) -> AvailabilityResponse:
+def parse_availability(raw: dict[str, Any] | list[Any]) -> AvailabilityResponse:
     """Parse raw availability response."""
     normalized = normalize_keys(raw)
     if isinstance(normalized, list):
@@ -110,7 +111,7 @@ def parse_availability(raw: dict | list) -> AvailabilityResponse:
     return AvailabilityResponse(**normalized)
 
 
-def parse_quote(raw: dict | list) -> QuoteResponse:
+def parse_quote(raw: dict[str, Any] | list[Any]) -> QuoteResponse:
     """Parse raw quote response."""
     normalized = normalize_keys(raw)
     if isinstance(normalized, list):
@@ -139,7 +140,7 @@ def parse_quote(raw: dict | list) -> QuoteResponse:
     return QuoteResponse(**normalized)
 
 
-def parse_reservation_create(raw: dict) -> ReservationResponse:
+def parse_reservation_create(raw: dict[str, Any]) -> ReservationResponse:
     """Parse raw reservation creation response."""
     normalized = normalize_keys(raw)
     if isinstance(normalized, dict):
@@ -175,7 +176,7 @@ def parse_reservation_create(raw: dict) -> ReservationResponse:
     return ReservationResponse()
 
 
-def parse_reservation_detail(raw: dict) -> ReservationDetailResponse:
+def parse_reservation_detail(raw: dict[str, Any]) -> ReservationDetailResponse:
     """Parse raw reservation detail response."""
     normalized = normalize_keys(raw)
     if not isinstance(normalized, dict):

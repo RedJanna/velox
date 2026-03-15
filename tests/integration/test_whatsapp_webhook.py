@@ -1,7 +1,7 @@
 """Integration tests for WhatsApp webhook routes."""
 
-from types import SimpleNamespace
 import time
+from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 

@@ -1,6 +1,7 @@
 """Repository for hotel and operational entities."""
 
 from datetime import date
+from typing import Any
 from uuid import UUID
 
 import asyncpg
@@ -25,7 +26,7 @@ class HotelRepository:
         hotel_id: int,
         name_tr: str,
         name_en: str,
-        profile_json: dict,
+        profile_json: dict[str, Any],
         **kwargs: object,
     ) -> asyncpg.Record:
         """Insert or update a hotel row."""
@@ -242,7 +243,7 @@ class NotificationRepository:
         to_role: str,
         channel: str,
         message: str,
-        metadata_json: dict | None = None,
+        metadata_json: dict[str, Any] | None = None,
     ) -> dict[str, str]:
         """Create a notification record."""
         notification_id = await next_sequential_id("N_", "notifications", "notification_id")
@@ -359,7 +360,7 @@ class CrmLogRepository:
         conversation_id: UUID | None,
         user_phone_hash: str,
         intent: str,
-        entities: dict,
+        entities: dict[str, Any],
         actions: list[str],
         outcome: str,
         transcript_summary: str,

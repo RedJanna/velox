@@ -151,9 +151,9 @@ class ElektrawebClient:
         method: str,
         path: str,
         *,
-        json_body: dict | None = None,
-        params: dict | None = None,
-    ) -> dict:
+        json_body: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Make an authenticated request with retries and token refresh."""
         last_error: Exception | None = None
 
@@ -265,15 +265,15 @@ class ElektrawebClient:
             raise last_error
         raise RuntimeError(f"Elektraweb request failed: {path}")
 
-    async def get(self, path: str, params: dict | None = None) -> dict:
+    async def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         """Make an authenticated GET request."""
         return await self.request("GET", path, params=params)
 
-    async def post(self, path: str, json_body: dict | None = None) -> dict:
+    async def post(self, path: str, json_body: dict[str, Any] | None = None) -> dict[str, Any]:
         """Make an authenticated POST request."""
         return await self.request("POST", path, json_body=json_body)
 
-    async def put(self, path: str, json_body: dict | None = None) -> dict:
+    async def put(self, path: str, json_body: dict[str, Any] | None = None) -> dict[str, Any]:
         """Make an authenticated PUT request."""
         return await self.request("PUT", path, json_body=json_body)
 

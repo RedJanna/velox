@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -64,7 +65,7 @@ class TransferRouteConfig(BaseModel):
     max_pax: int
     duration_min: int
     baby_seat: bool = False
-    oversize_vehicle: dict | None = None
+    oversize_vehicle: dict[str, Any] | None = None
 
 
 class RestaurantConfig(BaseModel):
@@ -160,7 +161,7 @@ class HotelProfile(BaseModel):
     cancellation_rules: dict[str, CancellationRule] = Field(default_factory=dict)
     transfer_routes: list[TransferRouteConfig] = Field(default_factory=list)
     restaurant: RestaurantConfig | None = None
-    facility_policies: dict = Field(default_factory=dict)
+    facility_policies: dict[str, Any] = Field(default_factory=dict)
     faq_data: list[FAQEntry] = Field(default_factory=list)
-    payment: dict = Field(default_factory=dict)
+    payment: dict[str, Any] = Field(default_factory=dict)
     hotel_conversational_flow: HotelConversationalFlow = Field(default_factory=HotelConversationalFlow)

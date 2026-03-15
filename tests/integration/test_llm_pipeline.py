@@ -135,7 +135,11 @@ async def test_multi_turn_flow_greeting_to_hold_with_tool_calls(mock_openai: Asy
                         "message": {
                             "content": "",
                             "tool_calls": [
-                                {"id": "tc-b", "type": "function", "function": {"name": "booking_quote", "arguments": "{}"}}
+                                {
+                                    "id": "tc-b",
+                                    "type": "function",
+                                    "function": {"name": "booking_quote", "arguments": "{}"},
+                                }
                             ],
                         }
                     }
@@ -150,7 +154,11 @@ async def test_multi_turn_flow_greeting_to_hold_with_tool_calls(mock_openai: Asy
                         "message": {
                             "content": "",
                             "tool_calls": [
-                                {"id": "tc-c", "type": "function", "function": {"name": "stay_create_hold", "arguments": "{}"}}
+                                {
+                                    "id": "tc-c",
+                                    "type": "function",
+                                    "function": {"name": "stay_create_hold", "arguments": "{}"},
+                                }
                             ],
                         }
                     }

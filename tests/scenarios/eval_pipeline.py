@@ -33,7 +33,6 @@ from tests.scenarios.report import (
 )
 from tests.scenarios.runner import ScenarioResult, ScenarioRunner
 
-
 # Hizli mod icin kritik senaryo listesi (testing_qa.md'den)
 FAST_MODE_CODES = [
     "S001",  # Stay availability (happy path)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -94,7 +95,7 @@ class StayHold(BaseModel):
     hold_id: str
     hotel_id: int
     conversation_id: UUID | None = None
-    draft_json: dict
+    draft_json: dict[str, Any]
     status: HoldStatus = HoldStatus.PENDING_APPROVAL
     pms_reservation_id: str | None = None
     voucher_no: str | None = None
@@ -165,4 +166,4 @@ class BookingOffer(BaseModel):
     currency_code: str
     price: Decimal
     discounted_price: Decimal
-    cancellation_penalty: dict = Field(default_factory=dict)
+    cancellation_penalty: dict[str, Any] = Field(default_factory=dict)

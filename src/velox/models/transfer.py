@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -20,7 +21,7 @@ class TransferRoute(BaseModel):
     max_pax: int
     duration_min: int
     baby_seat: bool = False
-    oversize_vehicle: dict | None = None  # {type, price_eur, min_pax}
+    oversize_vehicle: dict[str, Any] | None = None  # {type, price_eur, min_pax}
 
 
 class TransferInfoRequest(BaseModel):

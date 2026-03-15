@@ -14,10 +14,10 @@ from velox.config.constants import Role
 
 
 class _AcquireContext:
-    def __init__(self, connection: "_FakeConnection") -> None:
+    def __init__(self, connection: _FakeConnection) -> None:
         self._connection = connection
 
-    async def __aenter__(self) -> "_FakeConnection":
+    async def __aenter__(self) -> _FakeConnection:
         return self._connection
 
     async def __aexit__(self, exc_type, exc, tb) -> bool:

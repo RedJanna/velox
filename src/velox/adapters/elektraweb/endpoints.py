@@ -1,6 +1,7 @@
 """Elektraweb API endpoint methods — typed wrappers around the HTTP client."""
 
 from datetime import date
+from typing import Any
 
 import structlog
 
@@ -85,7 +86,7 @@ def _apply_child_quote_params(params: dict[str, str | int | bool], chd_count: in
 
 
 def _quote_response_matches_requested_occupancy(
-    raw: dict | list,
+    raw: dict[str, Any] | list[Any],
     *,
     adults: int,
     requested_buckets: dict[str, int],
@@ -240,7 +241,7 @@ def _split_guest_name(full_name: str) -> tuple[str, str]:
     return tokens[0], " ".join(tokens[1:])
 
 
-def _build_hoteladvisor_insert_payload(hotel_id: int, draft: dict) -> dict:
+def _build_hoteladvisor_insert_payload(hotel_id: int, draft: dict[str, Any]) -> dict[str, Any]:
     """Build `/Insert/HOTEL_RES` payload for HotelAdvisor integration."""
     checkin_date = _normalize_iso_date(draft.get("checkin_date"))
     checkout_date = _normalize_iso_date(draft.get("checkout_date"))
@@ -304,7 +305,11 @@ def _build_hoteladvisor_insert_payload(hotel_id: int, draft: dict) -> dict:
     }
 
 
-def _build_hoteladvisor_guest_payload(hotel_id: int, reservation_id: str, draft: dict) -> dict | None:
+def _build_hoteladvisor_guest_payload(
+    hotel_id: int,
+    reservation_id: str,
+    draft: dict[str, Any],
+) -> dict[str, Any] | None:
     """Build `/Execute/SP_HOTELRESGUEST_SAVE` payload when guest fields exist."""
     guest_name = str(draft.get("guest_name") or "").strip()
     if not guest_name:
@@ -335,7 +340,7 @@ def _build_hoteladvisor_guest_payload(hotel_id: int, reservation_id: str, draft:
     }
 
 
-async def create_reservation(hotel_id: int, draft: dict) -> ReservationResponse:
+async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> ReservationResponse:
     """Create reservation in Elektraweb with HotelAdvisor-first failover strategy."""
     client = get_elektraweb_client()
     last_error: Exception | None = None
@@ -417,7 +422,11 @@ async def get_reservation(
     raise RuntimeError(f"Failed to get reservation for hotel {hotel_id}")
 
 
-async def modify_reservation(hotel_id: int, reservation_id: str, updates: dict) -> dict:
+async def modify_reservation(
+    hotel_id: int,
+    reservation_id: str,
+    updates: dict[str, Any],
+) -> dict[str, Any]:
     """Modify an existing reservation."""
     client = get_elektraweb_client()
     logger.info("elektraweb_modify_reservation_request", hotel_id=hotel_id, reservation_id=reservation_id)
@@ -434,7 +443,7 @@ async def modify_reservation(hotel_id: int, reservation_id: str, updates: dict) 
     return await client.post(f"/hotel/{hotel_id}/updateReservation", json_body=body)
 
 
-async def cancel_reservation(hotel_id: int, reservation_id: str, reason: str) -> dict:
+async def cancel_reservation(hotel_id: int, reservation_id: str, reason: str) -> dict[str, Any]:
     """Cancel an existing reservation."""
     client = get_elektraweb_client()
     body = {"reservationId": reservation_id, "reason": reason}

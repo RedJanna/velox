@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -39,7 +40,7 @@ class WhatsAppWebhook:
         expected = hmac.new(self.app_secret.encode(), payload, hashlib.sha256).hexdigest()
         return hmac.compare_digest(f"sha256={expected}", signature_header)
 
-    def parse_message(self, body: dict) -> IncomingMessage | None:
+    def parse_message(self, body: dict[str, Any]) -> IncomingMessage | None:
         """Extract first incoming user message from webhook payload."""
         entries = body.get("entry")
         if not isinstance(entries, list):
@@ -84,7 +85,7 @@ class WhatsAppWebhook:
 
     def _parse_single_message(
         self,
-        message: dict,
+        message: dict[str, Any],
         display_name: str,
         *,
         phone_number_id: str | None = None,

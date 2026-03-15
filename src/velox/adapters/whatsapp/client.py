@@ -86,7 +86,7 @@ class WhatsAppClient:
             raise last_error
         raise RuntimeError("WhatsApp request failed.")
 
-    async def send_text_message(self, to: str, body: str) -> dict:
+    async def send_text_message(self, to: str, body: str) -> dict[str, Any]:
         """Send a plain text message."""
         truncated = body if len(body) <= MAX_MESSAGE_LENGTH else f"{body[: MAX_MESSAGE_LENGTH - 3]}..."
         payload = {
@@ -98,7 +98,13 @@ class WhatsAppClient:
         logger.info("whatsapp_send_text", to=_mask_phone(to))
         return await self._request(payload)
 
-    async def send_template_message(self, to: str, template_name: str, language: str, components: list) -> dict:
+    async def send_template_message(
+        self,
+        to: str,
+        template_name: str,
+        language: str,
+        components: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """Send a template message."""
         payload = {
             "messaging_product": "whatsapp",

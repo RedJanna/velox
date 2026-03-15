@@ -1,12 +1,11 @@
 """Eval report generator — console + JSON output."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from tests.scenarios.runner import ScenarioResult, ScenarioStepResult
-
+from tests.scenarios.runner import ScenarioResult
 
 REPORTS_DIR = Path(__file__).resolve().parents[2] / "data" / "eval_reports"
 
@@ -31,7 +30,7 @@ def generate_console_report(results: list[ScenarioResult], mode: str = "full") -
     lines.append("")
     lines.append("=" * 60)
     lines.append("         VELOX EVAL RAPORU")
-    lines.append(f"         {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    lines.append(f"         {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}")
     lines.append(f"         Mod: {mode}")
     lines.append("=" * 60)
     lines.append("")
@@ -115,8 +114,8 @@ def generate_json_report(
         })
 
     return {
-        "run_id": f"EVAL-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "run_id": f"EVAL-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}",
+        "timestamp": datetime.now(UTC).isoformat(),
         "mode": mode,
         "app_version": app_version,
         "summary": {
