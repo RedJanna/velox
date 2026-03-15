@@ -1,8 +1,8 @@
 """WhatsApp webhook verification and payload parsing utilities."""
 
-from dataclasses import dataclass
 import hashlib
 import hmac
+from dataclasses import dataclass
 
 
 @dataclass(slots=True)

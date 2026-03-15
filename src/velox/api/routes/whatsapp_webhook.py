@@ -1520,9 +1520,12 @@ def _select_offer_for_stay_hold(
         return None
 
     def _matches(offer: dict[str, Any], *, check_room: bool, check_policy: bool) -> bool:
-        if check_room and requested_room_type_id > 0:
-            if _to_int(offer.get("room_type_id"), 0) != requested_room_type_id:
-                return False
+        if (
+            check_room
+            and requested_room_type_id > 0
+            and _to_int(offer.get("room_type_id"), 0) != requested_room_type_id
+        ):
+            return False
         if check_policy:
             resolved = _resolve_quote_policy_key(offer, profile)
             if resolved and resolved != cancel_policy_type:
@@ -1975,7 +1978,10 @@ async def _process_incoming_message(
             internal_json=audit_context,
         )
         await conversation_repository.add_message(user_msg)
-        conversation.messages = await conversation_repository.get_recent_messages(conversation.id, count=CONTEXT_WINDOW_MAX_MESSAGES)
+        conversation.messages = await conversation_repository.get_recent_messages(
+            conversation.id,
+            count=CONTEXT_WINDOW_MAX_MESSAGES,
+        )
 
         await whatsapp_client.mark_as_read(incoming.message_id)
 

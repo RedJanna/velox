@@ -4,8 +4,8 @@ import asyncio
 import time
 from typing import Any
 
-from openai import APIConnectionError, APITimeoutError, AsyncOpenAI, RateLimitError
 import structlog
+from openai import APIConnectionError, APITimeoutError, AsyncOpenAI, RateLimitError
 
 from velox.config.constants import TOOL_RETRY_BACKOFF_SECONDS
 from velox.config.settings import Settings, settings

@@ -1,8 +1,9 @@
 """Elektraweb PMS HTTP client with JWT authentication and retry logic."""
 
 import asyncio
-from datetime import datetime, timedelta
 import os
+from datetime import datetime, timedelta
+from typing import Any
 
 import httpx
 import structlog
@@ -26,7 +27,9 @@ class ElektrawebClient:
         self._base_url = (configured_base_url or "https://bookingapi.elektraweb.com").rstrip("/")
         self._base_urls = self._build_base_urls(self._base_url)
         self._api_key = settings.elektra_api_key.strip()
-        self._raw_booking_credential = os.getenv("Elektra_Booking", "").strip() or os.getenv("ELEKTRA_BOOKING", "").strip()
+        legacy_booking_key = "Elektra_Booking"
+        legacy_booking = os.getenv(legacy_booking_key, "").strip()
+        self._raw_booking_credential = legacy_booking or os.getenv("ELEKTRA_BOOKING", "").strip()
         self._token: str | None = None
         self._token_expires_at: datetime | None = None
         self._client: httpx.AsyncClient | None = None
@@ -76,13 +79,18 @@ class ElektrawebClient:
 
         for candidate in candidates:
             try:
-                login_attempts = (
-                    {"headers": {"Authorization": f"Bearer {candidate}"}},
-                    {"headers": {"Authorization": f"Bearer {candidate}"}, "json": {}},
-                    {"json": {"apiKey": candidate}},
+                login_attempts: tuple[tuple[dict[str, str] | None, dict[str, Any] | None], ...] = (
+                    ({"Authorization": f"Bearer {candidate}"}, None),
+                    ({"Authorization": f"Bearer {candidate}"}, {}),
+                    (None, {"apiKey": candidate}),
                 )
-                for payload in login_attempts:
-                    response = await client.post("/login", **payload)
+                for headers, json_payload in login_attempts:
+                    request_kwargs: dict[str, Any] = {}
+                    if headers is not None:
+                        request_kwargs["headers"] = headers
+                    if json_payload is not None:
+                        request_kwargs["json"] = json_payload
+                    response = await client.post("/login", **request_kwargs)
                     if response.status_code >= 400:
                         last_response = response
                         continue
@@ -185,7 +193,15 @@ class ElektrawebClient:
                         continue
 
                     response.raise_for_status()
-                    return response.json()
+                    response_json = response.json()
+                    if isinstance(response_json, dict):
+                        return response_json
+                    logger.warning(
+                        "elektraweb_non_object_response",
+                        path=path,
+                        response_type=type(response_json).__name__,
+                    )
+                    return {"data": response_json}
                 except httpx.TimeoutException as error:
                     last_error = error
                     logger.warning(

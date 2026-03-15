@@ -20,10 +20,7 @@ def validate_guest_counts(adults: int, chd_ages: list[int] | None = None) -> boo
     """Validate adult/child counts and child ages."""
     if adults < 1:
         return False
-    for age in chd_ages or []:
-        if age < 0 or age > 17:
-            return False
-    return True
+    return all(not (age < 0 or age > 17) for age in chd_ages or [])
 
 
 def validate_phone_number(phone: str, region: str | None = None) -> bool:

@@ -13,9 +13,9 @@ logger = structlog.get_logger(__name__)
 class Template:
     """A single message template."""
 
-    def __init__(self, id: str, intent: str, state: str, language: str, template: str) -> None:
+    def __init__(self, template_id: str, intent: str, state: str, language: str, template: str) -> None:
         """Initialize template entity."""
-        self.id = id
+        self.id = template_id
         self.intent = intent
         self.state = state
         self.language = language
@@ -57,7 +57,7 @@ def load_templates() -> list[Template]:
 
             for entry in raw_list:
                 template = Template(
-                    id=entry["id"],
+                    template_id=entry["id"],
                     intent=entry.get("intent", ""),
                     state=entry.get("state", ""),
                     language=entry.get("language", "tr"),

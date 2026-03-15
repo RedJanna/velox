@@ -1,6 +1,6 @@
 """Repository for restaurant holds and restaurant slots."""
 
-from datetime import date, datetime, timedelta, time
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
 import asyncpg
@@ -88,61 +88,60 @@ class RestaurantRepository:
         slot_id = int(hold.slot_id)
 
         pool = get_pool()
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                slot = await conn.fetchrow(
-                    """
+        async with pool.acquire() as conn, conn.transaction():
+            slot = await conn.fetchrow(
+                """
                     SELECT id, date, time, area, total_capacity, booked_count
                     FROM restaurant_slots
                     WHERE id = $1 AND hotel_id = $2 AND is_active = true
                     FOR UPDATE
                     """,
-                    slot_id,
-                    hold.hotel_id,
-                    timeout=DB_TIMEOUT_SECONDS,
-                )
-                if slot is None:
-                    raise ValueError("slot_not_found")
+                slot_id,
+                hold.hotel_id,
+                timeout=DB_TIMEOUT_SECONDS,
+            )
+            if slot is None:
+                raise ValueError("slot_not_found")
 
-                capacity_left = int(slot["total_capacity"]) - int(slot["booked_count"])
-                if capacity_left < hold.party_size:
-                    raise ValueError("slot_capacity_not_enough")
+            capacity_left = int(slot["total_capacity"]) - int(slot["booked_count"])
+            if capacity_left < hold.party_size:
+                raise ValueError("slot_capacity_not_enough")
 
-                row = await conn.fetchrow(
-                    """
+            row = await conn.fetchrow(
+                """
                     INSERT INTO restaurant_holds
                         (hold_id, hotel_id, conversation_id, slot_id, date, time, party_size,
                          guest_name, phone, area, notes, status)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                     RETURNING id, created_at
                     """,
-                    hold.hold_id,
-                    hold.hotel_id,
-                    hold.conversation_id,
-                    str(slot["id"]),
-                    slot["date"],
-                    slot["time"],
-                    hold.party_size,
-                    hold.guest_name,
-                    hold.phone,
-                    hold.area or slot["area"],
-                    hold.notes,
-                    hold.status.value,
-                    timeout=DB_TIMEOUT_SECONDS,
-                )
-                if row is None:
-                    raise RuntimeError("restaurant_hold_create_failed")
+                hold.hold_id,
+                hold.hotel_id,
+                hold.conversation_id,
+                str(slot["id"]),
+                slot["date"],
+                slot["time"],
+                hold.party_size,
+                hold.guest_name,
+                hold.phone,
+                hold.area or slot["area"],
+                hold.notes,
+                hold.status.value,
+                timeout=DB_TIMEOUT_SECONDS,
+            )
+            if row is None:
+                raise RuntimeError("restaurant_hold_create_failed")
 
-                await conn.execute(
-                    """
+            await conn.execute(
+                """
                     UPDATE restaurant_slots
                     SET booked_count = booked_count + $2
                     WHERE id = $1
                     """,
-                    slot_id,
-                    hold.party_size,
-                    timeout=DB_TIMEOUT_SECONDS,
-                )
+                slot_id,
+                hold.party_size,
+                timeout=DB_TIMEOUT_SECONDS,
+            )
 
         hold.id = row["id"]
         hold.created_at = row["created_at"]
@@ -178,45 +177,44 @@ class RestaurantRepository:
     async def cancel_hold(self, hold_id: str, reason: str) -> None:
         """Cancel hold and restore slot capacity atomically."""
         pool = get_pool()
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                row = await conn.fetchrow(
-                    """
+        async with pool.acquire() as conn, conn.transaction():
+            row = await conn.fetchrow(
+                """
                     SELECT hold_id, slot_id, party_size, status
                     FROM restaurant_holds
                     WHERE hold_id = $1
                     FOR UPDATE
                     """,
-                    hold_id,
-                    timeout=DB_TIMEOUT_SECONDS,
-                )
-                if row is None:
-                    raise ValueError("restaurant_hold_not_found")
+                hold_id,
+                timeout=DB_TIMEOUT_SECONDS,
+            )
+            if row is None:
+                raise ValueError("restaurant_hold_not_found")
 
-                await conn.execute(
-                    """
+            await conn.execute(
+                """
                     UPDATE restaurant_holds
                     SET status = $2, rejected_reason = $3, updated_at = now()
                     WHERE hold_id = $1
                     """,
-                    hold_id,
-                    HoldStatus.CANCELLED.value,
-                    reason,
-                    timeout=DB_TIMEOUT_SECONDS,
-                )
+                hold_id,
+                HoldStatus.CANCELLED.value,
+                reason,
+                timeout=DB_TIMEOUT_SECONDS,
+            )
 
-                slot_id = row["slot_id"]
-                if slot_id and str(row["status"]) != HoldStatus.CANCELLED.value:
-                    await conn.execute(
-                        """
+            slot_id = row["slot_id"]
+            if slot_id and str(row["status"]) != HoldStatus.CANCELLED.value:
+                await conn.execute(
+                    """
                         UPDATE restaurant_slots
                         SET booked_count = GREATEST(0, booked_count - $2)
                         WHERE id = $1
                         """,
-                        int(slot_id),
-                        int(row["party_size"] or 0),
-                        timeout=DB_TIMEOUT_SECONDS,
-                    )
+                    int(slot_id),
+                    int(row["party_size"] or 0),
+                    timeout=DB_TIMEOUT_SECONDS,
+                )
 
     async def get_hold(self, hold_id: str) -> RestaurantHold | None:
         """Fetch hold by ID."""
@@ -249,15 +247,14 @@ class RestaurantRepository:
 
         inserted = 0
         pool = get_pool()
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                for slot in slots:
-                    if slot.date_to < slot.date_from:
-                        raise ValueError("invalid_date_range")
-                    current_date = slot.date_from
-                    while current_date <= slot.date_to:
-                        await conn.execute(
-                            """
+        async with pool.acquire() as conn, conn.transaction():
+            for slot in slots:
+                if slot.date_to < slot.date_from:
+                    raise ValueError("invalid_date_range")
+                current_date = slot.date_from
+                while current_date <= slot.date_to:
+                    await conn.execute(
+                        """
                             INSERT INTO restaurant_slots
                                 (hotel_id, date, time, area, total_capacity, is_active)
                             VALUES ($1, $2, $3, $4, $5, $6)
@@ -266,16 +263,16 @@ class RestaurantRepository:
                                 total_capacity = GREATEST(EXCLUDED.total_capacity, restaurant_slots.booked_count),
                                 is_active = EXCLUDED.is_active
                             """,
-                            hotel_id,
-                            current_date,
-                            slot.time,
-                            slot.area,
-                            slot.total_capacity,
-                            slot.is_active,
-                            timeout=DB_TIMEOUT_SECONDS,
-                        )
-                        inserted += 1
-                        current_date += timedelta(days=1)
+                        hotel_id,
+                        current_date,
+                        slot.time,
+                        slot.area,
+                        slot.total_capacity,
+                        slot.is_active,
+                        timeout=DB_TIMEOUT_SECONDS,
+                    )
+                    inserted += 1
+                    current_date += timedelta(days=1)
         return inserted
 
     async def get_slot_by_id(self, hotel_id: int, slot_id: int) -> dict[str, Any] | None:

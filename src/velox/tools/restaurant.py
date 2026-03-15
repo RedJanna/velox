@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import datetime as _dt
-from datetime import date, time
 import re
+from datetime import time
 from typing import Any
 
 from pydantic import BaseModel

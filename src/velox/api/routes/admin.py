@@ -1193,7 +1193,8 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
                NULL::text AS workflow_state, sh.draft_json::jsonb AS draft_json, NULL::timestamptz AS expires_at,
                 NULL::timestamptz AS pms_create_started_at, NULL::timestamptz AS pms_create_completed_at,
                 NULL::text AS manual_review_reason, NULL::text AS approval_idempotency_key,
-               NULL::text AS create_idempotency_key, sh.pms_reservation_id, sh.voucher_no, sh.approved_by, sh.approved_at,
+               NULL::text AS create_idempotency_key, sh.pms_reservation_id, sh.voucher_no,
+               sh.approved_by, sh.approved_at,
                approval_meta.approval_decided_at, payment_meta.payment_requested_at,
                failure_meta.last_failed_tool, failure_meta.last_failed_error_type,
                sh.created_at, sh.conversation_id

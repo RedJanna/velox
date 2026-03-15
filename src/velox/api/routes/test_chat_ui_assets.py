@@ -1,6 +1,6 @@
 """Static assets for the Chat Lab HTML interface."""
 
-# ruff: noqa: E501
+# ruff: noqa: E501, S608
 
 from velox.api.routes.ui_shared_assets import UI_SHARED_SCRIPT
 

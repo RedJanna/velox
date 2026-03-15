@@ -388,7 +388,7 @@ def _crm_log(args: dict[str, Any]) -> dict[str, Any]:
     return {"status": "LOGGED", "intent": args.get("intent")}
 
 
-def _faq_lookup(args: dict[str, Any]) -> dict[str, Any]:
+def _faq_lookup(_args: dict[str, Any]) -> dict[str, Any]:
     return {"answer": "Bilgi icin otel profilindeki FAQ verilerine bakiniz.", "source": "faq"}
 
 

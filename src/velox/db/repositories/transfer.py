@@ -1,7 +1,6 @@
 """Repository for transfer holds."""
 
 from datetime import date
-from typing import Any
 
 import asyncpg
 import structlog
@@ -113,27 +112,20 @@ class TransferRepository:
         status: str | None = None,
     ) -> list[TransferHold]:
         """List holds with optional filters."""
-        conditions: list[str] = ["hotel_id = $1"]
-        params: list[Any] = [hotel_id]
-        param_idx = 2
-
-        if date_from is not None:
-            conditions.append(f"date >= ${param_idx}")
-            params.append(date_from)
-            param_idx += 1
-        if date_to is not None:
-            conditions.append(f"date <= ${param_idx}")
-            params.append(date_to)
-            param_idx += 1
-        if status is not None:
-            conditions.append(f"status = ${param_idx}")
-            params.append(status)
-            param_idx += 1
-
-        where_clause = " AND ".join(conditions)
         rows = await fetch(
-            f"SELECT * FROM transfer_holds WHERE {where_clause} ORDER BY date ASC, time ASC",
-            *params,
+            """
+            SELECT *
+            FROM transfer_holds
+            WHERE hotel_id = $1
+              AND ($2::date IS NULL OR date >= $2)
+              AND ($3::date IS NULL OR date <= $3)
+              AND ($4::text IS NULL OR status = $4)
+            ORDER BY date ASC, time ASC
+            """,
+            hotel_id,
+            date_from,
+            date_to,
+            status,
         )
         return [self._row_to_hold(row) for row in rows]
 

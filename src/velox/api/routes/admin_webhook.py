@@ -3,11 +3,12 @@
 import hashlib
 import hmac
 
+import structlog
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import ValidationError
-import structlog
 
 from velox.config.settings import settings
+from velox.core.event_processor import EventProcessor
 from velox.models.webhook_events import ApprovalEvent, PaymentEvent, TransferEvent
 
 logger = structlog.get_logger(__name__)
@@ -32,10 +33,10 @@ def _extract_signature(request: Request) -> str:
     )
 
 
-def _get_event_processor(request: Request):
+def _get_event_processor(request: Request) -> EventProcessor:
     """Return app event processor or raise 503 if not initialized."""
     processor = getattr(request.app.state, "event_processor", None)
-    if processor is None:
+    if not isinstance(processor, EventProcessor):
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Event processor unavailable")
     return processor
 
@@ -59,7 +60,10 @@ async def approval_webhook(request: Request) -> dict[str, object]:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("approval_webhook_failed")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Approval webhook failed") from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Approval webhook failed",
+        ) from exc
     return {"ok": True, "result": result}
 
 
@@ -109,5 +113,8 @@ async def transfer_webhook(request: Request) -> dict[str, object]:
         raise HTTPException(status_code=status_code, detail=detail) from exc
     except Exception as exc:
         logger.exception("transfer_webhook_failed")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Transfer webhook failed") from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Transfer webhook failed",
+        ) from exc
     return {"ok": True, "result": result}
