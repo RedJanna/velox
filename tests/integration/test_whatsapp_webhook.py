@@ -1044,6 +1044,47 @@ def test_deterministic_turkish_quote_reply_formats_multi_room_calls(monkeypatch:
     assert "Superior (30m2)" in messages[1]
 
 
+def test_deterministic_quote_reply_filters_out_unavailable_room_types(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Quote reply must not include room types excluded by booking_availability."""
+    profile = SimpleNamespace(
+        rate_mapping={
+            "FREE_CANCEL": SimpleNamespace(rate_type_id=24178),
+            "NON_REFUNDABLE": SimpleNamespace(rate_type_id=24171),
+        },
+        room_types=[
+            SimpleNamespace(pms_room_type_id=396094, name=SimpleNamespace(tr="Deluxe"), size_m2=25),
+            SimpleNamespace(pms_room_type_id=396097, name=SimpleNamespace(tr="Superior"), size_m2=30),
+        ],
+    )
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: profile)
+
+    executed_calls = [
+        {
+            "name": "booking_availability",
+            "arguments": '{"checkin_date":"2026-10-01","checkout_date":"2026-10-06","adults":2}',
+            "result": '{"rows":[{"room_type_id":396094,"room_to_sell":2,"stop_sell":false},{"room_type_id":396097,"room_to_sell":0,"stop_sell":false}]}',
+        },
+        {
+            "name": "booking_quote",
+            "arguments": '{"checkin_date":"2026-10-01","checkout_date":"2026-10-06","adults":2}',
+            "result": (
+                '{"offers":['
+                '{"room_type_id":396094,"room_type":"DELUXE","rate_type_id":24171,"rate_type":"İptal Edilemez","price":"500","discounted_price":"500","currency_code":"EUR","room_area":25,"cancel_possible":false},'
+                '{"room_type_id":396094,"room_type":"DELUXE","rate_type_id":24178,"rate_type":"Ücretsiz İptal","price":"550","discounted_price":"550","currency_code":"EUR","room_area":25,"cancel_possible":true},'
+                '{"room_type_id":396097,"room_type":"SUPERIOR","rate_type_id":24171,"rate_type":"İptal Edilemez","price":"600","discounted_price":"600","currency_code":"EUR","room_area":30,"cancel_possible":false},'
+                '{"room_type_id":396097,"room_type":"SUPERIOR","rate_type_id":24178,"rate_type":"Ücretsiz İptal","price":"650","discounted_price":"650","currency_code":"EUR","room_area":30,"cancel_possible":true}'
+                ']}'
+            ),
+        },
+    ]
+
+    messages = whatsapp_webhook._build_deterministic_turkish_stay_quote_messages(21966, executed_calls)
+
+    assert len(messages) == 1
+    assert "Deluxe (25m2)" in messages[0]
+    assert "Superior (30m2)" not in messages[0]
+
+
 def test_deterministic_turkish_quote_reply_merges_same_occupancy_calls(monkeypatch: pytest.MonkeyPatch) -> None:
     """FREE_CANCEL and NON_REFUNDABLE calls for same room request must merge into one message."""
     profile = SimpleNamespace(

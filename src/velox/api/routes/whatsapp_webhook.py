@@ -71,6 +71,10 @@ TR_ROOM_SPLIT_REQUIRED_NOTE = (
     "Toplam kişi sayınız oda başı kapasiteyi aştığı için konaklamayı 2 oda olarak planlamamız gerekiyor. "
     "Oda dağılımını (ör. 3+3 veya 4+2) paylaşırsanız her iki iptal politikası için toplam fiyatı iletebilirim."
 )
+TR_NO_AVAILABLE_ROOM_FOR_QUOTE = (
+    "Paylaştığınız tarihlerde şu an müsait görünen oda tipi bulunmuyor. "
+    "İsterseniz farklı tarih veya alternatif oda ile hemen tekrar kontrol edebilirim."
+)
 PRICE_ROUNDING_INCREMENT = Decimal("5")
 SUPPORTED_LANGUAGE_CODES = set(SUPPORTED_LANGUAGES)
 TURKISH_LANGUAGE_HINTS = (
@@ -623,7 +627,7 @@ def _extract_available_room_type_ids(executed_calls: list[dict[str, Any]]) -> li
         result = _loads_tool_payload(call.get("result"))
         rows = result.get("rows")
         if not isinstance(rows, list):
-            continue
+            rows = []
         for row in rows:
             if not isinstance(row, dict):
                 continue
@@ -636,7 +640,48 @@ def _extract_available_room_type_ids(executed_calls: list[dict[str, Any]]) -> li
                 continue
             seen.add(room_type_id)
             room_type_ids.append(room_type_id)
+        derived = result.get("derived")
+        if not isinstance(derived, dict):
+            continue
+        eligible_ids = derived.get("eligible_room_type_ids")
+        if not isinstance(eligible_ids, list):
+            continue
+        for room_type_id_raw in eligible_ids:
+            room_type_id = int(room_type_id_raw or 0)
+            if room_type_id <= 0 or room_type_id in seen:
+                continue
+            seen.add(room_type_id)
+            room_type_ids.append(room_type_id)
     return room_type_ids
+
+
+def _filter_quote_payloads_by_available_room_types(
+    payloads: list[dict[str, Any]],
+    available_room_type_ids: list[int],
+) -> list[dict[str, Any]]:
+    """Keep only quote offers whose room_type_id is available."""
+    if not available_room_type_ids:
+        return payloads
+    allowed = set(available_room_type_ids)
+    filtered_payloads: list[dict[str, Any]] = []
+    for payload in payloads:
+        offers = payload.get("offers")
+        if not isinstance(offers, list):
+            continue
+        filtered_offers = [
+            offer
+            for offer in offers
+            if isinstance(offer, dict) and int(offer.get("room_type_id", 0) or 0) in allowed
+        ]
+        if not filtered_offers:
+            continue
+        filtered_payloads.append(
+            {
+                "arguments": payload.get("arguments", {}),
+                "offers": filtered_offers,
+            }
+        )
+    return filtered_payloads
 
 
 def _extract_requested_occupancy(executed_calls: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1235,6 +1280,10 @@ def _build_deterministic_turkish_stay_quote_messages(
         if not offers:
             return []
         payloads = [{"arguments": {}, "offers": offers}]
+    available_room_type_ids = _extract_available_room_type_ids(executed_calls)
+    payloads = _filter_quote_payloads_by_available_room_types(payloads, available_room_type_ids)
+    if not payloads and available_room_type_ids:
+        return [TR_NO_AVAILABLE_ROOM_FOR_QUOTE]
     grouped_payloads = _group_quote_payloads(payloads)
 
     profile = get_profile(hotel_id)
