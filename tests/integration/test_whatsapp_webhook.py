@@ -1186,6 +1186,41 @@ def test_deterministic_quote_reply_filters_out_unavailable_room_types(monkeypatc
     assert "Superior (30m2)" not in messages[0]
 
 
+def test_deterministic_quote_reply_returns_no_availability_when_sellable_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    """If no sellable room exists, quote message should become explicit no-availability notice."""
+    profile = SimpleNamespace(
+        rate_mapping={
+            "FREE_CANCEL": SimpleNamespace(rate_type_id=24178),
+            "NON_REFUNDABLE": SimpleNamespace(rate_type_id=24171),
+        },
+        room_types=[
+            SimpleNamespace(pms_room_type_id=396094, name=SimpleNamespace(tr="Deluxe"), size_m2=25),
+        ],
+    )
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: profile)
+
+    executed_calls = [
+        {
+            "name": "booking_availability",
+            "arguments": '{"checkin_date":"2026-10-01","checkout_date":"2026-10-06","adults":2}',
+            "result": '{"rows":[{"date":"2026-10-01","room_type_id":396094,"room_to_sell":0,"stop_sell":true}]}',
+        },
+        {
+            "name": "booking_quote",
+            "arguments": '{"checkin_date":"2026-10-01","checkout_date":"2026-10-06","adults":2}',
+            "result": (
+                '{"offers":['
+                '{"room_type_id":396094,"room_type":"DELUXE","rate_type_id":24171,"rate_type":"İptal Edilemez","price":"500","discounted_price":"500","currency_code":"EUR","room_area":25,"cancel_possible":false}'
+                ']}'
+            ),
+        },
+    ]
+
+    messages = whatsapp_webhook._build_deterministic_turkish_stay_quote_messages(21966, executed_calls)
+
+    assert messages == [whatsapp_webhook.TR_NO_AVAILABLE_ROOM_FOR_QUOTE]
+
+
 def test_deterministic_turkish_quote_reply_merges_same_occupancy_calls(monkeypatch: pytest.MonkeyPatch) -> None:
     """FREE_CANCEL and NON_REFUNDABLE calls for same room request must merge into one message."""
     profile = SimpleNamespace(

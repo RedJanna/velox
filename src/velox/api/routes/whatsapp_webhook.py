@@ -1375,8 +1375,10 @@ def _build_deterministic_turkish_stay_quote_messages(
             return []
         payloads = [{"arguments": {}, "offers": offers}]
     available_room_type_ids = _extract_available_room_type_ids(executed_calls)
+    if _has_booking_availability_call(executed_calls) and not available_room_type_ids:
+        return [TR_NO_AVAILABLE_ROOM_FOR_QUOTE]
     payloads = _filter_quote_payloads_by_available_room_types(payloads, available_room_type_ids)
-    if not payloads and available_room_type_ids:
+    if not payloads and _has_booking_availability_call(executed_calls):
         return [TR_NO_AVAILABLE_ROOM_FOR_QUOTE]
     grouped_payloads = _group_quote_payloads(payloads)
 
