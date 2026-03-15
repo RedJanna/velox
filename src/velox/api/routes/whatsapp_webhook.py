@@ -4,7 +4,7 @@ import re
 import time
 import unicodedata
 from collections import defaultdict, deque
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any, cast
 
@@ -625,21 +625,57 @@ def _extract_available_room_type_ids(executed_calls: list[dict[str, Any]]) -> li
         if str(call.get("name") or "") != "booking_availability":
             continue
         result = _loads_tool_payload(call.get("result"))
+        args = _loads_tool_payload(call.get("arguments"))
+        checkin_raw = str(args.get("checkin_date") or "").strip()
+        checkout_raw = str(args.get("checkout_date") or "").strip()
+        required_dates: set[str] = set()
+        try:
+            checkin_date = date.fromisoformat(checkin_raw)
+            checkout_date = date.fromisoformat(checkout_raw)
+            cursor = checkin_date
+            while cursor < checkout_date:
+                required_dates.add(cursor.isoformat())
+                cursor += timedelta(days=1)
+        except ValueError:
+            required_dates = set()
+
         rows = result.get("rows")
         if not isinstance(rows, list):
             rows = []
+
+        room_date_coverage: dict[int, set[str]] = {}
+        positive_rooms: set[int] = set()
+        has_row_dates = False
         for row in rows:
             if not isinstance(row, dict):
+                continue
+            room_type_id = int(row.get("room_type_id", 0) or 0)
+            if room_type_id <= 0:
                 continue
             if bool(row.get("stop_sell")):
                 continue
             if int(row.get("room_to_sell", 0) or 0) <= 0:
                 continue
-            room_type_id = int(row.get("room_type_id", 0) or 0)
-            if room_type_id <= 0 or room_type_id in seen:
+            positive_rooms.add(room_type_id)
+            row_date = str(row.get("date") or "").strip()
+            if row_date:
+                has_row_dates = True
+                room_date_coverage.setdefault(room_type_id, set()).add(row_date)
+
+        eligible_from_rows: set[int] = set()
+        if required_dates and has_row_dates:
+            for room_type_id, covered_dates in room_date_coverage.items():
+                if required_dates.issubset(covered_dates):
+                    eligible_from_rows.add(room_type_id)
+        else:
+            eligible_from_rows = set(positive_rooms)
+
+        for room_type_id in sorted(eligible_from_rows):
+            if room_type_id in seen:
                 continue
             seen.add(room_type_id)
             room_type_ids.append(room_type_id)
+
         derived = result.get("derived")
         if not isinstance(derived, dict):
             continue
@@ -653,6 +689,64 @@ def _extract_available_room_type_ids(executed_calls: list[dict[str, Any]]) -> li
             seen.add(room_type_id)
             room_type_ids.append(room_type_id)
     return room_type_ids
+
+
+def _has_booking_availability_call(executed_calls: list[dict[str, Any]]) -> bool:
+    """Return True when booking_availability already ran in this turn."""
+    return any(str(call.get("name") or "") == "booking_availability" for call in executed_calls)
+
+
+def _latest_booking_quote_args(executed_calls: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return latest booking_quote arguments as dict."""
+    for call in reversed(executed_calls):
+        if str(call.get("name") or "") != "booking_quote":
+            continue
+        args = _loads_tool_payload(call.get("arguments"))
+        if args:
+            return args
+    return {}
+
+
+async def _backfill_availability_for_quote(
+    *,
+    conversation: Conversation,
+    dispatcher: Any | None,
+    executed_calls: list[dict[str, Any]],
+) -> None:
+    """Ensure quote responses have availability data for room filtering."""
+    if dispatcher is None:
+        return
+    if _has_booking_availability_call(executed_calls):
+        return
+    quote_args = _latest_booking_quote_args(executed_calls)
+    if not quote_args:
+        return
+
+    checkin_date = str(quote_args.get("checkin_date") or "").strip()
+    checkout_date = str(quote_args.get("checkout_date") or "").strip()
+    adults = _to_int(quote_args.get("adults"), 0)
+    if not checkin_date or not checkout_date or adults <= 0:
+        return
+
+    availability_args: dict[str, Any] = {
+        "hotel_id": conversation.hotel_id,
+        "checkin_date": checkin_date,
+        "checkout_date": checkout_date,
+        "adults": adults,
+        "chd_count": _to_int(quote_args.get("chd_count"), 0),
+        "chd_ages": quote_args.get("chd_ages") if isinstance(quote_args.get("chd_ages"), list) else [],
+        "currency": str(quote_args.get("currency") or "EUR").upper(),
+    }
+    result = await dispatcher.dispatch("booking_availability", **availability_args)
+    if not isinstance(result, dict):
+        return
+    executed_calls.append(
+        {
+            "name": "booking_availability",
+            "arguments": availability_args,
+            "result": result,
+        }
+    )
 
 
 def _filter_quote_payloads_by_available_room_types(
@@ -2015,6 +2109,12 @@ async def _run_message_pipeline(
             parsed.internal_json.risk_flags = risk_flags
             parsed.internal_json.next_step = "handoff_to_live_price_team"
             return parsed
+        if intent == "stay_quote":
+            await _backfill_availability_for_quote(
+                conversation=conversation,
+                dispatcher=dispatcher,
+                executed_calls=executed_calls,
+            )
         if intent == "stay_quote" and language == "tr" and _executed_booking_quote(executed_calls):
             deterministic_messages = _build_deterministic_turkish_stay_quote_messages(
                 conversation.hotel_id,

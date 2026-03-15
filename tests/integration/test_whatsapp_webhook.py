@@ -923,6 +923,107 @@ async def test_run_message_pipeline_quote_error_uses_live_price_unavailable_fall
     assert "yıl" not in result.user_message.casefold()
 
 
+@pytest.mark.asyncio
+async def test_run_message_pipeline_backfills_availability_for_quote_filtering(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stay quote flow should auto-fetch availability when LLM called quote only."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Fiyatlar hazir.\nINTERNAL_JSON: "
+            '{"language":"tr","intent":"stay_quote","state":"READY_FOR_TOOL","entities":{},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"send_quote"}',
+            [
+                {
+                    "name": "booking_quote",
+                    "arguments": {
+                        "checkin_date": "2026-10-01",
+                        "checkout_date": "2026-10-06",
+                        "adults": 2,
+                        "chd_count": 0,
+                        "currency": "EUR",
+                    },
+                    "result": {
+                        "offers": [
+                            {
+                                "room_type_id": 396094,
+                                "room_type": "DELUXE",
+                                "rate_type_id": 24171,
+                                "rate_type": "İptal Edilemez",
+                                "price": "500",
+                                "discounted_price": "500",
+                                "currency_code": "EUR",
+                                "room_area": 25,
+                            },
+                            {
+                                "room_type_id": 396097,
+                                "room_type": "SUPERIOR",
+                                "rate_type_id": 24171,
+                                "rate_type": "İptal Edilemez",
+                                "price": "600",
+                                "discounted_price": "600",
+                                "currency_code": "EUR",
+                                "room_area": 30,
+                            },
+                        ]
+                    },
+                }
+            ],
+        )
+
+    class DispatcherStub:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append((name, kwargs))
+            if name == "booking_availability":
+                return {
+                    "rows": [
+                        {"date": "2026-10-01", "room_type_id": 396094, "room_to_sell": 2, "stop_sell": False},
+                        {"date": "2026-10-02", "room_type_id": 396094, "room_to_sell": 2, "stop_sell": False},
+                        {"date": "2026-10-03", "room_type_id": 396094, "room_to_sell": 2, "stop_sell": False},
+                        {"date": "2026-10-04", "room_type_id": 396094, "room_to_sell": 2, "stop_sell": False},
+                        {"date": "2026-10-05", "room_type_id": 396094, "room_to_sell": 2, "stop_sell": False},
+                    ]
+                }
+            return {}
+
+    profile = SimpleNamespace(
+        rate_mapping={
+            "FREE_CANCEL": SimpleNamespace(rate_type_id=24178),
+            "NON_REFUNDABLE": SimpleNamespace(rate_type_id=24171),
+        },
+        room_types=[
+            SimpleNamespace(pms_room_type_id=396094, name=SimpleNamespace(tr="Deluxe"), size_m2=25),
+            SimpleNamespace(pms_room_type_id=396097, name=SimpleNamespace(tr="Superior"), size_m2=30),
+        ],
+    )
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    dispatcher = DispatcherStub()
+    conversation = Conversation(hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: profile)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="1 ekim 6 ekim 2 yetiskin fiyat nedir",
+        dispatcher=dispatcher,
+        expected_language="tr",
+    )
+
+    assert any(name == "booking_availability" for name, _kwargs in dispatcher.calls)
+    assert "Deluxe (25m2)" in result.user_message
+    assert "Superior (30m2)" not in result.user_message
+
+
 def test_booking_quote_failed_or_empty_uses_latest_attempt_only() -> None:
     """Earlier quote failures should not override a later successful quote."""
     executed_calls = [
