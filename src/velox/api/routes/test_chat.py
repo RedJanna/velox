@@ -24,8 +24,8 @@ from velox.api.routes.whatsapp_webhook import (
     _detect_message_language,
     _extract_user_message_parts,
     _hash_phone,
-    _merge_entities_with_context,
     _mask_phone,
+    _merge_entities_with_context,
     _normalize_text,
     _run_message_pipeline,
 )

@@ -700,7 +700,7 @@ Tool hatalari icin sistematik yaklasim:
 3) **Fallback Sirasi**:
    a) Retry basarili -> normal akisa devam
    b) 3. basarisizlik -> risk_flag=TOOL_ERROR_REPEAT ekle
-   c) L2 eskalasyon: handoff.create_ticket + kullaniciya kisa aciklama
+   c) L2 eskalasyon: `handoff.create_ticket + notify.send` + kullaniciya kisa aciklama
 4) **Kullanici Mesaji**: "Su an sistemimizdeki bir teknik sorun nedeniyle isleminizi tamamlayamiyorum. Sizi hemen ilgili ekibimizle bagliyorum."
 5) **Asla**: Teknik hata detayi (HTTP kodu, stack trace, endpoint) kullaniciya gosterilmez.
 

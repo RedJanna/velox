@@ -2311,6 +2311,7 @@ async def _process_incoming_message(
             llm_response.internal_json.entities if isinstance(llm_response.internal_json.entities, dict) else {},
         )
         llm_response.internal_json.entities = merged_entities
+        conversation.entities_json = merged_entities
         next_entities = merged_entities or None
         next_risk_flags = llm_response.internal_json.risk_flags or None
         await conversation_repository.update_state(

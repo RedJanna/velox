@@ -68,3 +68,18 @@ def test_l3_flag_includes_ticket_and_notify_actions() -> None:
     assert result.level == EscalationLevel.L3
     assert "handoff.create_ticket" in result.actions
     assert "notify.send" in result.actions
+
+
+def test_tool_error_repeat_includes_ticket_and_notify_actions() -> None:
+    """Repeated tool failures should always create ticket + notify OPS."""
+    engine = _engine_with_loaded_matrix()
+    result = engine.evaluate(
+        risk_flags=["TOOL_ERROR_REPEAT"],
+        intent="stay_booking_create",
+        reference_id="R5",
+        conversation_id="C5",
+    )
+    assert result.level == EscalationLevel.L2
+    assert result.route_to_role == Role.OPS
+    assert "handoff.create_ticket" in result.actions
+    assert "notify.send" in result.actions
