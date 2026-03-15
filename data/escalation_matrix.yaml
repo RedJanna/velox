@@ -88,7 +88,7 @@
   level: L2
   route_to_role: OPS
   priority: high
-  action: [handoff.create_ticket]
+  action: [handoff.create_ticket, notify.send]
   reason_hint: "Tekrarlayan tool hatasi"
 
 - risk_flag: DATA_INCONSISTENCY

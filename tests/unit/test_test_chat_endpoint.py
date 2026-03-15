@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -22,12 +23,14 @@ class _FakeRepository:
     user_insert_count = 0
     assistant_insert_count = 0
     assistant_by_client_id: dict[str, Message] = {}
+    last_update_state_kwargs: dict[str, Any] | None = None
 
     @classmethod
     def reset(cls) -> None:
         cls.user_insert_count = 0
         cls.assistant_insert_count = 0
         cls.assistant_by_client_id = {}
+        cls.last_update_state_kwargs = None
 
     async def get_active_by_phone(self, hotel_id: int, phone_hash: str) -> Conversation | None:
         _ = (hotel_id, phone_hash)
@@ -57,7 +60,7 @@ class _FakeRepository:
         return []
 
     async def update_state(self, **kwargs) -> None:
-        _ = kwargs
+        self.__class__.last_update_state_kwargs = kwargs
 
     async def get_assistant_by_client_message_id(self, conversation_id, client_message_id: str) -> Message | None:
         _ = conversation_id
@@ -103,3 +106,54 @@ async def test_test_chat_deduplicates_by_client_message_id(monkeypatch: pytest.M
     assert pipeline_calls["count"] == 1
     assert _FakeRepository.user_insert_count == 1
     assert _FakeRepository.assistant_insert_count == 1
+
+
+@pytest.mark.asyncio
+async def test_test_chat_merges_entities_without_overwriting_with_nulls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _FakeRepository.reset()
+    _FakeRepository.active_conversation = Conversation(
+        id=_FakeRepository.conversation_id,
+        hotel_id=21966,
+        phone_hash="phone_hash",
+        phone_display="test_user_123",
+        language="tr",
+        entities_json={"room_type_id": 3, "board_type_id": 2, "guest_name": "Deneme Denndim"},
+    )
+
+    async def _fake_pipeline(**kwargs) -> LLMResponse:
+        _ = kwargs
+        return LLMResponse(
+            user_message="Onaya iletiyorum.",
+            internal_json=InternalJSON(
+                language="tr",
+                intent="stay_booking_create",
+                state="PENDING_APPROVAL",
+                entities={
+                    "room_type_id": None,
+                    "board_type_id": None,
+                    "guest_name": "  ",
+                    "cancel_policy_type": "NON_REFUNDABLE",
+                },
+            ),
+        )
+
+    monkeypatch.setattr(test_chat, "ConversationRepository", _FakeRepository)
+    monkeypatch.setattr(test_chat, "_run_message_pipeline", _fake_pipeline)
+
+    request = _request_with_db()
+    body = test_chat.TestChatRequest(
+        message="evet",
+        phone="test_user_123",
+        client_message_id="cl_test_merge_001",
+    )
+    _ = await test_chat.test_chat(body=body, request=request)
+
+    assert _FakeRepository.last_update_state_kwargs is not None
+    entities = _FakeRepository.last_update_state_kwargs.get("entities")
+    assert isinstance(entities, dict)
+    assert entities["room_type_id"] == 3
+    assert entities["board_type_id"] == 2
+    assert entities["guest_name"] == "Deneme Denndim"
+    assert entities["cancel_policy_type"] == "NON_REFUNDABLE"

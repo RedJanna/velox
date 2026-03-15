@@ -24,6 +24,7 @@ from velox.api.routes.whatsapp_webhook import (
     _detect_message_language,
     _extract_user_message_parts,
     _hash_phone,
+    _merge_entities_with_context,
     _mask_phone,
     _normalize_text,
     _run_message_pipeline,
@@ -270,11 +271,17 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
             if hasattr(conversation.current_state, "value")
             else str(conversation.current_state or "GREETING")
         )
+        merged_entities = _merge_entities_with_context(
+            conversation.entities_json,
+            llm_response.internal_json.entities if isinstance(llm_response.internal_json.entities, dict) else {},
+        )
+        llm_response.internal_json.entities = merged_entities
+        conversation.entities_json = merged_entities
         await repository.update_state(
             conversation_id=conversation.id,
             state=str(llm_response.internal_json.state or current_state_value),
             intent=str(llm_response.internal_json.intent or "").strip() or None,
-            entities=llm_response.internal_json.entities or None,
+            entities=merged_entities or None,
             risk_flags=llm_response.internal_json.risk_flags or None,
         )
 

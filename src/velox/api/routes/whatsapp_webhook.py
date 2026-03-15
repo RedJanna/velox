@@ -583,6 +583,21 @@ def _loads_tool_payload(value: Any) -> dict[str, Any]:
     return {}
 
 
+def _merge_entities_with_context(
+    previous_entities: dict[str, Any] | None,
+    current_entities: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Merge current entities into previous context without null/blank overwrites."""
+    merged: dict[str, Any] = dict(previous_entities or {})
+    for key, value in (current_entities or {}).items():
+        if value is None:
+            continue
+        if isinstance(value, str) and not value.strip():
+            continue
+        merged[key] = value
+    return merged
+
+
 def _extract_quote_offers(executed_calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Return normalized booking quote offers from the latest executed tool result."""
     for call in reversed(executed_calls):
@@ -1888,8 +1903,6 @@ async def _auto_submit_stay_hold(
     """Fallback: create stay hold deterministically when LLM skips tool calls."""
     profile = get_profile(conversation.hotel_id)
     requested_room_type_id = _resolve_requested_room_type_id(entities, profile)
-    if requested_room_type_id <= 0:
-        return []
 
     checkin_date = str(entities.get("checkin_date") or "").strip()
     checkout_date = str(entities.get("checkout_date") or "").strip()
@@ -2052,6 +2065,8 @@ async def _run_message_pipeline(
         parsed.internal_json.language = language
         _suppress_default_year_question(parsed, normalized_text)
         entities = parsed.internal_json.entities if isinstance(parsed.internal_json.entities, dict) else {}
+        entities = _merge_entities_with_context(conversation.entities_json, entities)
+        parsed.internal_json.entities = entities
         if _is_elevator_question(normalized_text):
             parsed.user_message = _build_elevator_reply(conversation.hotel_id, language)
             return parsed
@@ -2291,7 +2306,12 @@ async def _process_incoming_message(
         )
         next_state = str(llm_response.internal_json.state or current_state_value)
         next_intent = str(llm_response.internal_json.intent or "").strip() or None
-        next_entities = llm_response.internal_json.entities or None
+        merged_entities = _merge_entities_with_context(
+            conversation.entities_json,
+            llm_response.internal_json.entities if isinstance(llm_response.internal_json.entities, dict) else {},
+        )
+        llm_response.internal_json.entities = merged_entities
+        next_entities = merged_entities or None
         next_risk_flags = llm_response.internal_json.risk_flags or None
         await conversation_repository.update_state(
             conversation_id=conversation.id,
