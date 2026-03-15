@@ -12,6 +12,7 @@ from velox.api.routes.admin_panel_ui_assets import ADMIN_PANEL_SCRIPT, ADMIN_PAN
 from velox.config.settings import settings
 
 router = APIRouter(tags=["admin-panel-ui"])
+ADMIN_PANEL_ROUTE = settings.admin_panel_path if settings.admin_panel_path.startswith("/") else f"/{settings.admin_panel_path}"
 
 
 def render_admin_panel_html() -> str:
@@ -524,7 +525,21 @@ def render_admin_panel_html() -> str:
 """
 
 
-@router.get("/admin", response_class=HTMLResponse)
-async def admin_panel_ui() -> HTMLResponse:
-    """Serve the standalone admin panel HTML."""
-    return HTMLResponse(content=render_admin_panel_html())
+if ADMIN_PANEL_ROUTE == "/admin":
+
+    @router.get("/admin", response_class=HTMLResponse)
+    async def admin_panel_ui() -> HTMLResponse:
+        """Serve the standalone admin panel HTML."""
+        return HTMLResponse(content=render_admin_panel_html())
+
+else:
+
+    @router.get(ADMIN_PANEL_ROUTE, response_class=HTMLResponse)
+    async def admin_panel_ui() -> HTMLResponse:
+        """Serve the standalone admin panel HTML using configured path."""
+        return HTMLResponse(content=render_admin_panel_html())
+
+    @router.get("/admin", response_class=HTMLResponse, include_in_schema=False)
+    async def admin_panel_ui_legacy() -> HTMLResponse:
+        """Serve admin UI on legacy path for compatibility during cutover."""
+        return HTMLResponse(content=render_admin_panel_html())

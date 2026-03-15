@@ -10,7 +10,7 @@
 
 ## 2. Build and Start Stack
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 ```
 
 Service ports:
@@ -19,10 +19,12 @@ Service ports:
 - Redis: internal container network (`redis:6379`)
 
 ## 3. Run Database Migration
+
+`001_initial.sql` is automatically applied by Postgres when the volume is first created.
+For existing volumes, apply pending versioned migrations with one command:
+
 ```bash
-docker compose -f docker-compose.prod.yml exec db \
-  psql -U "${DB_USER:-velox}" -d "${DB_NAME:-velox}" \
-  -f /docker-entrypoint-initdb.d/001_initial.sql
+docker compose --env-file .env.production -f docker-compose.prod.yml exec db sh -lc 'for f in /docker-entrypoint-initdb.d/00[2-9]_*.sql; do psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" -f "$f"; done'
 ```
 
 ## 4. Verify Health and Readiness

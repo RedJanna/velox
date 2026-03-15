@@ -1,7 +1,7 @@
 # Velox (NexlumeAI) — Codex Project Guide
 
-> **Sürüm:** v4.1 | **Son güncelleme:** 2026-03-15 11:59:03
-> **Değişiklik özeti:** Hata ayıklama ve kök neden analizinde Docker backend doğrulaması zorunlu başlangıç adımı olarak netleştirildi.
+> **Sürüm:** v4.2 | **Son güncelleme:** 2026-03-15 13:30:00
+> **Değişiklik özeti:** ENV değişken adları runtime ayarlarıyla hizalandı ve deployment komut standardı netleştirildi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -255,28 +255,31 @@ All secrets, API keys, and configuration must be in environment variables. Never
 | Değişken | Açıklama | Örnek | Kaynak |
 |----------|----------|-------|--------|
 | `OPENAI_API_KEY` | OpenAI GPT API anahtarı | `sk-...` | OpenAI Dashboard |
-| `WHATSAPP_TOKEN` | Meta Business API erişim token'ı | `EAA...` | Meta Business Suite |
+| `WHATSAPP_ACCESS_TOKEN` | Meta Business API erişim token'ı | `EAA...` | Meta Business Suite |
 | `WHATSAPP_VERIFY_TOKEN` | Webhook doğrulama token'ı (kendin belirle) | `velox-webhook-2024` | Manuel |
 | `WHATSAPP_PHONE_NUMBER_ID` | WhatsApp Business telefon numarası ID'si | `10234...` | Meta Business Suite |
-| `WHATSAPP_WEBHOOK_SECRET` | Webhook HMAC-SHA256 imza doğrulama secret'ı | `abc123...` | Meta Business Suite |
-| `DATABASE_URL` | PostgreSQL bağlantı adresi | `postgresql+asyncpg://user:pass@host/db` | Hosting |
+| `WHATSAPP_APP_SECRET` | WhatsApp webhook HMAC-SHA256 imza secret'ı | `abc123...` | Meta Business Suite |
+| `DB_HOST` | PostgreSQL host | `db` | Hosting |
+| `DB_PORT` | PostgreSQL port | `5432` | Hosting |
+| `DB_NAME` | PostgreSQL veritabanı adı | `velox` | Hosting |
+| `DB_USER` | PostgreSQL kullanıcı adı | `velox` | Hosting |
+| `DB_PASSWORD` | PostgreSQL şifresi | `***` | Hosting |
 | `REDIS_URL` | Redis bağlantı adresi | `redis://localhost:6379/0` | Hosting |
 | `PHONE_HASH_SALT` | Telefon numarası hash'leme için salt (rainbow table koruması) | `random-32-char-string` | Manuel üret |
-| `ELEKTRAWEB_BASE_URL` | Elektraweb PMS API base URL | `https://api.elektraweb.com` | Elektraweb |
-| `ELEKTRAWEB_USERNAME` | Elektraweb API kullanıcı adı | `velox_api` | Elektraweb |
-| `ELEKTRAWEB_PASSWORD` | Elektraweb API şifresi | `***` | Elektraweb |
-| `JWT_SECRET_KEY` | Admin panel JWT imzalama anahtarı | `random-64-char-string` | Manuel üret |
-| `CORS_ORIGINS` | İzin verilen frontend domain'leri | `["http://localhost:3000"]` | Manuel |
+| `ELEKTRA_API_BASE_URL` | Elektraweb PMS API base URL | `https://api.elektraweb.com` | Elektraweb |
+| `ELEKTRA_API_KEY` | Elektraweb API anahtarı | `***` | Elektraweb |
+| `ADMIN_JWT_SECRET` | Admin panel JWT imzalama anahtarı | `random-64-char-string` | Manuel üret |
+| `ADMIN_WEBHOOK_SECRET` | Admin webhook HMAC secret | `***` | Manuel üret |
 
 ### Opsiyonel ENV değişkenleri
 
 | Değişken | Açıklama | Varsayılan |
 |----------|----------|-----------|
-| `LOG_LEVEL` | Log seviyesi | `INFO` |
+| `APP_LOG_LEVEL` | Log seviyesi | `INFO` |
 | `QC_TIMEOUT_MS` | QC gate tek check timeout (ms) | `500` |
 | `CIRCUIT_BREAKER_THRESHOLD` | Circuit breaker hata eşiği | `5` |
 | `CIRCUIT_BREAKER_RECOVERY_S` | Circuit breaker recovery süresi (saniye) | `30` |
-| `SESSION_TTL_HOURS` | Redis session süresi (saat) | `24` |
+| `REDIS_SESSION_TTL_SECONDS` | Redis session TTL (saniye) | `1800` |
 | `SENTRY_DSN` | Sentry error tracking DSN | _(boş = devre dışı)_ |
 | `PROMETHEUS_PORT` | Prometheus metrics port | `9090` |
 

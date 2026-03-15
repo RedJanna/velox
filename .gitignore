@@ -45,6 +45,7 @@ logs/
 .DS_Store
 Thumbs.db
 desktop.ini
+.tmp.driveupload/
 
 # Secrets
 *.pem

@@ -1,6 +1,5 @@
 """WhatsApp webhook routes for verification and incoming messages."""
 
-import hashlib
 import re
 import time
 import unicodedata
@@ -29,12 +28,14 @@ from velox.llm.mock_tool_executor import mock_tool_executor
 from velox.llm.prompt_builder import get_prompt_builder
 from velox.llm.response_parser import ResponseParser
 from velox.models.conversation import Conversation, InternalJSON, LLMResponse, Message
+from velox.utils.privacy import hash_phone
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/webhook/whatsapp", tags=["whatsapp"])
 
 DEDUPE_TTL_SECONDS = 3600
 MAX_TEXT_LENGTH = 4096
+WEBHOOK_MAX_AGE_SECONDS = 300
 
 PAYMENT_DATA_PATTERN = re.compile(
     r"(\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b)|(\bcvv\b)|(\botp\b)",
@@ -236,7 +237,7 @@ def _mask_phone(phone: str) -> str:
 
 def _hash_phone(phone: str) -> str:
     """Hash phone for storage and lookup."""
-    return hashlib.sha256(phone.encode()).hexdigest()
+    return hash_phone(phone)
 
 
 def _normalize_text(text: str) -> str:
@@ -2071,6 +2072,11 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
     if incoming is None:
         logger.info("whatsapp_webhook_status_event")
         return {"status": "ok"}
+
+    now_ts = int(time.time())
+    if incoming.timestamp <= 0 or abs(now_ts - incoming.timestamp) > WEBHOOK_MAX_AGE_SECONDS:
+        logger.warning("whatsapp_webhook_stale_or_invalid_timestamp", message_id=incoming.message_id)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
     if deduplicator.is_duplicate(incoming.message_id):
         logger.info("whatsapp_webhook_duplicate", message_id=incoming.message_id)

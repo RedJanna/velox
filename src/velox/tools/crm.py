@@ -1,16 +1,11 @@
 """CRM logging tool."""
 
-import hashlib
 from typing import Any
 from uuid import UUID
 
 from velox.db.repositories.hotel import CrmLogRepository
 from velox.tools.base import BaseTool
-
-
-def hash_phone(phone: str) -> str:
-    """Hash phone number with SHA-256."""
-    return hashlib.sha256(phone.encode()).hexdigest()
+from velox.utils.privacy import hash_phone
 
 
 class CRMLogTool(BaseTool):

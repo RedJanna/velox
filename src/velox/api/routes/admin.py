@@ -47,6 +47,7 @@ from velox.utils.admin_security import (
     upsert_trusted_device_record,
 )
 from velox.utils.id_gen import next_sequential_id
+from velox.utils.privacy import hash_phone
 from velox.utils.totp import verify_totp_code
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -1035,11 +1036,9 @@ async def reset_conversation_by_phone(
     hotel_id: int | None = Query(None),
 ) -> dict[str, Any]:
     """Close all active conversations for a phone number to start fresh tests."""
-    import hashlib
-
     _ = user
     effective_hotel_id = hotel_id or settings.elektra_hotel_id
-    phone_hash = hashlib.sha256(phone.strip().encode()).hexdigest()
+    phone_hash = hash_phone(phone)
 
     db = request.app.state.db_pool
     async with db.acquire() as conn:

@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     app_trusted_hosts: str = "127.0.0.1,localhost,nexlumeai.com,www.nexlumeai.com,velox.nexlumeai.com"
     public_base_url: str = "https://nexlumeai.com"
     admin_panel_path: str = "/admin"
+    phone_hash_salt: str = ""
 
     # Database
     db_host: str = "localhost"

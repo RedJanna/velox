@@ -82,7 +82,7 @@ cp .env.production.example .env.production
 # Fill in real secrets and credentials
 
 # 2. Start production stack (2 app replicas)
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 
 # 3. Verify
 curl -fsS http://127.0.0.1:8001/api/v1/health
@@ -180,47 +180,47 @@ scripts/                 # Utility scripts
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/v1/hotels` | List hotels |
-| `GET` | `/api/v1/hotels/{hotel_id}` | Hotel detail |
-| `PUT` | `/api/v1/hotels/{hotel_id}/profile` | Update hotel profile |
+| `GET` | `/api/v1/admin/hotels` | List hotels |
+| `GET` | `/api/v1/admin/hotels/{hotel_id}` | Hotel detail |
+| `PUT` | `/api/v1/admin/hotels/{hotel_id}/profile` | Update hotel profile |
 
 ### Admin — Restaurant Slots
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/v1/hotels/{hotel_id}/restaurant/slots` | Create slot |
-| `GET` | `/api/v1/hotels/{hotel_id}/restaurant/slots` | List slots |
-| `PUT` | `/api/v1/hotels/{hotel_id}/restaurant/slots/{slot_id}` | Update slot |
+| `POST` | `/api/v1/admin/hotels/{hotel_id}/restaurant/slots` | Create slot |
+| `GET` | `/api/v1/admin/hotels/{hotel_id}/restaurant/slots` | List slots |
+| `PUT` | `/api/v1/admin/hotels/{hotel_id}/restaurant/slots/{slot_id}` | Update slot |
 
 ### Admin — Transfers
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/v1/hotels/{hotel_id}/transfers/holds` | List transfer holds |
-| `POST` | `/api/v1/hotels/{hotel_id}/transfers/holds/{hold_id}/approve` | Approve transfer |
-| `POST` | `/api/v1/hotels/{hotel_id}/transfers/holds/{hold_id}/reject` | Reject transfer |
+| `GET` | `/api/v1/admin/hotels/{hotel_id}/transfers/holds` | List transfer holds |
+| `POST` | `/api/v1/admin/hotels/{hotel_id}/transfers/holds/{hold_id}/approve` | Approve transfer |
+| `POST` | `/api/v1/admin/hotels/{hotel_id}/transfers/holds/{hold_id}/reject` | Reject transfer |
 
 ### Admin — Conversations & Holds & Tickets
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/v1/conversations` | List conversations (filterable) |
-| `GET` | `/api/v1/conversations/{id}` | Conversation detail + messages |
-| `POST` | `/api/v1/conversations/{id}/reset` | Reset conversation state |
-| `POST` | `/api/v1/conversations/reset-by-phone` | Reset by phone number |
-| `GET` | `/api/v1/holds` | List all holds (stay, restaurant, transfer) |
-| `POST` | `/api/v1/holds/{hold_id}/approve` | Approve hold |
-| `POST` | `/api/v1/holds/{hold_id}/reject` | Reject hold |
-| `GET` | `/api/v1/tickets` | List escalation tickets |
-| `PUT` | `/api/v1/tickets/{ticket_id}` | Update ticket |
+| `GET` | `/api/v1/admin/conversations` | List conversations (filterable) |
+| `GET` | `/api/v1/admin/conversations/{id}` | Conversation detail + messages |
+| `POST` | `/api/v1/admin/conversations/{id}/reset` | Reset conversation state |
+| `POST` | `/api/v1/admin/conversations/reset-by-phone` | Reset by phone number |
+| `GET` | `/api/v1/admin/holds` | List all holds (stay, restaurant, transfer) |
+| `POST` | `/api/v1/admin/holds/{hold_id}/approve` | Approve hold |
+| `POST` | `/api/v1/admin/holds/{hold_id}/reject` | Reject hold |
+| `GET` | `/api/v1/admin/tickets` | List escalation tickets |
+| `PUT` | `/api/v1/admin/tickets/{ticket_id}` | Update ticket |
 
 ### Admin — Webhooks (External Callbacks)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/v1/webhooks/approval` | Approval callback |
-| `POST` | `/api/v1/webhooks/payment` | Payment callback |
-| `POST` | `/api/v1/webhooks/transfer` | Transfer callback |
+| `POST` | `/api/v1/webhook/approval` | Approval callback |
+| `POST` | `/api/v1/webhook/payment` | Payment callback |
+| `POST` | `/api/v1/webhook/transfer` | Transfer callback |
 
 ### Chat Lab (Test Interface)
 
@@ -244,6 +244,7 @@ scripts/                 # Utility scripts
 All configuration is managed via environment variables. See `.env.example` for the full list, grouped by:
 
 - **Application** — `APP_ENV`, `APP_PORT`, `APP_SECRET_KEY`, `PUBLIC_BASE_URL`
+- **Privacy** — `PHONE_HASH_SALT` (telefon hash'leme salt değeri)
 - **Database** — `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, pool sizing
 - **Redis** — `REDIS_URL`, session TTL, rate limit TTL
 - **OpenAI** — `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_FALLBACK_MODEL`, temperature, max tokens

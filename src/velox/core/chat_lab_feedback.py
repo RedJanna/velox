@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import re
 import unicodedata
@@ -36,6 +35,7 @@ from velox.models.chat_lab_feedback import (
     ChatLabParticipantOption,
 )
 from velox.models.conversation import Message
+from velox.utils.privacy import hash_phone
 from velox.utils.project_paths import get_project_root
 
 logger = structlog.get_logger(__name__)
@@ -223,7 +223,7 @@ class ChatLabFeedbackService:
 
     async def _load_live_source(self, payload: ChatLabFeedbackRequest) -> dict[str, Any]:
         phone = _ensure_test_phone(payload.phone)
-        hashed_phone = hashlib.sha256(phone.encode()).hexdigest()
+        hashed_phone = hash_phone(phone)
         conversation = await self._repository.get_active_by_phone(settings.elektra_hotel_id, hashed_phone)
         if conversation is None or conversation.id is None:
             raise FeedbackConversationNotFoundError("No active test conversation found for this phone.")
