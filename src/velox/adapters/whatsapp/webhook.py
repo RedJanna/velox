@@ -15,6 +15,8 @@ class IncomingMessage:
     text: str
     timestamp: int
     message_type: str
+    phone_number_id: str | None = None
+    display_phone_number: str | None = None
 
 
 class WhatsAppWebhook:
@@ -53,6 +55,14 @@ class WhatsAppWebhook:
                 messages = value.get("messages")
                 if not isinstance(messages, list) or not messages:
                     continue
+                metadata = value.get("metadata", {})
+                phone_number_id = None
+                display_phone_number = None
+                if isinstance(metadata, dict):
+                    phone_number_id_raw = str(metadata.get("phone_number_id", "")).strip()
+                    display_phone_raw = str(metadata.get("display_phone_number", "")).strip()
+                    phone_number_id = phone_number_id_raw or None
+                    display_phone_number = display_phone_raw or None
 
                 contacts = value.get("contacts", [])
                 display_name = ""
@@ -62,12 +72,24 @@ class WhatsAppWebhook:
                         display_name = str(profile.get("name", ""))
 
                 for msg in messages:
-                    parsed = self._parse_single_message(msg, display_name)
+                    parsed = self._parse_single_message(
+                        msg,
+                        display_name,
+                        phone_number_id=phone_number_id,
+                        display_phone_number=display_phone_number,
+                    )
                     if parsed is not None:
                         return parsed
         return None
 
-    def _parse_single_message(self, message: dict, display_name: str) -> IncomingMessage | None:
+    def _parse_single_message(
+        self,
+        message: dict,
+        display_name: str,
+        *,
+        phone_number_id: str | None = None,
+        display_phone_number: str | None = None,
+    ) -> IncomingMessage | None:
         """Normalize a single message object into IncomingMessage."""
         message_id = str(message.get("id", ""))
         phone = str(message.get("from", ""))
@@ -121,4 +143,6 @@ class WhatsAppWebhook:
             text=text,
             timestamp=timestamp,
             message_type=message_type,
+            phone_number_id=phone_number_id,
+            display_phone_number=display_phone_number,
         )

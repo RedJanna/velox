@@ -22,6 +22,7 @@ from velox.config.settings import settings
 from velox.core.hotel_profile_loader import get_profile
 from velox.core.pipeline import post_process_escalation
 from velox.db.repositories.conversation import ConversationRepository
+from velox.db.repositories.whatsapp_number import WhatsAppNumberRepository
 from velox.llm.client import LLMUnavailableError, get_llm_client
 from velox.llm.function_registry import get_tool_definitions
 from velox.llm.prompt_builder import get_prompt_builder
@@ -237,6 +238,43 @@ def _mask_phone(phone: str) -> str:
 def _hash_phone(phone: str) -> str:
     """Hash phone for storage and lookup."""
     return hash_phone(phone)
+
+
+async def _resolve_hotel_id_for_incoming(incoming: IncomingMessage, db_pool: Any) -> int | None:
+    """Resolve target hotel for incoming webhook message."""
+    if db_pool is None:
+        logger.warning(
+            "whatsapp_hotel_resolution_db_unavailable",
+            fallback_hotel_id=settings.elektra_hotel_id,
+        )
+        return settings.elektra_hotel_id
+
+    if not incoming.phone_number_id and not incoming.display_phone_number:
+        logger.warning(
+            "whatsapp_hotel_resolution_metadata_missing",
+            fallback_hotel_id=settings.elektra_hotel_id,
+            message_id=incoming.message_id,
+        )
+        return settings.elektra_hotel_id
+
+    repository = WhatsAppNumberRepository()
+    if incoming.phone_number_id:
+        hotel_id = await repository.get_hotel_id_by_phone_number_id(incoming.phone_number_id)
+        if hotel_id is not None:
+            return hotel_id
+
+    if incoming.display_phone_number:
+        hotel_id = await repository.get_hotel_id_by_display_phone_number(incoming.display_phone_number)
+        if hotel_id is not None:
+            return hotel_id
+
+    logger.warning(
+        "whatsapp_hotel_resolution_unmapped_destination",
+        message_id=incoming.message_id,
+        phone_number_id=incoming.phone_number_id,
+        display_phone_number=incoming.display_phone_number,
+    )
+    return None
 
 
 async def _redis_allow_rate_limit(
@@ -1938,16 +1976,20 @@ class _NotifyToolAdapter:
         return {"status": "FAILED", "error_type": "INVALID_TOOL_RESULT"}
 
 
-async def _create_or_get_conversation(repository: ConversationRepository, incoming: IncomingMessage) -> Conversation:
+async def _create_or_get_conversation(
+    repository: ConversationRepository,
+    incoming: IncomingMessage,
+    hotel_id: int,
+) -> Conversation:
     """Get active conversation by phone hash or create one."""
     phone_hash = _hash_phone(incoming.phone)
-    conversation = await repository.get_active_by_phone(settings.elektra_hotel_id, phone_hash)
+    conversation = await repository.get_active_by_phone(hotel_id, phone_hash)
     if conversation is not None:
         return conversation
 
     initial_language = _detect_message_language(incoming.text, "tr")
     new_conversation = Conversation(
-        hotel_id=settings.elektra_hotel_id,
+        hotel_id=hotel_id,
         phone_hash=phone_hash,
         phone_display=_mask_phone(incoming.phone),
         language=initial_language,
@@ -1957,6 +1999,7 @@ async def _create_or_get_conversation(repository: ConversationRepository, incomi
 
 async def _process_incoming_message(
     incoming: IncomingMessage,
+    hotel_id: int,
     audit_context: dict[str, Any],
     dispatcher: Any,
     escalation_engine: Any,
@@ -1968,7 +2011,7 @@ async def _process_incoming_message(
     whatsapp_client = get_whatsapp_client()
 
     try:
-        conversation = await _create_or_get_conversation(conversation_repository, incoming)
+        conversation = await _create_or_get_conversation(conversation_repository, incoming, hotel_id)
         if conversation.id is None:
             raise RuntimeError("Conversation id is missing.")
 
@@ -2064,6 +2107,7 @@ async def _process_incoming_message(
 def _schedule_background_task(
     background_tasks: BackgroundTasks,
     incoming: IncomingMessage,
+    hotel_id: int,
     audit_context: dict[str, Any],
     dispatcher: Any,
     escalation_engine: Any,
@@ -2074,6 +2118,7 @@ def _schedule_background_task(
     background_tasks.add_task(
         _process_incoming_message,
         incoming,
+        hotel_id,
         audit_context,
         dispatcher,
         escalation_engine,
@@ -2173,6 +2218,9 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
     dispatcher = getattr(request.app.state, "tool_dispatcher", None)
     escalation_engine = getattr(request.app.state, "escalation_engine", None)
     db_pool = getattr(request.app.state, "db_pool", None)
+    resolved_hotel_id = await _resolve_hotel_id_for_incoming(incoming, db_pool)
+    if resolved_hotel_id is None:
+        return {"status": "ok"}
 
     tools = {
         "handoff": _HandoffToolAdapter(dispatcher) if dispatcher is not None else None,
@@ -2186,9 +2234,13 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
         "webhook_ip": webhook_ip,
         "signature_valid": True,
         "received_at": datetime.now(UTC).isoformat(),
+        "resolved_hotel_id": resolved_hotel_id,
+        "phone_number_id": incoming.phone_number_id,
+        "display_phone_number": incoming.display_phone_number,
     }
     audit_context = {
         "source_type": "live_whatsapp",
+        "hotel_id": resolved_hotel_id,
         "sender_profile_name": incoming.display_name or None,
         "wa_id_masked": _mask_phone(incoming.phone),
         "wa_id_hash": phone_hash,
@@ -2197,13 +2249,23 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
         "route_audit": route_audit,
     }
 
-    _schedule_background_task(background_tasks, incoming, audit_context, dispatcher, escalation_engine, tools, db_pool)
+    _schedule_background_task(
+        background_tasks,
+        incoming,
+        resolved_hotel_id,
+        audit_context,
+        dispatcher,
+        escalation_engine,
+        tools,
+        db_pool,
+    )
     logger.info(
         "whatsapp_webhook_message_accepted",
         phone=_mask_phone(incoming.phone),
         message_type=incoming.message_type,
         wa_message_id=incoming.message_id,
         sender_profile_name=incoming.display_name or "",
+        hotel_id=resolved_hotel_id,
         route=route_audit["route"],
     )
     return {"status": "accepted"}

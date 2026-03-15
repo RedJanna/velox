@@ -75,6 +75,82 @@ async def test_post_with_valid_signature_message_accepted(
 
 
 @pytest.mark.asyncio
+async def test_post_routes_to_resolved_hotel_id(
+    webhook_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Resolved hotel id should be forwarded to background message processor."""
+    incoming = IncomingMessage(
+        message_id="m-routed-hotel",
+        phone="905551112233",
+        display_name="Guest",
+        text="Merhaba",
+        timestamp=int(time.time()),
+        message_type="text",
+        phone_number_id="pn_33469",
+    )
+    captured: dict[str, int] = {}
+
+    async def _resolve_hotel(*_args: Any, **_kwargs: Any) -> int | None:
+        return 33469
+
+    def _capture_schedule(_tasks: Any, _incoming: Any, hotel_id: int, *_args: Any, **_kwargs: Any) -> None:
+        captured["hotel_id"] = hotel_id
+
+    monkeypatch.setattr(whatsapp_webhook.webhook_handler, "validate_signature", lambda *_: True)
+    monkeypatch.setattr(whatsapp_webhook.webhook_handler, "parse_message", lambda *_: incoming)
+    monkeypatch.setattr(whatsapp_webhook, "_resolve_hotel_id_for_incoming", _resolve_hotel)
+    monkeypatch.setattr(whatsapp_webhook, "_schedule_background_task", _capture_schedule)
+
+    response = await webhook_client.post(
+        "/api/v1/webhook/whatsapp",
+        json={"entry": [{"changes": [{"value": {}}]}]},
+        headers={"X-Hub-Signature-256": "sha256=test"},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"status": "accepted"}
+    assert captured["hotel_id"] == 33469
+
+
+@pytest.mark.asyncio
+async def test_post_with_unmapped_destination_skips_background_processing(
+    webhook_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unmapped destination number should not enter background processing pipeline."""
+    incoming = IncomingMessage(
+        message_id="m-unmapped-hotel",
+        phone="905551112233",
+        display_name="Guest",
+        text="Merhaba",
+        timestamp=int(time.time()),
+        message_type="text",
+        phone_number_id="pn_unknown",
+    )
+    called = {"scheduled": False}
+
+    async def _resolve_hotel(*_args: Any, **_kwargs: Any) -> int | None:
+        return None
+
+    def _capture_schedule(*_args: Any, **_kwargs: Any) -> None:
+        called["scheduled"] = True
+
+    monkeypatch.setattr(whatsapp_webhook.webhook_handler, "validate_signature", lambda *_: True)
+    monkeypatch.setattr(whatsapp_webhook.webhook_handler, "parse_message", lambda *_: incoming)
+    monkeypatch.setattr(whatsapp_webhook, "_resolve_hotel_id_for_incoming", _resolve_hotel)
+    monkeypatch.setattr(whatsapp_webhook, "_schedule_background_task", _capture_schedule)
+
+    response = await webhook_client.post(
+        "/api/v1/webhook/whatsapp",
+        json={"entry": [{"changes": [{"value": {}}]}]},
+        headers={"X-Hub-Signature-256": "sha256=test"},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+    assert called["scheduled"] is False
+
+
+@pytest.mark.asyncio
 async def test_post_with_invalid_signature_returns_403(
     webhook_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,

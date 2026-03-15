@@ -38,6 +38,7 @@ from velox.core.pipeline import post_process_escalation
 from velox.core.template_engine import load_templates
 from velox.db.database import close_db_pool, init_db_pool
 from velox.db.repositories.hotel import HotelRepository
+from velox.db.repositories.whatsapp_number import WhatsAppNumberRepository
 from velox.escalation.engine import EscalationEngine
 from velox.escalation.matrix import load_escalation_matrix
 from velox.llm.client import close_llm_client
@@ -93,6 +94,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("hotel_profiles_loaded", count=len(profiles))
 
     hotel_repository = HotelRepository()
+    whatsapp_number_repository = WhatsAppNumberRepository()
     for hotel_id, profile in profiles.items():
         await hotel_repository.upsert(
             hotel_id=profile.hotel_id,
@@ -108,6 +110,23 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
             season_close=profile.season.get("close"),
         )
         logger.info("hotel_synced_to_db", hotel_id=hotel_id)
+
+    if settings.whatsapp_phone_number_id:
+        fallback_profile = profiles.get(settings.elektra_hotel_id)
+        fallback_display_phone = fallback_profile.whatsapp_number if fallback_profile is not None else None
+        await whatsapp_number_repository.upsert_mapping(
+            hotel_id=settings.elektra_hotel_id,
+            phone_number_id=settings.whatsapp_phone_number_id,
+            display_phone_number=fallback_display_phone,
+            is_active=True,
+        )
+        logger.info(
+            "whatsapp_number_mapping_synced",
+            hotel_id=settings.elektra_hotel_id,
+            phone_number_id=settings.whatsapp_phone_number_id,
+        )
+    else:
+        logger.warning("whatsapp_phone_number_id_missing_mapping_not_seeded")
 
     matrix = load_escalation_matrix()
     logger.info("escalation_matrix_loaded", count=len(matrix))
