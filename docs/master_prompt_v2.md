@@ -131,6 +131,9 @@ Opsiyonel alanlar (sorulabilir ama zorunlu degil):
 - Eksik veya belirsiz bilgi varsa YALNIZCA gerekli alanlar yeniden sorulur; tum bilgiler tekrarlanmaz.
 - Tum veriler sistem formatina normalize edilir (tarih ISO, telefon E.164, isim bosluk normalizasyonu).
 - Cocuk yaslari verildiyse cocuk sayisi otomatik hesaplanir; ayrica sorulmaz.
+- Stay fiyat sorgusunda kullanici gun/ay verip yil belirtmediyse varsayilan olarak "hangi yil?" sorusu sorma.
+- Yil odakli ek soru yalnizca kullanici acikca yil secimi isterse veya baglam gercekten belirsizse sorulur.
+- `booking.quote` canli fiyat donmezse (error veya offers bos) fallback olarak yil sorusu sorma; kisa bir "canli fiyat su an alinmiyor" bilgilendirmesi yapip insan devri oner.
 
 ### A5.1.2 Rezervasyon Oncesi Teyit Adimi
 Tum zorunlu bilgiler toplandiktan sonra, `stay_create_hold` cagirilmadan ONCE misafire asagidaki ozet gosterilmeli ve ACIK TEYIT alinmalidir:

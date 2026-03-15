@@ -748,6 +748,48 @@ def test_enforce_single_step_collection_reduces_required_questions() -> None:
     assert "çıkış" not in response.user_message.casefold()
 
 
+def test_suppress_default_year_question_for_stay_quote() -> None:
+    """Stay quote flow should remove default year clarification when user did not ask for year."""
+    response = LLMResponse(
+        user_message="Bu tarihleri hangi yıl için düşünüyorsunuz? (2026)",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="stay_quote",
+            state="NEEDS_VERIFICATION",
+            entities={},
+            required_questions=["Hangi yıl?", "adults"],
+            handoff={"needed": False, "reason": None},
+            next_step="collect_missing_slots",
+        ),
+    )
+
+    whatsapp_webhook._suppress_default_year_question(response, "13-15 haziran icin fiyat")
+
+    assert response.internal_json.required_questions == ["adults"]
+    assert "Kaç yetişkin" in response.user_message
+
+
+def test_suppress_default_year_question_keeps_explicit_year_requests() -> None:
+    """Year clarification should stay when guest explicitly referenced year."""
+    response = LLMResponse(
+        user_message="Bu tarihleri hangi yıl için düşünüyorsunuz?",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="stay_quote",
+            state="NEEDS_VERIFICATION",
+            entities={},
+            required_questions=["Hangi yıl?"],
+            handoff={"needed": False, "reason": None},
+            next_step="collect_missing_slots",
+        ),
+    )
+
+    whatsapp_webhook._suppress_default_year_question(response, "2027 yilinda fiyat alabilir miyim?")
+
+    assert response.internal_json.required_questions == ["Hangi yıl?"]
+    assert "hangi yıl" in response.user_message.casefold()
+
+
 def test_payment_intake_completes_then_routes_to_handoff() -> None:
     """Once intake fields exist, payment flow should move to HANDOFF."""
     conversation = Conversation(
@@ -842,6 +884,43 @@ async def test_run_message_pipeline_locks_expected_language(monkeypatch: pytest.
         expected_language="en",
     )
     assert result.internal_json.language == "en"
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_quote_error_uses_live_price_unavailable_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Quote tool errors should trigger a handoff fallback without year clarification."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "2026 mi kontrol edelim?\nINTERNAL_JSON: "
+            '{"language":"tr","intent":"stay_quote","state":"NEEDS_VERIFICATION","entities":{},'
+            '"required_questions":["Hangi yıl?"],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"collect_missing_slots"}',
+            [{"name": "booking_quote", "arguments": {}, "result": {"error": "provider timeout"}}],
+        )
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    conversation = Conversation(hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="13-15 haziran fiyat alabilir miyim",
+        expected_language="tr",
+    )
+
+    assert result.internal_json.state == "HANDOFF"
+    assert result.internal_json.handoff["needed"] is True
+    assert result.internal_json.handoff["reason"] == "live_price_unavailable"
+    assert "TOOL_UNAVAILABLE" in result.internal_json.risk_flags
+    assert "canlı fiyat" in result.user_message.casefold()
+    assert "yıl" not in result.user_message.casefold()
 
 
 def test_parking_detection_does_not_match_havale() -> None:

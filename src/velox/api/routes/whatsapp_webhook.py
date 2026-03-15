@@ -48,6 +48,8 @@ PAYMENT_TOPIC_PATTERN = re.compile(
 PAYMENT_REFERENCE_PATTERN = re.compile(
     r"\b(?:S_HOLD_[A-Z0-9_]+|APR_[A-Z0-9_]+|PAY_[A-Z0-9_]+|[A-Z]{1,4}\d{4,})\b"
 )
+EXPLICIT_YEAR_PATTERN = re.compile(r"\b20\d{2}\b")
+YEAR_KEYWORD_PATTERN = re.compile(r"\b(y[ıi]l|year)\b", flags=re.IGNORECASE)
 
 TR_FREE_CANCEL_NOTE = (
     "Ücretsiz iptal seçeneği ile yapılan rezervasyonlarda girişten 5 gün öncesine kadar "
@@ -1311,6 +1313,87 @@ def _executed_booking_quote(executed_calls: list[dict[str, Any]]) -> bool:
     return any(str(call.get("name") or "") == "booking_quote" for call in executed_calls)
 
 
+def _booking_quote_failed_or_empty(executed_calls: list[dict[str, Any]]) -> bool:
+    """Return True when booking_quote was called but failed or returned no offers."""
+    attempted = False
+    for call in executed_calls:
+        if str(call.get("name") or "") != "booking_quote":
+            continue
+        attempted = True
+        result = _loads_tool_payload(call.get("result"))
+        if result.get("error"):
+            return True
+        offers = result.get("offers")
+        if not isinstance(offers, list) or not offers:
+            return True
+    return False if attempted else False
+
+
+def _guest_explicitly_referenced_year(user_text: str) -> bool:
+    """Return True when guest explicitly asks/mentions year context."""
+    if EXPLICIT_YEAR_PATTERN.search(user_text):
+        return True
+    return YEAR_KEYWORD_PATTERN.search(user_text) is not None
+
+
+def _contains_year_clarification(text: str) -> bool:
+    """Detect follow-up prompts that ask only year clarification."""
+    if not text:
+        return False
+    lowered = text.casefold()
+    if EXPLICIT_YEAR_PATTERN.search(lowered):
+        return True
+    return YEAR_KEYWORD_PATTERN.search(lowered) is not None
+
+
+def _suppress_default_year_question(
+    response: LLMResponse,
+    user_text: str,
+) -> None:
+    """Remove default year clarification prompts unless guest explicitly requested year context."""
+    intent = str(response.internal_json.intent or "").lower()
+    if intent != "stay_quote":
+        return
+    if _guest_explicitly_referenced_year(user_text):
+        return
+
+    original_required = [
+        str(item).strip()
+        for item in response.internal_json.required_questions
+        if isinstance(item, str) and str(item).strip()
+    ]
+    filtered_required = [question for question in original_required if not _contains_year_clarification(question)]
+    response.internal_json.required_questions = filtered_required
+
+    current_message = str(response.user_message or "").strip()
+    if _contains_year_clarification(current_message):
+        if filtered_required:
+            language = str(response.internal_json.language or "tr").lower()
+            response.user_message = _single_field_prompt(language, filtered_required[0])
+            return
+        response.user_message = (
+            "Tarih aralığı ve kişi sayısını netleştirirseniz fiyatı hemen kontrol edebilirim."
+        )
+
+
+def _price_unavailable_message(language: str) -> str:
+    """Build user-facing fallback when live quote cannot be retrieved from PMS."""
+    if language == "en":
+        return (
+            "I cannot retrieve a live room rate from the PMS right now. "
+            "If you want, I can forward your request to our team and share the confirmed price as soon as possible."
+        )
+    if language == "ru":
+        return (
+            "Сейчас не удаётся получить актуальную цену из PMS. "
+            "При желании передам ваш запрос команде и мы сообщим подтверждённую стоимость как можно скорее."
+        )
+    return (
+        "Şu an PMS üzerinden canlı fiyat çekemiyorum. "
+        "İsterseniz talebinizi ekibe iletip net fiyatı en kısa sürede paylaşalım."
+    )
+
+
 def _executed_stay_hold_submission(executed_calls: list[dict[str, Any]]) -> bool:
     """Return True when stay hold + approval flow has been triggered."""
     saw_stay_hold = False
@@ -1825,6 +1908,7 @@ async def _run_message_pipeline(
             else str(parsed.internal_json.language or "tr").lower()
         )
         parsed.internal_json.language = language
+        _suppress_default_year_question(parsed, normalized_text)
         entities = parsed.internal_json.entities if isinstance(parsed.internal_json.entities, dict) else {}
         if _is_elevator_question(normalized_text):
             parsed.user_message = _build_elevator_reply(conversation.hotel_id, language)
@@ -1874,6 +1958,17 @@ async def _run_message_pipeline(
                         next_step="manual_review_required",
                     ),
                 )
+        if intent == "stay_quote" and _booking_quote_failed_or_empty(executed_calls):
+            risk_flags = list(parsed.internal_json.risk_flags or [])
+            if "TOOL_UNAVAILABLE" not in risk_flags:
+                risk_flags.append("TOOL_UNAVAILABLE")
+            parsed.user_message = _price_unavailable_message(language)
+            parsed.internal_json.state = "HANDOFF"
+            parsed.internal_json.required_questions = []
+            parsed.internal_json.handoff = {"needed": True, "reason": "live_price_unavailable"}
+            parsed.internal_json.risk_flags = risk_flags
+            parsed.internal_json.next_step = "handoff_to_live_price_team"
+            return parsed
         if intent == "stay_quote" and language == "tr" and _executed_booking_quote(executed_calls):
             deterministic_messages = _build_deterministic_turkish_stay_quote_messages(
                 conversation.hotel_id,
