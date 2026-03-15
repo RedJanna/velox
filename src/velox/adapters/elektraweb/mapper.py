@@ -6,6 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+ELEKTRA_LIST_WRAPPER_KEYS = ("data",)
+
 
 def kebab_to_snake(name: str) -> str:
     """Convert kebab-case or camelCase into snake_case."""
@@ -89,12 +91,20 @@ class ReservationDetailResponse(BaseModel):
 
 
 def parse_availability(raw: dict[str, Any] | list[Any]) -> AvailabilityResponse:
-    """Parse raw availability response."""
+    """Parse raw availability response.
+
+    Contract (do not break): availability payload may come as
+    - direct list: [...]
+    - wrapped list: {"data": [...]}
+    - object payload: {"available": ..., "rows": [...]}
+    """
     normalized = normalize_keys(raw)
     if isinstance(normalized, dict):
-        data_items = normalized.get("data")
-        if isinstance(data_items, list):
-            normalized = data_items
+        for key in ELEKTRA_LIST_WRAPPER_KEYS:
+            data_items = normalized.get(key)
+            if isinstance(data_items, list):
+                normalized = data_items
+                break
     if isinstance(normalized, list):
         rows = [
             AvailabilityRow(
@@ -116,12 +126,20 @@ def parse_availability(raw: dict[str, Any] | list[Any]) -> AvailabilityResponse:
 
 
 def parse_quote(raw: dict[str, Any] | list[Any]) -> QuoteResponse:
-    """Parse raw quote response."""
+    """Parse raw quote response.
+
+    Contract (do not break): quote payload may come as
+    - direct list: [...]
+    - wrapped list: {"data": [...]}
+    - object payload: {"offers": [...]}
+    """
     normalized = normalize_keys(raw)
     if isinstance(normalized, dict):
-        data_items = normalized.get("data")
-        if isinstance(data_items, list):
-            normalized = data_items
+        for key in ELEKTRA_LIST_WRAPPER_KEYS:
+            data_items = normalized.get(key)
+            if isinstance(data_items, list):
+                normalized = data_items
+                break
     if isinstance(normalized, list):
         offers: list[BookingOffer] = []
         for item in normalized:
