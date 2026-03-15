@@ -69,6 +69,58 @@ async def test_successful_quote_with_offers(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 @pytest.mark.asyncio
+async def test_quote_parses_wrapped_list_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Quote parser should accept client-wrapped list payload under 'data'."""
+    mock_client = AsyncMock()
+    mock_client.get.return_value = {
+        "data": [
+            {
+                "id": "of1",
+                "room-type-id": 66,
+                "board-type-id": 2,
+                "rate-type-id": 10,
+                "rate-code-id": 101,
+                "price-agency-id": 1,
+                "currency-code": "EUR",
+                "price": "120.0",
+                "discounted-price": "100.0",
+                "cancellation-penalty": {},
+            }
+        ]
+    }
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    result = await endpoints.quote(
+        hotel_id=21966,
+        checkin=date(2026, 8, 10),
+        checkout=date(2026, 8, 12),
+        adults=2,
+    )
+    assert len(result.offers) == 1
+    assert result.offers[0].room_type_id == 66
+
+
+@pytest.mark.asyncio
+async def test_availability_parses_wrapped_list_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Availability parser should accept client-wrapped list payload under 'data'."""
+    mock_client = AsyncMock()
+    mock_client.get.return_value = {
+        "data": [
+            {"date": "2026-08-10", "room-type-id": 66, "room-to-sell": 3},
+            {"date": "2026-08-11", "room-type-id": 66, "room-to-sell": 2},
+        ]
+    }
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    result = await endpoints.availability(
+        hotel_id=21966,
+        checkin=date(2026, 8, 10),
+        checkout=date(2026, 8, 12),
+        adults=2,
+    )
+    assert result.available is True
+    assert len(result.rows) == 2
+
+
+@pytest.mark.asyncio
 async def test_quote_sends_child_alias_params(monkeypatch: pytest.MonkeyPatch) -> None:
     """Quote request should send Elektra's child occupancy aliases and buckets."""
     mock_client = AsyncMock()

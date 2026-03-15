@@ -91,6 +91,10 @@ class ReservationDetailResponse(BaseModel):
 def parse_availability(raw: dict[str, Any] | list[Any]) -> AvailabilityResponse:
     """Parse raw availability response."""
     normalized = normalize_keys(raw)
+    if isinstance(normalized, dict):
+        data_items = normalized.get("data")
+        if isinstance(data_items, list):
+            normalized = data_items
     if isinstance(normalized, list):
         rows = [
             AvailabilityRow(
@@ -114,6 +118,10 @@ def parse_availability(raw: dict[str, Any] | list[Any]) -> AvailabilityResponse:
 def parse_quote(raw: dict[str, Any] | list[Any]) -> QuoteResponse:
     """Parse raw quote response."""
     normalized = normalize_keys(raw)
+    if isinstance(normalized, dict):
+        data_items = normalized.get("data")
+        if isinstance(data_items, list):
+            normalized = data_items
     if isinstance(normalized, list):
         offers: list[BookingOffer] = []
         for item in normalized:
