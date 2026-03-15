@@ -132,18 +132,38 @@ def _quote_response_matches_requested_occupancy(
             or 0
         )
         actual_children = bucket_children if bucket_children > 0 else count_children
+        if actual_adults == adults and actual_children == requested_children:
+            if bucket_children > 0 and actual_buckets != requested_buckets:
+                logger.warning(
+                    "elektraweb_quote_child_bucket_mismatch_total_matched",
+                    adults=adults,
+                    requested_buckets=requested_buckets,
+                    actual_buckets=actual_buckets,
+                )
+            return True
+
+        # PMS may reclassify edge ages (for example one child counted as adult)
+        # while keeping total occupancy consistent. Accept this as a compatible match.
+        requested_total = adults + requested_children
+        actual_total = actual_adults + actual_children
+        if (
+            actual_total == requested_total
+            and actual_adults >= adults
+            and actual_children <= requested_children
+        ):
+            logger.warning(
+                "elektraweb_quote_child_age_reclassified",
+                requested_adults=adults,
+                requested_children=requested_children,
+                actual_adults=actual_adults,
+                actual_children=actual_children,
+            )
+            return True
+
         if actual_adults != adults:
             continue
         if actual_children != requested_children:
             continue
-        if bucket_children > 0 and actual_buckets != requested_buckets:
-            logger.warning(
-                "elektraweb_quote_child_bucket_mismatch_total_matched",
-                adults=adults,
-                requested_buckets=requested_buckets,
-                actual_buckets=actual_buckets,
-            )
-        return True
     return False
 
 

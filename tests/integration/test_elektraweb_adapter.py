@@ -359,6 +359,43 @@ async def test_quote_accepts_child_count_without_bucket_breakdown(monkeypatch: p
 
 
 @pytest.mark.asyncio
+async def test_quote_accepts_child_age_reclassification_when_total_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Child quote should continue when PMS shifts one child into adult bucket but total pax matches."""
+    mock_client = AsyncMock()
+    mock_client.get.return_value = [
+        {
+            "id": "of1",
+            "room-type-id": 66,
+            "board-type-id": 2,
+            "rate-type-id": 10,
+            "rate-code-id": 101,
+            "price-agency-id": 1,
+            "currency": "EUR",
+            "price": "120.0",
+            "discounted-price": "100.0",
+            "pax-count": {
+                "adult": 3,
+                "elder-child-count": 1,
+                "younger-child-count": 0,
+                "baby-count": 0,
+            },
+            "cancellation-penalty": {},
+        }
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    result = await endpoints.quote(
+        hotel_id=21966,
+        checkin=date(2026, 10, 1),
+        checkout=date(2026, 10, 6),
+        adults=2,
+        chd_ages=[12, 11],
+    )
+    assert len(result.offers) == 1
+
+
+@pytest.mark.asyncio
 async def test_auth_token_refresh_on_401(monkeypatch: pytest.MonkeyPatch) -> None:
     """Client should refresh token when first response is 401."""
     client = ElektrawebClient()
