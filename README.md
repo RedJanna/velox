@@ -84,7 +84,10 @@ cp .env.production.example .env.production
 # 2. Start production stack (2 app replicas)
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 
-# 3. Verify
+# 3. Optional manual migration catch-up
+docker compose --env-file .env.production -f docker-compose.prod.yml exec app python -m velox.db.migrate
+
+# 4. Verify
 curl -fsS http://127.0.0.1:8001/api/v1/health
 curl -fsS http://127.0.0.1:8001/api/v1/health/ready
 ```
@@ -312,6 +315,8 @@ PostgreSQL 16 with 10 tables:
 `hotels`, `conversations`, `messages`, `stay_holds`, `restaurant_holds`, `transfer_holds`, `admin_users`, `chat_lab_feedback`, `chat_lab_import_logs`, `scenarios`
 
 Migrations: `src/velox/db/migrations/`
+
+Manual wrapper: `python -m velox.db.migrate`
 
 ---
 

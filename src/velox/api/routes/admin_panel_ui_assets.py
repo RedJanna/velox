@@ -1173,10 +1173,17 @@ function holdTimelineLevel(item) {
   return 'done';
 }
 
+function holdHasPersistedReservation(item) {
+  return Boolean(item && (item.pms_reservation_id || item.voucher_no));
+}
+
 function isHoldApproveActionable(item) {
   const holdType = String(item?.type || '').toLowerCase();
   const status = String(item?.status || '').toUpperCase();
   if (holdType === 'stay') {
+    if (status === 'MANUAL_REVIEW' && holdHasPersistedReservation(item)) {
+      return false;
+    }
     return ['PENDING_APPROVAL', 'APPROVED', 'MANUAL_REVIEW', 'PMS_FAILED'].includes(status);
   }
   return status === 'PENDING_APPROVAL';
@@ -1184,6 +1191,7 @@ function isHoldApproveActionable(item) {
 
 function holdApproveButtonLabel(item) {
   const status = String(item?.status || '').toUpperCase();
+  if (status === 'MANUAL_REVIEW' && holdHasPersistedReservation(item)) return 'Inceleme Gerekli';
   if (['APPROVED', 'MANUAL_REVIEW', 'PMS_FAILED'].includes(status)) return 'Yeniden Dene';
   return 'Onayla';
 }

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import asyncpg
+import orjson
 import pytest
 
 from velox.api.middleware.auth import TokenData
@@ -55,7 +56,7 @@ class _FakeConnection:
                         "hotel_id": 21966,
                         "status": "PAYMENT_PENDING",
                         "workflow_state": "PAYMENT_PENDING",
-                        "draft_json": {"guest_name": "Test User"},
+                        "draft_json": orjson.dumps({"guest_name": "Test User"}).decode(),
                         "expires_at": None,
                         "pms_create_started_at": None,
                         "pms_create_completed_at": None,
@@ -74,7 +75,7 @@ class _FakeConnection:
                     "hotel_id": 21966,
                     "status": "PENDING_APPROVAL",
                     "workflow_state": None,
-                    "draft_json": {"guest_name": "Test User"},
+                    "draft_json": orjson.dumps({"guest_name": "Test User"}).decode(),
                     "expires_at": None,
                     "pms_create_started_at": None,
                     "pms_create_completed_at": None,
@@ -121,6 +122,7 @@ async def test_list_holds_returns_workflow_fields_when_columns_exist() -> None:
     assert result["total"] == 1
     item = result["items"][0]
     assert item["workflow_state"] == "PAYMENT_PENDING"
+    assert item["draft_json"]["guest_name"] == "Test User"
     assert item["approval_idempotency_key"] == "idem-1"
     assert item["create_idempotency_key"] == "idem-2"
 
@@ -143,6 +145,7 @@ async def test_list_holds_falls_back_when_workflow_columns_missing() -> None:
     assert result["total"] == 1
     item = result["items"][0]
     assert item["status"] == "PENDING_APPROVAL"
+    assert item["draft_json"]["guest_name"] == "Test User"
     assert conn._workflow_query_called is True
 
 

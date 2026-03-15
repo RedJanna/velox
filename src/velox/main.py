@@ -37,6 +37,7 @@ from velox.core.hotel_profile_loader import load_all_profiles
 from velox.core.pipeline import post_process_escalation
 from velox.core.template_engine import load_templates
 from velox.db.database import close_db_pool, init_db_pool
+from velox.db.migrate import apply_pending_migrations
 from velox.db.repositories.hotel import HotelRepository
 from velox.db.repositories.whatsapp_number import WhatsAppNumberRepository
 from velox.escalation.engine import EscalationEngine
@@ -88,6 +89,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("application_startup", env=settings.app_env)
     db_pool = await init_db_pool()
     _app.state.db_pool = db_pool
+    _app.state.migration_status = await apply_pending_migrations(db_pool)
     _app.state.redis = await _connect_redis_with_retry()
 
     profiles = load_all_profiles()

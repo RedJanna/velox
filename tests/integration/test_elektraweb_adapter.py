@@ -327,3 +327,122 @@ def test_parse_reservation_create_supports_hoteladvisor_primary_key() -> None:
     )
     assert parsed.reservation_id == "89985306"
     assert parsed.state == "OK"
+
+
+@pytest.mark.asyncio
+async def test_create_reservation_uses_booking_api_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Create reservation should send mapped booking API fields instead of raw snake_case draft."""
+    mock_client = AsyncMock()
+    mock_client.post.return_value = {"reservation-id": "RSV-1", "voucher-no": "V-1"}
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+
+    draft = {
+        "guest_name": "Test User",
+        "phone": "+905301112233",
+        "checkin_date": "2026-10-01",
+        "checkout_date": "2026-10-03",
+        "adults": 2,
+        "chd_ages": [],
+        "room_type_id": 396097,
+        "board_type_id": 2,
+        "rate_type_id": 11,
+        "rate_code_id": 102,
+        "price_agency_id": 777,
+        "total_price_eur": "140.0",
+        "currency_display": "EUR",
+    }
+
+    result = await endpoints.create_reservation(21966, draft)
+
+    assert result.reservation_id == "RSV-1"
+    assert result.voucher_no == "V-1"
+    path = mock_client.post.await_args.kwargs["json_body"]
+    assert path["hotel-id"] == 21966
+    assert path["room-type-id"] == 396097
+    assert path["adult-count"] == 2
+    assert path["check-in"] == "2026-10-01"
+    assert len(path["guest-list"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_request_does_not_failover_to_secondary_base_on_400(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Validation 400 responses should surface directly instead of trying another host."""
+    client = ElektrawebClient()
+    client._base_urls = ["https://primary.example", "https://secondary.example"]
+    http = AsyncMock()
+    http.request.side_effect = [_response(400, {"detail": "bad-request"})]
+    monkeypatch.setattr(client, "_get_client", AsyncMock(return_value=http))
+    monkeypatch.setattr(client, "_get_token", AsyncMock(return_value="tok"))
+    monkeypatch.setattr(client, "_switch_base_url", AsyncMock())
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await client.request("POST", "/hotel/21966/createReservation", json_body={"hotel-id": 21966})
+
+    assert http.request.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_create_reservation_retries_with_refreshed_offer_on_agency_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Agency drift should trigger a fresh quote-based retry before surfacing the error."""
+    mock_client = AsyncMock()
+    request = httpx.Request("POST", "https://bookingapi.elektraweb.com/hotel/21966/createReservation")
+    agency_error = httpx.HTTPStatusError(
+        "agency-not-found",
+        request=request,
+        response=httpx.Response(
+            400,
+            json={"success": False, "message": "Agency Not Found"},
+            request=request,
+        ),
+    )
+    mock_client.post.side_effect = [agency_error, {"reservation-id": "RSV-2"}]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    monkeypatch.setattr(
+        endpoints,
+        "_refresh_offer_identifiers",
+        AsyncMock(
+            return_value={
+                "guest_name": "Test User",
+                "phone": "+905301112233",
+                "checkin_date": "2026-10-01",
+                "checkout_date": "2026-10-03",
+                "adults": 2,
+                "chd_ages": [],
+                "room_type_id": 396097,
+                "board_type_id": 44512,
+                "rate_type_id": 24171,
+                "rate_code_id": 183666,
+                "price_agency_id": 247664,
+                "total_price_eur": "140.0",
+                "currency_display": "EUR",
+                "cancel_policy_type": "NON_REFUNDABLE",
+            }
+        ),
+    )
+
+    result = await endpoints.create_reservation(
+        21966,
+        {
+            "guest_name": "Test User",
+            "phone": "+905301112233",
+            "checkin_date": "2026-10-01",
+            "checkout_date": "2026-10-03",
+            "adults": 2,
+            "chd_ages": [],
+            "room_type_id": 396097,
+            "board_type_id": 2,
+            "rate_type_id": 11,
+            "rate_code_id": 102,
+            "price_agency_id": 777,
+            "total_price_eur": "140.0",
+            "currency_display": "EUR",
+            "cancel_policy_type": "NON_REFUNDABLE",
+        },
+    )
+
+    assert result.reservation_id == "RSV-2"
+    refreshed_payload = mock_client.post.await_args_list[1].kwargs["json_body"]
+    assert refreshed_payload["price-agency-id"] == 247664
+    assert refreshed_payload["board-type-id"] == 44512

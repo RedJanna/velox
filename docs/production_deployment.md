@@ -20,11 +20,13 @@ Service ports:
 
 ## 3. Run Database Migration
 
-`001_initial.sql` is automatically applied by Postgres when the volume is first created.
-For existing volumes, apply pending versioned migrations with one command:
+The app now runs the versioned SQL migration runner during startup and `/api/v1/health/ready`
+stays `503` until migrations are consistent.
+
+If you need to force a manual catch-up before or after a rollout, use the same one-line wrapper:
 
 ```bash
-docker compose --env-file .env.production -f docker-compose.prod.yml exec db sh -lc 'for f in /docker-entrypoint-initdb.d/00[2-9]_*.sql; do psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" -f "$f"; done'
+docker compose --env-file .env.production -f docker-compose.prod.yml exec app python -m velox.db.migrate
 ```
 
 ## 4. Verify Health and Readiness
@@ -34,6 +36,7 @@ curl -fsS http://127.0.0.1:8001/api/v1/health/ready
 ```
 
 `/api/v1/health/ready` returns HTTP `200` when all checks are green, otherwise HTTP `503`.
+The readiness payload now includes a `migrations` check so pending SQL drift is visible immediately.
 
 ## 5. CI/CD
 GitHub Actions workflow: `.github/workflows/ci.yml`

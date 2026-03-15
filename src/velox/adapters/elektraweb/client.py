@@ -84,28 +84,29 @@ class ElektrawebClient:
                     ({"Authorization": f"Bearer {candidate}"}, {}),
                     (None, {"apiKey": candidate}),
                 )
-                for headers, json_payload in login_attempts:
-                    request_kwargs: dict[str, Any] = {}
-                    if headers is not None:
-                        request_kwargs["headers"] = headers
-                    if json_payload is not None:
-                        request_kwargs["json"] = json_payload
-                    response = await client.post("/login", **request_kwargs)
-                    if response.status_code >= 400:
-                        last_response = response
-                        continue
+                for login_path in ("/login", "/Login"):
+                    for headers, json_payload in login_attempts:
+                        request_kwargs: dict[str, Any] = {}
+                        if headers is not None:
+                            request_kwargs["headers"] = headers
+                        if json_payload is not None:
+                            request_kwargs["json"] = json_payload
+                        response = await client.post(login_path, **request_kwargs)
+                        if response.status_code >= 400:
+                            last_response = response
+                            continue
 
-                    data = response.json()
-                    token = str(data.get("token") or data.get("jwt") or data.get("accessToken") or "")
-                    if not token:
-                        last_response = response
-                        continue
+                        data = response.json()
+                        token = str(data.get("token") or data.get("jwt") or data.get("accessToken") or "")
+                        if not token:
+                            last_response = response
+                            continue
 
-                    self._token = token
-                    expires_in = int(data.get("expiresIn", 3600))
-                    self._token_expires_at = datetime.now() + timedelta(seconds=expires_in - 60)
-                    logger.info("elektraweb_auth_success", expires_in=expires_in)
-                    return self._token
+                        self._token = token
+                        expires_in = int(data.get("expiresIn", 3600))
+                        self._token_expires_at = datetime.now() + timedelta(seconds=expires_in - 60)
+                        logger.info("elektraweb_auth_success", expires_in=expires_in, path=login_path)
+                        return self._token
             except Exception as error:
                 logger.warning("elektraweb_auth_attempt_failed", error_type=type(error).__name__)
 
@@ -214,14 +215,18 @@ class ElektrawebClient:
                 except httpx.HTTPStatusError as error:
                     last_error = error
                     status_code = error.response.status_code
+                    body_preview = error.response.text[:300]
                     logger.warning(
                         "elektraweb_http_status_error",
                         path=path,
                         status_code=status_code,
                         attempt=attempt + 1,
                         base_url=self._base_url,
+                        body_preview=body_preview,
                     )
                     if 400 <= status_code < 500:
+                        if status_code != 404:
+                            raise
                         break
                 except httpx.RequestError as error:
                     last_error = error

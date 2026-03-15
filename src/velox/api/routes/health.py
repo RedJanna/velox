@@ -83,6 +83,24 @@ def check_profiles_loaded() -> dict[str, Any]:
     return _result(profiles_count > 0, detail, count=profiles_count)
 
 
+def check_migrations(request: Request) -> dict[str, Any]:
+    """Validate startup migration runner finished without pending files."""
+    migration_status = getattr(request.app.state, "migration_status", None)
+    if not isinstance(migration_status, dict):
+        return _result(False, "migration_status_unavailable")
+
+    pending = migration_status.get("pending") or []
+    if pending:
+        return _result(False, "pending_migrations", pending=pending)
+
+    return _result(
+        True,
+        "migrations_ready",
+        detected_existing=migration_status.get("detected_existing", []),
+        executed=migration_status.get("executed", []),
+    )
+
+
 @router.get("")
 async def health_check() -> dict[str, str]:
     """Basic health check endpoint."""
@@ -94,6 +112,7 @@ async def readiness_check(request: Request) -> JSONResponse:
     """Readiness probe with dependency-level checks."""
     checks: dict[str, dict[str, Any]] = {
         "database": await check_db(request),
+        "migrations": check_migrations(request),
         "redis": await check_redis(request),
         "openai": await check_openai_api_key(),
         "elektraweb": await check_elektraweb(),

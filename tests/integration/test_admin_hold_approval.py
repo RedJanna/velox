@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from fastapi import HTTPException
 
 from velox.api.middleware.auth import TokenData
 from velox.api.routes import admin
@@ -139,3 +140,38 @@ async def test_admin_hold_approve_allows_stay_retry_from_approved_status() -> No
 
     assert result["status"] == "approved"
     assert len(fake_processor.events) == 1
+
+
+@pytest.mark.asyncio
+async def test_admin_hold_approve_blocks_retry_when_manual_review_has_pms_identifier() -> None:
+    """Manual review stays with PMS ids must not retry create and duplicate reservations."""
+    fake_conn = _FakeConnection()
+    fake_conn.hold_row["status"] = "MANUAL_REVIEW"
+    fake_conn.hold_row["pms_reservation_id"] = "90035227"
+    fake_processor = _FakeEventProcessor()
+    fake_request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                db_pool=_FakePool(fake_conn),
+                event_processor=fake_processor,
+            )
+        )
+    )
+    user = TokenData(
+        user_id=1,
+        hotel_id=21966,
+        username="ops_admin",
+        role=Role.ADMIN,
+        display_name="Ops Admin",
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await admin.approve_hold(
+            hold_id="S_HOLD_0001",
+            body=admin.ApproveRequest(notes="retry"),
+            request=fake_request,
+            user=user,
+        )
+
+    assert exc.value.status_code == 409
+    assert fake_processor.events == []

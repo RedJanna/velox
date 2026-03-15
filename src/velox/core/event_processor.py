@@ -27,6 +27,7 @@ from velox.core.reconciliation import (
 from velox.db.repositories.conversation import ConversationRepository
 from velox.models.conversation import Message
 from velox.models.webhook_events import ApprovalEvent, PaymentEvent, TransferEvent
+from velox.utils.json import decode_json_object
 
 logger = structlog.get_logger(__name__)
 
@@ -261,6 +262,20 @@ class EventProcessor:
                         "approved": event.approved,
                         "reconciliation_action": reconciliation_action.value,
                     }
+
+                await conn.execute(
+                    """
+                    UPDATE stay_holds
+                    SET pms_reservation_id = COALESCE($2, pms_reservation_id),
+                        voucher_no = COALESCE($3, voucher_no),
+                        updated_at = now()
+                    WHERE hold_id = $1
+                    """,
+                    reference_id,
+                    reservation_id or None,
+                    voucher_no,
+                    timeout=DB_TIMEOUT_SECONDS,
+                )
 
                 readback_result: dict[str, Any] | None = None
                 try:
@@ -795,8 +810,7 @@ class EventProcessor:
     @staticmethod
     def _extract_stay_draft(hold: asyncpg.Record) -> dict[str, Any]:
         """Extract stay draft JSON from hold safely."""
-        draft = hold["draft_json"]
-        return dict(draft) if isinstance(draft, dict) else {}
+        return decode_json_object(hold["draft_json"])
 
     @staticmethod
     def _resolve_scheduled_date(draft: dict[str, Any], due_mode: str) -> str | None:
@@ -918,10 +932,10 @@ class EventProcessor:
         if hold is None:
             return ""
         if approval_type == "STAY":
-            draft = hold["draft_json"]
-            if isinstance(draft, dict):
-                phone = draft.get("phone")
-                return str(phone) if phone else ""
+            draft = decode_json_object(hold["draft_json"])
+            phone = draft.get("phone")
+            if phone:
+                return str(phone)
             return ""
         phone = hold.get("phone", None)
         return str(phone) if phone else ""

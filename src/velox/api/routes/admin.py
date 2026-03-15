@@ -47,6 +47,7 @@ from velox.utils.admin_security import (
     upsert_trusted_device_record,
 )
 from velox.utils.id_gen import next_sequential_id
+from velox.utils.json import decode_json_object
 from velox.utils.privacy import hash_phone
 from velox.utils.totp import verify_totp_code
 
@@ -462,8 +463,10 @@ async def _load_hotel_profile(
     row = await conn.fetchrow("SELECT * FROM hotels WHERE hotel_id = $1", hotel_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Hotel not found")
-    profile_json = dict(row).get("profile_json") or {}
-    return dict(row), HotelProfile.model_validate(profile_json)
+    row_payload = dict(row)
+    profile_json = decode_json_object(row_payload.get("profile_json"))
+    row_payload["profile_json"] = profile_json
+    return row_payload, HotelProfile.model_validate(profile_json)
 
 
 async def _persist_hotel_profile(
@@ -943,7 +946,12 @@ async def list_conversations(
             or 0
         )
 
-    return {"items": [dict(row) for row in rows], "total": total, "page": page, "per_page": per_page}
+    return {
+        "items": [_normalize_unified_hold_row(dict(row)) for row in rows],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
 
 
 @router.get("/conversations/{conversation_id}")
@@ -1124,12 +1132,24 @@ async def list_holds(
                 or 0
             )
 
-    return {"items": [dict(row) for row in rows], "total": total, "page": page, "per_page": per_page}
+    return {
+        "items": [_normalize_unified_hold_row(dict(row)) for row in rows],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
 
 
 class _UnifiedHoldQueries(BaseModel):
     items_query: str
     count_query: str
+
+
+def _normalize_unified_hold_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Decode JSON fields returned as strings by asyncpg union queries."""
+    normalized = dict(row)
+    normalized["draft_json"] = decode_json_object(normalized.get("draft_json"))
+    return normalized
 
 
 def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow: bool) -> _UnifiedHoldQueries:
@@ -1357,6 +1377,12 @@ async def approve_hold(
                     f"(current: {current_status})"
                 ),
             )
+        if hold_type == "stay" and current_status == HoldStatus.MANUAL_REVIEW.value:
+            if row.get("pms_reservation_id") or row.get("voucher_no"):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Stay hold already has PMS identifiers; manual review is required instead of retry.",
+                )
         if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
             raise HTTPException(status_code=403, detail="Access denied")
         effective_hotel_id = int(row["hotel_id"])

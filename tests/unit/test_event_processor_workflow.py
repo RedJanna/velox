@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+import orjson
 import pytest
 
 from velox.core.event_processor import EventProcessor
@@ -247,3 +248,95 @@ async def test_process_approval_event_manual_review_status_is_not_treated_as_dup
     assert result.get("duplicate") is not True
     tool_names = [name for name, _ in dispatcher.calls]
     assert "booking_create_reservation" in tool_names
+
+
+@pytest.mark.asyncio
+async def test_process_approval_event_persists_reservation_id_before_readback_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hold_row = {
+        "hold_id": "S_HOLD_0001",
+        "hotel_id": 21966,
+        "conversation_id": None,
+        "status": "PENDING_APPROVAL",
+        "approval_idempotency_key": None,
+        "draft_json": {
+            "phone": "",
+            "checkin_date": "2026-09-10",
+            "checkout_date": "2026-09-12",
+            "adults": 2,
+            "room_type_id": 99,
+            "board_type_id": 2,
+            "rate_type_id": 11,
+            "rate_code_id": 101,
+            "price_agency_id": 777,
+            "total_price_eur": 200,
+            "currency_display": "EUR",
+            "cancel_policy_type": "FREE_CANCEL",
+        },
+    }
+    processor, conn, dispatcher = _build_processor(hold_row, monkeypatch=monkeypatch)
+    dispatcher.create_result = {"reservation_id": "RSV-9", "voucher_no": "V-9"}
+    dispatcher.readback_result = {}
+
+    event = ApprovalEvent(
+        hotel_id=21966,
+        approval_request_id="APR-1",
+        approved=True,
+        approved_by_role="ADMIN",
+        timestamp=datetime.now(UTC),
+    )
+    result = await processor.process_approval_event(event)
+
+    assert result["reconciliation_action"] == "manual_review"
+    persisted_ids = [
+        args[1:]
+        for query, args in conn.executed
+        if "SET pms_reservation_id = COALESCE($2, pms_reservation_id)" in query
+    ]
+    assert ("RSV-9", "V-9") in persisted_ids
+
+
+@pytest.mark.asyncio
+async def test_process_approval_event_decodes_string_draft_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hold_row = {
+        "hold_id": "S_HOLD_0001",
+        "hotel_id": 21966,
+        "conversation_id": None,
+        "status": "PENDING_APPROVAL",
+        "approval_idempotency_key": None,
+        "draft_json": orjson.dumps(
+            {
+                "phone": "+905301112233",
+                "guest_name": "Test User",
+                "checkin_date": "2026-09-10",
+                "checkout_date": "2026-09-12",
+                "adults": 2,
+                "room_type_id": 99,
+                "board_type_id": 2,
+                "rate_type_id": 11,
+                "rate_code_id": 101,
+                "price_agency_id": 777,
+                "total_price_eur": 200,
+                "currency_display": "EUR",
+                "cancel_policy_type": "FREE_CANCEL",
+            }
+        ).decode(),
+    }
+    processor, _conn, dispatcher = _build_processor(hold_row, monkeypatch=monkeypatch)
+
+    event = ApprovalEvent(
+        hotel_id=21966,
+        approval_request_id="APR-1",
+        approved=True,
+        approved_by_role="ADMIN",
+        timestamp=datetime.now(UTC),
+    )
+    await processor.process_approval_event(event)
+
+    create_call = dispatcher.calls[0]
+    assert create_call[0] == "booking_create_reservation"
+    assert create_call[1]["draft"]["guest_name"] == "Test User"
+    assert create_call[1]["draft"]["room_type_id"] == 99
