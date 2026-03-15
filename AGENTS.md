@@ -1,7 +1,7 @@
 # Velox (NexlumeAI) — Codex Project Guide
 
-> **Sürüm:** v4.0 | **Son güncelleme:** 2026-03-14 21:18:00
-> **Değişiklik özeti:** Stay hold onay akışında PMS create sonrası zorunlu readback doğrulaması eklendi; Holds ekranı operasyon odaklı yeniden düzenlendi.
+> **Sürüm:** v4.1 | **Son güncelleme:** 2026-03-15 11:59:03
+> **Değişiklik özeti:** Hata ayıklama ve kök neden analizinde Docker backend doğrulaması zorunlu başlangıç adımı olarak netleştirildi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -91,8 +91,11 @@ Skill files location: `skills/`
 - `testing_qa.md` — Test structure, mocks, coverage
 - `observability.md` — Health checks, metrics, logging, tracing, alerting
 
+> **Zorunlu problem analizi sırası:** Hata ayıklama, teşhis veya kök neden analizi yapılırken ilk inceleme alanı backend katmanıdır. Docker üstündeki `app`, `db`, `redis` ve probleme temas eden ilgili yan servislerin durum/healthcheck/log/config/bağımlılık doğrulaması yapılmadan frontend, prompt veya model davranışı hakkında hüküm verilmez.
+
 ## Key Documents
 - `SKILL.md` — **Read this before every task** (skill system entry point)
+- `system_prompt_velox.md` — AI agent çalışma kuralları, backend-first debug disiplini, Docker operasyon akışları
 - `docs/master_prompt_v2.md` — Complete system specification (runtime + product requirements)
 - `data/hotel_profiles/kassandra_oludeniz.yaml` — Hotel data for first client
 - `data/escalation_matrix.yaml` — Risk flag -> escalation level mapping
@@ -127,6 +130,7 @@ Execute tasks in `tasks/` directory sequentially:
 8. **Type hints**: Use Pydantic models and Python type hints everywhere.
 9. **Admin auth**: Access token kısa ömürlü kalır; tekrar TOTP azaltma sadece doğrulanmış trusted device ile yapılır, 2FA kapatılmaz.
 10. **Migration disiplini**: DB schema değişikliği (yeni tablo/sütun/index/constraint) içeren her işte migration dosyası zorunludur ve deploy akışında otomatik çalıştırılır; sadece manuel psql adımına bırakılmaz.
+11. **Backend-first debugging zorunlu**: Problem analizi, hata ayıklama ve root cause analysis `docker compose` üstündeki backend servislerinin (`app`, `db`, `redis`, gerekiyorsa ilgili ingress/worker yan servisleri) durum, healthcheck, log, env/config, dependency readiness ve migration bütünlüğü doğrulanarak başlar; bu adım tamamlanmadan frontend/prompt/model katmanına geçilmez.
 
 ## Auto-Commit Rule
 After completing each task, you MUST commit your changes:

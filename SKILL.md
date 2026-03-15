@@ -4,6 +4,7 @@
 This file is the **entry point** for all AI coding agents (Codex, Claude, Copilot, etc.) working on the Velox project. It defines which rule files ("skills") must be read before writing any code.
 
 **RULE: Never write or modify code without reading the relevant skill files first.**
+**RULE: For debugging, diagnosis, and root cause analysis tasks, validate the Docker backend runtime before any frontend, prompt, or model-level analysis.**
 
 ---
 
@@ -28,10 +29,13 @@ Kurallar arasında çakışma olursa aşağıdaki öncelik sırası geçerlidir.
 ## How It Works
 
 1. Before starting any task, read this file (`SKILL.md`)
-2. Find your task in the **Task → Skill Map** below
-3. Read each listed skill file from the `skills/` directory
-4. Follow every rule in those files while writing code
-5. Before marking a task as done, run the **Validation Checklist** from each skill
+2. If the task is debugging, diagnosis, or root cause analysis, start with Docker backend validation: inspect `app`, `db`, `redis`, and relevant sidecars for container state, health checks, logs, config/env integrity, dependency readiness, and migration compatibility
+3. Find your task in the **Task → Skill Map** below
+4. Read each listed skill file from the `skills/` directory
+5. Follow every rule in those files while writing code
+6. Before marking a task as done, run the **Validation Checklist** from each skill
+
+> **Bağlayıcı debug sırası:** `SKILL.md` + gerekli skill dosyaları okunur, ardından Docker backend doğrulaması yapılır; bu doğrulama tamamlanmadan prompt, model, frontend veya saf UI katmanına geçilmez.
 
 ---
 
@@ -43,10 +47,10 @@ Kurallar arasında çakışma olursa aşağıdaki öncelik sırası geçerlidir.
 | `skills/frontend_standards.md` | React/TypeScript, component structure, admin panel UI, a11y | **Every frontend/admin panel task** |
 | `skills/security_privacy.md` | PII handling, secrets, input sanitization, payment data | Tasks touching user data, auth, payments |
 | `skills/anti_hallucination.md` | Source hierarchy, QC checks, template-first, no fabrication | Tasks touching LLM, prompts, responses |
-| `skills/error_handling.md` | Retry patterns, fallback chains, user-facing error rules | Tasks touching external APIs, tools, adapters |
+| `skills/error_handling.md` | Retry patterns, fallback chains, user-facing error rules | Tasks touching external APIs, tools, adapters, failure diagnosis |
 | `skills/whatsapp_format.md` | Message limits, formatting, emoji policy, tone | Tasks touching message output, templates |
 | `skills/testing_qa.md` | Test structure, mock strategy, coverage rules, scenario tests | Tasks that include writing tests |
-| `skills/observability.md` | Health checks, metrics, logging, tracing, alerting | Tasks touching monitoring, logging, health checks |
+| `skills/observability.md` | Health checks, metrics, logging, tracing, alerting | Tasks touching monitoring, logging, health checks, or any debugging/root cause analysis |
 
 ---
 
@@ -68,6 +72,7 @@ Kurallar arasında çakışma olursa aşağıdaki öncelik sırası geçerlidir.
 | `12_transfer_module` | `coding_standards`, `error_handling` |
 | `13_testing` | `coding_standards`, `testing_qa` |
 | `14_docker_deployment` | `coding_standards`, `security_privacy`, `observability` |
+| `problem_analysis_root_cause` | `coding_standards`, `error_handling`, `observability` + alanla ilgili diğer skill'ler |
 
 ---
 
