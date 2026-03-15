@@ -7,7 +7,7 @@ from ipaddress import ip_address
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from passlib.hash import bcrypt  # type: ignore[import-untyped]
+from passlib.hash import bcrypt
 from pydantic import BaseModel, Field, field_validator
 
 from velox.api.middleware.auth import ROLE_PERMISSIONS, TokenData, get_current_user

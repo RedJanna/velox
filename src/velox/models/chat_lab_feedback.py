@@ -129,7 +129,7 @@ class ChatLabFeedbackRequest(BaseModel):
             raise ValueError("Import file is required for imported transcripts.")
 
         if has_gold_standard:
-            self.gold_standard = self.gold_standard.strip()
+            self.gold_standard = str(self.gold_standard).strip()
         else:
             self.gold_standard = None
 

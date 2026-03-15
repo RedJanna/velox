@@ -344,6 +344,8 @@ async def test_chat_history(request: Request, phone: str = "test_user_123") -> d
     )
     if conversation is None:
         return {"messages": [], "conversation": None}
+    if conversation.id is None:
+        raise HTTPException(status_code=500, detail="Conversation id is missing")
 
     messages = await repository.get_messages(conversation.id, limit=100, offset=0)
     return {
@@ -387,6 +389,8 @@ async def test_chat_export(
     )
     if conversation is None:
         raise HTTPException(status_code=404, detail="No active conversation for this phone")
+    if conversation.id is None:
+        raise HTTPException(status_code=500, detail="Conversation id is missing")
 
     messages = await repository.get_messages(conversation.id, limit=500, offset=0)
     exported_at = datetime.now(UTC)

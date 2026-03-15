@@ -178,4 +178,6 @@ def parse_reservation_create(raw: dict) -> ReservationResponse:
 def parse_reservation_detail(raw: dict) -> ReservationDetailResponse:
     """Parse raw reservation detail response."""
     normalized = normalize_keys(raw)
+    if not isinstance(normalized, dict):
+        return ReservationDetailResponse(raw_data=raw)
     return ReservationDetailResponse(**normalized, raw_data=raw)

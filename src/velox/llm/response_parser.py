@@ -1,7 +1,7 @@
 """Parse LLM output into USER_MESSAGE and INTERNAL_JSON."""
 
 import re
-from typing import Any
+from typing import Any, cast
 
 import orjson
 import structlog
@@ -125,9 +125,10 @@ class ResponseParser:
             return None
         if not isinstance(loaded, dict):
             return None
-        if "internal_json" in loaded and isinstance(loaded.get("internal_json"), dict):
-            return loaded["internal_json"]
-        return loaded
+        internal_json = loaded.get("internal_json")
+        if isinstance(internal_json, dict):
+            return cast(dict[str, Any], internal_json)
+        return cast(dict[str, Any], loaded)
 
     @staticmethod
     def _fallback_user_message(text: str, internal_json: InternalJSON) -> str:

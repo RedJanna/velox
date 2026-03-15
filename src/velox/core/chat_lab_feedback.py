@@ -6,7 +6,7 @@ import asyncio
 import json
 import re
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -479,7 +479,7 @@ def _slugify(value: str) -> str:
     return slug or "ozel"
 
 
-def _resolve_import_roles(raw_transcript: dict[str, Any], role_mapping: dict[str, str]) -> dict[str, Any]:
+def _resolve_import_roles(raw_transcript: dict[str, Any], role_mapping: Mapping[str, str]) -> dict[str, Any]:
     messages = raw_transcript.get("messages", [])
     participants = _extract_participants(raw_transcript)
     has_direct_roles = all(
@@ -556,7 +556,7 @@ def _extract_participants(raw_transcript: dict[str, Any]) -> list[ChatLabPartici
 
 def _normalize_import_messages(
     raw_transcript: dict[str, Any],
-    role_mapping: dict[str, str],
+    role_mapping: Mapping[str, str],
 ) -> list[ChatLabMessageView]:
     normalized: list[ChatLabMessageView] = []
     for index, raw_message in enumerate(raw_transcript.get("messages", []), start=1):

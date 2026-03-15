@@ -202,7 +202,15 @@ async def quote(
 def _safe_int(value: object, default: int = 0) -> int:
     """Convert arbitrary value to int with default fallback."""
     try:
-        return int(value)
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            return int(value)
+        if isinstance(value, (str, bytes, bytearray)):
+            return int(value)
+        return default
     except (TypeError, ValueError):
         return default
 

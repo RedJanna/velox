@@ -4,7 +4,7 @@ import asyncio
 from time import perf_counter
 from typing import cast
 
-import asyncpg  # type: ignore[import-untyped]
+import asyncpg
 import structlog
 
 from velox.config.constants import (

@@ -22,5 +22,14 @@ async def next_sequential_id(prefix: str, table: str, column: str) -> str:
         raise ValueError(f"Unsupported table/column combination: {table}.{column}")
 
     count = await fetchval(query)
-    next_num = int(count or 0) + 1
+    if isinstance(count, int):
+        current_count = count
+    elif isinstance(count, str):
+        current_count = int(count) if count.strip() else 0
+    elif isinstance(count, (bytes, bytearray)):
+        decoded = count.decode(errors="ignore").strip()
+        current_count = int(decoded) if decoded else 0
+    else:
+        current_count = 0
+    next_num = current_count + 1
     return f"{prefix}{next_num:03d}"

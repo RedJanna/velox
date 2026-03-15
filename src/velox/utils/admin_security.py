@@ -67,6 +67,19 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def _require_int(value: object, field_name: str) -> int:
+    """Convert object payload values to int with explicit error context."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip()
+        if normalized:
+            return int(normalized)
+    raise ValueError(f"Expected integer-like value for {field_name}")
+
+
 def serialize_duration_options(options: tuple[DurationOption, ...]) -> list[dict[str, int | str]]:
     """Return duration options in a JSON-friendly format."""
     return [{"value": item.value, "label": item.label, "seconds": item.seconds} for item in options]
@@ -255,8 +268,8 @@ async def upsert_trusted_device_record(
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $8, $8, $8)
         """,
-        int(admin_user["id"]),
-        int(admin_user["hotel_id"]),
+        _require_int(admin_user["id"], "admin_user.id"),
+        _require_int(admin_user["hotel_id"], "admin_user.hotel_id"),
         token.selector,
         token_hash,
         device_label,

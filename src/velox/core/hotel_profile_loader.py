@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-import yaml  # type: ignore[import-untyped]
+import yaml
 
 from velox.config.settings import settings
 from velox.models.hotel_profile import HotelProfile

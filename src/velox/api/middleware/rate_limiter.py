@@ -1,10 +1,12 @@
 """Redis-based rate limiting middleware."""
 
 import time
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 
 from velox.config.settings import settings
 
@@ -14,7 +16,7 @@ class RateLimiter:
 
     @staticmethod
     async def check_rate_limit(
-        redis,
+        redis: Any,
         key: str,
         max_requests: int,
         window_seconds: int,
@@ -34,7 +36,7 @@ class RateLimiter:
         return current_count < max_requests
 
     @staticmethod
-    async def check_phone_rate_limit(redis, phone_hash: str) -> None:
+    async def check_phone_rate_limit(redis: Any, phone_hash: str) -> None:
         """Enforce per-phone minute/hour thresholds."""
         minute_key = f"rl:phone:{phone_hash}:min"
         minute_ok = await RateLimiter.check_rate_limit(
@@ -63,7 +65,7 @@ class RateLimiter:
             )
 
     @staticmethod
-    async def check_webhook_rate_limit(redis, ip_address: str) -> None:
+    async def check_webhook_rate_limit(redis: Any, ip_address: str) -> None:
         """Enforce per-IP webhook request threshold."""
         key = f"rl:webhook:{ip_address}:min"
         allowed = await RateLimiter.check_rate_limit(
@@ -82,7 +84,11 @@ class RateLimiter:
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Apply rate limit checks for webhook routes."""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
         if request.url.path.startswith("/api/v1/webhook"):
             redis = getattr(request.app.state, "redis", None)
             if redis is not None:

@@ -6,7 +6,7 @@ import unicodedata
 from collections import defaultdict, deque
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
-from typing import Any
+from typing import Any, cast
 
 import orjson
 import structlog
@@ -790,7 +790,7 @@ def _detect_message_language(text: str, fallback: str = "tr") -> str:
     if re.search(r"[çğış]", text.casefold()):
         scores["tr"] += 2
 
-    best_language = max(scores, key=scores.get)
+    best_language = max(scores, key=lambda language_code: scores[language_code])
     best_score = scores[best_language]
     if best_score > 0:
         top_languages = [language_code for language_code, score in scores.items() if score == best_score]
@@ -1155,7 +1155,8 @@ def _build_stay_quote_message_for_payload(
     room_header: str | None = None,
 ) -> str | None:
     """Build one Turkish customer-facing quote message for one room occupancy."""
-    arguments = payload.get("arguments") if isinstance(payload.get("arguments"), dict) else {}
+    arguments_raw = payload.get("arguments")
+    arguments: dict[str, Any] = cast(dict[str, Any], arguments_raw) if isinstance(arguments_raw, dict) else {}
     offers = payload.get("offers")
     if not isinstance(offers, list):
         return None
@@ -1917,7 +1918,10 @@ class _HandoffToolAdapter:
 
     async def create_ticket(self, **kwargs: Any) -> dict[str, Any]:
         """Dispatch handoff ticket tool call."""
-        return await self._dispatcher.dispatch("handoff_create_ticket", **kwargs)
+        result = await self._dispatcher.dispatch("handoff_create_ticket", **kwargs)
+        if isinstance(result, dict):
+            return cast(dict[str, Any], result)
+        return {"status": "FAILED", "error_type": "INVALID_TOOL_RESULT"}
 
 
 class _NotifyToolAdapter:
@@ -1928,7 +1932,10 @@ class _NotifyToolAdapter:
 
     async def send(self, **kwargs: Any) -> dict[str, Any]:
         """Dispatch notification tool call."""
-        return await self._dispatcher.dispatch("notify_send", **kwargs)
+        result = await self._dispatcher.dispatch("notify_send", **kwargs)
+        if isinstance(result, dict):
+            return cast(dict[str, Any], result)
+        return {"status": "FAILED", "error_type": "INVALID_TOOL_RESULT"}
 
 
 async def _create_or_get_conversation(repository: ConversationRepository, incoming: IncomingMessage) -> Conversation:

@@ -1,7 +1,8 @@
 """JWT authentication and role-based access control for admin routes."""
 
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -50,7 +51,7 @@ def create_access_token(data: TokenData) -> str:
         "exp": expire,
         "iat": issued_at,
     }
-    return jwt.encode(payload, settings.admin_jwt_secret, algorithm=settings.admin_jwt_algorithm)
+    return cast(str, jwt.encode(payload, settings.admin_jwt_secret, algorithm=settings.admin_jwt_algorithm))
 
 
 security = HTTPBearer(auto_error=False)
@@ -110,7 +111,9 @@ def _validate_csrf(request: Request) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF validation failed")
 
 
-def require_role(*allowed_roles: Role):
+def require_role(
+    *allowed_roles: Role,
+) -> Callable[..., Awaitable[TokenData]]:
     """Return dependency enforcing allowed roles."""
 
     async def role_checker(

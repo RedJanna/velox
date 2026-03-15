@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+from typing import Any, cast
 
 import httpx
 import structlog
@@ -51,7 +52,7 @@ class WhatsAppClient:
             await self._client.aclose()
             self._client = None
 
-    async def _request(self, payload: dict) -> dict:
+    async def _request(self, payload: dict[str, Any]) -> dict[str, Any]:
         """POST message request with retry/backoff."""
         client = await self._get_client()
         path = f"/{self.phone_number_id}/messages"
@@ -64,7 +65,7 @@ class WhatsAppClient:
                 duration_ms = int((time.perf_counter() - start_time) * 1000)
                 response.raise_for_status()
                 logger.info("whatsapp_send_ok", response_code=response.status_code, duration_ms=duration_ms)
-                return response.json()
+                return cast(dict[str, Any], response.json())
             except httpx.TimeoutException as error:
                 last_error = error
                 logger.warning("whatsapp_timeout", attempt=attempt + 1, response_code=0)

@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from typing import Any
+from typing import Any, cast
 
 import structlog
 from openai import APIConnectionError, APITimeoutError, AsyncOpenAI, RateLimitError
@@ -179,7 +179,7 @@ class LLMClient:
                     prompt_tokens=usage.get("prompt_tokens", 0),
                     completion_tokens=usage.get("completion_tokens", 0),
                 )
-                return response_dict
+                return cast(dict[str, Any], response_dict)
             except (RateLimitError, APITimeoutError, APIConnectionError) as error:
                 last_error = error
                 duration_ms = int((time.perf_counter() - start) * 1000)
