@@ -1314,19 +1314,16 @@ def _executed_booking_quote(executed_calls: list[dict[str, Any]]) -> bool:
 
 
 def _booking_quote_failed_or_empty(executed_calls: list[dict[str, Any]]) -> bool:
-    """Return True when booking_quote was called but failed or returned no offers."""
-    attempted = False
-    for call in executed_calls:
+    """Return True when the latest booking_quote attempt failed or returned no offers."""
+    for call in reversed(executed_calls):
         if str(call.get("name") or "") != "booking_quote":
             continue
-        attempted = True
         result = _loads_tool_payload(call.get("result"))
         if result.get("error"):
             return True
         offers = result.get("offers")
-        if not isinstance(offers, list) or not offers:
-            return True
-    return False if attempted else False
+        return not isinstance(offers, list) or not offers
+    return False
 
 
 def _guest_explicitly_referenced_year(user_text: str) -> bool:

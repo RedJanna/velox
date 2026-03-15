@@ -923,6 +923,21 @@ async def test_run_message_pipeline_quote_error_uses_live_price_unavailable_fall
     assert "yıl" not in result.user_message.casefold()
 
 
+def test_booking_quote_failed_or_empty_uses_latest_attempt_only() -> None:
+    """Earlier quote failures should not override a later successful quote."""
+    executed_calls = [
+        {"name": "booking_quote", "result": {"error": "timeout"}},
+        {"name": "booking_quote", "result": {"offers": [{"id": "offer-1"}]}},
+    ]
+    assert whatsapp_webhook._booking_quote_failed_or_empty(executed_calls) is False
+
+    executed_calls_latest_error = [
+        {"name": "booking_quote", "result": {"offers": [{"id": "offer-1"}]}},
+        {"name": "booking_quote", "result": {"error": "timeout"}},
+    ]
+    assert whatsapp_webhook._booking_quote_failed_or_empty(executed_calls_latest_error) is True
+
+
 def test_parking_detection_does_not_match_havale() -> None:
     """Parking detection must not confuse 'havale' with 'vale'."""
     assert whatsapp_webhook._is_parking_question("Kredi kartı dışında havale kabul ediyor musunuz?") is False
