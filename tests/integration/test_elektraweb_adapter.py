@@ -291,8 +291,8 @@ async def test_quote_raises_when_child_occupancy_is_ignored(monkeypatch: pytest.
 
 
 @pytest.mark.asyncio
-async def test_quote_raises_when_child_buckets_do_not_match(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Child quote requests must fail when PMS echoes wrong younger/elder buckets."""
+async def test_quote_allows_when_child_total_matches_but_buckets_differ(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Child quote should continue when PMS total child occupancy matches."""
     mock_client = AsyncMock()
     mock_client.get.return_value = [
         {
@@ -315,14 +315,47 @@ async def test_quote_raises_when_child_buckets_do_not_match(monkeypatch: pytest.
         }
     ]
     monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
-    with pytest.raises(RuntimeError, match="CHILD_OCCUPANCY_UNVERIFIED"):
-        await endpoints.quote(
-            hotel_id=21966,
-            checkin=date(2026, 7, 1),
-            checkout=date(2026, 7, 5),
-            adults=2,
-            chd_ages=[10, 3],
-        )
+    result = await endpoints.quote(
+        hotel_id=21966,
+        checkin=date(2026, 7, 1),
+        checkout=date(2026, 7, 5),
+        adults=2,
+        chd_ages=[10, 3],
+    )
+    assert len(result.offers) == 1
+
+
+@pytest.mark.asyncio
+async def test_quote_accepts_child_count_without_bucket_breakdown(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Child quote should accept pax_count child_count even when bucket fields are absent."""
+    mock_client = AsyncMock()
+    mock_client.get.return_value = [
+        {
+            "id": "of1",
+            "room-type-id": 66,
+            "board-type-id": 2,
+            "rate-type-id": 10,
+            "rate-code-id": 101,
+            "price-agency-id": 1,
+            "currency": "EUR",
+            "price": "120.0",
+            "discounted-price": "100.0",
+            "pax-count": {
+                "adult": 2,
+                "child-count": 2,
+            },
+            "cancellation-penalty": {},
+        }
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    result = await endpoints.quote(
+        hotel_id=21966,
+        checkin=date(2026, 7, 1),
+        checkout=date(2026, 7, 5),
+        adults=2,
+        chd_ages=[10, 3],
+    )
+    assert len(result.offers) == 1
 
 
 @pytest.mark.asyncio

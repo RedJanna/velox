@@ -100,10 +100,20 @@ def _quote_response_matches_requested_occupancy(
         return True
 
     normalized = normalize_keys(raw)
-    if not isinstance(normalized, list) or not normalized:
+    items: list[dict[str, Any]] = []
+    if isinstance(normalized, list):
+        items = [item for item in normalized if isinstance(item, dict)]
+    elif isinstance(normalized, dict):
+        offers = normalized.get("offers")
+        data = normalized.get("data")
+        if isinstance(offers, list):
+            items = [item for item in offers if isinstance(item, dict)]
+        elif isinstance(data, list):
+            items = [item for item in data if isinstance(item, dict)]
+    if not items:
         return False
 
-    for item in normalized:
+    for item in items:
         pax_count = item.get("pax_count")
         if not isinstance(pax_count, dict):
             continue
@@ -113,13 +123,27 @@ def _quote_response_matches_requested_occupancy(
             "younger_child_count": int(pax_count.get("younger_child_count", 0) or 0),
             "baby_count": int(pax_count.get("baby_count", 0) or 0),
         }
-        actual_children = sum(actual_buckets.values())
-        if (
-            actual_adults == adults
-            and actual_children == requested_children
-            and actual_buckets == requested_buckets
-        ):
-            return True
+        bucket_children = sum(actual_buckets.values())
+        count_children = int(
+            pax_count.get("child_count")
+            or pax_count.get("children_count")
+            or pax_count.get("chd_count")
+            or pax_count.get("child")
+            or 0
+        )
+        actual_children = bucket_children if bucket_children > 0 else count_children
+        if actual_adults != adults:
+            continue
+        if actual_children != requested_children:
+            continue
+        if bucket_children > 0 and actual_buckets != requested_buckets:
+            logger.warning(
+                "elektraweb_quote_child_bucket_mismatch_total_matched",
+                adults=adults,
+                requested_buckets=requested_buckets,
+                actual_buckets=actual_buckets,
+            )
+        return True
     return False
 
 
