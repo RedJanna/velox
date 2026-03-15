@@ -12,10 +12,23 @@
 ## 0) Bu dokümanın kapsamı
 
 - **Kapsam:** Velox backend + admin panel için izleme, ölçüm, uyarı ve iz takibi kuralları
+- **Debug/RCA giriş kuralı:** Hata ayıklama, teşhis ve root cause analysis önce Docker backend runtime doğrulamasıyla başlar; `app`, `db`, `redis` ve probleme temas eden ilgili sidecar/yan servisler kontrol edilmeden observability verisi yorumlanmış sayılmaz.
 - **İlişkili dosyalar:**
   - `error_handling.md` — Hata olunca ne yapılır (bu dosya: hatayı nasıl görürüz)
   - `security_privacy.md` — Logda PII yasağı (bu dosya: neyi loglarız)
   - `coding_standards.md` — structlog kullanımı (bu dosya: log formatı ve metrikleri)
+
+### 0.1 Debug/RCA giriş kapısı
+
+Bir hata, performans sorunu, regresyon veya "sistem neden bozuldu?" araştırması yapılıyorsa şu sıra zorunludur:
+
+1. `docker compose ps` veya eşdeğeri ile `app`, `db`, `redis` ve ilgili yan servislerin container durumunu kontrol et.
+2. Healthcheck, restart loop, `unhealthy`/`restarting`/`exited` durumlarını doğrula.
+3. Container loglarını incele; hata zincirinin ilk kırıldığı servisi ayır.
+4. Env/config, volume, network, port, readiness ve migration/schema uyumunu doğrula.
+5. Bu adımlar tamamlanmadan dashboard, metric, trace veya log yorumu ile kök neden hükmü verme.
+
+> **Kural:** Observability verisi backend runtime bağlamından kopuk yorumlanmaz. Önce container sağlığı ve bağımlılık bütünlüğü, sonra metric/log/trace analizi gelir.
 
 ---
 
@@ -261,11 +274,14 @@ Admin panelde veya Grafana'da şu dashboard'lar olmalı:
 - Alert spam yok → dedup süresi en az 15dk
 - Health check endpoint'i iş mantığı çalıştırmaz (sadece bağlantı kontrolü)
 - Production'da `DEBUG` seviye log **kapalı** olmalı
+- Docker backend doğrulaması yapılmadan observability çıktısından kök neden sonucu çıkarılmaz
 
 ---
 
 ## 9) Validation Checklist
 
+- [ ] Debug/RCA işlerinde önce `app`, `db`, `redis` ve ilgili yan servislerin container state, healthcheck, restart ve readiness durumu kontrol edildi
+- [ ] Debug/RCA işlerinde container logları metric/trace yorumundan önce incelendi
 - [ ] `/health` endpoint'i var ve load balancer'a bağlı
 - [ ] `/health/detailed` endpoint'i var ve admin-only
 - [ ] PostgreSQL, Redis health check'leri 15sn aralıkla çalışıyor
