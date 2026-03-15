@@ -1,6 +1,7 @@
 """Integration tests for WhatsApp webhook routes."""
 
 from types import SimpleNamespace
+import time
 from typing import Any
 from uuid import uuid4
 
@@ -58,7 +59,7 @@ async def test_post_with_valid_signature_message_accepted(
         phone="905551112233",
         display_name="Guest",
         text="Merhaba",
-        timestamp=1710000000,
+        timestamp=int(time.time()),
         message_type="text",
     )
     monkeypatch.setattr(whatsapp_webhook.webhook_handler, "validate_signature", lambda *_: True)
@@ -116,7 +117,7 @@ async def test_deduplication_of_repeated_webhooks(
         phone="905551112233",
         display_name="Guest",
         text="Merhaba",
-        timestamp=1710000000,
+        timestamp=int(time.time()),
         message_type="text",
     )
 

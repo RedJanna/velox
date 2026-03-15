@@ -24,7 +24,6 @@ from velox.core.pipeline import post_process_escalation
 from velox.db.repositories.conversation import ConversationRepository
 from velox.llm.client import LLMUnavailableError, get_llm_client
 from velox.llm.function_registry import get_tool_definitions
-from velox.llm.mock_tool_executor import mock_tool_executor
 from velox.llm.prompt_builder import get_prompt_builder
 from velox.llm.response_parser import ResponseParser
 from velox.models.conversation import Conversation, InternalJSON, LLMResponse, Message
@@ -238,6 +237,35 @@ def _mask_phone(phone: str) -> str:
 def _hash_phone(phone: str) -> str:
     """Hash phone for storage and lookup."""
     return hash_phone(phone)
+
+
+async def _redis_allow_rate_limit(
+    redis_client: Any,
+    key: str,
+    max_requests: int,
+    window_seconds: int,
+) -> bool:
+    """Use Redis sliding window to enforce a distributed rate limit."""
+    now = time.time()
+    window_start = now - window_seconds
+    pipe = redis_client.pipeline()
+    pipe.zremrangebyscore(key, 0, window_start)
+    pipe.zcard(key)
+    pipe.zadd(key, {str(now): now})
+    pipe.expire(key, window_seconds + 1)
+    results = await pipe.execute()
+    current_count = int(results[1] or 0)
+    return current_count < max_requests
+
+
+async def _redis_is_duplicate_message(
+    redis_client: Any,
+    message_id: str,
+) -> bool:
+    """Use Redis key expiry to prevent duplicate webhook processing across replicas."""
+    key = f"wa:dedupe:{message_id}"
+    inserted = await redis_client.set(key, "1", ex=DEDUPE_TTL_SECONDS, nx=True)
+    return not bool(inserted)
 
 
 def _normalize_text(text: str) -> str:
@@ -1720,11 +1748,14 @@ async def _run_message_pipeline(
         llm_client = get_llm_client()
         messages = prompt_builder.build_messages(conversation, normalized_text)
         tools = get_tool_definitions()
-        tool_executor = mock_tool_executor
         if dispatcher is not None:
             tool_executor = _build_dispatcher_executor(dispatcher, conversation)
         else:
-            logger.warning("tool_dispatcher_missing_fallback_to_mock")
+            async def _unavailable_executor(tool_name: str, _tool_args: str | dict[str, Any]) -> str:
+                logger.warning("tool_dispatcher_unavailable", tool_name=tool_name)
+                return orjson.dumps({"error": "TOOL_DISPATCHER_UNAVAILABLE", "tool": tool_name}).decode()
+
+            tool_executor = _unavailable_executor
 
         content, executed_calls = await llm_client.run_tool_call_loop(
             messages=messages,
@@ -2078,22 +2109,53 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
         logger.warning("whatsapp_webhook_stale_or_invalid_timestamp", message_id=incoming.message_id)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
-    if deduplicator.is_duplicate(incoming.message_id):
-        logger.info("whatsapp_webhook_duplicate", message_id=incoming.message_id)
-        return {"status": "ok"}
-
     phone_hash = _hash_phone(incoming.phone)
     webhook_ip = request.client.host if request.client is not None else "unknown"
+    redis_client = getattr(request.app.state, "redis", None)
 
-    if not ip_limiter.allow(webhook_ip, settings.rate_limit_webhook_per_minute, 60):
-        logger.warning("whatsapp_webhook_ip_limited", ip=webhook_ip)
-        return {"status": "ok"}
+    if redis_client is not None:
+        if await _redis_is_duplicate_message(redis_client, incoming.message_id):
+            logger.info("whatsapp_webhook_duplicate", message_id=incoming.message_id)
+            return {"status": "ok"}
+        ip_allowed = await _redis_allow_rate_limit(
+            redis_client,
+            f"rl:webhook:{webhook_ip}:min",
+            settings.rate_limit_webhook_per_minute,
+            60,
+        )
+        if not ip_allowed:
+            logger.warning("whatsapp_webhook_ip_limited", ip=webhook_ip)
+            return {"status": "ok"}
+        per_minute_allowed = await _redis_allow_rate_limit(
+            redis_client,
+            f"rl:phone:{phone_hash}:min",
+            settings.rate_limit_per_phone_per_minute,
+            60,
+        )
+        per_hour_allowed = await _redis_allow_rate_limit(
+            redis_client,
+            f"rl:phone:{phone_hash}:hour",
+            settings.rate_limit_per_phone_per_hour,
+            3600,
+        )
+        if not per_minute_allowed or not per_hour_allowed:
+            logger.warning("whatsapp_phone_rate_limited", phone=_mask_phone(incoming.phone))
+            return {"status": "ok"}
+    else:
+        logger.warning("whatsapp_webhook_redis_unavailable_fallback_to_local_limits")
+        if deduplicator.is_duplicate(incoming.message_id):
+            logger.info("whatsapp_webhook_duplicate", message_id=incoming.message_id)
+            return {"status": "ok"}
 
-    per_minute_allowed = phone_minute_limiter.allow(phone_hash, settings.rate_limit_per_phone_per_minute, 60)
-    per_hour_allowed = phone_hour_limiter.allow(phone_hash, settings.rate_limit_per_phone_per_hour, 3600)
-    if not per_minute_allowed or not per_hour_allowed:
-        logger.warning("whatsapp_phone_rate_limited", phone=_mask_phone(incoming.phone))
-        return {"status": "ok"}
+        if not ip_limiter.allow(webhook_ip, settings.rate_limit_webhook_per_minute, 60):
+            logger.warning("whatsapp_webhook_ip_limited", ip=webhook_ip)
+            return {"status": "ok"}
+
+        per_minute_allowed = phone_minute_limiter.allow(phone_hash, settings.rate_limit_per_phone_per_minute, 60)
+        per_hour_allowed = phone_hour_limiter.allow(phone_hash, settings.rate_limit_per_phone_per_hour, 3600)
+        if not per_minute_allowed or not per_hour_allowed:
+            logger.warning("whatsapp_phone_rate_limited", phone=_mask_phone(incoming.phone))
+            return {"status": "ok"}
 
     dispatcher = getattr(request.app.state, "tool_dispatcher", None)
     escalation_engine = getattr(request.app.state, "escalation_engine", None)
