@@ -51,9 +51,9 @@ class ChatLabReportService:
         date_from = _ensure_aware(payload.date_from)
         date_to = _ensure_aware(payload.date_to)
 
-        await asyncio.to_thread(self._reports_root.mkdir, parents=True, exist_ok=True)
+        self._reports_root.mkdir(parents=True, exist_ok=True)
         feedback_root = self._feedback_root / "bad_feedback"
-        records = await asyncio.to_thread(_load_feedback_records, feedback_root, date_from, date_to)
+        records = _load_feedback_records(feedback_root, date_from, date_to)
         if not records:
             return ChatLabReportResponse(
                 status="no_feedback",
@@ -109,7 +109,7 @@ class ChatLabReportService:
         }
 
         async with _REPORT_WRITE_LOCK:
-            await asyncio.to_thread(_write_yaml_file, report_path, report_payload)
+            _write_yaml_file(report_path, report_payload)
 
         logger.info(
             "chat_lab_report_generated",

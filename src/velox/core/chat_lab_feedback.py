@@ -93,8 +93,8 @@ class ChatLabFeedbackService:
 
     async def get_catalog(self) -> ChatLabCatalogResponse:
         """Return catalog metadata for the Chat Lab UI."""
-        await asyncio.to_thread(self._imports_root.mkdir, parents=True, exist_ok=True)
-        await asyncio.to_thread(self._feedback_root.mkdir, parents=True, exist_ok=True)
+        self._imports_root.mkdir(parents=True, exist_ok=True)
+        self._feedback_root.mkdir(parents=True, exist_ok=True)
         return build_feedback_catalog()
 
     async def submit_feedback(self, payload: ChatLabFeedbackRequest) -> ChatLabFeedbackResponse:
@@ -148,8 +148,8 @@ class ChatLabFeedbackService:
         }
 
         async with _FILE_WRITE_LOCK:
-            await asyncio.to_thread(storage_path.parent.mkdir, parents=True, exist_ok=True)
-            await asyncio.to_thread(_write_yaml_file, storage_path, record)
+            storage_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_yaml_file(storage_path, record)
 
         logger.info(
             "chat_lab_feedback_saved",
@@ -173,12 +173,12 @@ class ChatLabFeedbackService:
 
     async def list_import_files(self) -> ChatLabImportListResponse:
         """List available transcript JSON files in the admin-only imports folder."""
-        await asyncio.to_thread(self._imports_root.mkdir, parents=True, exist_ok=True)
+        self._imports_root.mkdir(parents=True, exist_ok=True)
         try:
             await self._repository.export_recent_conversations_for_chat_lab(limit=200)
         except Exception:
             logger.exception("chat_lab_import_auto_export_failed")
-        files = await asyncio.to_thread(lambda: sorted(self._imports_root.glob("*.json")))
+        files = sorted(self._imports_root.glob("*.json"))
         items = [
             ChatLabImportFileItem(
                 filename=file_path.name,
@@ -192,7 +192,7 @@ class ChatLabFeedbackService:
 
     async def load_import(self, payload: ChatLabImportRequest) -> ChatLabImportResponse:
         """Load one transcript import file and normalize it for the Chat Lab UI."""
-        raw_transcript = await asyncio.to_thread(self._load_import_json, payload.filename)
+        raw_transcript = self._load_import_json(payload.filename)
         role_result = _resolve_import_roles(raw_transcript, payload.role_mapping)
         source_type = _resolve_import_source_type(raw_transcript)
         if role_result["status"] == "role_mapping_required":
@@ -254,7 +254,7 @@ class ChatLabFeedbackService:
         if not payload.import_file:
             raise ChatLabImportError("Import file is required for imported transcript feedback.")
 
-        raw_transcript = await asyncio.to_thread(self._load_import_json, payload.import_file)
+        raw_transcript = self._load_import_json(payload.import_file)
         role_result = _resolve_import_roles(raw_transcript, payload.role_mapping)
         if role_result["status"] != "ready":
             raise ChatLabImportError("Role mapping is required before saving imported transcript feedback.")
