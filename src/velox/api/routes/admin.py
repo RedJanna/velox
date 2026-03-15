@@ -1378,10 +1378,15 @@ async def approve_hold(
                 ),
             )
         if hold_type == "stay" and current_status == HoldStatus.MANUAL_REVIEW.value:
-            if row.get("pms_reservation_id") or row.get("voucher_no"):
+            manual_review_reason = str(row.get("manual_review_reason") or "")
+            create_was_uncertain = manual_review_reason in {
+                "create_missing_identifiers",
+                "create_unverified_after_readback",
+            }
+            if row.get("pms_reservation_id") or row.get("voucher_no") or create_was_uncertain:
                 raise HTTPException(
                     status_code=409,
-                    detail="Stay hold already has PMS identifiers; manual review is required instead of retry.",
+                    detail="Stay hold already reached an uncertain PMS create state; manual review is required instead of retry.",
                 )
         if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
             raise HTTPException(status_code=403, detail="Access denied")

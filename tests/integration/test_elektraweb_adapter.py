@@ -365,6 +365,48 @@ async def test_create_reservation_uses_booking_api_payload(monkeypatch: pytest.M
 
 
 @pytest.mark.asyncio
+async def test_get_reservation_uses_reservation_list_window_and_filters_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reservation lookup should use reservation-list with bounded window and id filter."""
+    mock_client = AsyncMock()
+    mock_client.get.return_value = [
+        {
+            "reservation-id": "RSV-88",
+            "voucher-no": "V-88",
+            "price": "140.0",
+            "status": "CONFIRMED",
+        }
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+
+    result = await endpoints.get_reservation(hotel_id=21966, reservation_id="RSV-88")
+
+    assert result.success is True
+    assert result.reservation_id == "RSV-88"
+    assert result.voucher_no == "V-88"
+    _, kwargs = mock_client.get.await_args
+    assert kwargs["params"]["reservation-id"] == "RSV-88"
+    assert "from-check-in" in kwargs["params"]
+    assert "to-check-in" in kwargs["params"]
+
+
+@pytest.mark.asyncio
+async def test_get_reservation_falls_back_when_reservation_list_has_no_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Lookup should continue to secondary paths when reservation-list misses the reservation."""
+    mock_client = AsyncMock()
+    mock_client.get.side_effect = [[], {"success": True, "reservation_id": "RSV-99", "voucher_no": "V-99"}]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+
+    result = await endpoints.get_reservation(hotel_id=21966, reservation_id="RSV-99")
+
+    assert result.reservation_id == "RSV-99"
+    assert mock_client.get.await_count == 2
+
+
+@pytest.mark.asyncio
 async def test_request_does_not_failover_to_secondary_base_on_400(monkeypatch: pytest.MonkeyPatch) -> None:
     """Validation 400 responses should surface directly instead of trying another host."""
     client = ElektrawebClient()

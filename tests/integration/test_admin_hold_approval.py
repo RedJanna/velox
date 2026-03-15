@@ -32,6 +32,9 @@ class _FakeConnection:
             "hold_id": "S_HOLD_0001",
             "status": "PENDING_APPROVAL",
             "hotel_id": 21966,
+            "manual_review_reason": None,
+            "pms_reservation_id": None,
+            "voucher_no": None,
         }
         self.approval_row = {"request_id": "APR_1001"}
 
@@ -143,11 +146,11 @@ async def test_admin_hold_approve_allows_stay_retry_from_approved_status() -> No
 
 
 @pytest.mark.asyncio
-async def test_admin_hold_approve_blocks_retry_when_manual_review_has_pms_identifier() -> None:
-    """Manual review stays with PMS ids must not retry create and duplicate reservations."""
+async def test_admin_hold_approve_blocks_retry_when_manual_review_has_uncertain_create_state() -> None:
+    """Manual review stays after uncertain PMS create must not retry and duplicate reservations."""
     fake_conn = _FakeConnection()
     fake_conn.hold_row["status"] = "MANUAL_REVIEW"
-    fake_conn.hold_row["pms_reservation_id"] = "90035227"
+    fake_conn.hold_row["manual_review_reason"] = "create_unverified_after_readback"
     fake_processor = _FakeEventProcessor()
     fake_request = SimpleNamespace(
         app=SimpleNamespace(

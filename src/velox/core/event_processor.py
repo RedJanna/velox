@@ -263,20 +263,6 @@ class EventProcessor:
                         "reconciliation_action": reconciliation_action.value,
                     }
 
-                await conn.execute(
-                    """
-                    UPDATE stay_holds
-                    SET pms_reservation_id = COALESCE($2, pms_reservation_id),
-                        voucher_no = COALESCE($3, voucher_no),
-                        updated_at = now()
-                    WHERE hold_id = $1
-                    """,
-                    reference_id,
-                    reservation_id or None,
-                    voucher_no,
-                    timeout=DB_TIMEOUT_SECONDS,
-                )
-
                 readback_result: dict[str, Any] | None = None
                 try:
                     readback_result = await self._fetch_reservation_readback(
@@ -299,13 +285,28 @@ class EventProcessor:
 
                 reservation_found_by_id = False
                 reservation_found_by_voucher = False
+                readback_reservation_id: str | None = None
+                readback_voucher: str | None = None
                 if isinstance(readback_result, dict):
-                    readback_reservation_id = str(readback_result.get("reservation_id", "")).strip()
-                    readback_voucher = str(readback_result.get("voucher_no", "")).strip()
-                    reservation_found_by_id = bool(reservation_id and readback_reservation_id)
-                    reservation_found_by_voucher = bool(voucher_no and readback_voucher)
+                    readback_reservation_id = str(readback_result.get("reservation_id", "")).strip() or None
+                    readback_voucher = str(readback_result.get("voucher_no", "")).strip() or None
+                    reservation_found_by_id = bool(
+                        reservation_id and readback_reservation_id and readback_reservation_id == reservation_id
+                    )
+                    reservation_found_by_voucher = bool(voucher_no and readback_voucher and readback_voucher == voucher_no)
 
                 if not (reservation_found_by_id or reservation_found_by_voucher):
+                    await conn.execute(
+                        """
+                        UPDATE stay_holds
+                        SET pms_reservation_id = NULL,
+                            voucher_no = NULL,
+                            updated_at = now()
+                        WHERE hold_id = $1
+                        """,
+                        reference_id,
+                        timeout=DB_TIMEOUT_SECONDS,
+                    )
                     reconciliation_action = ReconciliationAction.MANUAL_REVIEW
                     failed_state = HoldStatus.MANUAL_REVIEW.value
                     await self._update_hold_status(conn, approval_type, reference_id, status=failed_state)
@@ -358,16 +359,20 @@ class EventProcessor:
                     pms_create_completed=True,
                 )
 
-                if reservation_id:
+                verified_reservation_id = readback_reservation_id if reservation_found_by_id else None
+                verified_voucher_no = readback_voucher if reservation_found_by_voucher else voucher_no
+                if verified_reservation_id or verified_voucher_no:
                     await conn.execute(
                         """
                         UPDATE stay_holds
-                        SET pms_reservation_id = $2, voucher_no = $3, updated_at = now()
+                        SET pms_reservation_id = COALESCE($2, pms_reservation_id),
+                            voucher_no = COALESCE($3, voucher_no),
+                            updated_at = now()
                         WHERE hold_id = $1
                         """,
                         reference_id,
-                        reservation_id,
-                        voucher_no,
+                        verified_reservation_id,
+                        verified_voucher_no,
                         timeout=DB_TIMEOUT_SECONDS,
                     )
 

@@ -251,7 +251,7 @@ async def test_process_approval_event_manual_review_status_is_not_treated_as_dup
 
 
 @pytest.mark.asyncio
-async def test_process_approval_event_persists_reservation_id_before_readback_failure(
+async def test_process_approval_event_does_not_persist_unverified_create_identifier(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     hold_row = {
@@ -294,7 +294,59 @@ async def test_process_approval_event_persists_reservation_id_before_readback_fa
         for query, args in conn.executed
         if "SET pms_reservation_id = COALESCE($2, pms_reservation_id)" in query
     ]
-    assert ("RSV-9", "V-9") in persisted_ids
+    assert persisted_ids == []
+    cleared_ids = [
+        args
+        for query, args in conn.executed
+        if "SET pms_reservation_id = NULL" in query
+    ]
+    assert ("S_HOLD_0001",) in cleared_ids
+
+
+@pytest.mark.asyncio
+async def test_process_approval_event_persists_verified_readback_identifier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hold_row = {
+        "hold_id": "S_HOLD_0001",
+        "hotel_id": 21966,
+        "conversation_id": None,
+        "status": "PENDING_APPROVAL",
+        "approval_idempotency_key": None,
+        "draft_json": {
+            "phone": "",
+            "checkin_date": "2026-09-10",
+            "checkout_date": "2026-09-12",
+            "adults": 2,
+            "room_type_id": 99,
+            "board_type_id": 2,
+            "rate_type_id": 11,
+            "rate_code_id": 101,
+            "price_agency_id": 777,
+            "total_price_eur": 200,
+            "currency_display": "EUR",
+            "cancel_policy_type": "FREE_CANCEL",
+        },
+    }
+    processor, conn, dispatcher = _build_processor(hold_row, monkeypatch=monkeypatch)
+    dispatcher.create_result = {"reservation_id": "TMP-9", "voucher_no": "V-9"}
+    dispatcher.readback_result = {"reservation_id": "TMP-9", "voucher_no": "V-9"}
+
+    event = ApprovalEvent(
+        hotel_id=21966,
+        approval_request_id="APR-1",
+        approved=True,
+        approved_by_role="ADMIN",
+        timestamp=datetime.now(UTC),
+    )
+    await processor.process_approval_event(event)
+
+    persisted_ids = [
+        args[1:]
+        for query, args in conn.executed
+        if "SET pms_reservation_id = COALESCE($2, pms_reservation_id)" in query
+    ]
+    assert ("TMP-9", "V-9") in persisted_ids
 
 
 @pytest.mark.asyncio

@@ -1177,11 +1177,17 @@ function holdHasPersistedReservation(item) {
   return Boolean(item && (item.pms_reservation_id || item.voucher_no));
 }
 
+function holdNeedsManualReviewIntervention(item) {
+  const reason = String(item?.manual_review_reason || '');
+  if (holdHasPersistedReservation(item)) return true;
+  return ['create_missing_identifiers', 'create_unverified_after_readback'].includes(reason);
+}
+
 function isHoldApproveActionable(item) {
   const holdType = String(item?.type || '').toLowerCase();
   const status = String(item?.status || '').toUpperCase();
   if (holdType === 'stay') {
-    if (status === 'MANUAL_REVIEW' && holdHasPersistedReservation(item)) {
+    if (status === 'MANUAL_REVIEW' && holdNeedsManualReviewIntervention(item)) {
       return false;
     }
     return ['PENDING_APPROVAL', 'APPROVED', 'MANUAL_REVIEW', 'PMS_FAILED'].includes(status);
@@ -1191,7 +1197,7 @@ function isHoldApproveActionable(item) {
 
 function holdApproveButtonLabel(item) {
   const status = String(item?.status || '').toUpperCase();
-  if (status === 'MANUAL_REVIEW' && holdHasPersistedReservation(item)) return 'Inceleme Gerekli';
+  if (status === 'MANUAL_REVIEW' && holdNeedsManualReviewIntervention(item)) return 'Inceleme Gerekli';
   if (['APPROVED', 'MANUAL_REVIEW', 'PMS_FAILED'].includes(status)) return 'Yeniden Dene';
   return 'Onayla';
 }

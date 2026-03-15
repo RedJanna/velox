@@ -1,6 +1,6 @@
 """Elektraweb API endpoint methods — typed wrappers around the HTTP client."""
 
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -233,6 +233,14 @@ def _safe_float(value: object, default: float = 0.0) -> float:
         return default
 
 
+def _utc_window_days(*, days_back: int, days_forward: int) -> tuple[str, str]:
+    """Build reservation list query window in provider-required datetime format."""
+    now = datetime.now(UTC)
+    from_check_in = (now - timedelta(days=days_back)).strftime("%Y-%m-%dT00:00:00")
+    to_check_in = (now + timedelta(days=days_forward)).strftime("%Y-%m-%dT23:59:59")
+    return from_check_in, to_check_in
+
+
 def _normalize_iso_date(value: object) -> str:
     """Normalize a date-like value to YYYY-MM-DD."""
     if isinstance(value, date):
@@ -245,6 +253,28 @@ def _normalize_iso_date(value: object) -> str:
     if " " in raw:
         return raw.split(" ", maxsplit=1)[0]
     return raw
+
+
+def _reservation_lookup_params(
+    *,
+    reservation_status: str,
+    reservation_id: str | None,
+    voucher_no: str | None,
+    days_back: int = 365,
+    days_forward: int = 730,
+) -> dict[str, str]:
+    """Build GET params for reservation-list lookup with bounded date window."""
+    from_check_in, to_check_in = _utc_window_days(days_back=days_back, days_forward=days_forward)
+    params = {
+        "from-check-in": from_check_in,
+        "to-check-in": to_check_in,
+        "reservation-status": reservation_status,
+    }
+    if reservation_id:
+        params["reservation-id"] = reservation_id
+    if voucher_no:
+        params["voucher-no"] = voucher_no
+    return params
 
 
 def _split_guest_name(full_name: str) -> tuple[str, str]:
@@ -264,6 +294,60 @@ def _valid_email(value: object) -> str | None:
     if not raw or "@" not in raw:
         return None
     return raw
+
+
+def _parse_reservation_lookup_response(
+    raw: dict[str, Any] | list[Any],
+    *,
+    reservation_id: str | None,
+    voucher_no: str | None,
+) -> ReservationDetailResponse:
+    """Parse reservation-list response and return the matching reservation row."""
+    normalized = normalize_keys(raw)
+    items: list[dict[str, Any]] = []
+    if isinstance(normalized, list):
+        items = [item for item in normalized if isinstance(item, dict)]
+    elif isinstance(normalized, dict):
+        data = normalized.get("data")
+        if isinstance(data, list):
+            items = [item for item in data if isinstance(item, dict)]
+        else:
+            items = [normalized]
+
+    reservation_id_str = str(reservation_id or "").strip()
+    voucher_no_str = str(voucher_no or "").strip()
+    for item in items:
+        item_reservation_id = str(
+            item.get("reservation_id")
+            or item.get("res_id")
+            or item.get("id")
+            or item.get("primary_key")
+            or ""
+        ).strip()
+        item_voucher_no = str(
+            item.get("voucher_no")
+            or item.get("voucher")
+            or item.get("voucher_number")
+            or ""
+        ).strip()
+        if reservation_id_str and item_reservation_id != reservation_id_str:
+            continue
+        if voucher_no_str and item_voucher_no != voucher_no_str:
+            continue
+
+        return ReservationDetailResponse(
+            success=True,
+            reservation_id=item_reservation_id,
+            voucher_no=item_voucher_no,
+            total_price=(
+                item.get("total_price")
+                or item.get("discounted_price")
+                or item.get("price")
+            ),
+            state=str(item.get("state") or item.get("status") or item.get("res_state") or ""),
+            raw_data=item,
+        )
+    return ReservationDetailResponse(raw_data=raw)
 
 
 def _booking_api_guest_list(draft: dict[str, Any]) -> list[dict[str, object]]:
@@ -578,13 +662,49 @@ async def get_reservation(
     if voucher_no:
         body["voucherNo"] = voucher_no
 
+    reservation_list_path = f"/hotel/{hotel_id}/reservation-list"
+    reservation_statuses = ("Reservation", "Waiting", "InHouse", "CheckOut", "No Show", "Cancelled")
     paths_and_methods: list[tuple[str, str]] = [
         ("POST", f"/hotel/{hotel_id}/getReservation"),
         ("GET", f"/hotel/{hotel_id}/reservation/{reservation_id or ''}"),
+        ("GET", f"/hotel/{hotel_id}/reservation/detail"),
+        ("POST", f"/hotel/{hotel_id}/get-reservation"),
         ("POST", f"/hotel/{hotel_id}/reservation/get"),
     ]
 
     last_error: Exception | None = None
+    for reservation_status in reservation_statuses:
+        try:
+            params = _reservation_lookup_params(
+                reservation_status=reservation_status,
+                reservation_id=reservation_id,
+                voucher_no=voucher_no,
+            )
+            logger.info(
+                "elektraweb_get_reservation_attempt",
+                hotel_id=hotel_id,
+                path=reservation_list_path,
+                method="GET",
+                reservation_status=reservation_status,
+            )
+            raw = await client.get(reservation_list_path, params=params)
+            parsed = _parse_reservation_lookup_response(
+                raw,
+                reservation_id=reservation_id,
+                voucher_no=voucher_no,
+            )
+            if parsed.success:
+                return parsed
+            raise RuntimeError("reservation_not_found_in_list")
+        except Exception as error:
+            logger.warning(
+                "elektraweb_get_reservation_path_failed",
+                path=reservation_list_path,
+                error=str(error),
+                reservation_status=reservation_status,
+            )
+            last_error = error
+
     for method, path in paths_and_methods:
         try:
             logger.info("elektraweb_get_reservation_attempt", hotel_id=hotel_id, path=path, method=method)
