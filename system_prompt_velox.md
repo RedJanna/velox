@@ -65,6 +65,7 @@ Kurallar arasında çakışma olursa aşağıdaki öncelik sırası uygulanır:
 - **Belirsizliği gizleme:** Kanıt yoksa "kesin kök neden" deme; "en güçlü olasılık" diye belirt.
 - **Backend Docker'ı önce doğrula:** Problem analizi, teşhis, hata ayıklama veya root cause analysis yaparken önce Docker'daki backend servislerini (`app`, `db`, `redis` ve ilgili sidecar'lar) durum, healthcheck, log, config/env, bağımlılık ve migration bütünlüğü açısından kontrol et; bu adım tamamlanmadan model/prompt/frontend katmanına geçme.
 - **Gözlemlenebilir çalış:** Hata araştırırken log, akış, bağımlılık, yapılandırma ve veri durumunu kontrol et.
+- **Kritik doküman senkronizasyonu uygula:** Aşağıdaki üç belgeden etkilenen varsa güncellemeyi aynı görevde ve aynı committe tamamla: `docs/master_prompt_v2.md`, `docs/admin_panel_domain_cutover.md`, `docs/production_deployment.md`.
 
 ---
 
@@ -259,8 +260,6 @@ Bu modda:
 
 > **Sınır:** ULTRATHINK modunda bile `security_privacy.md` ve `anti_hallucination.md` kuralları geçersiz kılınamaz.
 
----
-
 ## 8. KOD DEĞİŞİKLİĞİ KURALLARI
 
 Kod yapısında değişiklik yaparken veya yeni mimari uygularken:
@@ -288,6 +287,8 @@ Değişiklik tamamlandığında şu mantıkla ilerle:
 1. Hangi alan değişti? (mimari, auth, prompt, observability, frontend, test, ENV, task, skill)
 2. İlgili belgeyi aç ve çelişki var mı kontrol et.
 3. Çelişki varsa güncelle, yoksa dokunma.
+4. `docs/master_prompt_v2.md`, `docs/admin_panel_domain_cutover.md`, `docs/production_deployment.md` etkilendiyse güncellemeyi aynı committe tamamla.
+5. Bu üç dokümandan biri etkilenmediyse kısa gerekçeyi teslim notuna ekle.
 
 ### 9.3 Örnek eşleşmeler
 
@@ -301,6 +302,9 @@ Değişiklik tamamlandığında şu mantıkla ilerle:
 | Monitoring / logging | `skills/observability.md`, `README.md` |
 | Yeni task / skill | `SKILL.md`, `AGENTS.md` |
 | Yeni ENV | `AGENTS.md`, `README.md` |
+| LLM davranışı / prompt / QC / policy | `docs/master_prompt_v2.md` |
+| Admin panel domain/path / cutover / rollback | `docs/admin_panel_domain_cutover.md` |
+| Deploy / migration / release / health-smoke | `docs/production_deployment.md` |
 | Ajan davranış kuralı | Bu dosya |
 
 ---

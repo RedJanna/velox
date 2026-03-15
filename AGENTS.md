@@ -1,7 +1,7 @@
 # Velox (NexlumeAI) — Codex Project Guide
 
-> **Sürüm:** v4.2 | **Son güncelleme:** 2026-03-15 13:30:00
-> **Değişiklik özeti:** ENV değişken adları runtime ayarlarıyla hizalandı ve deployment komut standardı netleştirildi.
+> **Sürüm:** v4.3 | **Son güncelleme:** 2026-03-15 14:10:00
+> **Değişiklik özeti:** Kritik 3 doküman (master prompt, admin domain cutover, production deployment) için aynı-commit senkronizasyon kuralları eklendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -97,6 +97,8 @@ Skill files location: `skills/`
 - `SKILL.md` — **Read this before every task** (skill system entry point)
 - `system_prompt_velox.md` — AI agent çalışma kuralları, backend-first debug disiplini, Docker operasyon akışları
 - `docs/master_prompt_v2.md` — Complete system specification (runtime + product requirements)
+- `docs/admin_panel_domain_cutover.md` — Admin panel domain/path cutover planı, geçiş sırası ve rollback adımları
+- `docs/production_deployment.md` — Production deploy runbook'u, migration ve doğrulama adımları
 - `data/hotel_profiles/kassandra_oludeniz.yaml` — Hotel data for first client
 - `data/escalation_matrix.yaml` — Risk flag -> escalation level mapping
 - `tasks/` — Step-by-step implementation tasks (follow in order!)
@@ -310,6 +312,22 @@ Aşağıdaki değişiklik türlerinden **herhangi biri** yapıldığında AGENTS
 | `.gitignore`'a yeni pattern eklenmesi gerekti | **Required .gitignore Entries** |
 | Multi-tenant planında karar değişikliği yapıldı | **Multi-Tenant Architecture** |
 
+### 1.1 Kritik doküman senkronizasyon kuralı (zorunlu)
+
+`docs/master_prompt_v2.md`, `docs/admin_panel_domain_cutover.md`, `docs/production_deployment.md` dosyaları için aşağıdaki kural geçerlidir:
+
+- Kodu etkileyen değişiklik ilgili kritik dokümanı etkiliyorsa, doküman güncellemesi **aynı commit** içinde yapılır.
+- Değişiklik ilgili dokümanı etkilemiyorsa commit mesajına kısa not düşülür: `[NO-DOC-UPDATE:<doc_adi>:<kisa_gerekce>]`.
+- Aynı değişiklik birden fazla kritik dokümanı etkiliyorsa hepsi birlikte güncellenir; parçalı ve ertelenmiş güncelleme yapılmaz.
+
+Kritik doküman tetikleyici matrisi:
+
+| Değişiklik türü | Güncellenmesi zorunlu doküman |
+|-----------------|-------------------------------|
+| LLM davranışı, araç sırası, QC/policy, prompt akışı, yanıt formatı veya ürün kuralı değişikliği | `docs/master_prompt_v2.md` |
+| Admin panel domain/path, reverse proxy, route, auth giriş yolu veya cutover/rollback planı değişikliği | `docs/admin_panel_domain_cutover.md` |
+| Deploy komutu, compose/runbook, migration akışı, healthcheck/smoke check, release adımları değişikliği | `docs/production_deployment.md` |
+
 ### 2. Güncelleme GEREKTİRMEYEN durumlar
 
 Aşağıdaki değişiklikler AGENTS.md'yi **etkilemez** — gereksiz güncelleme yapma:
@@ -338,7 +356,7 @@ Aşağıdaki değişiklikler AGENTS.md'yi **etkilemez** — gereksiz güncelleme
 
 ### 4. Oturum sonu hızlı kontrol (Quick Check)
 
-Her LLM oturumunun **sonunda**, aşağıdaki 6 soruluk kontrol listesini çalıştır.
+Her LLM oturumunun **sonunda**, aşağıdaki 9 soruluk kontrol listesini çalıştır.
 Herhangi birine **EVET** cevabı varsa, ilgili bölümü güncelle:
 
 ```
@@ -350,6 +368,9 @@ AGENTS.md QUICK CHECK (oturum sonu)
 [ ] Yeni bir skill dosyası oluşturdum veya sildim mi?                 → Skill files listesi
 [ ] Tech stack'e yeni bir teknoloji/servis ekledim mi?                → Tech Stack
 [ ] Critical Rules'da bir kuralı değiştirdim veya yeni kural mı var? → Critical Rules
+[ ] Prompt/LLM ürün davranışı veya tool policy değişti mi?            → docs/master_prompt_v2.md
+[ ] Admin domain/path/cutover/rollback akışı değişti mi?              → docs/admin_panel_domain_cutover.md
+[ ] Deploy/migration/runbook/health adımı değişti mi?                 → docs/production_deployment.md
 ─────────────────────────────────────
 Tüm cevaplar HAYIR → AGENTS.md güncelleme gerekmiyor.
 En az bir cevap EVET → İlgili bölümü güncelle + sürüm bloğunu güncelle.

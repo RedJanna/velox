@@ -5,6 +5,7 @@ This file is the **entry point** for all AI coding agents (Codex, Claude, Copilo
 
 **RULE: Never write or modify code without reading the relevant skill files first.**
 **RULE: For debugging, diagnosis, and root cause analysis tasks, validate the Docker backend runtime before any frontend, prompt, or model-level analysis.**
+**RULE: If a change affects prompt behavior, admin domain cutover flow, or production deployment flow, update the related critical docs in the same commit (`docs/master_prompt_v2.md`, `docs/admin_panel_domain_cutover.md`, `docs/production_deployment.md`).**
 
 ---
 
@@ -33,7 +34,8 @@ Kurallar arasında çakışma olursa aşağıdaki öncelik sırası geçerlidir.
 3. Find your task in the **Task → Skill Map** below
 4. Read each listed skill file from the `skills/` directory
 5. Follow every rule in those files while writing code
-6. Before marking a task as done, run the **Validation Checklist** from each skill
+6. Run the **Critical Docs Sync Gate** (below) and update required docs in the same commit
+7. Before marking a task as done, run the **Validation Checklist** from each skill
 
 > **Bağlayıcı debug sırası:** `SKILL.md` + gerekli skill dosyaları okunur, ardından Docker backend doğrulaması yapılır; bu doğrulama tamamlanmadan prompt, model, frontend veya saf UI katmanına geçilmez.
 
@@ -73,6 +75,24 @@ Kurallar arasında çakışma olursa aşağıdaki öncelik sırası geçerlidir.
 | `13_testing` | `coding_standards`, `testing_qa` |
 | `14_docker_deployment` | `coding_standards`, `security_privacy`, `observability` |
 | `problem_analysis_root_cause` | `coding_standards`, `error_handling`, `observability` + alanla ilgili diğer skill'ler |
+
+---
+
+## Critical Docs Sync Gate
+
+Before finishing any task, evaluate this matrix:
+
+| If the change affects... | Must update |
+|--------------------------|-------------|
+| LLM behavior, prompt flow, tool/QC/policy logic | `docs/master_prompt_v2.md` |
+| Admin panel domain/path, ingress/proxy route, cutover or rollback flow | `docs/admin_panel_domain_cutover.md` |
+| Deploy command, migration/release runbook, health/smoke validation flow | `docs/production_deployment.md` |
+
+Rules:
+
+1. Required doc updates are not deferred to a later task; they are part of the current task completion.
+2. If multiple rows match, update all matched documents in the same commit.
+3. If no row matches, state a short reason in the task summary.
 
 ---
 
