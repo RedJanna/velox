@@ -221,7 +221,7 @@ class EventProcessor:
                 tool_results["booking_create_reservation"] = booking_result
                 provider_create_reservation_id = str(booking_result.get("reservation_id", "")).strip() or None
                 voucher_no = str(booking_result.get("voucher_no", "")).strip() or None
-                reservation_id: str | None = None
+                reservation_id: str | None = provider_create_reservation_id
                 if provider_create_reservation_id:
                     logger.info(
                         "elektra_create_reservation_id_ignored_until_readback",
@@ -229,8 +229,8 @@ class EventProcessor:
                         provider_reservation_id=provider_create_reservation_id,
                     )
 
-                # Create response without voucher is considered uncertain and blocked.
-                if not voucher_no:
+                # Create response without any identifier is uncertain and blocked.
+                if not voucher_no and not reservation_id:
                     reconciliation_action = ReconciliationAction.MANUAL_REVIEW
                     failed_state = HoldStatus.MANUAL_REVIEW.value
                     await self._update_hold_status(conn, approval_type, reference_id, status=failed_state)
@@ -363,6 +363,7 @@ class EventProcessor:
                     conn,
                     reference_id=reference_id,
                     workflow_state=pms_created_transition.to_state.value,
+                    clear_manual_review_reason=True,
                     pms_create_completed=True,
                 )
 
@@ -847,6 +848,7 @@ class EventProcessor:
         approval_idempotency_key: str | None = None,
         create_idempotency_key: str | None = None,
         manual_review_reason: str | None = None,
+        clear_manual_review_reason: bool = False,
         pms_create_started: bool = False,
         pms_create_completed: bool = False,
     ) -> None:
@@ -894,6 +896,16 @@ class EventProcessor:
                     """,
                     reference_id,
                     manual_review_reason,
+                    timeout=DB_TIMEOUT_SECONDS,
+                )
+            elif clear_manual_review_reason:
+                await conn.execute(
+                    """
+                    UPDATE stay_holds
+                    SET manual_review_reason = NULL, updated_at = now()
+                    WHERE hold_id = $1
+                    """,
+                    reference_id,
                     timeout=DB_TIMEOUT_SECONDS,
                 )
             if pms_create_started:

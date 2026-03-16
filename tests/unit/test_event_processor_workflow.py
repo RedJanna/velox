@@ -107,7 +107,7 @@ async def test_process_approval_event_skips_duplicate_stay_approval(
         "approval_idempotency_key": existing_idempotency_key,
         "draft_json": {"phone": "", "total_price_eur": 100, "currency_display": "EUR"},
     }
-    processor, _conn, dispatcher = _build_processor(hold_row, monkeypatch=monkeypatch)
+    processor, conn, dispatcher = _build_processor(hold_row, monkeypatch=monkeypatch)
 
     event = ApprovalEvent(
         hotel_id=21966,
@@ -210,7 +210,7 @@ async def test_process_approval_event_stay_missing_reservation_identifiers_goes_
 
 
 @pytest.mark.asyncio
-async def test_process_approval_event_stay_create_reservation_id_without_voucher_goes_manual_review(
+async def test_process_approval_event_stay_create_reservation_id_without_voucher_uses_readback_by_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     hold_row = {
@@ -229,6 +229,7 @@ async def test_process_approval_event_stay_create_reservation_id_without_voucher
     }
     processor, _conn, dispatcher = _build_processor(hold_row, monkeypatch=monkeypatch)
     dispatcher.create_result = {"reservation_id": "TMP-ONLY", "voucher_no": ""}
+    dispatcher.readback_result = {"reservation_id": "TMP-ONLY", "voucher_no": ""}
 
     event = ApprovalEvent(
         hotel_id=21966,
@@ -240,9 +241,15 @@ async def test_process_approval_event_stay_create_reservation_id_without_voucher
     result = await processor.process_approval_event(event)
 
     assert result["status"] == "processed"
-    assert result["reconciliation_action"] == "manual_review"
+    assert result["reconciliation_action"] == "verified"
     tool_names = [name for name, _ in dispatcher.calls]
-    assert tool_names == ["booking_create_reservation"]
+    assert tool_names == ["booking_create_reservation", "booking_get_reservation", "payment_request_prepayment"]
+    clear_manual_reason_updates = [
+        query
+        for query, _args in conn.executed
+        if "SET manual_review_reason = NULL" in query
+    ]
+    assert clear_manual_reason_updates
 
 
 @pytest.mark.asyncio

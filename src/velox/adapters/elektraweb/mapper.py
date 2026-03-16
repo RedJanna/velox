@@ -61,6 +61,8 @@ class BookingOffer(BaseModel):
     discounted_price: Decimal
     room_to_sell: int = 0
     stop_sell: bool = False
+    pax_adult_count: int | None = None
+    pax_child_count: int | None = None
     room_area: int | None = None
     cancel_possible: bool = False
     cancellation_penalty: dict[str, Any] = Field(default_factory=dict)
@@ -145,6 +147,20 @@ def parse_quote(raw: dict[str, Any] | list[Any]) -> QuoteResponse:
     if isinstance(normalized, list):
         offers: list[BookingOffer] = []
         for item in normalized:
+            pax_count = item.get("pax_count") or {}
+            adult_count = None
+            child_count = None
+            if isinstance(pax_count, dict):
+                raw_adult = pax_count.get("adult")
+                if isinstance(raw_adult, int | float | str):
+                    try:
+                        adult_count = int(raw_adult)
+                    except (TypeError, ValueError):
+                        adult_count = None
+                younger = int(pax_count.get("younger_child_count", 0) or 0)
+                elder = int(pax_count.get("elder_child_count", 0) or 0)
+                baby = int(pax_count.get("baby_count", 0) or 0)
+                child_count = younger + elder + baby
             offers.append(
                 BookingOffer(
                     id=str(item.get("id", "")),
@@ -164,6 +180,8 @@ def parse_quote(raw: dict[str, Any] | list[Any]) -> QuoteResponse:
                         item.get("stop_sell", item.get("stopsell", False))
                         or (item.get("rate_rules") or {}).get("stop_sell", False)
                     ),
+                    pax_adult_count=adult_count,
+                    pax_child_count=child_count,
                     room_area=int(item.get("room_area", 0) or 0) or None,
                     cancel_possible=bool(item.get("cancel_possible", item.get("cancelpossible", False))),
                     cancellation_penalty=item.get("cancellation_penalty") or {},

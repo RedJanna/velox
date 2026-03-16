@@ -2,6 +2,7 @@
 
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+import re
 from typing import Any
 
 import httpx
@@ -20,6 +21,7 @@ from velox.adapters.elektraweb.mapper import (
     parse_reservation_create,
     parse_reservation_detail,
 )
+from velox.core.hotel_profile_loader import get_profile
 
 logger = structlog.get_logger(__name__)
 CHILD_OCCUPANCY_UNVERIFIED = "CHILD_OCCUPANCY_UNVERIFIED"
@@ -396,7 +398,7 @@ def _parse_reservation_lookup_response(
 
 def _booking_api_guest_list(draft: dict[str, Any]) -> list[dict[str, object]]:
     """Build booking API guest-list rows to satisfy pax-count validation."""
-    adults = max(_safe_int(draft.get("adults"), 1), 1)
+    adults = max(_safe_int(draft.get("pms_adult_count", draft.get("adults")), 1), 1)
     first_name, last_name = _split_guest_name(str(draft.get("guest_name") or "Guest"))
     email = _valid_email(draft.get("email"))
     phone = str(draft.get("phone") or "").strip() or None
@@ -419,6 +421,13 @@ def _booking_api_guest_list(draft: dict[str, Any]) -> list[dict[str, object]]:
 def _build_booking_api_create_payload(hotel_id: int, draft: dict[str, Any]) -> dict[str, Any]:
     """Build booking API payload for `/hotel/{hotel_id}/createReservation`."""
     chd_ages = [max(0, _safe_int(age, 0)) for age in draft.get("chd_ages", []) if isinstance(age, int | str)]
+    adult_count = max(_safe_int(draft.get("pms_adult_count", draft.get("adults")), 1), 1)
+    pms_child_count = _safe_int(draft.get("pms_child_count"), -1)
+    child_count = max(pms_child_count if pms_child_count >= 0 else len(chd_ages), 0)
+    child_ages_for_payload: list[int] = []
+    if child_count > 0 and chd_ages:
+        # Prefer youngest ages when PMS reduced child-count after occupancy normalization.
+        child_ages_for_payload = sorted(chd_ages)[:child_count]
     payload: dict[str, Any] = {
         "hotel-id": hotel_id,
         "room-type-id": _safe_int(draft.get("room_type_id")),
@@ -428,20 +437,20 @@ def _build_booking_api_create_payload(hotel_id: int, draft: dict[str, Any]) -> d
         "price-agency-id": _safe_int(draft.get("price_agency_id")),
         "currency-code": str(draft.get("currency_display") or draft.get("currency") or "EUR").strip() or "EUR",
         "total-price": _safe_float(draft.get("total_price_eur", draft.get("total_price"))),
-        "adult-count": max(_safe_int(draft.get("adults"), 1), 1),
-        "child-count": len(chd_ages),
+        "adult-count": adult_count,
+        "child-count": child_count,
         "check-in": _normalize_iso_date(draft.get("checkin_date")),
         "check-out": _normalize_iso_date(draft.get("checkout_date")),
         "guest-list": _booking_api_guest_list(draft),
     }
-    if chd_ages:
-        payload["child-ages"] = chd_ages
-        age_csv = ",".join(str(age) for age in chd_ages)
+    if child_ages_for_payload:
+        payload["child-ages"] = child_ages_for_payload
+        age_csv = ",".join(str(age) for age in child_ages_for_payload)
         # Some Elektra environments expect child ages/count aliases used by quote endpoint.
         payload["childage"] = age_csv
         payload["child-age"] = age_csv
         payload["chdAges"] = age_csv
-        payload["children-count"] = len(chd_ages)
+        payload["children-count"] = len(child_ages_for_payload)
     nationality_code = str(draft.get("nationality") or "").strip()
     if nationality_code:
         payload["nationality-code"] = nationality_code
@@ -482,6 +491,21 @@ def _offer_total_for_create(offer: BookingOffer) -> str:
     return str(offer.discounted_price or offer.price)
 
 
+def _resolve_room_type_id_for_refresh(hotel_id: int, room_type_id: int) -> int:
+    """Resolve profile room id into PMS room id when needed."""
+    if room_type_id <= 0:
+        return room_type_id
+    profile = get_profile(hotel_id)
+    if profile is None:
+        return room_type_id
+    for room_type in profile.room_types:
+        if room_type.pms_room_type_id == room_type_id:
+            return room_type_id
+        if room_type.id == room_type_id and room_type.pms_room_type_id > 0:
+            return int(room_type.pms_room_type_id)
+    return room_type_id
+
+
 async def _refresh_offer_identifiers(
     hotel_id: int,
     draft: dict[str, Any],
@@ -499,12 +523,15 @@ async def _refresh_offer_identifiers(
         nationality=str(draft.get("nationality") or "TR"),
         cancel_policy_type=str(draft.get("cancel_policy_type") or "") or None,
     )
-    room_type_id = _safe_int(draft.get("room_type_id"))
+    room_type_id = _resolve_room_type_id_for_refresh(hotel_id, _safe_int(draft.get("room_type_id")))
     room_type_candidates = [
         offer
         for offer in quote_response.offers
         if offer.room_type_id == room_type_id
     ]
+    if not room_type_candidates:
+        # Fallback for stale profile/internal ids: use any sellable offers from live quote.
+        room_type_candidates = [offer for offer in quote_response.offers if offer.room_to_sell > 0 and not offer.stop_sell]
     if not room_type_candidates:
         return None
     sellable_candidates = [offer for offer in room_type_candidates if offer.room_to_sell > 0 and not offer.stop_sell]
@@ -527,6 +554,7 @@ async def _refresh_offer_identifiers(
     refreshed = dict(draft)
     refreshed.update(
         {
+            "room_type_id": preferred.room_type_id,
             "board_type_id": preferred.board_type_id,
             "rate_type_id": preferred.rate_type_id,
             "rate_code_id": preferred.rate_code_id,
@@ -535,6 +563,10 @@ async def _refresh_offer_identifiers(
             "total_price_eur": _offer_total_for_create(preferred),
         }
     )
+    if preferred.pax_adult_count is not None and preferred.pax_adult_count > 0:
+        refreshed["pms_adult_count"] = preferred.pax_adult_count
+    if preferred.pax_child_count is not None and preferred.pax_child_count >= 0:
+        refreshed["pms_child_count"] = preferred.pax_child_count
     logger.info(
         "elektraweb_offer_identifiers_refreshed",
         hotel_id=hotel_id,
@@ -542,6 +574,8 @@ async def _refresh_offer_identifiers(
         rate_type_id=preferred.rate_type_id,
         rate_code_id=preferred.rate_code_id,
         price_agency_id=preferred.price_agency_id,
+        pms_adult_count=preferred.pax_adult_count,
+        pms_child_count=preferred.pax_child_count,
     )
     return refreshed
 
@@ -575,6 +609,30 @@ def _is_price_mismatch_error(error: httpx.HTTPStatusError) -> bool:
         return False
     message = str(payload.get("message") or "").casefold()
     return "price quote" in message and "must be" in message
+
+
+def _extract_expected_total_from_price_mismatch(error: httpx.HTTPStatusError) -> str | None:
+    """Extract provider-required total from mismatch message, if present."""
+    if not _is_price_mismatch_error(error):
+        return None
+    try:
+        payload = error.response.json()
+    except ValueError:
+        return None
+    message = str(payload.get("message") or "")
+    match = re.search(r"must\s+be\s+([0-9]+(?:[.,][0-9]+)?)", message, flags=re.IGNORECASE)
+    if match is None:
+        return None
+    return match.group(1).replace(",", ".")
+
+
+def _with_price_override(draft: dict[str, Any], total_price: str | None) -> dict[str, Any]:
+    """Return a draft copy with an overridden total-price when provider hints it explicitly."""
+    if total_price is None:
+        return draft
+    updated = dict(draft)
+    updated["total_price_eur"] = total_price
+    return updated
 
 
 def _build_hoteladvisor_insert_payload(hotel_id: int, draft: dict[str, Any]) -> dict[str, Any]:
@@ -706,12 +764,73 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
                 if refreshed_draft is not None:
                     logger.info("elektraweb_create_reservation_retry_refreshed_offer", hotel_id=hotel_id, path=path)
                     try:
+                        expected_total = None
                         raw = await client.post(
                             path,
                             json_body=_build_booking_api_create_payload(hotel_id, refreshed_draft),
                         )
                         return parse_reservation_create(raw)
                     except Exception as retry_error:  # pragma: no cover - exercised via integration tests
+                        if isinstance(retry_error, httpx.HTTPStatusError):
+                            expected_total = _extract_expected_total_from_price_mismatch(retry_error)
+                        if isinstance(retry_error, httpx.HTTPStatusError) and _is_price_mismatch_error(retry_error):
+                            second_refresh = await _refresh_offer_identifiers(
+                                hotel_id,
+                                refreshed_draft,
+                                prefer_money_match=False,
+                            )
+                            if second_refresh is not None:
+                                second_refresh_payload = _with_price_override(second_refresh, expected_total)
+                                logger.info(
+                                    "elektraweb_create_reservation_retry_second_refresh",
+                                    hotel_id=hotel_id,
+                                    path=path,
+                                    expected_total=expected_total,
+                                )
+                                try:
+                                    raw = await client.post(
+                                        path,
+                                        json_body=_build_booking_api_create_payload(hotel_id, second_refresh_payload),
+                                    )
+                                    return parse_reservation_create(raw)
+                                except Exception as second_retry_error:
+                                    if isinstance(second_retry_error, httpx.HTTPStatusError):
+                                        last_expected_total = _extract_expected_total_from_price_mismatch(second_retry_error)
+                                        if last_expected_total is not None and last_expected_total != expected_total:
+                                            final_price_payload = _with_price_override(
+                                                second_refresh_payload,
+                                                last_expected_total,
+                                            )
+                                            logger.info(
+                                                "elektraweb_create_reservation_retry_price_override",
+                                                hotel_id=hotel_id,
+                                                path=path,
+                                                expected_total=last_expected_total,
+                                            )
+                                            try:
+                                                raw = await client.post(
+                                                    path,
+                                                    json_body=_build_booking_api_create_payload(
+                                                        hotel_id,
+                                                        final_price_payload,
+                                                    ),
+                                                )
+                                                return parse_reservation_create(raw)
+                                            except Exception as final_retry_error:
+                                                logger.warning(
+                                                    "elektraweb_create_reservation_retry_price_override_failed",
+                                                    hotel_id=hotel_id,
+                                                    path=path,
+                                                    error=str(final_retry_error),
+                                                )
+                                                last_error = final_retry_error
+                                    logger.warning(
+                                        "elektraweb_create_reservation_retry_second_refresh_failed",
+                                        hotel_id=hotel_id,
+                                        path=path,
+                                        error=str(second_retry_error),
+                                    )
+                                    last_error = second_retry_error
                         logger.warning(
                             "elektraweb_create_reservation_retry_refreshed_offer_failed",
                             hotel_id=hotel_id,
