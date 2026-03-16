@@ -334,6 +334,17 @@ def _split_guest_name(full_name: str) -> tuple[str, str]:
     return tokens[0], " ".join(tokens[1:])
 
 
+def _birthday_from_age(age: int, checkin_date: str) -> str:
+    """Build yyyy-MM-dd birthday string from age using check-in date as reference."""
+    try:
+        checkin = date.fromisoformat(_normalize_iso_date(checkin_date))
+    except ValueError:
+        checkin = datetime.now(UTC).date()
+    years = max(age, 0)
+    year = max(checkin.year - years, 1900)
+    return f"{year:04d}-{checkin.month:02d}-{checkin.day:02d}"
+
+
 def _valid_email(value: object) -> str | None:
     """Return normalized email only when it looks valid enough for PMS validation."""
     raw = str(value or "").strip().lower()
@@ -396,12 +407,19 @@ def _parse_reservation_lookup_response(
     return ReservationDetailResponse(raw_data=raw)
 
 
-def _booking_api_guest_list(draft: dict[str, Any]) -> list[dict[str, object]]:
-    """Build booking API guest-list rows to satisfy pax-count validation."""
+def _booking_api_guest_list(
+    draft: dict[str, Any],
+    *,
+    child_count: int = 0,
+    child_ages: list[int] | None = None,
+) -> list[dict[str, object]]:
+    """Build booking API guest-list rows with explicit child entries when available."""
     adults = max(_safe_int(draft.get("pms_adult_count", draft.get("adults")), 1), 1)
     first_name, last_name = _split_guest_name(str(draft.get("guest_name") or "Guest"))
     email = _valid_email(draft.get("email"))
     phone = str(draft.get("phone") or "").strip() or None
+    checkin_date = str(draft.get("checkin_date") or "")
+    safe_child_ages = list(child_ages or [])
 
     guests: list[dict[str, object]] = []
     for index in range(adults):
@@ -415,6 +433,16 @@ def _booking_api_guest_list(draft: dict[str, Any]) -> list[dict[str, object]]:
         if index == 0 and phone:
             guest["phone"] = phone
         guests.append(guest)
+
+    for index in range(max(child_count, 0)):
+        age = max(_safe_int(safe_child_ages[index], 0), 0) if index < len(safe_child_ages) else 0
+        child_guest: dict[str, object] = {
+            "title-id": 2,
+            "name": "Cocuk",
+            "surname": f"{last_name} {adults + index + 1}",
+            "birthday": _birthday_from_age(age, checkin_date),
+        }
+        guests.append(child_guest)
     return guests
 
 
@@ -428,6 +456,11 @@ def _build_booking_api_create_payload(hotel_id: int, draft: dict[str, Any]) -> d
     if child_count > 0 and chd_ages:
         # Prefer youngest ages when PMS reduced child-count after occupancy normalization.
         child_ages_for_payload = sorted(chd_ages)[:child_count]
+    child_buckets = _child_bucket_counts(child_ages_for_payload) if child_ages_for_payload else {
+        "elder_child_count": child_count,
+        "younger_child_count": 0,
+        "baby_count": 0,
+    }
     payload: dict[str, Any] = {
         "hotel-id": hotel_id,
         "room-type-id": _safe_int(draft.get("room_type_id")),
@@ -441,16 +474,25 @@ def _build_booking_api_create_payload(hotel_id: int, draft: dict[str, Any]) -> d
         "child-count": child_count,
         "check-in": _normalize_iso_date(draft.get("checkin_date")),
         "check-out": _normalize_iso_date(draft.get("checkout_date")),
-        "guest-list": _booking_api_guest_list(draft),
+        "guest-list": _booking_api_guest_list(
+            draft,
+            child_count=child_count if child_ages_for_payload else 0,
+            child_ages=child_ages_for_payload,
+        ),
     }
     if child_ages_for_payload:
         payload["child-ages"] = child_ages_for_payload
         age_csv = ",".join(str(age) for age in child_ages_for_payload)
         # Some Elektra environments expect child ages/count aliases used by quote endpoint.
+        payload["chdCount"] = len(child_ages_for_payload)
+        payload["child"] = len(child_ages_for_payload)
         payload["childage"] = age_csv
         payload["child-age"] = age_csv
         payload["chdAges"] = age_csv
         payload["children-count"] = len(child_ages_for_payload)
+        payload["elder-child-count"] = child_buckets["elder_child_count"]
+        payload["younger-child-count"] = child_buckets["younger_child_count"]
+        payload["baby-count"] = child_buckets["baby_count"]
     nationality_code = str(draft.get("nationality") or "").strip()
     if nationality_code:
         payload["nationality-code"] = nationality_code

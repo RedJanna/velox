@@ -493,10 +493,10 @@ async def test_create_reservation_uses_booking_api_payload(monkeypatch: pytest.M
 
 
 @pytest.mark.asyncio
-async def test_create_reservation_child_payload_keeps_guest_list_adults_only(
+async def test_create_reservation_child_payload_includes_child_guest_and_bucket_fields(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Child occupancy should be encoded via child fields without inflating adult guest-list rows."""
+    """Child occupancy should include child guest row and child bucket aliases."""
     mock_client = AsyncMock()
     mock_client.post.return_value = {"reservation-id": "RSV-CHD-1", "voucher-no": "V-CHD-1"}
     monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
@@ -523,10 +523,17 @@ async def test_create_reservation_child_payload_keeps_guest_list_adults_only(
     path = mock_client.post.await_args.kwargs["json_body"]
     assert path["adult-count"] == 2
     assert path["child-count"] == 1
-    assert len(path["guest-list"]) == 2
+    assert len(path["guest-list"]) == 3
+    assert path["guest-list"][2]["title-id"] == 2
+    assert path["guest-list"][2]["birthday"] == "2019-10-01"
     assert path["childage"] == "7"
     assert path["child-age"] == "7"
     assert path["chdAges"] == "7"
+    assert path["chdCount"] == 1
+    assert path["child"] == 1
+    assert path["elder-child-count"] == 0
+    assert path["younger-child-count"] == 0
+    assert path["baby-count"] == 0
 
 
 @pytest.mark.asyncio
@@ -558,7 +565,9 @@ async def test_create_reservation_uses_pms_pax_override_counts(monkeypatch: pyte
     path = mock_client.post.await_args.kwargs["json_body"]
     assert path["adult-count"] == 3
     assert path["child-count"] == 1
-    assert len(path["guest-list"]) == 3
+    assert len(path["guest-list"]) == 4
+    assert path["guest-list"][3]["title-id"] == 2
+    assert path["guest-list"][3]["birthday"] == "2015-10-01"
     assert path["child-ages"] == [11]
     assert path["chdAges"] == "11"
 
