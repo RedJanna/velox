@@ -1074,40 +1074,20 @@ def _build_turkish_payment_methods_reply(hotel_id: int) -> str:
 
 def _build_turkish_child_bedding_reply(hotel_id: int, entities: dict[str, Any]) -> str:
     """Build deterministic Turkish guidance for 2-child bedding questions."""
+    _ = entities
     profile = get_profile(hotel_id)
-    if profile is None:
-        return (
-            "2 çocuklu konaklamalarda oda tipine ve uygunluğa göre 2 ek yatak veya "
-            "1 ek yatak + 1 sofa hazırlanabilir."
-        )
-
-    adults = int(entities.get("adults", 2) or 2)
-    child_count = max(int(entities.get("chd_count", 0) or 0), 2)
-    total_guests = adults + child_count
-    suitable_rooms = [
-        room_type.name.tr
-        for room_type in profile.room_types
-        if room_type.max_pax >= total_guests and room_type.extra_bed
-    ]
-    children_policy = profile.facility_policies.get("children", {})
-    bedding_note = str(
-        children_policy.get(
-            "bedding_note_tr",
-            "2 çocuklu konaklamalarda oda tipine ve uygunluğa göre 2 ek yatak veya "
-            "1 ek yatak + 1 sofa hazırlanabilir.",
-        )
+    default_note = (
+        "2 çocuklu konaklamalarda oda tipine ve uygunluğa göre 2 ek yatak veya "
+        "1 ek yatak + 1 sofa hazırlanabilir."
     )
+    bedding_note = default_note
+    if profile is not None:
+        children_policy = profile.facility_policies.get("children", {})
+        configured_note = children_policy.get("bedding_note_tr")
+        if isinstance(configured_note, str) and configured_note.strip():
+            bedding_note = configured_note.strip()
 
-    lines = [
-        "2 çocuk için tek ek yatak bilgisi doğru değildir.",
-        bedding_note,
-    ]
-    if suitable_rooms:
-        room_names = ", ".join(f"**{room_name}**" for room_name in suitable_rooms)
-        lines.append(f"{adults} yetişkin + {child_count} çocuk için uygun oda tiplerimiz: {room_names}.")
-    if not entities.get("chd_ages"):
-        lines.append("Çocukların yaşlarını paylaşırsanız size en uygun oda tipini netleştirebilirim.")
-    return "\n\n".join(lines).strip()
+    return f"{bedding_note}\n\nHangisini tercih edersiniz?"
 
 
 def _decimal_from_value(value: Any) -> Decimal:

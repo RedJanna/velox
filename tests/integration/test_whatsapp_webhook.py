@@ -275,6 +275,20 @@ def test_quote_notes_only_added_when_booking_quote_was_executed() -> None:
     assert whatsapp_webhook._executed_booking_quote(with_quote_calls) is True
 
 
+def test_turkish_child_bedding_reply_uses_expected_preference_prompt() -> None:
+    """2-child bedding reply should ask preference without contradictory extra lines."""
+    reply = whatsapp_webhook._build_turkish_child_bedding_reply(
+        21966,
+        {"adults": 2, "chd_count": 2, "chd_ages": [7, 4]},
+    )
+    assert (
+        "2 çocuklu konaklamalarda oda tipine ve uygunluğa göre 2 ek yatak veya 1 ek yatak + 1 sofa hazırlanabilir."
+        in reply
+    )
+    assert "Hangisini tercih edersiniz?" in reply
+    assert "tek ek yatak bilgisi doğru değildir" not in reply
+
+
 def test_stay_hold_submission_detects_embedded_approval_request_id() -> None:
     """stay_create_hold tool result should count as approval when id is present."""
     executed_calls = [
