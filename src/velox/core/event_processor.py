@@ -12,6 +12,7 @@ import structlog
 
 from velox.adapters.whatsapp.client import get_whatsapp_client
 from velox.config.constants import MAX_TOOL_RETRIES, TOOL_RETRY_BACKOFF_SECONDS, HoldStatus
+from velox.core.hotel_profile_loader import get_profile
 from velox.core.hold_workflow import HoldWorkflowEvent, HoldWorkflowState, apply_hold_transition
 from velox.core.idempotency import (
     IDEMPOTENCY_NAMESPACE_APPROVAL,
@@ -49,6 +50,81 @@ class EventProcessor:
         self._db_pool = db_pool
         self._dispatcher = dispatcher
         self._conversation_repository = ConversationRepository()
+
+    def _format_stay_confirmation_message(self, hotel_id: int, draft: dict[str, Any], due_mode: str) -> str:
+        """Build guest-facing stay confirmation while preserving original occupancy."""
+        def _format_date(value: Any) -> str:
+            raw = str(value or "").strip()
+            try:
+                parsed = date.fromisoformat(raw)
+                return parsed.strftime("%d.%m.%Y")
+            except ValueError:
+                return raw
+
+        def _occupancy_label() -> str:
+            adults = int(draft.get("adults") or 0)
+            raw_ages = draft.get("chd_ages")
+            ages = [str(age) for age in raw_ages if str(age).strip()] if isinstance(raw_ages, list) else []
+            label = f"{adults} yetiskin"
+            if ages:
+                age_text = ", ".join(ages)
+                label = f"{label} + {len(ages)} cocuk ({age_text} yas)"
+            return label
+
+        def _room_label() -> str | None:
+            room_type_id = int(draft.get("room_type_id") or 0)
+            if room_type_id <= 0:
+                return None
+            profile = get_profile(hotel_id)
+            if profile is None:
+                return None
+            for room in getattr(profile, "room_types", []):
+                pms_room_type_id = int(getattr(room, "pms_room_type_id", 0) or 0)
+                if pms_room_type_id == room_type_id or int(getattr(room, "id", 0) or 0) == room_type_id:
+                    localized = getattr(room, "name", None)
+                    label = str(getattr(localized, "tr", "") or getattr(localized, "en", "") or "").strip()
+                    return label or None
+            return None
+
+        def _cancel_label() -> str:
+            cancel_policy = str(draft.get("cancel_policy_type", "FREE_CANCEL")).upper()
+            return "Iptal edilemez" if cancel_policy == "NON_REFUNDABLE" else "Ucretsiz Iptal"
+
+        def _price_label() -> str | None:
+            amount = draft.get("total_price_eur")
+            if amount in (None, ""):
+                return None
+            try:
+                value = float(amount)
+            except (TypeError, ValueError):
+                return None
+            currency = str(draft.get("currency_display") or "EUR").strip() or "EUR"
+            return f"{value:.2f} {currency}"
+
+        checkin = _format_date(draft.get("checkin_date"))
+        checkout = _format_date(draft.get("checkout_date"))
+        lines = [
+            "Rezervasyonunuz onaylandi.",
+            f"Tarih: {checkin} - {checkout}",
+            f"Kisi: {_occupancy_label()}",
+        ]
+        room_label = _room_label()
+        if room_label:
+            lines.append(f"Oda: {room_label}")
+        lines.append(f"Iptal: {_cancel_label()}")
+        price_label = _price_label()
+        if price_label:
+            lines.append(f"Toplam: {price_label}")
+
+        if due_mode == "NOW":
+            payment_note = (
+                "On odeme sureci icin satis ekibimiz en kisa surede sizinle iletisime gececektir."
+            )
+        else:
+            payment_note = (
+                "Check-in tarihinizden 7 gun once satis ekibimiz odeme detaylari icin sizinle iletisime gececektir."
+            )
+        return "\n".join(lines) + "\n\n" + payment_note
 
     async def process_approval_event(self, event: ApprovalEvent) -> dict[str, Any]:
         """Process approval webhook and execute post-approval actions."""
@@ -421,16 +497,7 @@ class EventProcessor:
                     workflow_state=payment_pending_transition.to_state.value,
                 )
 
-                if due_mode == "NOW":
-                    user_message = (
-                        "Rezervasyonunuz onaylandi. On odeme sureci icin satis ekibimiz en kisa surede "
-                        "sizinle iletisime gececektir."
-                    )
-                else:
-                    user_message = (
-                        "Rezervasyonunuz onaylandi. Check-in tarihinizden 7 gun once satis ekibimiz odeme "
-                        "detaylari icin sizinle iletisime gececektir."
-                    )
+                user_message = self._format_stay_confirmation_message(event.hotel_id, draft, due_mode)
             elif approval_type == "RESTAURANT":
                 await self._update_hold_status(
                     conn,
