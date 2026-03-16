@@ -410,11 +410,13 @@ def _parse_reservation_lookup_response(
 def _booking_api_guest_list(
     draft: dict[str, Any],
     *,
+    adult_count: int | None = None,
     child_count: int = 0,
     child_ages: list[int] | None = None,
 ) -> list[dict[str, object]]:
     """Build booking API guest-list rows with explicit child entries when available."""
-    adults = max(_safe_int(draft.get("pms_adult_count", draft.get("adults")), 1), 1)
+    base_adults = adult_count if adult_count is not None else draft.get("pms_adult_count", draft.get("adults"))
+    adults = max(_safe_int(base_adults, 1), 1)
     first_name, last_name = _split_guest_name(str(draft.get("guest_name") or "Guest"))
     email = _valid_email(draft.get("email"))
     phone = str(draft.get("phone") or "").strip() or None
@@ -510,6 +512,7 @@ def _build_booking_api_create_payload(hotel_id: int, draft: dict[str, Any]) -> d
         "check-out": _normalize_iso_date(draft.get("checkout_date")),
         "guest-list": _booking_api_guest_list(
             draft,
+            adult_count=adult_count,
             child_count=child_count if child_ages_for_payload else 0,
             child_ages=child_ages_for_payload,
         ),
