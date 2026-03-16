@@ -270,8 +270,7 @@ class EventProcessor:
                         "reconciliation_action": reconciliation_action.value,
                     }
                     user_message = (
-                        "Talebiniz alindi ancak rezervasyon onayinda teknik bir dogrulama gerekiyor. "
-                        "Ekibimiz en kisa surede sizinle iletisime gececektir."
+                        "Talebiniz alindi. Ekibimiz en kisa surede sizinle iletisime gececektir."
                     )
                     await self.inject_system_event(
                         conversation_id,
@@ -322,8 +321,7 @@ class EventProcessor:
                         "error_type": "MissingReservationIdentifiers",
                     }
                     user_message = (
-                        "Talebiniz alindi ancak rezervasyon dogrulama adiminda teknik kontrol gerekiyor. "
-                        "Ekibimiz en kisa surede sizinle iletisime gececektir."
+                        "Talebiniz alindi. Ekibimiz en kisa surede sizinle iletisime gececektir."
                     )
                     await self.inject_system_event(
                         conversation_id,
@@ -401,8 +399,7 @@ class EventProcessor:
                         pms_create_completed=True,
                     )
                     user_message = (
-                        "Talebiniz alindi ancak rezervasyon dogrulama adiminda teknik kontrol gerekiyor. "
-                        "Ekibimiz en kisa surede sizinle iletisime gececektir."
+                        "Talebiniz alindi. Ekibimiz en kisa surede sizinle iletisime gececektir."
                     )
                     await self.inject_system_event(
                         conversation_id,
