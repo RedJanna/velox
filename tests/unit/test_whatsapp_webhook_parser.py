@@ -40,3 +40,45 @@ def test_parse_message_extracts_destination_metadata() -> None:
     assert parsed.message_id == "wamid.HBgM..."
     assert parsed.phone == "905551112233"
     assert parsed.text == "Merhaba"
+
+
+def test_parse_status_events_extracts_failed_delivery_details() -> None:
+    """Parser should capture status failure details for observability."""
+    webhook = WhatsAppWebhook(verify_token="token", app_secret="secret")  # noqa: S106
+    payload = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "statuses": [
+                                {
+                                    "id": "wamid.gBGGSFc...",
+                                    "status": "failed",
+                                    "timestamp": "1710000100",
+                                    "recipient_id": "905551112233",
+                                    "errors": [
+                                        {
+                                            "code": 131047,
+                                            "title": "Re-engagement message",
+                                            "details": "Message failed because more than 24 hours have passed.",
+                                        }
+                                    ],
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+    events = webhook.parse_status_events(payload)
+    assert len(events) == 1
+    event = events[0]
+    assert event.message_id == "wamid.gBGGSFc..."
+    assert event.status == "failed"
+    assert event.recipient_id == "905551112233"
+    assert event.timestamp == 1710000100
+    assert event.error_code == 131047
+    assert event.error_title == "Re-engagement message"

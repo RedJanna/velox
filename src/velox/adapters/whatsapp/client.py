@@ -17,6 +17,25 @@ RETRY_BACKOFF = [1, 3, 5]
 MAX_MESSAGE_LENGTH = 4096
 
 
+def _normalize_recipient_phone(phone: str) -> str:
+    """Normalize recipient phone into WhatsApp Cloud API accepted format."""
+    raw = phone.strip()
+    if not raw:
+        return raw
+
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if not digits:
+        return raw
+
+    if digits.startswith("00"):
+        digits = digits[2:]
+    elif digits.startswith("0") and len(digits) == 11:
+        # Local Turkish mobile format (05xx...) -> international.
+        digits = f"90{digits[1:]}"
+
+    return digits
+
+
 def _mask_phone(phone: str) -> str:
     """Return masked phone for safe logs."""
     if len(phone) < 4:
@@ -88,14 +107,15 @@ class WhatsAppClient:
 
     async def send_text_message(self, to: str, body: str) -> dict[str, Any]:
         """Send a plain text message."""
+        normalized_to = _normalize_recipient_phone(to)
         truncated = body if len(body) <= MAX_MESSAGE_LENGTH else f"{body[: MAX_MESSAGE_LENGTH - 3]}..."
         payload = {
             "messaging_product": "whatsapp",
-            "to": to,
+            "to": normalized_to,
             "type": "text",
             "text": {"body": truncated},
         }
-        logger.info("whatsapp_send_text", to=_mask_phone(to))
+        logger.info("whatsapp_send_text", to=_mask_phone(normalized_to))
         return await self._request(payload)
 
     async def send_template_message(
@@ -106,9 +126,10 @@ class WhatsAppClient:
         components: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """Send a template message."""
+        normalized_to = _normalize_recipient_phone(to)
         payload = {
             "messaging_product": "whatsapp",
-            "to": to,
+            "to": normalized_to,
             "type": "template",
             "template": {
                 "name": template_name,
@@ -116,7 +137,7 @@ class WhatsAppClient:
                 "components": components,
             },
         }
-        logger.info("whatsapp_send_template", to=_mask_phone(to), template_name=template_name)
+        logger.info("whatsapp_send_template", to=_mask_phone(normalized_to), template_name=template_name)
         return await self._request(payload)
 
     async def mark_as_read(self, message_id: str) -> None:

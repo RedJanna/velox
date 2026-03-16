@@ -20,6 +20,19 @@ class IncomingMessage:
     display_phone_number: str | None = None
 
 
+@dataclass(slots=True)
+class MessageStatusEvent:
+    """Normalized outbound WhatsApp delivery status event."""
+
+    message_id: str
+    recipient_id: str
+    status: str
+    timestamp: int
+    error_code: int | None = None
+    error_title: str | None = None
+    error_details: str | None = None
+
+
 class WhatsAppWebhook:
     """WhatsApp webhook helper for verification and message extraction."""
 
@@ -82,6 +95,29 @@ class WhatsAppWebhook:
                     if parsed is not None:
                         return parsed
         return None
+
+    def parse_status_events(self, body: dict[str, Any]) -> list[MessageStatusEvent]:
+        """Extract outbound message status updates from webhook payload."""
+        events: list[MessageStatusEvent] = []
+        entries = body.get("entry")
+        if not isinstance(entries, list):
+            return events
+
+        for entry in entries:
+            changes = entry.get("changes")
+            if not isinstance(changes, list):
+                continue
+
+            for change in changes:
+                value = change.get("value", {})
+                statuses = value.get("statuses")
+                if not isinstance(statuses, list):
+                    continue
+                for raw_status in statuses:
+                    parsed = self._parse_single_status(raw_status)
+                    if parsed is not None:
+                        events.append(parsed)
+        return events
 
     def _parse_single_message(
         self,
@@ -146,4 +182,45 @@ class WhatsAppWebhook:
             message_type=message_type,
             phone_number_id=phone_number_id,
             display_phone_number=display_phone_number,
+        )
+
+    @staticmethod
+    def _parse_single_status(status_obj: dict[str, Any]) -> MessageStatusEvent | None:
+        """Normalize a single status object into MessageStatusEvent."""
+        if not isinstance(status_obj, dict):
+            return None
+        message_id = str(status_obj.get("id", "")).strip()
+        recipient_id = str(status_obj.get("recipient_id", "")).strip()
+        status = str(status_obj.get("status", "")).strip()
+        if not message_id or not recipient_id or not status:
+            return None
+
+        try:
+            timestamp = int(str(status_obj.get("timestamp", "0")))
+        except ValueError:
+            timestamp = 0
+
+        error_code: int | None = None
+        error_title: str | None = None
+        error_details: str | None = None
+        errors = status_obj.get("errors")
+        if isinstance(errors, list) and errors:
+            first_error = errors[0]
+            if isinstance(first_error, dict):
+                raw_code = first_error.get("code")
+                if isinstance(raw_code, int):
+                    error_code = raw_code
+                elif isinstance(raw_code, str) and raw_code.isdigit():
+                    error_code = int(raw_code)
+                error_title = str(first_error.get("title", "")).strip() or None
+                error_details = str(first_error.get("details", "")).strip() or None
+
+        return MessageStatusEvent(
+            message_id=message_id,
+            recipient_id=recipient_id,
+            status=status,
+            timestamp=timestamp,
+            error_code=error_code,
+            error_title=error_title,
+            error_details=error_details,
         )

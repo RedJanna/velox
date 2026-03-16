@@ -2423,7 +2423,26 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
     incoming = webhook_handler.parse_message(body)
 
     if incoming is None:
-        logger.info("whatsapp_webhook_status_event")
+        status_events = webhook_handler.parse_status_events(body)
+        if status_events:
+            for event in status_events:
+                base_payload = {
+                    "wa_message_id": event.message_id,
+                    "status": event.status,
+                    "recipient": _mask_phone(event.recipient_id),
+                    "status_timestamp": event.timestamp,
+                }
+                if event.status.lower() in {"failed", "undelivered"}:
+                    logger.warning(
+                        "whatsapp_webhook_status_failed",
+                        **base_payload,
+                        error_code=event.error_code,
+                        error_title=event.error_title,
+                    )
+                else:
+                    logger.info("whatsapp_webhook_status_event", **base_payload)
+        else:
+            logger.info("whatsapp_webhook_status_event")
         return {"status": "ok"}
 
     now_ts = int(time.time())
