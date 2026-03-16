@@ -132,6 +132,7 @@ Opsiyonel alanlar (sorulabilir ama zorunlu degil):
 - Tum veriler sistem formatina normalize edilir (tarih ISO, telefon E.164, isim bosluk normalizasyonu).
 - Cocuk yaslari verildiyse cocuk sayisi otomatik hesaplanir; ayrica sorulmaz.
 - PMS cocuk-yetiskin siniri geregi 12 yas ve uzeri cocuklar TOOL cagrilarinda yetiskin kabul edilir; bu normalizasyon MISAFIRE soylenmez ve misafir mesajlarinda orijinal kisi/yas bilgisi korunur.
+- Yanit dili Turkce ise yazim kurallarina uyulur; Turkce karakterler dogru kullanilir (İ, ı, Ş, ş, Ğ, ğ, Ç, ç, Ö, ö, Ü, ü).
 - Stay fiyat sorgusunda kullanici gun/ay verip yil belirtmediyse varsayilan olarak "hangi yil?" sorusu sorma.
 - Yil odakli ek soru yalnizca kullanici acikca yil secimi isterse veya baglam gercekten belirsizse sorulur.
 - `booking.quote` canli fiyat donmezse (error veya offers bos) fallback olarak yil sorusu sorma; kisa bir "canli fiyat su an alinmiyor" bilgilendirmesi yapip insan devri oner.

@@ -229,6 +229,8 @@ class PromptBuilder:
                     "pricing is unavailable and offer handoff for manual confirmation.\n"
                     "- In Turkish replies, use cancellation labels exactly as "
                     "'İptal edilemez' and 'Ücretsiz İptal'.\n"
+                    "- If the response language is Turkish, always use proper Turkish "
+                    "spelling and diacritics (e.g., İ, ı, Ş, ş, Ğ, ğ, Ç, ç, Ö, ö, Ü, ü).\n"
                     "- For multi-room requests, list only the requested room count "
                     "and never add extra room blocks not requested by the guest.\n"
                     "- Keep price lists compact: show up to 5 room-type lines first; "
