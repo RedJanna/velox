@@ -439,8 +439,8 @@ def _booking_api_guest_list(
             if index - 1 < len(extra_adult_names):
                 name, surname = _split_guest_name(extra_adult_names[index - 1])
             else:
-                # Keep unnamed guests generic unless guest explicitly provided names.
-                name, surname = "Guest", "Guest"
+                # Do not invent extra guest names when not explicitly provided.
+                name, surname = "", ""
         guest: dict[str, object] = {
             "title-id": 1,
             "name": name,
@@ -454,8 +454,11 @@ def _booking_api_guest_list(
 
     for index in range(max(child_count, 0)):
         age = max(_safe_int(safe_child_ages[index], 0), 0) if index < len(safe_child_ages) else 0
-        child_name = extra_child_names[index] if index < len(extra_child_names) else "Child"
-        child_first, child_last = _split_guest_name(child_name)
+        child_name = extra_child_names[index] if index < len(extra_child_names) else ""
+        if child_name:
+            child_first, child_last = _split_guest_name(child_name)
+        else:
+            child_first, child_last = "", ""
         child_guest: dict[str, object] = {
             "title-id": 2,
             "name": child_first,
@@ -543,13 +546,21 @@ def _normalize_policy_label(value: str) -> str:
     return normalized.translate(translation)
 
 
+def _is_contract_rate(label: str) -> bool:
+    """Return True when a rate label represents contract pricing."""
+    normalized = _normalize_policy_label(label)
+    return "kontrat" in normalized or "contract" in normalized
+
+
 def _cancel_policy_rank(draft: dict[str, Any], offer: BookingOffer) -> int:
     """Return priority rank for policy-compliant rate-type selection (lower is better)."""
     cancel_policy = str(draft.get("cancel_policy_type") or "").upper()
     label = _normalize_policy_label(offer.rate_type)
     refundable = bool((offer.cancellation_penalty or {}).get("is_refundable")) or offer.cancel_possible
-    is_contract = "kontrat" in label
+    is_contract = _is_contract_rate(label)
     if cancel_policy == "FREE_CANCEL":
+        if is_contract:
+            return 99
         if refundable and any(token in label for token in ("ucretsiz iptal", "free cancel", "refundable")):
             return 0
         if refundable and not is_contract:
@@ -558,6 +569,8 @@ def _cancel_policy_rank(draft: dict[str, Any], offer: BookingOffer) -> int:
             return 2
         return 99
     if cancel_policy == "NON_REFUNDABLE":
+        if is_contract:
+            return 99
         if any(token in label for token in ("iptal edilemez", "non refundable", "non-refundable", "nrf")):
             return 0
         if not refundable and not is_contract:

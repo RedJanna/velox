@@ -1125,6 +1125,8 @@ def _resolve_quote_policy_key(offer: dict[str, Any], profile: Any) -> str | None
         return "FREE_CANCEL"
     if rate_type_id and rate_type_id == non_refundable_rate_type_id:
         return "NON_REFUNDABLE"
+    if "kontrat" in normalized_rate or "contract" in normalized_rate:
+        return "CONTRACT"
     if normalized_rate in {"ucretsiziptal", "freecancel"} or cancel_possible:
         return "FREE_CANCEL"
     if normalized_rate in {"iptaledilemez", "iadeyapilmaz", "nonrefundable"}:
@@ -1267,7 +1269,7 @@ def _build_offer_blocks_for_payload(
     grouped_offers: dict[Any, dict[str, Any]] = {}
     for offer in offers_for_call:
         policy_key = _resolve_quote_policy_key(offer, profile)
-        if policy_key is None:
+        if policy_key not in {"FREE_CANCEL", "NON_REFUNDABLE"}:
             continue
 
         profile_room = _find_profile_room(profile, offer)
@@ -1777,6 +1779,13 @@ def _select_offer_for_stay_hold(
     """Pick the best matching quote offer for hold creation."""
     if not offers:
         return None
+    non_contract_offers = [
+        offer
+        for offer in offers
+        if _resolve_quote_policy_key(offer, profile) != "CONTRACT"
+    ]
+    if non_contract_offers:
+        offers = non_contract_offers
 
     def _matches(offer: dict[str, Any], *, check_room: bool, check_policy: bool) -> bool:
         if (
@@ -1787,16 +1796,22 @@ def _select_offer_for_stay_hold(
             return False
         if check_policy:
             resolved = _resolve_quote_policy_key(offer, profile)
-            if resolved and resolved != cancel_policy_type:
+            if resolved != cancel_policy_type:
                 return False
         return True
 
-    candidate_sets = (
-        [offer for offer in offers if _matches(offer, check_room=True, check_policy=True)],
-        [offer for offer in offers if _matches(offer, check_room=True, check_policy=False)],
-        [offer for offer in offers if _matches(offer, check_room=False, check_policy=True)],
-        list(offers),
-    )
+    if cancel_policy_type:
+        candidate_sets = (
+            [offer for offer in offers if _matches(offer, check_room=True, check_policy=True)],
+            [offer for offer in offers if _matches(offer, check_room=False, check_policy=True)],
+        )
+    else:
+        candidate_sets = (
+            [offer for offer in offers if _matches(offer, check_room=True, check_policy=True)],
+            [offer for offer in offers if _matches(offer, check_room=True, check_policy=False)],
+            [offer for offer in offers if _matches(offer, check_room=False, check_policy=True)],
+            list(offers),
+        )
     for candidates in candidate_sets:
         if not candidates:
             continue

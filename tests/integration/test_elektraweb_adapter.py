@@ -524,11 +524,11 @@ async def test_create_reservation_child_payload_includes_child_guest_and_bucket_
     assert path["adult-count"] == 2
     assert path["child-count"] == 1
     assert len(path["guest-list"]) == 3
-    assert path["guest-list"][1]["name"] == "Guest"
-    assert path["guest-list"][1]["surname"] == "Guest"
+    assert path["guest-list"][1]["name"] == ""
+    assert path["guest-list"][1]["surname"] == ""
     assert path["guest-list"][2]["title-id"] == 2
-    assert path["guest-list"][2]["name"] == "Child"
-    assert path["guest-list"][2]["surname"] == "Child"
+    assert path["guest-list"][2]["name"] == ""
+    assert path["guest-list"][2]["surname"] == ""
     assert path["guest-list"][2]["birthday"] == "2019-10-01"
     assert path["childage"] == "7"
     assert path["child-age"] == "7"
@@ -570,8 +570,8 @@ async def test_create_reservation_uses_pms_pax_override_counts(monkeypatch: pyte
     assert path["adult-count"] == 3
     assert path["child-count"] == 1
     assert len(path["guest-list"]) == 4
-    assert path["guest-list"][1]["name"] == "Guest"
-    assert path["guest-list"][2]["name"] == "Guest"
+    assert path["guest-list"][1]["name"] == ""
+    assert path["guest-list"][2]["name"] == ""
     assert path["guest-list"][3]["title-id"] == 2
     assert path["guest-list"][3]["birthday"] == "2015-10-01"
     assert path["child-ages"] == [11]
