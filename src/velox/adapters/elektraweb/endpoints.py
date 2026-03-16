@@ -420,13 +420,31 @@ def _booking_api_guest_list(
     phone = str(draft.get("phone") or "").strip() or None
     checkin_date = str(draft.get("checkin_date") or "")
     safe_child_ages = list(child_ages or [])
+    extra_adult_names = [
+        str(name).strip()
+        for name in draft.get("extra_adult_names", [])
+        if isinstance(name, str) and str(name).strip()
+    ]
+    extra_child_names = [
+        str(name).strip()
+        for name in draft.get("extra_child_names", [])
+        if isinstance(name, str) and str(name).strip()
+    ]
 
     guests: list[dict[str, object]] = []
     for index in range(adults):
+        name = first_name
+        surname = last_name
+        if index > 0:
+            if index - 1 < len(extra_adult_names):
+                name, surname = _split_guest_name(extra_adult_names[index - 1])
+            else:
+                # Keep unnamed guests generic unless guest explicitly provided names.
+                name, surname = "Guest", "Guest"
         guest: dict[str, object] = {
             "title-id": 1,
-            "name": first_name if index == 0 else "Companion",
-            "surname": last_name if index == 0 else f"{last_name} {index + 1}",
+            "name": name,
+            "surname": surname,
         }
         if index == 0 and email:
             guest["email"] = email
@@ -436,10 +454,12 @@ def _booking_api_guest_list(
 
     for index in range(max(child_count, 0)):
         age = max(_safe_int(safe_child_ages[index], 0), 0) if index < len(safe_child_ages) else 0
+        child_name = extra_child_names[index] if index < len(extra_child_names) else "Child"
+        child_first, child_last = _split_guest_name(child_name)
         child_guest: dict[str, object] = {
             "title-id": 2,
-            "name": "Cocuk",
-            "surname": f"{last_name} {adults + index + 1}",
+            "name": child_first,
+            "surname": child_last,
             "birthday": _birthday_from_age(age, checkin_date),
         }
         guests.append(child_guest)
@@ -504,18 +524,60 @@ def _build_booking_api_create_payload(hotel_id: int, draft: dict[str, Any]) -> d
 
 def _matches_cancel_policy(draft: dict[str, Any], offer: BookingOffer) -> bool:
     """Return True when an offer is compatible with the requested cancel policy."""
+    return _cancel_policy_rank(draft, offer) < 99
+
+
+def _normalize_policy_label(value: str) -> str:
+    """Normalize Turkish/ASCII label variants for robust policy token matching."""
+    normalized = value.casefold().replace("i̇", "i")
+    translation = str.maketrans(
+        {
+            "ü": "u",
+            "ı": "i",
+            "ş": "s",
+            "ç": "c",
+            "ö": "o",
+            "ğ": "g",
+        }
+    )
+    return normalized.translate(translation)
+
+
+def _cancel_policy_rank(draft: dict[str, Any], offer: BookingOffer) -> int:
+    """Return priority rank for policy-compliant rate-type selection (lower is better)."""
     cancel_policy = str(draft.get("cancel_policy_type") or "").upper()
-    label = offer.rate_type.casefold()
+    label = _normalize_policy_label(offer.rate_type)
     refundable = bool((offer.cancellation_penalty or {}).get("is_refundable")) or offer.cancel_possible
+    is_contract = "kontrat" in label
     if cancel_policy == "FREE_CANCEL":
-        if any(token in label for token in ("esnek", "ucretsiz", "free cancel", "refundable")):
-            return True
-        return refundable
+        if refundable and any(token in label for token in ("ucretsiz iptal", "free cancel", "refundable")):
+            return 0
+        if refundable and not is_contract:
+            return 1
+        if refundable:
+            return 2
+        return 99
     if cancel_policy == "NON_REFUNDABLE":
         if any(token in label for token in ("iptal edilemez", "non refundable", "non-refundable", "nrf")):
-            return True
-        return not refundable
-    return True
+            return 0
+        if not refundable and not is_contract:
+            return 1
+        if not refundable:
+            return 2
+        return 99
+    return 0
+
+
+def _select_offer_for_cancel_policy(draft: dict[str, Any], offers: list[BookingOffer]) -> BookingOffer:
+    """Select best offer for requested cancel policy while avoiding generic contract rates."""
+    ranked = sorted(
+        offers,
+        key=lambda offer: (
+            _cancel_policy_rank(draft, offer),
+            float(offer.discounted_price or offer.price),
+        ),
+    )
+    return ranked[0]
 
 
 def _money_matches_offer(draft: dict[str, Any], offer: BookingOffer) -> bool:
@@ -592,7 +654,7 @@ async def _refresh_offer_identifiers(
         )
         candidates = room_type_candidates
 
-    preferred = next((offer for offer in candidates if _matches_cancel_policy(draft, offer)), candidates[0])
+    preferred = _select_offer_for_cancel_policy(draft, candidates)
     refreshed = dict(draft)
     refreshed.update(
         {

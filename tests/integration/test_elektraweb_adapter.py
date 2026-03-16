@@ -524,7 +524,11 @@ async def test_create_reservation_child_payload_includes_child_guest_and_bucket_
     assert path["adult-count"] == 2
     assert path["child-count"] == 1
     assert len(path["guest-list"]) == 3
+    assert path["guest-list"][1]["name"] == "Guest"
+    assert path["guest-list"][1]["surname"] == "Guest"
     assert path["guest-list"][2]["title-id"] == 2
+    assert path["guest-list"][2]["name"] == "Child"
+    assert path["guest-list"][2]["surname"] == "Child"
     assert path["guest-list"][2]["birthday"] == "2019-10-01"
     assert path["childage"] == "7"
     assert path["child-age"] == "7"
@@ -566,10 +570,47 @@ async def test_create_reservation_uses_pms_pax_override_counts(monkeypatch: pyte
     assert path["adult-count"] == 3
     assert path["child-count"] == 1
     assert len(path["guest-list"]) == 4
+    assert path["guest-list"][1]["name"] == "Guest"
+    assert path["guest-list"][2]["name"] == "Guest"
     assert path["guest-list"][3]["title-id"] == 2
     assert path["guest-list"][3]["birthday"] == "2015-10-01"
     assert path["child-ages"] == [11]
     assert path["chdAges"] == "11"
+
+
+@pytest.mark.asyncio
+async def test_create_reservation_uses_explicit_extra_guest_names_when_provided(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Additional guest names should only be populated when explicitly provided."""
+    mock_client = AsyncMock()
+    mock_client.post.return_value = {"reservation-id": "RSV-NAMES-1", "voucher-no": "V-NAMES-1"}
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+
+    draft = {
+        "guest_name": "Primary Guest",
+        "phone": "+905301112233",
+        "checkin_date": "2026-10-01",
+        "checkout_date": "2026-10-03",
+        "adults": 2,
+        "chd_ages": [7],
+        "extra_adult_names": ["Second Adult"],
+        "extra_child_names": ["Kid Guest"],
+        "room_type_id": 396097,
+        "board_type_id": 2,
+        "rate_type_id": 11,
+        "rate_code_id": 102,
+        "price_agency_id": 777,
+        "total_price_eur": "140.0",
+        "currency_display": "EUR",
+    }
+
+    _ = await endpoints.create_reservation(21966, draft)
+    path = mock_client.post.await_args.kwargs["json_body"]
+    assert path["guest-list"][1]["name"] == "Second"
+    assert path["guest-list"][1]["surname"] == "Adult"
+    assert path["guest-list"][2]["name"] == "Kid"
+    assert path["guest-list"][2]["surname"] == "Guest"
 
 
 @pytest.mark.asyncio
@@ -1085,3 +1126,87 @@ async def test_refresh_offer_identifiers_resolves_profile_room_id_and_uses_sella
     assert refreshed is not None
     assert refreshed["room_type_id"] == 396095
     assert refreshed["price_agency_id"] == 247664
+
+
+def test_select_offer_for_cancel_policy_avoids_contract_for_non_refundable() -> None:
+    """Non-refundable selection should prefer explicit non-refundable rate over contract."""
+    contract = endpoints.BookingOffer(
+        id="contract",
+        room_type_id=396097,
+        room_type="SUPERIOR",
+        board_type_id=44512,
+        board_type="BB",
+        rate_type_id=24169,
+        rate_type="Kontrat",
+        rate_code_id=183666,
+        price_agency_id=247664,
+        currency_code="EUR",
+        price=420.0,
+        discounted_price=378.0,
+        room_to_sell=3,
+        cancellation_penalty={"is_refundable": False},
+    )
+    nonref = endpoints.BookingOffer(
+        id="nrf",
+        room_type_id=396097,
+        room_type="SUPERIOR",
+        board_type_id=44512,
+        board_type="BB",
+        rate_type_id=24170,
+        rate_type="Iptal Edilemez",
+        rate_code_id=183666,
+        price_agency_id=247664,
+        currency_code="EUR",
+        price=420.0,
+        discounted_price=378.0,
+        room_to_sell=3,
+        cancellation_penalty={"is_refundable": False},
+    )
+
+    selected = endpoints._select_offer_for_cancel_policy(
+        {"cancel_policy_type": "NON_REFUNDABLE"},
+        [contract, nonref],
+    )
+    assert selected.rate_type_id == 24170
+
+
+def test_select_offer_for_cancel_policy_prefers_refundable_for_free_cancel() -> None:
+    """Free-cancel selection should pick refundable/free-cancel rate labels."""
+    contract = endpoints.BookingOffer(
+        id="contract",
+        room_type_id=396097,
+        room_type="SUPERIOR",
+        board_type_id=44512,
+        board_type="BB",
+        rate_type_id=24169,
+        rate_type="Kontrat",
+        rate_code_id=183666,
+        price_agency_id=247664,
+        currency_code="EUR",
+        price=420.0,
+        discounted_price=378.0,
+        room_to_sell=3,
+        cancellation_penalty={"is_refundable": False},
+    )
+    free_cancel = endpoints.BookingOffer(
+        id="free",
+        room_type_id=396097,
+        room_type="SUPERIOR",
+        board_type_id=44512,
+        board_type="BB",
+        rate_type_id=24178,
+        rate_type="Ucretsiz Iptal",
+        rate_code_id=183666,
+        price_agency_id=247664,
+        currency_code="EUR",
+        price=462.0,
+        discounted_price=415.8,
+        room_to_sell=3,
+        cancellation_penalty={"is_refundable": True},
+    )
+
+    selected = endpoints._select_offer_for_cancel_policy(
+        {"cancel_policy_type": "FREE_CANCEL"},
+        [contract, free_cancel],
+    )
+    assert selected.rate_type_id == 24178
