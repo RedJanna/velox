@@ -184,6 +184,8 @@ async def test_quote_parses_live_room_and_rate_fields(monkeypatch: pytest.Monkey
             "RATECODEID": 183666,
             "currency": "EUR",
             "price": "546.7",
+            "room-to-sell": 3,
+            "rate-rules": {"stop-sell": False},
             "room-area": 25,
             "cancel-possible": True,
             "pax-count": {
@@ -207,6 +209,8 @@ async def test_quote_parses_live_room_and_rate_fields(monkeypatch: pytest.Monkey
     assert result.offers[0].room_type == "DELUXE"
     assert result.offers[0].rate_type == "Ücretsiz İptal"
     assert result.offers[0].rate_code_id == 183666
+    assert result.offers[0].room_to_sell == 3
+    assert result.offers[0].stop_sell is False
     assert result.offers[0].room_area == 25
     assert result.offers[0].cancel_possible is True
 
@@ -487,6 +491,43 @@ async def test_create_reservation_uses_booking_api_payload(monkeypatch: pytest.M
 
 
 @pytest.mark.asyncio
+async def test_create_reservation_child_payload_keeps_guest_list_adults_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Child occupancy should be encoded via child fields without inflating adult guest-list rows."""
+    mock_client = AsyncMock()
+    mock_client.post.return_value = {"reservation-id": "RSV-CHD-1", "voucher-no": "V-CHD-1"}
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+
+    draft = {
+        "guest_name": "Test User",
+        "phone": "+905301112233",
+        "checkin_date": "2026-10-01",
+        "checkout_date": "2026-10-03",
+        "adults": 2,
+        "chd_ages": [7],
+        "room_type_id": 396097,
+        "board_type_id": 2,
+        "rate_type_id": 11,
+        "rate_code_id": 102,
+        "price_agency_id": 777,
+        "total_price_eur": "140.0",
+        "currency_display": "EUR",
+    }
+
+    result = await endpoints.create_reservation(21966, draft)
+
+    assert result.reservation_id == "RSV-CHD-1"
+    path = mock_client.post.await_args.kwargs["json_body"]
+    assert path["adult-count"] == 2
+    assert path["child-count"] == 1
+    assert len(path["guest-list"]) == 2
+    assert path["childage"] == "7"
+    assert path["child-age"] == "7"
+    assert path["chdAges"] == "7"
+
+
+@pytest.mark.asyncio
 async def test_get_reservation_uses_reservation_list_window_and_filters_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -610,3 +651,130 @@ async def test_create_reservation_retries_with_refreshed_offer_on_agency_error(
     refreshed_payload = mock_client.post.await_args_list[1].kwargs["json_body"]
     assert refreshed_payload["price-agency-id"] == 247664
     assert refreshed_payload["board-type-id"] == 44512
+
+
+def test_create_reservation_refresh_detector_accepts_price_mismatch_errors() -> None:
+    """400 price mismatch responses should trigger quote refresh retry path."""
+    request = httpx.Request("POST", "https://bookingapi.elektraweb.com/hotel/21966/createReservation")
+    error = httpx.HTTPStatusError(
+        "price-mismatch",
+        request=request,
+        response=httpx.Response(
+            400,
+            json={"success": False, "message": "You price quote 504 EUR is wrong, it must be 357 EUR"},
+            request=request,
+        ),
+    )
+
+    assert endpoints._needs_offer_refresh(error) is True
+    assert endpoints._is_price_mismatch_error(error) is True
+
+
+@pytest.mark.asyncio
+async def test_create_reservation_agency_error_without_refresh_falls_back_to_hoteladvisor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When agency refresh cannot recover, create should continue to HotelAdvisor fallback."""
+    mock_client = AsyncMock()
+    request = httpx.Request("POST", "https://bookingapi.elektraweb.com/hotel/21966/createReservation")
+    agency_error = httpx.HTTPStatusError(
+        "agency-not-found",
+        request=request,
+        response=httpx.Response(
+            400,
+            json={"success": False, "message": "Agency Not Found"},
+            request=request,
+        ),
+    )
+
+    async def _post(path: str, json_body: dict[str, object]) -> dict[str, object]:
+        if path in {
+            "/hotel/21966/createReservation",
+            "/hotel/21966/reservation/create",
+            "/hotel/21966/reservations/create",
+        }:
+            raise agency_error
+        if path == "/Insert/HOTEL_RES":
+            return {"primary-key": "991122"}
+        if path == "/Execute/SP_HOTELRESGUEST_SAVE":
+            return {"success": True}
+        raise AssertionError(f"unexpected path {path}")
+
+    mock_client.post.side_effect = _post
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    monkeypatch.setattr(endpoints, "_refresh_offer_identifiers", AsyncMock(return_value=None))
+
+    result = await endpoints.create_reservation(
+        21966,
+        {
+            "guest_name": "Test User",
+            "phone": "+905301112233",
+            "checkin_date": "2026-10-01",
+            "checkout_date": "2026-10-03",
+            "adults": 2,
+            "chd_ages": [],
+            "room_type_id": 396097,
+            "board_type_id": 2,
+            "rate_type_id": 11,
+            "rate_code_id": 102,
+            "price_agency_id": 777,
+            "total_price_eur": "140.0",
+            "currency_display": "EUR",
+            "cancel_policy_type": "NON_REFUNDABLE",
+        },
+    )
+
+    assert result.reservation_id == "991122"
+    called_paths = [call.args[0] for call in mock_client.post.await_args_list]
+    assert "/Insert/HOTEL_RES" in called_paths
+
+
+@pytest.mark.asyncio
+async def test_refresh_offer_identifiers_allows_price_drift_with_room_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Identifier refresh should recover by room/cancel policy even when total price drifted."""
+    monkeypatch.setattr(
+        endpoints,
+        "quote",
+        AsyncMock(
+            return_value=endpoints.QuoteResponse(
+                offers=[
+                    endpoints.BookingOffer(
+                        id="of1",
+                        room_type_id=396097,
+                        room_type="DELUXE",
+                        board_type_id=44512,
+                        board_type="BB",
+                        rate_type_id=24171,
+                        rate_type="Ucretsiz Iptal",
+                        rate_code_id=183666,
+                        price_agency_id=247664,
+                        currency_code="EUR",
+                        price=160.0,
+                        discounted_price=150.0,
+                        cancellation_penalty={"is_refundable": True},
+                    )
+                ]
+            )
+        ),
+    )
+
+    refreshed = await endpoints._refresh_offer_identifiers(
+        21966,
+        {
+            "checkin_date": "2026-10-01",
+            "checkout_date": "2026-10-03",
+            "adults": 2,
+            "chd_ages": [],
+            "currency_display": "EUR",
+            "nationality": "TR",
+            "cancel_policy_type": "FREE_CANCEL",
+            "room_type_id": 396097,
+            "total_price_eur": "999.0",
+        },
+    )
+
+    assert refreshed is not None
+    assert refreshed["price_agency_id"] == 247664
+    assert refreshed["rate_code_id"] == 183666

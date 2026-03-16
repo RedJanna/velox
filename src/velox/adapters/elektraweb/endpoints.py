@@ -397,7 +397,6 @@ def _parse_reservation_lookup_response(
 def _booking_api_guest_list(draft: dict[str, Any]) -> list[dict[str, object]]:
     """Build booking API guest-list rows to satisfy pax-count validation."""
     adults = max(_safe_int(draft.get("adults"), 1), 1)
-    chd_ages = [max(0, _safe_int(age, 0)) for age in draft.get("chd_ages", []) if isinstance(age, int | str)]
     first_name, last_name = _split_guest_name(str(draft.get("guest_name") or "Guest"))
     email = _valid_email(draft.get("email"))
     phone = str(draft.get("phone") or "").strip() or None
@@ -414,17 +413,6 @@ def _booking_api_guest_list(draft: dict[str, Any]) -> list[dict[str, object]]:
         if index == 0 and phone:
             guest["phone"] = phone
         guests.append(guest)
-
-    for index, age in enumerate(chd_ages, start=1):
-        guests.append(
-            {
-                "title-id": 1,
-                "name": "Child",
-                "surname": f"{last_name} {index}",
-                "age": age,
-            }
-        )
-
     return guests
 
 
@@ -448,6 +436,12 @@ def _build_booking_api_create_payload(hotel_id: int, draft: dict[str, Any]) -> d
     }
     if chd_ages:
         payload["child-ages"] = chd_ages
+        age_csv = ",".join(str(age) for age in chd_ages)
+        # Some Elektra environments expect child ages/count aliases used by quote endpoint.
+        payload["childage"] = age_csv
+        payload["child-age"] = age_csv
+        payload["chdAges"] = age_csv
+        payload["children-count"] = len(chd_ages)
     nationality_code = str(draft.get("nationality") or "").strip()
     if nationality_code:
         payload["nationality-code"] = nationality_code
@@ -479,7 +473,21 @@ def _money_matches_offer(draft: dict[str, Any], offer: BookingOffer) -> bool:
     return any(abs(expected_total - candidate) < 0.01 for candidate in (float(offer.discounted_price), float(offer.price)))
 
 
-async def _refresh_offer_identifiers(hotel_id: int, draft: dict[str, Any]) -> dict[str, Any] | None:
+def _offer_total_for_create(offer: BookingOffer) -> str:
+    """Choose a safe create total from live offer prices."""
+    candidates = [float(offer.discounted_price), float(offer.price)]
+    positives = [value for value in candidates if value > 0]
+    if positives:
+        return str(min(positives))
+    return str(offer.discounted_price or offer.price)
+
+
+async def _refresh_offer_identifiers(
+    hotel_id: int,
+    draft: dict[str, Any],
+    *,
+    prefer_money_match: bool = True,
+) -> dict[str, Any] | None:
     """Reload live quote ids for stale holds when provider identifiers drift."""
     quote_response = await quote(
         hotel_id=hotel_id,
@@ -492,13 +500,28 @@ async def _refresh_offer_identifiers(hotel_id: int, draft: dict[str, Any]) -> di
         cancel_policy_type=str(draft.get("cancel_policy_type") or "") or None,
     )
     room_type_id = _safe_int(draft.get("room_type_id"))
-    candidates = [
+    room_type_candidates = [
         offer
         for offer in quote_response.offers
-        if offer.room_type_id == room_type_id and _money_matches_offer(draft, offer)
+        if offer.room_type_id == room_type_id
     ]
-    if not candidates:
+    if not room_type_candidates:
         return None
+    sellable_candidates = [offer for offer in room_type_candidates if offer.room_to_sell > 0 and not offer.stop_sell]
+    if sellable_candidates:
+        room_type_candidates = sellable_candidates
+    candidates = (
+        [offer for offer in room_type_candidates if _money_matches_offer(draft, offer)]
+        if prefer_money_match
+        else []
+    )
+    if not candidates:
+        logger.info(
+            "elektraweb_offer_identifier_refresh_without_price_match",
+            hotel_id=hotel_id,
+            room_type_id=room_type_id,
+        )
+        candidates = room_type_candidates
 
     preferred = next((offer for offer in candidates if _matches_cancel_policy(draft, offer)), candidates[0])
     refreshed = dict(draft)
@@ -509,7 +532,7 @@ async def _refresh_offer_identifiers(hotel_id: int, draft: dict[str, Any]) -> di
             "rate_code_id": preferred.rate_code_id,
             "price_agency_id": preferred.price_agency_id,
             "currency_display": preferred.currency_code,
-            "total_price_eur": str(preferred.discounted_price or preferred.price),
+            "total_price_eur": _offer_total_for_create(preferred),
         }
     )
     logger.info(
@@ -523,8 +546,8 @@ async def _refresh_offer_identifiers(hotel_id: int, draft: dict[str, Any]) -> di
     return refreshed
 
 
-def _is_agency_not_found(error: httpx.HTTPStatusError) -> bool:
-    """Return True when createReservation failed because stale agency ids were sent."""
+def _needs_offer_refresh(error: httpx.HTTPStatusError) -> bool:
+    """Return True when createReservation failure can be recovered by refreshing quote identifiers."""
     if error.response.status_code != 400:
         return False
     try:
@@ -532,7 +555,26 @@ def _is_agency_not_found(error: httpx.HTTPStatusError) -> bool:
     except ValueError:
         return False
     message = str(payload.get("message") or "").casefold()
-    return "agency not found" in message
+    return any(
+        token in message
+        for token in (
+            "agency not found",
+            "price quote",
+            "must be",
+        )
+    )
+
+
+def _is_price_mismatch_error(error: httpx.HTTPStatusError) -> bool:
+    """Return True when provider rejects create because total price is stale."""
+    if error.response.status_code != 400:
+        return False
+    try:
+        payload = error.response.json()
+    except ValueError:
+        return False
+    message = str(payload.get("message") or "").casefold()
+    return "price quote" in message and "must be" in message
 
 
 def _build_hoteladvisor_insert_payload(hotel_id: int, draft: dict[str, Any]) -> dict[str, Any]:
@@ -655,17 +697,30 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
         except httpx.HTTPStatusError as error:
             logger.warning("elektraweb_create_reservation_path_failed", path=path, error=str(error))
             last_error = error
-            if _is_agency_not_found(error):
-                refreshed_draft = await _refresh_offer_identifiers(hotel_id, draft)
+            if _needs_offer_refresh(error):
+                refreshed_draft = await _refresh_offer_identifiers(
+                    hotel_id,
+                    draft,
+                    prefer_money_match=not _is_price_mismatch_error(error),
+                )
                 if refreshed_draft is not None:
                     logger.info("elektraweb_create_reservation_retry_refreshed_offer", hotel_id=hotel_id, path=path)
-                    raw = await client.post(
-                        path,
-                        json_body=_build_booking_api_create_payload(hotel_id, refreshed_draft),
-                    )
-                    return parse_reservation_create(raw)
-            if error.response.status_code != 404:
-                raise
+                    try:
+                        raw = await client.post(
+                            path,
+                            json_body=_build_booking_api_create_payload(hotel_id, refreshed_draft),
+                        )
+                        return parse_reservation_create(raw)
+                    except Exception as retry_error:  # pragma: no cover - exercised via integration tests
+                        logger.warning(
+                            "elektraweb_create_reservation_retry_refreshed_offer_failed",
+                            hotel_id=hotel_id,
+                            path=path,
+                            error=str(retry_error),
+                        )
+                        last_error = retry_error
+            # Continue trying alternative booking paths and HotelAdvisor fallback.
+            continue
         except Exception as error:
             logger.warning("elektraweb_create_reservation_path_failed", path=path, error=str(error))
             last_error = error

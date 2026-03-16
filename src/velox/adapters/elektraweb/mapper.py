@@ -59,6 +59,8 @@ class BookingOffer(BaseModel):
     currency_code: str = "EUR"
     price: Decimal
     discounted_price: Decimal
+    room_to_sell: int = 0
+    stop_sell: bool = False
     room_area: int | None = None
     cancel_possible: bool = False
     cancellation_penalty: dict[str, Any] = Field(default_factory=dict)
@@ -157,6 +159,11 @@ def parse_quote(raw: dict[str, Any] | list[Any]) -> QuoteResponse:
                     currency_code=str(item.get("currency_code", item.get("currency", "EUR"))),
                     price=item.get("price", 0),
                     discounted_price=item.get("discounted_price", item.get("price", 0)),
+                    room_to_sell=int(item.get("room_to_sell", item.get("available_room_count", 0)) or 0),
+                    stop_sell=bool(
+                        item.get("stop_sell", item.get("stopsell", False))
+                        or (item.get("rate_rules") or {}).get("stop_sell", False)
+                    ),
                     room_area=int(item.get("room_area", 0) or 0) or None,
                     cancel_possible=bool(item.get("cancel_possible", item.get("cancelpossible", False))),
                     cancellation_penalty=item.get("cancellation_penalty") or {},
