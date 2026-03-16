@@ -443,6 +443,7 @@ async def test_run_message_pipeline_auto_submit_uses_previous_entities_when_llm_
             if name == "stay_create_hold":
                 draft = kwargs.get("draft", {})
                 assert draft.get("room_type_id") == 396096
+                assert draft.get("notes") == ""
                 return {
                     "stay_hold_id": "S_HOLD_9901",
                     "status": "PENDING_APPROVAL",

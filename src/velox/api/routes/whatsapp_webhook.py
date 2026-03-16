@@ -1889,7 +1889,7 @@ def _build_stay_draft_from_offer(
         "email": entities.get("email"),
         "nationality": str(entities.get("nationality") or "TR").upper(),
         "cancel_policy_type": cancel_policy_type,
-        "notes": entities.get("notes"),
+        "notes": str(entities.get("notes") or ""),
     }
     return draft
 
