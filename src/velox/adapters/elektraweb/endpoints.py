@@ -25,7 +25,7 @@ from velox.core.hotel_profile_loader import get_profile
 
 logger = structlog.get_logger(__name__)
 CHILD_OCCUPANCY_UNVERIFIED = "CHILD_OCCUPANCY_UNVERIFIED"
-PMS_ADULT_AGE_MIN = 13
+PMS_ADULT_AGE_MIN = 12
 
 
 def _requested_child_ages(chd_count: int, chd_ages: list[int] | None) -> list[int]:
@@ -472,13 +472,24 @@ def _booking_api_guest_list(
 def _build_booking_api_create_payload(hotel_id: int, draft: dict[str, Any]) -> dict[str, Any]:
     """Build booking API payload for `/hotel/{hotel_id}/createReservation`."""
     chd_ages = [max(0, _safe_int(age, 0)) for age in draft.get("chd_ages", []) if isinstance(age, int | str)]
-    adult_count = max(_safe_int(draft.get("pms_adult_count", draft.get("adults")), 1), 1)
+    raw_adults = max(_safe_int(draft.get("pms_adult_count", draft.get("adults")), 1), 1)
     pms_child_count = _safe_int(draft.get("pms_child_count"), -1)
-    child_count = max(pms_child_count if pms_child_count >= 0 else len(chd_ages), 0)
+    has_pms_adult_override = _safe_int(draft.get("pms_adult_count"), 0) > 0
+    has_pms_child_override = pms_child_count >= 0
+
+    normalized_child_count, normalized_child_ages = _normalize_children_for_pms(len(chd_ages), chd_ages)
+    adult_equivalent_children = max(len(chd_ages) - normalized_child_count, 0)
+    adult_count = raw_adults if has_pms_adult_override else max(raw_adults + adult_equivalent_children, 1)
+
+    child_count = max(pms_child_count if has_pms_child_override else normalized_child_count, 0)
     child_ages_for_payload: list[int] = []
     if child_count > 0 and chd_ages:
         # Prefer youngest ages when PMS reduced child-count after occupancy normalization.
-        child_ages_for_payload = sorted(chd_ages)[:child_count]
+        child_ages_for_payload = (
+            sorted(chd_ages)[:child_count]
+            if has_pms_child_override
+            else list(normalized_child_ages)[:child_count]
+        )
     child_buckets = _child_bucket_counts(child_ages_for_payload) if child_ages_for_payload else {
         "elder_child_count": child_count,
         "younger_child_count": 0,
