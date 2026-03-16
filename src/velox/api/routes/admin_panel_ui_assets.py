@@ -115,6 +115,7 @@ tbody td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:to
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover{background:#fffcf7}
 .holds-table tbody tr.is-selected td{background:#f0f8f7}
+.holds-table tbody tr[data-open-hold]{cursor:pointer}
 .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:800}
 .pill.pending{background:#fff2dd;color:#92400e}.pill.open{background:#e8f3f1;color:#115e59}.pill.closed{background:#e5e7eb;color:#374151}.pill.high{background:#fde7e5;color:#991b1b}.pill.medium{background:#eef4ff;color:#1d4ed8}.pill.low{background:#ecfdf3;color:#166534}
 .pill.success{background:#ecfdf3;color:#166534}.pill.warn{background:#fff2dd;color:#92400e}.pill.danger{background:#fde7e5;color:#991b1b}.pill.info{background:#e8f3f1;color:#115e59}
@@ -964,7 +965,7 @@ function renderHoldRows(items) {
     return `<tr><td colspan="6"><div class="empty-state"><p>Onay akışında kayıt yok.</p></div></td></tr>`;
   }
   return items.map(item => `
-    <tr class="${String(item.hold_id) === String(state.selectedHoldId) ? 'is-selected' : ''}">
+    <tr class="${String(item.hold_id) === String(state.selectedHoldId) ? 'is-selected' : ''}" data-open-hold="${escapeHtml(item.hold_id)}">
       <td>
         <button class="inline-button secondary" data-open-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' detayini ac')}">Detay</button>
       </td>
