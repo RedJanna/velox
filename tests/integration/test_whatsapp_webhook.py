@@ -11,7 +11,80 @@ from fastapi import FastAPI
 
 from velox.adapters.whatsapp.webhook import IncomingMessage
 from velox.api.routes import whatsapp_webhook
-from velox.models.conversation import Conversation, InternalJSON, LLMResponse
+from velox.config.constants import EscalationLevel, Role
+from velox.core.burst_buffer import AggregatedMessage
+from velox.models.conversation import Conversation, InternalJSON, LLMResponse, Message
+from velox.models.escalation import EscalationResult
+
+
+class _FakeHandoffConversationRepository:
+    conversation_id = uuid4()
+    active_conversation = Conversation(
+        id=conversation_id,
+        hotel_id=21966,
+        phone_hash="phone_hash",
+        phone_display="905551112233",
+        language="tr",
+    )
+    human_override = False
+    pipeline_calls = 0
+    assistant_messages: list[Message] = []
+    user_messages: list[Message] = []
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.conversation_id = uuid4()
+        cls.active_conversation = Conversation(
+            id=cls.conversation_id,
+            hotel_id=21966,
+            phone_hash="phone_hash",
+            phone_display="905551112233",
+            language="tr",
+        )
+        cls.human_override = False
+        cls.pipeline_calls = 0
+        cls.assistant_messages = []
+        cls.user_messages = []
+
+    async def get_active_by_phone(self, hotel_id: int, phone_hash: str) -> Conversation | None:
+        _ = (hotel_id, phone_hash)
+        return self.__class__.active_conversation
+
+    async def create(self, conv: Conversation) -> Conversation:
+        self.__class__.active_conversation = conv
+        return conv
+
+    async def update_language(self, conversation_id, language: str) -> None:
+        _ = conversation_id
+        self.__class__.active_conversation.language = language
+
+    async def add_message(self, msg: Message) -> Message:
+        msg.id = uuid4()
+        if msg.role == "assistant":
+            self.__class__.assistant_messages.append(msg)
+        elif msg.role == "user":
+            self.__class__.user_messages.append(msg)
+        return msg
+
+    async def get_recent_messages(self, conversation_id, count: int = 20) -> list[Message]:
+        _ = conversation_id
+        return (self.__class__.user_messages + self.__class__.assistant_messages)[-count:]
+
+    async def update_state(self, **kwargs) -> None:
+        state = kwargs.get("state")
+        if state:
+            self.__class__.active_conversation.current_state = state
+        entities = kwargs.get("entities")
+        if isinstance(entities, dict):
+            self.__class__.active_conversation.entities_json = entities
+
+    async def set_human_override(self, conversation_id, enabled: bool) -> None:
+        _ = conversation_id
+        self.__class__.human_override = enabled
+
+    async def get_human_override(self, conversation_id) -> bool:
+        _ = conversation_id
+        return self.__class__.human_override
 
 
 @pytest.fixture
@@ -780,7 +853,7 @@ async def test_run_message_pipeline_injects_context_into_llm_stay_hold_tool_call
 
 
 def test_child_bedding_reply_uses_profile_policy(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Two-child bedding replies should not claim a single extra bed."""
+    """Two-child bedding replies should use the exact profile-driven bedding note."""
     profile = SimpleNamespace(
         facility_policies={
             "children": {
@@ -803,10 +876,173 @@ def test_child_bedding_reply_uses_profile_policy(monkeypatch: pytest.MonkeyPatch
         {"adults": 2, "chd_count": 2},
     )
 
-    assert "tek ek yatak bilgisi doğru değildir" in reply
+    assert "tek ek yatak bilgisi doğru değildir" not in reply
     assert "2 ek yatak veya 1 ek yatak + 1 sofa" in reply
-    assert "**Premium**" in reply
-    assert "**Penthouse**" in reply
+    assert "Hangisini tercih edersiniz?" in reply
+
+
+@pytest.mark.asyncio
+async def test_process_incoming_message_skips_llm_after_handoff_lock(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_whatsapp: Any,
+) -> None:
+    """Once handoff enables human override, later guest messages must not trigger LLM output."""
+    _FakeHandoffConversationRepository.reset()
+
+    async def _fake_pipeline(**_kwargs: Any) -> LLMResponse:
+        _FakeHandoffConversationRepository.pipeline_calls += 1
+        return LLMResponse(
+            user_message="Sizi ilgili ekibimize iletiyorum.",
+            internal_json=InternalJSON(
+                language="tr",
+                intent="human_handoff",
+                state="HANDOFF",
+                handoff={"needed": True, "reason": "explicit_request"},
+                risk_flags=[],
+                escalation={"level": "L0", "route_to_role": "NONE"},
+                next_step="handoff_to_human",
+            ),
+        )
+
+    monkeypatch.setattr(whatsapp_webhook, "ConversationRepository", _FakeHandoffConversationRepository)
+    monkeypatch.setattr(whatsapp_webhook, "_run_message_pipeline", _fake_pipeline)
+    monkeypatch.setattr(whatsapp_webhook, "get_whatsapp_client", lambda: mock_whatsapp)
+    monkeypatch.setattr(whatsapp_webhook.settings, "operation_mode", "ai")
+
+    first_incoming = IncomingMessage(
+        message_id="handoff-first",
+        phone="905551112233",
+        display_name="Guest",
+        text="Canli temsilciye baglar misiniz?",
+        timestamp=int(time.time()),
+        message_type="text",
+    )
+    second_incoming = IncomingMessage(
+        message_id="handoff-second",
+        phone="905551112233",
+        display_name="Guest",
+        text="Hala hatta misiniz?",
+        timestamp=int(time.time()) + 1,
+        message_type="text",
+    )
+
+    await whatsapp_webhook._process_incoming_message(
+        incoming=first_incoming,
+        hotel_id=21966,
+        audit_context={"source_type": "test"},
+        dispatcher=None,
+        escalation_engine=None,
+        tools={},
+        db_pool=None,
+    )
+
+    assert _FakeHandoffConversationRepository.human_override is True
+    assert _FakeHandoffConversationRepository.pipeline_calls == 1
+    assert len(_FakeHandoffConversationRepository.assistant_messages) == 1
+    assert mock_whatsapp.send_text_message.await_count == 1
+
+    await whatsapp_webhook._process_incoming_message(
+        incoming=second_incoming,
+        hotel_id=21966,
+        audit_context={"source_type": "test"},
+        dispatcher=None,
+        escalation_engine=None,
+        tools={},
+        db_pool=None,
+    )
+
+    assert _FakeHandoffConversationRepository.pipeline_calls == 1
+    assert len(_FakeHandoffConversationRepository.assistant_messages) == 1
+    assert len(_FakeHandoffConversationRepository.user_messages) == 2
+    assert mock_whatsapp.send_text_message.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_process_burst_aggregated_skips_llm_after_handoff_lock(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_whatsapp: Any,
+) -> None:
+    """Burst pipeline must also stop calling LLM once handoff locked the conversation."""
+    _FakeHandoffConversationRepository.reset()
+
+    async def _fake_pipeline(**_kwargs: Any) -> LLMResponse:
+        _FakeHandoffConversationRepository.pipeline_calls += 1
+        return LLMResponse(
+            user_message="Sizi ilgili ekibimize iletiyorum.",
+            internal_json=InternalJSON(
+                language="tr",
+                intent="human_handoff",
+                state="HANDOFF",
+                handoff={"needed": True, "reason": "explicit_request"},
+                risk_flags=[],
+                escalation={"level": "L0", "route_to_role": "NONE"},
+                next_step="handoff_to_human",
+            ),
+        )
+
+    monkeypatch.setattr(whatsapp_webhook, "ConversationRepository", _FakeHandoffConversationRepository)
+    monkeypatch.setattr(whatsapp_webhook, "_run_message_pipeline", _fake_pipeline)
+    monkeypatch.setattr(whatsapp_webhook, "get_whatsapp_client", lambda: mock_whatsapp)
+    monkeypatch.setattr(whatsapp_webhook.settings, "operation_mode", "ai")
+
+    first_aggregated = AggregatedMessage(
+        phone="905551112233",
+        display_name="Guest",
+        phone_number_id=None,
+        display_phone_number=None,
+        combined_text="Canli temsilciye baglar misiniz?",
+        original_texts=["Canli temsilciye baglar misiniz?"],
+        message_ids=["burst-first"],
+        first_timestamp=int(time.time()),
+        last_timestamp=int(time.time()),
+        part_count=1,
+        message_type="text",
+        audit_contexts=[{"source_type": "test"}],
+    )
+    second_aggregated = AggregatedMessage(
+        phone="905551112233",
+        display_name="Guest",
+        phone_number_id=None,
+        display_phone_number=None,
+        combined_text="Hala hatta misiniz?",
+        original_texts=["Hala hatta misiniz?"],
+        message_ids=["burst-second"],
+        first_timestamp=int(time.time()) + 1,
+        last_timestamp=int(time.time()) + 1,
+        part_count=1,
+        message_type="text",
+        audit_contexts=[{"source_type": "test"}],
+    )
+
+    await whatsapp_webhook._process_burst_aggregated(
+        aggregated=first_aggregated,
+        hotel_id=21966,
+        dispatcher=None,
+        escalation_engine=None,
+        tools={},
+        db_pool=None,
+        redis_client=None,
+    )
+
+    assert _FakeHandoffConversationRepository.human_override is True
+    assert _FakeHandoffConversationRepository.pipeline_calls == 1
+    assert len(_FakeHandoffConversationRepository.assistant_messages) == 1
+    assert mock_whatsapp.send_text_message.await_count == 1
+
+    await whatsapp_webhook._process_burst_aggregated(
+        aggregated=second_aggregated,
+        hotel_id=21966,
+        dispatcher=None,
+        escalation_engine=None,
+        tools={},
+        db_pool=None,
+        redis_client=None,
+    )
+
+    assert _FakeHandoffConversationRepository.pipeline_calls == 1
+    assert len(_FakeHandoffConversationRepository.assistant_messages) == 1
+    assert len(_FakeHandoffConversationRepository.user_messages) == 2
+    assert mock_whatsapp.send_text_message.await_count == 1
 
 
 def test_parking_reply_uses_profile_policy(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -955,6 +1191,118 @@ def test_payment_intake_completes_then_routes_to_handoff() -> None:
     assert response.internal_json.state == "HANDOFF"
     assert response.internal_json.handoff["needed"] is True
     assert "PAYMENT_CONFUSION" in response.internal_json.risk_flags
+
+
+def test_handoff_lock_activates_for_handoff_state() -> None:
+    """HANDOFF state should force the post-handoff conversation lock."""
+    assert whatsapp_webhook._should_activate_handoff_lock("HANDOFF", {"needed": False}) is True
+
+
+def test_handoff_lock_activates_for_explicit_handoff_flag() -> None:
+    """handoff.needed should lock the conversation even if state was omitted."""
+    assert whatsapp_webhook._should_activate_handoff_lock("", {"needed": True}) is True
+
+
+def test_direct_admin_notify_required_when_route_is_not_admin() -> None:
+    """Non-ADMIN escalations still require an immediate ADMIN handoff notify."""
+    response = LLMResponse(
+        user_message="Sizi ekibimize aktariyorum.",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="human_handoff",
+            state="HANDOFF",
+            handoff={"needed": True, "reason": "manual_review"},
+            risk_flags=["GROUP_BOOKING"],
+            escalation={"level": "L2", "route_to_role": "SALES", "sla_hint": "high"},
+            next_step="handoff_to_sales",
+        ),
+    )
+
+    escalation_result = EscalationResult(
+        level=EscalationLevel.L2,
+        route_to_role=Role.SALES,
+        dedupe_key="GROUP_BOOKING|human_handoff|ref",
+        reason="manual_review",
+        sla_hint="high",
+        actions=["handoff.create_ticket", "notify.send"],
+        risk_flags_matched=["GROUP_BOOKING"],
+    )
+
+    assert whatsapp_webhook._resolve_handoff_assignment_role(response, escalation_result) == "SALES"
+    assert whatsapp_webhook._should_send_direct_admin_handoff_notify("SALES", escalation_result) is True
+
+
+def test_direct_admin_notify_skipped_when_escalation_already_routes_to_admin() -> None:
+    """If escalation will notify ADMIN anyway, the direct notify should not duplicate it."""
+    response = LLMResponse(
+        user_message="Sizi ekibimize aktariyorum.",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="human_handoff",
+            state="HANDOFF",
+            handoff={"needed": True, "reason": "legal_review"},
+            risk_flags=["LEGAL_REQUEST"],
+            escalation={"level": "L3", "route_to_role": "ADMIN", "sla_hint": "high"},
+            next_step="handoff_to_admin",
+        ),
+    )
+
+    escalation_result = EscalationResult(
+        level=EscalationLevel.L3,
+        route_to_role=Role.ADMIN,
+        dedupe_key="LEGAL_REQUEST|human_handoff|ref",
+        reason="legal_review",
+        sla_hint="high",
+        actions=["handoff.create_ticket", "notify.send"],
+        risk_flags_matched=["LEGAL_REQUEST"],
+    )
+
+    assert whatsapp_webhook._resolve_handoff_assignment_role(response, escalation_result) == "ADMIN"
+    assert whatsapp_webhook._should_send_direct_admin_handoff_notify("ADMIN", escalation_result) is False
+
+
+def test_fallback_handoff_assignment_defaults_to_admin() -> None:
+    """HANDOFF without escalation routing should still open an ADMIN-owned ticket."""
+    response = LLMResponse(
+        user_message="Sizi ekibimize aktariyorum.",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="human_handoff",
+            state="HANDOFF",
+            handoff={"needed": True, "reason": "explicit_request"},
+            risk_flags=[],
+            escalation={"level": "L0", "route_to_role": "NONE"},
+            next_step="handoff_to_human",
+        ),
+    )
+
+    assert whatsapp_webhook._resolve_handoff_assignment_role(response, None) == "ADMIN"
+    assert whatsapp_webhook._should_send_direct_admin_handoff_notify("ADMIN", None) is False
+
+
+def test_admin_notify_required_if_admin_ticket_could_not_be_ensured() -> None:
+    """If ADMIN-owned ticket creation fails, direct ADMIN notify must still fire."""
+    assert whatsapp_webhook._should_send_direct_admin_handoff_notify(
+        "ADMIN",
+        None,
+        ticket_ensured=False,
+    ) is True
+
+
+def test_handoff_transcript_summary_uses_recent_messages() -> None:
+    """Immediate handoff notifications should summarize the latest turns only."""
+    conversation_id = uuid4()
+    messages = [
+        Message(conversation_id=conversation_id, role="user", content="ilk mesaj"),
+        Message(conversation_id=conversation_id, role="assistant", content="ilk cevap"),
+        Message(conversation_id=conversation_id, role="user", content="ikinci mesaj"),
+    ]
+
+    summary = whatsapp_webhook._build_handoff_transcript_summary(messages)
+
+    assert "[USER] ilk mesaj" in summary
+    assert "[ASSISTANT] ilk cevap" in summary
+    assert "[USER] ikinci mesaj" in summary
 
 
 def test_elevator_reply_uses_profile_policy_for_russian(monkeypatch: pytest.MonkeyPatch) -> None:

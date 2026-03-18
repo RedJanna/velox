@@ -1140,8 +1140,9 @@ async def toggle_human_override(
 ) -> dict[str, Any]:
     """Toggle human override for a conversation.
 
-    When enabled, the system still generates AI replies but does NOT send them
-    via WhatsApp — the admin can review and manually send if desired.
+    When enabled, inbound guest messages are recorded but the AI no longer
+    generates or sends conversational replies. Reservation/result notifications
+    coming from separate system event flows may still be sent.
     """
     check_permission(user, "conversations:read")
     db = request.app.state.db_pool

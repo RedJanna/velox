@@ -20,6 +20,7 @@ from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.adapters.whatsapp.webhook import IncomingMessage, WhatsAppWebhook
 from velox.config.constants import CONTEXT_WINDOW_MAX_MESSAGES, SUPPORTED_LANGUAGES
 from velox.config.settings import settings
+from velox.escalation.engine import EscalationEngine
 from velox.core.hotel_profile_loader import get_profile
 from velox.core.pipeline import post_process_escalation
 from velox.db.repositories.conversation import ConversationRepository
@@ -29,6 +30,7 @@ from velox.llm.function_registry import get_tool_definitions
 from velox.llm.prompt_builder import get_prompt_builder
 from velox.llm.response_parser import ResponseParser
 from velox.models.conversation import Conversation, InternalJSON, LLMResponse, Message
+from velox.models.escalation import EscalationResult
 from velox.utils.privacy import hash_phone
 
 logger = structlog.get_logger(__name__)
@@ -2353,6 +2355,15 @@ async def _process_incoming_message(
 
         await whatsapp_client.mark_as_read(incoming.message_id)
 
+        human_override = await _is_human_override_active(conversation.phone_hash, conversation.id)
+        if human_override:
+            logger.info(
+                "human_override_pipeline_skipped",
+                conversation_id=str(conversation.id),
+                phone=_mask_phone(incoming.phone),
+            )
+            return
+
         llm_response = await _run_message_pipeline(
             conversation=conversation,
             normalized_text=normalized_text,
@@ -2381,24 +2392,26 @@ async def _process_incoming_message(
             entities=next_entities,
             risk_flags=next_risk_flags,
         )
-
-        # Check human override before sending
-        human_override = await _is_human_override_active(conversation.phone_hash, conversation.id)
-        if human_override:
-            logger.info(
-                "human_override_send_blocked",
-                conversation_id=str(conversation.id),
-                phone=_mask_phone(incoming.phone),
+        handoff_lock_activated = _should_activate_handoff_lock(next_state, llm_response.internal_json.handoff)
+        if handoff_lock_activated:
+            await _activate_handoff_guard(
+                conversation_repository=conversation_repository,
+                conversation=conversation,
+                llm_response=llm_response,
+                phone=incoming.phone,
+                tools=tools,
             )
 
         message_parts = _extract_user_message_parts(llm_response)
         if not message_parts:
             message_parts = [llm_response.user_message]
+        if handoff_lock_activated and message_parts:
+            message_parts = message_parts[:1]
 
         for index, raw_message in enumerate(message_parts, start=1):
             reply_text = formatter.truncate(raw_message)
-            send_blocked = human_override or settings.operation_mode != "ai"
-            if not human_override:
+            send_blocked = settings.operation_mode != "ai"
+            if settings.operation_mode == "ai":
                 try:
                     await whatsapp_client.send_text_message(to=incoming.phone, body=reply_text)
                 except WhatsAppSendBlockedError:
@@ -2413,8 +2426,9 @@ async def _process_incoming_message(
             assistant_internal_json["message_part_index"] = index
             assistant_internal_json["message_part_total"] = len(message_parts)
             assistant_internal_json["send_blocked"] = send_blocked
-            assistant_internal_json["human_override_blocked"] = human_override
-            if settings.operation_mode == "approval" or human_override:
+            assistant_internal_json["human_override_blocked"] = False
+            assistant_internal_json["handoff_lock_activated"] = handoff_lock_activated
+            if settings.operation_mode == "approval":
                 assistant_internal_json["approval_pending"] = True
 
             assistant_msg = Message(
@@ -2426,6 +2440,7 @@ async def _process_incoming_message(
             await conversation_repository.add_message(assistant_msg)
             conversation.messages.append(assistant_msg)
 
+        escalation_result = EscalationResult()
         if escalation_engine is not None and db_pool is not None and "handoff" in tools and "notify" in tools:
             escalation_result = await post_process_escalation(
                 user_message_text=normalized_text,
@@ -2443,6 +2458,15 @@ async def _process_incoming_message(
                     flags=escalation_result.risk_flags_matched,
                     actions=escalation_result.actions,
                 )
+        if handoff_lock_activated:
+            await _finalize_handoff_transition(
+                conversation=conversation,
+                llm_response=llm_response,
+                phone=incoming.phone,
+                tools=tools,
+                db_pool=db_pool,
+                escalation_result=escalation_result,
+            )
     except Exception:
         logger.exception(
             "whatsapp_background_processing_failed",
@@ -2474,6 +2498,223 @@ async def _is_human_override_active(
         except Exception:
             pass
     return False
+
+
+def _should_activate_handoff_lock(next_state: str, handoff: dict[str, Any] | None) -> bool:
+    """Return True when the conversation must switch to human-only mode."""
+    if str(next_state or "").upper() == "HANDOFF":
+        return True
+    if not isinstance(handoff, dict):
+        return False
+    return bool(handoff.get("needed"))
+
+
+def _resolve_handoff_assignment_role(
+    llm_response: LLMResponse,
+    escalation_result: EscalationResult | None = None,
+) -> str:
+    """Resolve the owner role for a mandatory human handoff ticket."""
+    if escalation_result is not None and escalation_result.route_to_role.value != "NONE":
+        return escalation_result.route_to_role.value
+    escalation = (
+        llm_response.internal_json.escalation
+        if isinstance(llm_response.internal_json.escalation, dict)
+        else {}
+    )
+    route_to_role = str(escalation.get("route_to_role") or "ADMIN").upper()
+    if route_to_role in {"ADMIN", "SALES", "OPS", "CHEF"}:
+        return route_to_role
+    return "ADMIN"
+
+
+def _should_send_direct_admin_handoff_notify(
+    assigned_role: str,
+    escalation_result: EscalationResult | None = None,
+    ticket_ensured: bool = True,
+) -> bool:
+    """ADMIN must be notified unless the ensured handoff ticket already routes to ADMIN."""
+    if assigned_role == "ADMIN" and ticket_ensured:
+        return False
+    if escalation_result is None:
+        return True
+    return not (
+        escalation_result.route_to_role.value == "ADMIN"
+        and "notify.send" in escalation_result.actions
+    )
+
+
+def _build_handoff_transcript_summary(messages: list[Message], limit: int = 5) -> str:
+    """Create a compact summary for immediate handoff notifications."""
+    lines: list[str] = []
+    for message in messages[-limit:]:
+        role = str(getattr(message, "role", "unknown")).upper()
+        content = str(getattr(message, "content", ""))[:200]
+        lines.append(f"[{role}] {content}")
+    return "\n".join(lines)
+
+
+async def _activate_handoff_guard(
+    *,
+    conversation_repository: ConversationRepository,
+    conversation: Conversation,
+    llm_response: LLMResponse,
+    phone: str,
+    tools: dict[str, Any],
+    redis_client: Any = None,
+) -> None:
+    """Enable human override immediately once handoff becomes terminal."""
+    if conversation.id is None:
+        return
+
+    await conversation_repository.set_human_override(conversation.id, True)
+
+    if redis_client is not None:
+        try:
+            await redis_client.set(f"velox:human_override:{conversation.phone_hash}", "1")
+        except Exception:
+            logger.warning(
+                "handoff_guard_redis_sync_failed",
+                conversation_id=str(conversation.id),
+            )
+
+    logger.info(
+        "handoff_guard_activated",
+        conversation_id=str(conversation.id),
+        phone=_mask_phone(phone),
+        reason=str((llm_response.internal_json.handoff or {}).get("reason") or llm_response.internal_json.next_step or "human_handoff"),
+    )
+
+def _build_fallback_handoff_dedupe_key(conversation: Conversation, llm_response: LLMResponse) -> str:
+    """Create a stable dedupe key when escalation matrix did not provide one."""
+    entities = llm_response.internal_json.entities if isinstance(llm_response.internal_json.entities, dict) else {}
+    reference_id = str(
+        entities.get("hold_id")
+        or entities.get("reservation_id")
+        or conversation.phone_hash
+    )
+    intent = str(llm_response.internal_json.intent or "human_handoff").strip() or "human_handoff"
+    reason = str((llm_response.internal_json.handoff or {}).get("reason") or "human_handoff").strip() or "human_handoff"
+    return f"HANDOFF|{intent}|{reason}|{reference_id}"
+
+
+async def _finalize_handoff_transition(
+    *,
+    conversation: Conversation,
+    llm_response: LLMResponse,
+    phone: str,
+    tools: dict[str, Any],
+    db_pool: Any,
+    escalation_result: EscalationResult | None = None,
+) -> None:
+    """Ensure every HANDOFF has a ticket and an ADMIN-visible operational signal."""
+    if conversation.id is None:
+        return
+
+    handoff_tool = tools.get("handoff")
+    notify_tool = tools.get("notify")
+    assigned_role = _resolve_handoff_assignment_role(llm_response, escalation_result)
+    dedupe_key = (
+        escalation_result.dedupe_key
+        if escalation_result is not None and escalation_result.dedupe_key
+        else _build_fallback_handoff_dedupe_key(conversation, llm_response)
+    )
+    level = str(
+        escalation_result.level.value
+        if escalation_result is not None and escalation_result.level.value != "L0"
+        else (llm_response.internal_json.escalation or {}).get("level") or "L2"
+    )
+    priority = str(
+        escalation_result.sla_hint
+        if escalation_result is not None and escalation_result.sla_hint in {"low", "medium", "high"}
+        else (llm_response.internal_json.escalation or {}).get("sla_hint") or "high"
+    )
+    requested_action = str(
+        (llm_response.internal_json.handoff or {}).get("reason")
+        or (escalation_result.reason if escalation_result is not None else "")
+        or llm_response.internal_json.next_step
+        or llm_response.internal_json.intent
+        or "human_handoff"
+    )
+    transcript_summary = _build_handoff_transcript_summary(conversation.messages)
+
+    ticket_ensured = False
+    ticket_id = ""
+    if handoff_tool is not None and db_pool is not None:
+        try:
+            if dedupe_key and await EscalationEngine.check_dedupe(dedupe_key, db_pool):
+                ticket_ensured = True
+            else:
+                ticket_result = await handoff_tool.create_ticket(
+                    hotel_id=conversation.hotel_id,
+                    conversation_id=str(conversation.id),
+                    reason=requested_action,
+                    transcript_summary=transcript_summary,
+                    priority=priority,
+                    assigned_to_role=assigned_role,
+                    dedupe_key=dedupe_key,
+                    level=level,
+                    intent=str(llm_response.internal_json.intent or "human_handoff"),
+                    phone=phone,
+                    risk_flags=list(llm_response.internal_json.risk_flags or []),
+                    requested_action=requested_action,
+                )
+                ticket_id = str(ticket_result.get("ticket_id") or "")
+                ticket_ensured = True
+        except Exception:
+            logger.exception(
+                "handoff_ticket_required_failed",
+                conversation_id=str(conversation.id),
+                assigned_to_role=assigned_role,
+            )
+    else:
+        logger.warning(
+            "handoff_ticket_tool_missing",
+            conversation_id=str(conversation.id),
+            has_handoff_tool=handoff_tool is not None,
+            has_db_pool=db_pool is not None,
+        )
+
+    if notify_tool is None or not _should_send_direct_admin_handoff_notify(
+        assigned_role,
+        escalation_result,
+        ticket_ensured=ticket_ensured,
+    ):
+        return
+
+    profile = get_profile(conversation.hotel_id)
+    hotel_name = str(
+        getattr(profile, "hotel_name", None)
+        or getattr(profile, "name", None)
+        or f"Hotel #{conversation.hotel_id}"
+    )
+    try:
+        await notify_tool.send(
+            hotel_id=conversation.hotel_id,
+            to_role="ADMIN",
+            channel="panel",
+            message="Immediate handoff notification",
+            metadata={
+                "format_standard": "A11.8",
+                "level": level,
+                "intent": str(llm_response.internal_json.intent or "human_handoff"),
+                "hotel_name": hotel_name,
+                "guest_name": "Unknown",
+                "phone": phone,
+                "transcript_summary": transcript_summary,
+                "requested_action": requested_action,
+                "reference_id": ticket_id or str(conversation.id),
+                "risk_flags": list(llm_response.internal_json.risk_flags or []),
+                "priority": priority,
+                "handoff_transition": True,
+                "handoff_ticket_ensured": ticket_ensured,
+                "handoff_assigned_role": assigned_role,
+            },
+        )
+    except Exception:
+        logger.exception(
+            "handoff_admin_notify_failed",
+            conversation_id=str(conversation.id),
+        )
 
 
 async def _process_burst_aggregated(
@@ -2554,6 +2795,15 @@ async def _process_burst_aggregated(
             except Exception:
                 pass
 
+        human_override = await _is_human_override_active(phone_hash, conversation.id, redis_client)
+        if human_override:
+            logger.info(
+                "human_override_pipeline_skipped",
+                conversation_id=str(conversation.id),
+                phone=_mask_phone(aggregated.phone),
+            )
+            return
+
         # Build burst metadata for prompt builder
         burst_metadata: dict[str, Any] | None = None
         if aggregated.part_count > 1:
@@ -2595,25 +2845,28 @@ async def _process_burst_aggregated(
             entities=next_entities,
             risk_flags=next_risk_flags,
         )
-
-        # Check human override before sending
-        human_override = await _is_human_override_active(phone_hash, conversation.id, redis_client)
-        if human_override:
-            logger.info(
-                "human_override_send_blocked",
-                conversation_id=str(conversation.id),
-                phone=_mask_phone(aggregated.phone),
+        handoff_lock_activated = _should_activate_handoff_lock(next_state, llm_response.internal_json.handoff)
+        if handoff_lock_activated:
+            await _activate_handoff_guard(
+                conversation_repository=conversation_repository,
+                conversation=conversation,
+                llm_response=llm_response,
+                phone=aggregated.phone,
+                tools=tools,
+                redis_client=redis_client,
             )
 
         # Send reply (single unified response)
         message_parts = _extract_user_message_parts(llm_response)
         if not message_parts:
             message_parts = [llm_response.user_message]
+        if handoff_lock_activated and message_parts:
+            message_parts = message_parts[:1]
 
         for index, raw_message in enumerate(message_parts, start=1):
             reply_text = formatter.truncate(raw_message)
-            send_blocked = human_override or settings.operation_mode != "ai"
-            if not human_override:
+            send_blocked = settings.operation_mode != "ai"
+            if settings.operation_mode == "ai":
                 try:
                     await whatsapp_client.send_text_message(to=aggregated.phone, body=reply_text)
                 except WhatsAppSendBlockedError:
@@ -2628,10 +2881,11 @@ async def _process_burst_aggregated(
             assistant_internal_json["message_part_index"] = index
             assistant_internal_json["message_part_total"] = len(message_parts)
             assistant_internal_json["send_blocked"] = send_blocked
-            assistant_internal_json["human_override_blocked"] = human_override
+            assistant_internal_json["human_override_blocked"] = False
+            assistant_internal_json["handoff_lock_activated"] = handoff_lock_activated
             if burst_metadata:
                 assistant_internal_json["burst_metadata"] = burst_metadata
-            if settings.operation_mode == "approval" or human_override:
+            if settings.operation_mode == "approval":
                 assistant_internal_json["approval_pending"] = True
 
             assistant_msg = Message(
@@ -2644,6 +2898,7 @@ async def _process_burst_aggregated(
             conversation.messages.append(assistant_msg)
 
         # Escalation post-processing
+        escalation_result = EscalationResult()
         if escalation_engine is not None and db_pool is not None and "handoff" in tools and "notify" in tools:
             escalation_result = await post_process_escalation(
                 user_message_text=combined_normalized,
@@ -2661,6 +2916,15 @@ async def _process_burst_aggregated(
                     flags=escalation_result.risk_flags_matched,
                     actions=escalation_result.actions,
                 )
+        if handoff_lock_activated:
+            await _finalize_handoff_transition(
+                conversation=conversation,
+                llm_response=llm_response,
+                phone=aggregated.phone,
+                tools=tools,
+                db_pool=db_pool,
+                escalation_result=escalation_result,
+            )
     except Exception:
         logger.exception(
             "whatsapp_burst_processing_failed",

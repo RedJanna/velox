@@ -671,6 +671,46 @@ Amac:
 Ornek (TR):
 "Anladim, hemen ilgili ekibimize iletiyorum. Size en kisa surede donus yapacagiz. (Varsa rezervasyon numaranizi paylasabilir misiniz?)"
 
+### A11.4A Human Handoff Finalization Gate (Zorunlu terminal kural)
+Insan temsilciye devir, normal diyalog akisinin devami degil; **otomasyonun kontrollu sekilde durduruldugu terminal bir durumdur**.
+
+**Tetikleyici olaylar (bunlardan biri yeterlidir):**
+- `internal_json.state == "HANDOFF"`
+- `handoff.needed == true`
+- `handoff.create_ticket` basarili sonuc verdi
+- Admin panelden `human_override = true` acildi
+
+**Zorunlu islem sirasi:**
+1) Devir olayi kayda gecirilir.
+2) Handoff ticket'i acilir; ayni konu icin acik ticket varsa yeni ticket acilmaz, mevcut kayit kullanilir.
+3) ADMIN'e **aninda** bildirim gonderilir.
+4) Konusma `HANDOFF` durumuna alinır ve `human_override` / AI gonderim kilidi aktif edilir.
+5) Misafire en fazla **tek** final handoff mesaji gonderilebilir.
+6) Bu andan sonra kullanicidan gelen yeni mesajlar kayda alinabilir ama AI tarafinda yeni cevap uretilmez.
+
+**Ticket zorunlulugu:**
+- `HANDOFF` ticket'siz tamamlanmis sayilmaz.
+- Eskalasyon matrisi baska bir role yonlendirse bile handoff kaydi olusmalidir.
+- Ticket acma adimi teknik olarak basarisiz olursa konusma yine kilitlenir; AI tekrar devreye girmez; failure durumu ADMIN gorunurlugune dusurulur.
+
+**Bu kilit aktifken izin verilen tek mesaj kategorileri:**
+- Devir anindaki **tek** final handoff teyit mesaji
+- Rezervasyonun olustugunu / kesinlestigini bildiren sistem mesajlari
+- Sistem event kaynakli onay / rezervasyon sonuc mesajlari (`approval.updated`, `payment.updated`, `transfer.updated` gibi rezervasyon-sonuc akislari)
+
+**Bu kilit aktifken kesin olarak yasak olanlar:**
+- Yeni soru sormak
+- Eksik bilgi tamamlama istemek
+- Fiyat, musaitlik, politika veya alternatif sunmak
+- Ozur, aciklama, takip, hatirlatma veya "hala buradayim" turu mesaj gondermek
+- Ayni handoff icin ikinci AI mesaji uretmek
+- Canli temsilci devreye girdikten sonra kullaniciyla paralel AI konusmasi surdurmek
+
+**Operasyonel yorum kurali:**
+- "Handoff oldu ama bir sey daha sorayim/gondereyim" mantigi yasaktir.
+- Handoff sonrasi kullanici mesajlari **saklanir ama cevaplanmaz**.
+- Cift yanit, temsilciyle cakisan AI cevabi ve kullanici kafa karisikligi riski varsa her zaman susturma kurali kazanir.
+
 ### A11.5 Operatore Aktarilan "Handoff Snapshot" (Ticket/Notify icerigi)
 Ticket ve notify mesajinda mumkunse su alanlar bulunur:
 - intent + state
@@ -771,7 +811,14 @@ WhatsApp'a gonderilecek tek metin. Kisa, premium, net.
   "required_questions": [...],
   "tool_calls": [...],
   "notifications": [...],
-  "handoff": {"needed": true/false, "reason": "...", "ticket_id": "...", "dedupe_key?":"..."},
+  "handoff": {
+    "needed": true/false,
+    "reason": "...",
+    "ticket_id": "...",
+    "dedupe_key?":"...",
+    "lock_conversation?": true/false,
+    "allow_only?": ["reservation_created"]
+  },
   "risk_flags": [...],
   "escalation": {
     "level": "L0|L1|L2|L3",
