@@ -3,6 +3,8 @@
 from decimal import Decimal
 from typing import Any
 
+import structlog
+
 from velox.adapters.elektraweb import (
     availability,
     cancel_reservation,
@@ -11,10 +13,13 @@ from velox.adapters.elektraweb import (
     modify_reservation,
     quote,
 )
+from velox.core.hotel_profile_loader import get_profile
 from velox.db.repositories.reservation import ReservationRepository
 from velox.models.reservation import BookingAvailabilityRequest, BookingQuoteRequest, StayDraft, StayHold
 from velox.tools.approval import ApprovalRequestTool
 from velox.tools.base import BaseTool
+
+logger = structlog.get_logger(__name__)
 
 
 class BookingAvailabilityTool(BaseTool):
@@ -72,9 +77,39 @@ class StayCreateHoldTool(BaseTool):
         self.validate_required(kwargs, ["hotel_id", "draft"])
 
         draft = StayDraft.model_validate(kwargs["draft"])
+        hotel_id = int(kwargs["hotel_id"])
+
+        # Validate and resolve room_type_id against hotel profile
+        room_name = ""
+        profile = get_profile(hotel_id)
+        if profile and profile.room_types:
+            valid_pms_ids = {rt.pms_room_type_id for rt in profile.room_types}
+            internal_id_map = {rt.id: rt for rt in profile.room_types}
+
+            if draft.room_type_id not in valid_pms_ids:
+                if draft.room_type_id in internal_id_map:
+                    resolved_rt = internal_id_map[draft.room_type_id]
+                    logger.warning(
+                        "stay_hold_internal_id_resolved_to_pms",
+                        internal_id=draft.room_type_id,
+                        pms_room_type_id=resolved_rt.pms_room_type_id,
+                        room_name=resolved_rt.name.tr,
+                    )
+                    draft.room_type_id = resolved_rt.pms_room_type_id
+                else:
+                    raise ValueError(
+                        f"Invalid room_type_id: {draft.room_type_id}. "
+                        f"Valid PMS IDs: {sorted(valid_pms_ids)}"
+                    )
+
+            for rt in profile.room_types:
+                if rt.pms_room_type_id == draft.room_type_id:
+                    room_name = rt.name.tr
+                    break
+
         hold = StayHold(
             hold_id="",
-            hotel_id=int(kwargs["hotel_id"]),
+            hotel_id=hotel_id,
             conversation_id=kwargs.get("conversation_id"),
             draft_json=draft.model_dump(mode="json"),
         )
@@ -86,9 +121,11 @@ class StayCreateHoldTool(BaseTool):
 
         cancel_label = "Ucretsiz iptal" if draft.cancel_policy_type.value == "FREE_CANCEL" else "Iptal edilemez"
         notes_line = f"\nNot: {draft.notes}" if draft.notes else ""
+        room_line = f"Oda: {room_name} (ID: {draft.room_type_id})\n" if room_name else ""
 
         details_summary = (
             f"Konaklama talebi\n"
+            f"{room_line}"
             f"Tarih: {draft.checkin_date} - {draft.checkout_date}\n"
             f"Kisi: {draft.adults} yetiskin{chd_info}\n"
             f"Misafir: {draft.guest_name}\n"

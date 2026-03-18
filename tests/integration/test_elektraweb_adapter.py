@@ -866,7 +866,7 @@ async def test_create_reservation_uses_second_refresh_after_price_mismatch(
                     "checkout_date": "2026-10-03",
                     "adults": 2,
                     "chd_ages": [12, 11],
-                    "room_type_id": 438550,
+                    "room_type_id": 396095,
                     "board_type_id": 44512,
                     "rate_type_id": 24178,
                     "rate_code_id": 183666,
@@ -890,7 +890,7 @@ async def test_create_reservation_uses_second_refresh_after_price_mismatch(
             "checkout_date": "2026-10-03",
             "adults": 2,
             "chd_ages": [12, 11],
-            "room_type_id": 4,
+            "room_type_id": 396095,
             "board_type_id": 2,
             "rate_type_id": 10,
             "rate_code_id": 101,
@@ -989,7 +989,7 @@ async def test_create_reservation_uses_final_price_override_after_second_refresh
             "checkout_date": "2026-10-03",
             "adults": 2,
             "chd_ages": [12, 11],
-            "room_type_id": 4,
+            "room_type_id": 438550,
             "board_type_id": 2,
             "rate_type_id": 10,
             "rate_code_id": 101,
@@ -1058,10 +1058,10 @@ async def test_refresh_offer_identifiers_allows_price_drift_with_room_match(
 
 
 @pytest.mark.asyncio
-async def test_refresh_offer_identifiers_resolves_profile_room_id_and_uses_sellable_fallback(
+async def test_refresh_offer_identifiers_returns_none_when_resolved_room_type_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Refresh should recover when draft room id is profile-local id and no direct room match exists."""
+    """Refresh must return None when resolved room type is not in live quote — never silently substitute."""
     monkeypatch.setattr(
         endpoints,
         "quote",
@@ -1117,15 +1117,73 @@ async def test_refresh_offer_identifiers_resolves_profile_room_id_and_uses_sella
             "currency_display": "EUR",
             "nationality": "TR",
             "cancel_policy_type": "FREE_CANCEL",
-            "room_type_id": 4,  # profile-local id (Penthouse Land), not PMS id
+            "room_type_id": 4,  # profile-local id (Penthouse Land / pms 486991), not in quote
             "total_price_eur": "999.0",
         },
         prefer_money_match=False,
     )
 
-    assert refreshed is not None
-    assert refreshed["room_type_id"] == 396095
-    assert refreshed["price_agency_id"] == 247664
+    # Must return None instead of silently substituting to a different room type
+    assert refreshed is None
+
+
+@pytest.mark.asyncio
+async def test_create_reservation_aborts_when_refresh_changes_room_type(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reservation creation must abort if offer refresh would change the room type."""
+    mock_client = AsyncMock()
+    request = httpx.Request("POST", "https://bookingapi.elektraweb.com/hotel/21966/createReservation")
+    agency_error = httpx.HTTPStatusError(
+        "agency-not-found",
+        request=request,
+        response=httpx.Response(400, json={"success": False, "message": "Agency Not Found"}, request=request),
+    )
+    mock_client.post.side_effect = [agency_error]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    monkeypatch.setattr(
+        endpoints,
+        "_refresh_offer_identifiers",
+        AsyncMock(
+            return_value={
+                "guest_name": "Test User",
+                "phone": "+905301112233",
+                "checkin_date": "2026-10-01",
+                "checkout_date": "2026-10-03",
+                "adults": 2,
+                "chd_ages": [],
+                "room_type_id": 396095,  # Exclusive Pool — different from draft
+                "board_type_id": 44512,
+                "rate_type_id": 24178,
+                "rate_code_id": 183666,
+                "price_agency_id": 247664,
+                "total_price_eur": "500.0",
+                "currency_display": "EUR",
+                "cancel_policy_type": "FREE_CANCEL",
+            }
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="Room type changed during offer refresh"):
+        await endpoints.create_reservation(
+            21966,
+            {
+                "guest_name": "Test User",
+                "phone": "+905301112233",
+                "checkin_date": "2026-10-01",
+                "checkout_date": "2026-10-03",
+                "adults": 2,
+                "chd_ages": [],
+                "room_type_id": 396096,  # Penthouse
+                "board_type_id": 2,
+                "rate_type_id": 10,
+                "rate_code_id": 101,
+                "price_agency_id": 777,
+                "total_price_eur": "500.0",
+                "currency_display": "EUR",
+                "cancel_policy_type": "FREE_CANCEL",
+            },
+        )
 
 
 def test_select_offer_for_cancel_policy_avoids_contract_for_non_refundable() -> None:

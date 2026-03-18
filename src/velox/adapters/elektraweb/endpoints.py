@@ -497,9 +497,12 @@ def _build_booking_api_create_payload(hotel_id: int, draft: dict[str, Any]) -> d
         "younger_child_count": 0,
         "baby_count": 0,
     }
+    resolved_room_type_id = _resolve_room_type_id_for_refresh(
+        hotel_id, _safe_int(draft.get("room_type_id")),
+    )
     payload: dict[str, Any] = {
         "hotel-id": hotel_id,
-        "room-type-id": _safe_int(draft.get("room_type_id")),
+        "room-type-id": resolved_room_type_id,
         "board-type-id": _safe_int(draft.get("board_type_id")),
         "rate-type-id": _safe_int(draft.get("rate_type_id")),
         "rate-code-id": _safe_int(draft.get("rate_code_id")),
@@ -661,8 +664,14 @@ async def _refresh_offer_identifiers(
         if offer.room_type_id == room_type_id
     ]
     if not room_type_candidates:
-        # Fallback for stale profile/internal ids: use any sellable offers from live quote.
-        room_type_candidates = [offer for offer in quote_response.offers if offer.room_to_sell > 0 and not offer.stop_sell]
+        logger.error(
+            "elektraweb_refresh_room_type_unavailable",
+            hotel_id=hotel_id,
+            requested_room_type_id=room_type_id,
+            available_room_type_ids=[o.room_type_id for o in quote_response.offers],
+            available_room_types=[o.room_type for o in quote_response.offers],
+        )
+        return None
     if not room_type_candidates:
         return None
     sellable_candidates = [offer for offer in room_type_candidates if offer.room_to_sell > 0 and not offer.stop_sell]
@@ -893,6 +902,21 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
                     prefer_money_match=not _is_price_mismatch_error(error),
                 )
                 if refreshed_draft is not None:
+                    original_room_type_id = _safe_int(draft.get("room_type_id"))
+                    refreshed_room_type_id = _safe_int(refreshed_draft.get("room_type_id"))
+                    if refreshed_room_type_id != original_room_type_id:
+                        logger.error(
+                            "elektraweb_room_type_changed_during_refresh",
+                            hotel_id=hotel_id,
+                            original_room_type_id=original_room_type_id,
+                            refreshed_room_type_id=refreshed_room_type_id,
+                            path=path,
+                        )
+                        raise RuntimeError(
+                            f"Room type changed during offer refresh: "
+                            f"{original_room_type_id} -> {refreshed_room_type_id}. "
+                            f"Reservation creation aborted to prevent wrong room type booking."
+                        )
                     logger.info("elektraweb_create_reservation_retry_refreshed_offer", hotel_id=hotel_id, path=path)
                     try:
                         expected_total = None
