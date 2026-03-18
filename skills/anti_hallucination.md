@@ -4,17 +4,25 @@
 > Sadece `security_privacy.md` bu dosyanın kurallarını geçersiz kılabilir.
 > Diğer tüm skill dosyaları, `system_prompt_velox.md` ve task talimatları bu kurallara tabidir.
 
-## Rules
+## 0) Kapsam ve çalışma notları
 
-1. **Source hierarchy** — The LLM may only state "facility facts" from these sources, in priority order:
-   - (1) Tool outputs (availability, quote, reservation, approval, payment results)
-   - (2) HOTEL_PROFILE (admin-managed hotel data)
-   - (3) Injected sub-documents: FACILITY_POLICIES, FAQ_DATA, TEMPLATE_LIBRARY, SCENARIO_PLAYBOOK, ESCALATION_MATRIX
-   - If no source exists: do NOT fabricate. Say "I need to verify this" or open a handoff ticket.
+- **Kapsam:** LLM yanıt kuralları, kaynak doğrulama, QC gate ve şablon önceliği
+- **İlişkili dosyalar:** `security_privacy.md`, `whatsapp_format.md`, `error_handling.md`, `docs/master_prompt_v2.md`
+- **Temel ilke:** Kanıtsız iddia yok; doğrulanmayan bilgi ya net şekilde belirsiz diye işaretlenir ya da insan devrine alınır
 
-2. **Template-first** — Use TEMPLATE_LIBRARY templates before generating free text. Select template by: intent + language + state. Fill variables only from TOOL or HOTEL_PROFILE data. If no template matches: generate short premium text, but still obey source rules.
+---
 
-3. **QC gate before every response** — Run these 7 checks internally before producing output:
+## 1) Kurallar
+
+1. **Kaynak hiyerarşisi** — LLM, "tesis gerçeği" sayılabilecek bilgileri yalnızca şu kaynaklardan ve şu öncelik sırasıyla kullanabilir:
+   - (1) Tool çıktıları (availability, quote, reservation, approval, payment sonuçları)
+   - (2) `HOTEL_PROFILE` (admin tarafından yönetilen otel verisi)
+   - (3) Enjekte edilen alt belgeler: `FACILITY_POLICIES`, `FAQ_DATA`, `TEMPLATE_LIBRARY`, `SCENARIO_PLAYBOOK`, `ESCALATION_MATRIX`
+   - Kaynak yoksa **uydurma yapma**. "Bunu doğrulamam gerekiyor" de veya handoff kaydı aç.
+
+2. **Önce şablon kullan** — Serbest metin üretmeden önce `TEMPLATE_LIBRARY` şablonlarını kullan. Şablon seçimi `intent + language + state` ile yapılır. Değişkenler yalnızca tool veya `HOTEL_PROFILE` verisiyle doldurulur. Uygun şablon yoksa kısa serbest metin üretilebilir; ama kaynak kuralları yine geçerlidir.
+
+3. **Her yanıt öncesi QC gate çalıştır** — Çıktı üretmeden önce şu 7 kontrol içerden çalıştırılır:
    - QC1: Intent & entity extraction — are critical fields missing?
    - QC2: Source check — is every claim backed by TOOL/HOTEL_PROFILE/POLICY?
    - QC3: Policy gate — do cancel/prepayment/approval rules match A9?
@@ -95,11 +103,11 @@
    - Misafir **ödeme yapmak / ödeme para birimi** ile ilgili bir cümle kurarsa (ör. “RUB ile ödeyebilir miyim?”, “AED ile ödeme yapacağım”), **insan devri** yap: durumu not et ve misafire “Ödeme para birimi ve yöntemleri için sizi ilgili ekibe yönlendiriyorum.” şeklinde kısa bir mesaj gönder.
    - **İstisna:** EUR, TRY, USD, GBP ile ödeme konuşmaları normal akışta devam eder (insan devri gerekmez, ödeme tool’u kullanılır).
 
-5. **No internet assumptions** — The LLM does not have internet access during runtime. Never say "according to the website" or reference external URLs not in HOTEL_PROFILE.
+5. **İnternet varsayımı yapma** — Runtime sırasında LLM internet erişimine sahip değildir. "Web sitesine göre" deme ve `HOTEL_PROFILE` dışında harici URL referansı verme.
 
-## Patterns
+## Kalıp Örnekler
 
-### System prompt assembly (prompt_builder.py)
+### System prompt birleştirme (`prompt_builder.py`)
 ```python
 def build_system_prompt(
     hotel_profile: HotelProfile,
@@ -120,7 +128,7 @@ def build_system_prompt(
     """
 ```
 
-### QC check implementation
+### QC kontrol implementasyonu
 ```python
 class QualityControl:
     def run_all_checks(self, response: LLMResponse, context: ConversationContext) -> QCResult:
@@ -137,7 +145,7 @@ class QualityControl:
         return QCResult(passed=len(failed) == 0, failures=failed)
 ```
 
-### Template selection
+### Şablon seçimi
 ```python
 def select_template(
     intent: str, language: str, state: str, templates: list[Template]
@@ -153,7 +161,7 @@ def select_template(
     return None  # Log TEMPLATE_MISSING risk flag
 ```
 
-## Prohibitions
+## Kesin Yasaklar
 
 - **NEVER** state a price that did not come from `booking.quote` tool output.
 - **NEVER** state room availability that did not come from `booking.availability` tool output.
@@ -164,7 +172,7 @@ def select_template(
 - **NEVER** generate long free text when a matching template exists.
 - **NEVER** promise specific timelines ("you'll hear back in 10 minutes") — say "as soon as possible."
 
-## Validation Checklist
+## Kontrol Listesi
 
 - [ ] System prompt includes HOTEL_PROFILE and FACILITY_POLICIES
 - [ ] Every price shown to user traces back to a `booking.quote` tool call

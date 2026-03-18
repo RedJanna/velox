@@ -8,11 +8,17 @@
 > - **Genel prova (salonda prova):** Birkaç ekip birlikte çalışır (mesaj akışı).
 > - **Açılış provası (tam gerçeklik):** Misafirin gerçekten yaşayacağı yol gibi deneriz (staging/E2E).
 
+## 0) Kapsam ve çalışma notları
+
+- **Kapsam:** Unit, integration, staging/E2E, yük testi ve test raporlama kuralları
+- **İlişkili dosyalar:** `coding_standards.md`, `error_handling.md`, `anti_hallucination.md`
+- **Temel ilke:** Testler gerçek davranışı taklit eder; üretim dış servislerine CI içinde dokunmaz
+
 Bu dokümanın amacı: Sistem değişince “bozuldu mu?” sorusunu **risksiz, hızlı ve gerçeğe yakın** şekilde yanıtlamak.
 
 ---
 
-## 0) Önemli ayrım: “Sahte (simülasyon) test” + “Gerçeklik (E2E) test”
+## 0.1 Önemli ayrım: “Sahte (simülasyon) test” + “Gerçeklik (E2E) test”
 
 Bu projede iki tip test var ve ikisi de gerekli:
 
@@ -31,7 +37,7 @@ Bu projede iki tip test var ve ikisi de gerekli:
 
 ---
 
-## Rules (Kurallar)
+## 1) Kurallar
 
 1. **Test every public function** — tools/, adapters/, core/, escalation/, policies/ altındaki her “dışa açık” fonksiyon en az 1 test alır.
 2. **Async test support** — `pytest-asyncio` kullan. Async kodu test eden testler `async def` olmalı (`asyncio_mode = "auto"`).
@@ -47,23 +53,23 @@ Bu projede iki tip test var ve ikisi de gerekli:
 
 ---
 
-## 1) Test katmanları (Ne zaman hangisini kullanırız?)
+## 2) Test katmanları (Ne zaman hangisini kullanırız?)
 
-### 1.1 Unit test (Tek parça testi)
+### 2.1 Unit test (Tek parça testi)
 **Ne test eder?** Tek bir fonksiyonun doğru çalışması.  
 **Benzetme:** Şefin sosu kaşıkla tadıp “tadı doğru mu?” demesi.
 
 - Çok hızlı
 - Dış dünya yok (tamamen simülasyon)
 
-### 1.2 Integration test (Birlikte çalışma testi – kontrollü)
+### 2.2 Integration test (Birlikte çalışma testi – kontrollü)
 **Ne test eder?** Birkaç parçanın birlikte çalışması (pipeline, policy + escalation).  
 **Benzetme:** Mutfak + servis birlikte prova yapar ama restoran kapalıdır.
 
 - Dış servisler yine simüle edilir
 - Akış “gerçeğe yakın” ama güvenli
 
-### 1.3 E2E / Staging test (Gerçeğe dayalı tam akış)
+### 2.3 E2E / Staging test (Gerçeğe dayalı tam akış)
 **Ne test eder?** Misafirin yaşayacağı uçtan uca deneyim.  
 **Benzetme:** Açılış provası: Gerçek menü, gerçek masa, gerçek servis.
 
@@ -73,24 +79,24 @@ Bu projede iki tip test var ve ikisi de gerekli:
 
 ---
 
-## 2) “Bazı durumlar devre dışı ve olmuş gibi yapılmalı” (Simülasyon anahtarları)
+## 3) “Bazı durumlar devre dışı ve olmuş gibi yapılmalı” (Simülasyon anahtarları)
 
 Bazı senaryoları gerçek hayatta yakalamak zordur (servis çökmesi gibi).
 Bu yüzden **kontrollü simülasyon** gerekir.
 
-### 2.1 Simülasyon ne zaman gerekli?
+### 3.1 Simülasyon ne zaman gerekli?
 - Elektraweb “çökmüş gibi” davranma
 - WhatsApp “mesaj gönderemiyor gibi” davranma
 - OpenAI “gecikiyor/yanıt vermiyor gibi” davranma
 - DB “timeout veriyor gibi” davranma
 - “Ödeme konuşuldu” gibi riskli durumlarda **insan devri** tetikleme
 
-### 2.2 Simülasyon nasıl yapılmalı? (gerçeğe benzer)
+### 3.2 Simülasyon nasıl yapılmalı? (gerçeğe benzer)
 - Simülasyon, gerçek sistemin vereceği çıktıyı **taklit etmeli**
 - “Uydurma” değil, mümkünse **daha önce görülen gerçek çıktılara** benzemeli
 - Simülasyon açıkken test çıktısı “simülasyon” diye işaretlenmeli
 
-### 2.3 Örnek simülasyon anahtarları (öneri)
+### 3.3 Örnek simülasyon anahtarları (öneri)
 - `SIMULATE_ELEKTRAWEB_DOWN=1`
 - `SIMULATE_WHATSAPP_SEND_FAIL=1`
 - `SIMULATE_LLM_TIMEOUT=1`
@@ -102,27 +108,27 @@ Bu yüzden **kontrollü simülasyon** gerekir.
 
 ---
 
-## 3) “Tamamen gerçeğe dayalı yol” nasıl test edilir?
+## 4) “Tamamen gerçeğe dayalı yol” nasıl test edilir?
 
-### 3.1 Staging/E2E test prensipleri
+### 4.1 Staging/E2E test prensipleri
 - Mesajlar **gerçek hayattaki gibi** atılır: “Merhaba, 15-18 Temmuz 2 kişi…”
 - Sistem, aynı kurallarla cevap verir (WhatsApp formatı, handoff vb.)
 - Kullanılan veriler **sahte/anonim** olmalı (gerçek isim/telefon/kart yok)
 
-### 3.2 Gerçek sistemlere bağlanma kuralı
+### 4.2 Gerçek sistemlere bağlanma kuralı
 - **WhatsApp:** staging’e bağlı test numarası ile
 - **Elektraweb:** mümkünse test oteli / sandbox / kopya ortam
 - **DB/Redis:** staging DB (ayrı)
 - **Ödeme:** Bu projede ödeme otomatik değilse “gerçek yol”, zaten **insan devri**dir.
   - E2E testte amaç: “Ödeme konuşulursa doğru şekilde insan devri oluyor mu?” kontrolü.
 
-### 3.3 “Gerçeklik testi” kabul kriterleri (örnek)
+### 4.3 “Gerçeklik testi” kabul kriterleri (örnek)
 - S001: Selamlama → tarih/kişi → müsaitlik → teklif → onay → hold
 - S024/S029 gibi kritik senaryolarda “risk flag → doğru escalation → ticket” oluşuyor mu?
 - WhatsApp mesajı kurallara uyuyor mu (kısa paragraf, tek mesaj, net seçenekler)
 - Hata olursa misafire teknik bilgi sızmıyor mu?
 
-### 3.4 Gerçekçi test için ek kurallar (staging/E2E’yi “saha gibi” yapmak)
+### 4.4 Gerçekçi test için ek kurallar (staging/E2E’yi “saha gibi” yapmak)
 
 Bu bölüm, “gerçeğe dayalı test” kısmını daha da sağlamlaştırır.
 
@@ -147,12 +153,12 @@ Bu bölüm, “gerçeğe dayalı test” kısmını daha da sağlamlaştırır.
 
 ---
 
-## 3.5) Performans / Yük Testi (Load Testing)
+## 5) Performans / Yük Testi
 
 > Sistem production'da aynı anda **50+ misafiri** karşılayabilmeli.
 > Bu bölüm, bu kapasitenin nasıl test edileceğini tanımlar.
 
-### Ne test edilir?
+### 5.1 Ne test edilir?
 
 | Senaryo | Hedef metrik | Kabul kriteri |
 |---------|-------------|---------------|
@@ -162,17 +168,17 @@ Bu bölüm, “gerçeğe dayalı test” kısmını daha da sağlamlaştırır.
 | DB connection pool doygunluğu | Pool kullanımı | < %80 |
 | Redis session yoğunluğu | Bellek kullanımı | Alarm eşiği altında |
 
-### Araçlar
+### 5.2 Araçlar
 - **Locust** veya **k6** ile HTTP yük testi
 - Staging ortamında çalıştırılır (production'da **asla**)
 - Test verileri: sahte misafir profilleri (gerçek veri kullanılmaz)
 
-### Ne zaman yapılır?
+### 5.3 Ne zaman yapılır?
 - Release öncesi (zorunlu)
 - Mimari değişiklik sonrası (zorunlu)
 - Aylık rutin (önerilen)
 
-### Raporlama
+### 5.4 Raporlama
 - p50, p95, p99 yanıt süreleri
 - Hata oranı
 - Throughput (req/sn)
@@ -180,7 +186,7 @@ Bu bölüm, “gerçeğe dayalı test” kısmını daha da sağlamlaştırır.
 
 ---
 
-## 4) Dil stratejisi: Testler Türkçe yazılır, diğer dillere LLM ile uyarlanır (hız için)
+## 6) Dil stratejisi: Testler Türkçe yazılır, diğer dillere LLM ile uyarlanır
 
 > Hedef: Test yazma ve çalıştırma süresi **hızlı** olsun.
 > Bu yüzden “tek kaynak dil” seçiyoruz: **Türkçe**.
@@ -232,7 +238,7 @@ LLM çevirisi testlerde hızlı olmalı ama “rastgelelik” testleri bozmasın
 
 ---
 
-## 5) “Gelişmiş Test” butonu fikri (eğitim/ayar sonrası hızlı problem yakalama)
+## 7) “Gelişmiş Test” butonu fikri
 
 Fikriniz çok iyi: Sistem “eğitildikten” veya prompt/şablonlar güncellendikten sonra **tek tuşla** test koşsun, sorunları bulsun.
 
@@ -389,9 +395,9 @@ Raporun bir de “sistemin anlayacağı” formatı olursa, zamanla otomasyon ç
 
 > Not: Bu JSON’u üretmek, “Gelişmiş Test butonu”nu gelecekte çok daha akıllı hale getirir (trend takibi, otomatik ticket, regression haritası).
 
-## Patterns (Örnekler)
+## 8) Kalıp Örnekler
 
-### Basic unit test
+### Temel unit test
 ```python
 import pytest
 from velox.config.constants import EscalationLevel, RiskFlag
@@ -408,7 +414,7 @@ async def test_legal_request_triggers_l3(engine):
     assert result.route_to_role == "ADMIN"
 ```
 
-### Mocking Elektraweb adapter
+### Elektraweb adapter mocklama
 ```python
 from unittest.mock import AsyncMock
 
@@ -422,7 +428,7 @@ def mock_elektraweb():
     return client
 ```
 
-### Scenario test structure
+### Senaryo test yapısı
 ```python
 class TestScenarioS001HotelReservation:
     """Full flow: greeting → dates → availability → quote → confirm → hold."""
@@ -435,7 +441,7 @@ class TestScenarioS001HotelReservation:
 
 ---
 
-## Prohibitions (Yasaklar)
+## 9) Kesin Yasaklar
 
 - **CI/unit/integration testlerinde** gerçek dış servis çağrısı YASAK.
 - Test sırasına bağlılık YASAK.
@@ -450,7 +456,7 @@ class TestScenarioS001HotelReservation:
 
 ---
 
-## Validation Checklist
+## 10) Kontrol Listesi
 
 ### CI (Günlük/Her PR)
 - [ ] `pytest` sıfır hata

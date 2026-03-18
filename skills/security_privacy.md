@@ -8,7 +8,13 @@
 
 ---
 
-## 0) Bu doküman neyi garanti eder?
+## 0) Kapsam ve çalışma notları
+
+- **Kapsam:** PII minimizasyonu, webhook doğrulama, ödeme verisi yasağı, admin oturum güvenliği ve yasal uyumluluk
+- **İlişkili dosyalar:** `anti_hallucination.md`, `error_handling.md`, `observability.md`
+- **Temel ilke:** Güvenlik kuralı ile hız veya görev kolaylığı çatışırsa güvenlik kazanır
+
+### 0.1 Bu doküman neyi garanti eder?
 
 - Misafir bilgileri **minimum** düzeyde tutulur (gerekmeyeni hiç istemeyiz).
 - “Kredi kartı / şifre / tek kullanımlık kod” gibi **çok hassas bilgiler asla alınmaz**.
@@ -57,7 +63,7 @@ Sadece gerekli veriyi al.
 - Gereksizse hiç istenmez.
 
 
-### 2.3 Kart / ödeme bilgisi asla alınmaz (No payment data)
+### 2.2 Kart / ödeme bilgisi asla alınmaz (No payment data)
 Sistem **asla** şu bilgileri istemez veya işlemez:
 - kredi kartı numarası
 - CVV
@@ -75,7 +81,7 @@ Misafir sohbet içinde kart bilgisi yazarsa:
 
 > Not: Misafir ödeme / para birimi / ödeme yöntemi ile ilgili bir cümle kurarsa **insan devri** yapılır (error_handling.md ile uyumlu).
 
-### 2.4 Şifreler / anahtarlar kodun içinde olmaz (Secrets in ENV)
+### 2.3 Şifreler / anahtarlar kodun içinde olmaz (Secrets in ENV)
 - API anahtarları, token’lar, şifreler **koda yazılmaz**
 - Ayarlarda/konfigürasyonda da (yaml vb.) yazılmaz
 - Sadece **ortam değişkenlerinde** tutulur (`.env` / Docker secrets)
@@ -83,7 +89,7 @@ Misafir sohbet içinde kart bilgisi yazarsa:
 
 **Benzetme:** Kasanın şifresini kapıya yapıştırmamak.
 
-### 2.5 Gelen mesaj “temizlenir” (Input sanitization)
+### 2.4 Gelen mesaj “temizlenir” (Input sanitization)
 WhatsApp’tan gelen her mesaj işlenmeden önce:
 - Çok uzun mesajlar sınırlandırılır (max 4096 karakter)
 - Zararlı içerik (script vb.) ayıklanır
@@ -92,7 +98,7 @@ WhatsApp’tan gelen her mesaj işlenmeden önce:
 
 **Benzetme:** Otelde kapıdaki X-ray: içeri girmeden kontrol.
 
-### 2.6 Kayıt defterinde kişisel bilgi yok (Log masking)
+### 2.5 Kayıt defterinde kişisel bilgi yok (Log masking)
 Loglar düzenli tutulur ama:
 - ham telefon, e-posta, tam isim **loglanmaz**
 - gerekiyorsa maskeli / hash’li hali yazılır
@@ -103,7 +109,7 @@ Loglar düzenli tutulur ama:
 
 **Benzetme:** Olay defterine “Ali Veli, telefon 05xx…” yazmak yerine “Misafir #A12” yazmak.
 
-### 2.7 Kapıdaki mühür (Webhook signature + replay protection)
+### 2.6 Kapıdaki mühür (Webhook signature + replay protection)
 Dışarıdan gelen her “kapı zili” (webhook) için **iki kontrol** yapılır:
 
 1. **İmza kontrolü:** “Bu gerçekten WhatsApp’tan mı geldi?” → HMAC-SHA256 doğrulaması
@@ -114,7 +120,7 @@ Dışarıdan gelen her “kapı zili” (webhook) için **iki kontrol** yapılı
 
 **Benzetme:** Kargo tesliminde hem “mühür” hem “tarih” kontrolü — eski tarihli sahte teslimat kabul edilmez.
 
-### 2.8 Aşırı istek olursa fren (Rate limiting)
+### 2.7 Aşırı istek olursa fren (Rate limiting)
 Aynı numara/IP kısa sürede çok istek atarsa:
 - geçici engel uygulanır
 - admin bilgilendirilir
@@ -122,7 +128,7 @@ Aynı numara/IP kısa sürede çok istek atarsa:
 
 **Benzetme:** Bir kişi sürekli kapıyı çalıyorsa güvenlik müdahalesi.
 
-### 2.9 Admin panel: kısa ömürlü anahtar + 2 aşama (JWT + 2FA)
+### 2.8 Admin panel: kısa ömürlü anahtar + 2 aşama (JWT + 2FA)
 Admin panelde:
 - oturum anahtarı **kısa süreli** (60 dk)
 - access token frontend tarafında **httpOnly cookie** ile tutulur

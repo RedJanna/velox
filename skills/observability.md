@@ -9,10 +9,10 @@
 
 ---
 
-## 0) Bu dokümanın kapsamı
+## 0) Kapsam ve çalışma notları
 
 - **Kapsam:** Velox backend + admin panel için izleme, ölçüm, uyarı ve iz takibi kuralları
-- **Debug/RCA giriş kuralı:** Hata ayıklama, teşhis ve root cause analysis önce Docker backend runtime doğrulamasıyla başlar; `app`, `db`, `redis` ve probleme temas eden ilgili sidecar/yan servisler kontrol edilmeden observability verisi yorumlanmış sayılmaz.
+- **Debug/RCA giriş kuralı:** Hata ayıklama, teşhis ve kök neden analizi önce Docker backend runtime doğrulamasıyla başlar; `app`, `db`, `redis` ve probleme temas eden ilgili yan servisler kontrol edilmeden observability verisi yorumlanmış sayılmaz.
 - **İlişkili dosyalar:**
   - `error_handling.md` — Hata olunca ne yapılır (bu dosya: hatayı nasıl görürüz)
   - `security_privacy.md` — Logda PII yasağı (bu dosya: neyi loglarız)
@@ -32,7 +32,7 @@ Bir hata, performans sorunu, regresyon veya "sistem neden bozuldu?" araştırmas
 
 ---
 
-## 1) Üç Sütun: Log, Metric, Trace
+## 1) Üç Sütun: Log, Metrik, Trace
 
 | Sütun | Ne işe yarar? | Araç önerisi |
 |-------|---------------|-------------|
@@ -86,7 +86,7 @@ def get_system_status(checks: dict[str, bool]) -> str:
 
 ---
 
-## 3) Metrics (Ölçümler)
+## 3) Metrikler (Ölçümler)
 
 ### 3.1 Zorunlu metrikler
 
@@ -111,7 +111,7 @@ def get_system_status(checks: dict[str, bool]) -> str:
 | `velox_db_pool_size` | Gauge | DB connection pool kullanımı |
 | `velox_redis_connections` | Gauge | Redis bağlantı sayısı |
 
-### 3.2 Metric kuralları
+### 3.2 Metrik kuralları
 
 - Metric isimleri `velox_` prefix ile başlar
 - Label'larda **asla PII olmaz** (telefon, isim vb.)

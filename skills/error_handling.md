@@ -8,7 +8,13 @@
 
 ---
 
-## Bu dokümanın amacı
+## 0) Kapsam ve çalışma notları
+
+- **Kapsam:** Hata sınıflandırması, retry/backoff, circuit breaker, fallback, handoff ve misafir hata mesajları
+- **İlişkili dosyalar:** `observability.md`, `security_privacy.md`, `whatsapp_format.md`
+- **Temel ilke:** Geçici semptom ile kalıcı kök neden birbirine karıştırılmaz
+
+### 0.1 Bu dokümanın amacı
 
 - Misafir **hata görmesin** (teknik detay yok).
 - Sistem **aynı hatayı sonsuza kadar tekrarlamasın** (kısır döngü yok).
@@ -16,7 +22,7 @@
 - Bazı işler bozulsa bile sistem **kısmen çalışmaya devam etsin**.
 - Hata teşhisi, retry/fallback/handoff kararı verilmeden önce Docker backend runtime doğrulansın.
 
-### 0.1) Backend-first teşhis kapısı
+### 0.2 Backend-first teşhis kapısı
 
 Bir hata, timeout, bağlantı sorunu, regresyon veya "neden çalışmıyor?" durumu görüldüğünde:
 
@@ -249,7 +255,7 @@ Her hata, ekip tarafından hızlı bulunabilsin diye standart bilgilerle kaydedi
 
 ---
 
-## 10) Kontrol listesi (Validation Checklist)
+## 10) Kontrol Listesi
 
 - [ ] Debug/RCA işlerinde önce `app`, `db`, `redis` ve ilgili yan servislerin container state, healthcheck, restart ve logları kontrol edildi
 - [ ] Retry/fallback kararı vermeden önce env/config, network, port, readiness ve migration/schema uyumu doğrulandı

@@ -8,7 +8,13 @@
 
 ---
 
-## 0) Neden bu kadar kural var?
+## 0) Kapsam ve çalışma notları
+
+- **Kapsam:** Misafire giden WhatsApp metinleri, interactive message kullanımı, medya işleme ve uzunluk kuralları
+- **İlişkili dosyalar:** `anti_hallucination.md`, `error_handling.md`, `security_privacy.md`
+- **Temel ilke:** Mesaj kısa, anlaşılır, tek parça ve misafir diline uygun kalır
+
+### 0.1 Neden bu kadar kural var?
 
 WhatsApp'ta misafir:
 - hızlı okur (uzun metni atlar),
@@ -19,7 +25,7 @@ Bu yüzden mesaj: **kısa + düzenli + tek parça + misafir dili** olmalı.
 
 ---
 
-## 1) Altın kurallar (özet)
+## 1) Altın kurallar
 
 - **Tek mesaj:** Her cevap tek WhatsApp mesajı olmalı. (Bölmek yok.)
 - **Kısa paragraflar:** 3 satırı geçmesin, araya boşluk koy.
@@ -208,7 +214,7 @@ Sistem şu durumlarda medya gönderebilir:
 
 ---
 
-## Patterns (mühendis notu)
+## 10) Kalıp Örnekler (mühendis notu)
 
 ### Message formatter (v2)
 ```python

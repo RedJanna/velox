@@ -7,14 +7,22 @@
 > Bu doküman, ekipte herkesin **aynı dilde** ve **aynı düzenle** kod yazması için bir “işletme kılavuzu”dur.
 > Kod bilmiyorsanız şöyle düşünün: Bu, mutfakta **her aşçının aynı tarife ve hijyen kuralına uyması** gibi.
 
-## Amaç
+## 0) Kapsam ve çalışma notları
+
+- **Kapsam:** Backend (Python/FastAPI), adapter, tool, repository ve servis katmanı kod standartları
+- **İlişkili dosyalar:** `frontend_standards.md`, `security_privacy.md`, `testing_qa.md`, `observability.md`
+- **Temel ilke:** Kod okunabilir, tipli, asenkron ve operasyonel olarak izlenebilir olmalıdır
+
+---
+
+## 1) Amaç
 
 - Kodun **okunabilir** olması (başkası da rahat anlayabilsin)
 - Kodun **bozulmaya daha az yatkın** olması (hata ve sürpriz azalsın)
 - Kodun **hızlı çalışması** (özellikle aynı anda çok misafir mesaj atarken)
 - Kodun **güvenli** olması (yanlış veri/sızıntı olmasın)
 
-## Hızlı Özet (1 dakikalık)
+## 2) Hızlı Özet (1 dakikalık)
 
 - “Güncel Python” kullan.
 - Dış dünya ile konuşurken (internet/veritabanı/dosya) **bekleyerek** çalış (bloklama yok).
@@ -24,7 +32,7 @@
 
 ---
 
-## Kurallar (Ne demek? Neden? Günlük hayattan benzetme)
+## 3) Kurallar (Ne demek? Neden? Günlük hayattan benzetme)
 
 ### 1) Python 3.11+
 **Ne demek?** Güncel Python özellikleri kullanılacak.  
@@ -104,7 +112,7 @@ Ve mümkünse **mutlak import** (adres tam yazılır), göreli import (.. ile) t
 
 ---
 
-## Kalıp Örnekler (Bu dokümanın “tarif kartları”)
+## 4) Kalıp Örnekler (Bu dokümanın “tarif kartları”)
 
 ### Async fonksiyon şablonu
 ```python
@@ -151,7 +159,7 @@ class ReservationRepository:
 
 ---
 
-## Kesin Yasaklar (Kırmızı Çizgiler)
+## 5) Kesin Yasaklar (Kırmızı Çizgiler)
 
 - `requests` kullanma → async `httpx` kullan
 - `time.sleep()` kullanma → `asyncio.sleep()` kullan
@@ -163,7 +171,7 @@ class ReservationRepository:
 
 ---
 
-## Dependency Management (Bağımlılık Yönetimi)
+## 6) Bağımlılık Yönetimi
 
 - **Araç:** `uv` (tercih edilen) veya `pip-tools`
 - **Lock dosyası:** `uv.lock` veya `requirements.lock` — commit edilir
@@ -183,7 +191,7 @@ pip-audit
 
 ---
 
-## Pre-commit Hooks (Otomatik Kontroller)
+## 7) Pre-commit Hooks (Otomatik Kontroller)
 
 Her commit öncesi aşağıdaki kontroller otomatik çalışır:
 
@@ -222,7 +230,7 @@ repos:
 
 ---
 
-## PR Kontrol Listesi (Code Review)
+## 8) PR Kontrol Listesi (Code Review)
 
 Her PR'da reviewer şunları kontrol eder:
 
@@ -237,7 +245,7 @@ Her PR'da reviewer şunları kontrol eder:
 
 ---
 
-## Geliştirici Komutları (Tek Satır)
+## 9) Geliştirici Komutları (Tek Satır)
 
 | Komut | Ne yapar? |
 |-------|----------|
@@ -252,7 +260,7 @@ Her PR'da reviewer şunları kontrol eder:
 
 ---
 
-## Validation Checklist
+## 10) Kontrol Listesi
 
 - [ ] Tüm fonksiyonlarda tip bilgisi var (girdi + çıktı)
 - [ ] Tüm I/O async
