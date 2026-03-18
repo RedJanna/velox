@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-ChatLabSourceType = Literal["live_test_chat", "imported_real", "imported_test"]
+ChatLabSourceType = Literal["live_test_chat", "live_conversation", "imported_real", "imported_test"]
 ChatLabImportRole = Literal["user", "assistant", "system", "other"]
 
 
@@ -109,6 +109,7 @@ class ChatLabFeedbackRequest(BaseModel):
     gold_standard: str | None = Field(default=None, max_length=4096)
     notes: str | None = Field(default=None, max_length=2048)
     approved_example: bool | None = None
+    conversation_id: str | None = Field(default=None, max_length=128)
     import_file: str | None = Field(default=None, max_length=255)
     role_mapping: dict[str, ChatLabImportRole] = Field(default_factory=dict)
 
@@ -125,8 +126,16 @@ class ChatLabFeedbackRequest(BaseModel):
         if needs_gold_standard and not (has_category or has_custom_category):
             raise ValueError("A category or custom category is required for ratings 1-4.")
 
+        needs_tags = self.rating in {1, 2, 3}
+        has_tags = bool(self.tags) or bool(self.custom_tags)
+        if needs_tags and not has_tags:
+            raise ValueError("At least one tag or custom tag is required for ratings 1-3.")
+
         if self.source_type in {"imported_real", "imported_test"} and not self.import_file:
             raise ValueError("Import file is required for imported transcripts.")
+
+        if self.source_type == "live_conversation" and not self.conversation_id:
+            raise ValueError("Conversation ID is required for live conversation feedback.")
 
         if has_gold_standard:
             self.gold_standard = str(self.gold_standard).strip()

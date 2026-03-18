@@ -109,6 +109,7 @@ class StayHold(BaseModel):
     manual_review_reason: str | None = None
     approval_idempotency_key: str | None = None
     create_idempotency_key: str | None = None
+    reservation_no: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
 
 

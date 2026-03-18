@@ -154,6 +154,8 @@ class PromptBuilder:
         conversation: Conversation,
         new_user_message: str,
         system_events: list[dict[str, Any]] | None = None,
+        detected_language: str | None = None,
+        burst_metadata: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Build OpenAI messages array for current turn."""
         messages: list[dict[str, Any]] = [
@@ -177,7 +179,20 @@ class PromptBuilder:
             for event in system_events:
                 messages.append({"role": "system", "content": f"SYSTEM_EVENT: {event}"})
 
-        response_language = (conversation.language or "tr").upper()
+        if burst_metadata and burst_metadata.get("part_count", 1) > 1:
+            messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        f"BURST_CONTEXT: The guest sent {burst_metadata['part_count']} "
+                        f"consecutive messages within {burst_metadata.get('span_seconds', '?')}s. "
+                        "They have been merged into a single user turn below. "
+                        "Treat them as one coherent request and reply with a single unified response."
+                    ),
+                }
+            )
+
+        response_language = (detected_language or conversation.language or "tr").upper()
         messages.append(
             {
                 "role": "system",

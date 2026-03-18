@@ -8,7 +8,7 @@ import structlog
 
 from velox.db.database import execute, fetch, fetchrow
 from velox.models.reservation import StayHold
-from velox.utils.id_gen import next_sequential_id
+from velox.utils.id_gen import next_reservation_no, next_sequential_id
 
 logger = structlog.get_logger(__name__)
 
@@ -19,12 +19,13 @@ class ReservationRepository:
     async def create_hold(self, hold: StayHold) -> StayHold:
         """Insert a new stay hold."""
         hold.hold_id = await next_sequential_id("S_HOLD_", "stay_holds", "hold_id")
+        reservation_no = await next_reservation_no(hold.hotel_id)
 
         try:
             row = await fetchrow(
                 """
-                INSERT INTO stay_holds (hold_id, hotel_id, conversation_id, draft_json, status, workflow_state)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO stay_holds (hold_id, hotel_id, conversation_id, draft_json, status, workflow_state, reservation_no)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING id, created_at, updated_at
                 """,
                 hold.hold_id,
@@ -33,6 +34,7 @@ class ReservationRepository:
                 orjson.dumps(hold.draft_json).decode(),
                 hold.status.value,
                 hold.workflow_state or hold.status.value,
+                reservation_no,
             )
         except asyncpg.UndefinedColumnError:
             row = await fetchrow(
@@ -47,12 +49,21 @@ class ReservationRepository:
                 orjson.dumps(hold.draft_json).decode(),
                 hold.status.value,
             )
+            reservation_no = None
         if row is None:
             raise RuntimeError("Failed to create stay hold.")
 
         hold.id = row["id"]
         hold.created_at = row["created_at"]
+        hold.reservation_no = reservation_no
         return hold
+
+    async def get_by_reservation_no(self, reservation_no: str) -> StayHold | None:
+        """Fetch a stay hold by reservation number."""
+        row = await fetchrow("SELECT * FROM stay_holds WHERE reservation_no = $1", reservation_no)
+        if row is None:
+            return None
+        return self._row_to_hold(row)
 
     async def get_by_hold_id(self, hold_id: str) -> StayHold | None:
         """Fetch a stay hold by hold_id."""
@@ -236,5 +247,6 @@ class ReservationRepository:
             manual_review_reason=row.get("manual_review_reason", None),
             approval_idempotency_key=row.get("approval_idempotency_key", None),
             create_idempotency_key=row.get("create_idempotency_key", None),
+            reservation_no=row.get("reservation_no", None),
             created_at=row["created_at"],
         )

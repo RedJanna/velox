@@ -99,6 +99,28 @@ class ConversationRepository:
             risk_flags,
         )
 
+    async def set_human_override(self, conversation_id: UUID, enabled: bool) -> None:
+        """Toggle human override mode for a conversation."""
+        await execute(
+            """
+            UPDATE conversations
+            SET human_override = $2, updated_at = now()
+            WHERE id = $1
+            """,
+            conversation_id,
+            enabled,
+        )
+
+    async def get_human_override(self, conversation_id: UUID) -> bool:
+        """Check if human override is active for a conversation."""
+        row = await fetchrow(
+            "SELECT human_override FROM conversations WHERE id = $1",
+            conversation_id,
+        )
+        if row is None:
+            return False
+        return bool(row["human_override"])
+
     async def close(self, conversation_id: UUID) -> None:
         """Mark a conversation as inactive."""
         await execute(
@@ -121,6 +143,52 @@ class ConversationRepository:
             conversation_id,
             language,
         )
+
+    async def add_messages_batch(self, messages: list[Message]) -> list[Message]:
+        """Insert multiple messages in a single transaction (burst aggregation).
+
+        Each original message is stored as a separate DB record for audit trail.
+        The conversation ``last_message_at`` is updated once at the end.
+        """
+        if not messages:
+            return []
+        from velox.db.database import get_pool
+
+        pool = get_pool()
+        results: list[Message] = []
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                for msg in messages:
+                    row = await conn.fetchrow(
+                        """
+                        INSERT INTO messages (conversation_id, role, content, client_message_id,
+                                              internal_json, tool_calls)
+                        VALUES ($1, $2, $3, $4, $5, $6)
+                        RETURNING id, created_at
+                        """,
+                        msg.conversation_id,
+                        msg.role,
+                        msg.content,
+                        msg.client_message_id,
+                        orjson.dumps(msg.internal_json).decode() if msg.internal_json else None,
+                        orjson.dumps(msg.tool_calls).decode() if msg.tool_calls else None,
+                    )
+                    if row is None:
+                        raise RuntimeError("Failed to create message in batch.")
+                    msg.id = row["id"]
+                    msg.created_at = row["created_at"]
+                    results.append(msg)
+
+                # Single timestamp update for the conversation
+                conversation_id = messages[0].conversation_id
+                await conn.execute(
+                    "UPDATE conversations SET last_message_at = now(), updated_at = now() WHERE id = $1",
+                    conversation_id,
+                )
+        # Best-effort transcript export after commit
+        if results:
+            await self._safe_export_conversation_transcript(results[0].conversation_id)
+        return results
 
     async def add_message(self, msg: Message) -> Message:
         """Insert a message into a conversation."""
@@ -151,11 +219,12 @@ class ConversationRepository:
         return msg
 
     async def export_recent_conversations_for_chat_lab(self, limit: int = 100) -> int:
-        """Export latest conversations as masked JSON transcript files for Chat Lab imports."""
+        """Export latest active conversations as masked JSON transcript files for Chat Lab imports."""
         rows = await fetch(
             """
             SELECT id
             FROM conversations
+            WHERE is_active = true
             ORDER BY last_message_at DESC
             LIMIT $1
             """,
@@ -167,6 +236,11 @@ class ConversationRepository:
             if await self._export_conversation_transcript(conversation_id):
                 exported_count += 1
         return exported_count
+
+    async def _get_active_ids(self) -> list[str]:
+        """Return all active conversation IDs as strings."""
+        rows = await fetch("SELECT id FROM conversations WHERE is_active = true")
+        return [str(row["id"]) for row in rows]
 
     async def get_messages(self, conversation_id: UUID, limit: int = 20, offset: int = 0) -> list[Message]:
         """Get conversation messages ordered by created_at ascending."""

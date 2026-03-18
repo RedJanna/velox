@@ -1,7 +1,7 @@
 # Velox (NexlumeAI) — Codex Project Guide
 
-> **Sürüm:** v4.3 | **Son güncelleme:** 2026-03-15 14:10:00
-> **Değişiklik özeti:** Kritik 3 doküman (master prompt, admin domain cutover, production deployment) için aynı-commit senkronizasyon kuralları eklendi.
+> **Sürüm:** v4.4 | **Son güncelleme:** 2026-03-18 00:00:00
+> **Değişiklik özeti:** `system_prompt_velox.md` ile hizalama yapıldı; başlangıç okuma sırası, backend-first debug protokolü, operasyonel çalışma ilkeleri ve `ULTRATHINK` tetikleyicisi netleştirildi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -70,13 +70,24 @@ FastAPI Webhook Endpoint
             └── DB (log conversation) + Metrics (Prometheus)
 ```
 
+## Required Read Order
+Before doing any project work, read documents in this order:
+
+1. `system_prompt_velox.md` — master AI operating rules, backend-first debugging discipline, documentation sync rules
+2. `SKILL.md` — skill index, rule hierarchy, task-to-skill map
+3. Relevant files in `skills/` for the current task
+4. The matching task file in `tasks/` if the work maps to a planned task
+
+> **Binding rule:** `system_prompt_velox.md` is not optional context. Any coding, debugging, documentation, or configuration task starts there.
+
 ## IMPORTANT: SKILL System (Read First!)
 Before writing ANY code, you MUST:
-1. Read `SKILL.md` — the skill index file (**Rule Hierarchy dahil!**)
-2. Find your current task in the **Task → Skill Map**
-3. Read each required skill file from `skills/`
-4. Follow every rule in those files while coding
-5. Run the **Validation Checklist** from each skill before finishing
+1. Read `system_prompt_velox.md`
+2. Read `SKILL.md` — the skill index file (**Rule Hierarchy dahil!**)
+3. Find your current task in the **Task → Skill Map**
+4. Read each required skill file from `skills/`
+5. Follow every rule in those files while coding
+6. Run the **Validation Checklist** from each skill before finishing
 
 > **Kural Hiyerarşisi:** `SKILL.md` içindeki "Rule Hierarchy" tablosu tüm dosyalar için geçerlidir.
 > Çakışma olursa: security_privacy > anti_hallucination > diğer skill'ler > system_prompt > task
@@ -94,8 +105,8 @@ Skill files location: `skills/`
 > **Zorunlu problem analizi sırası:** Hata ayıklama, teşhis veya kök neden analizi yapılırken ilk inceleme alanı backend katmanıdır. Docker üstündeki `app`, `db`, `redis` ve probleme temas eden ilgili yan servislerin durum/healthcheck/log/config/bağımlılık doğrulaması yapılmadan frontend, prompt veya model davranışı hakkında hüküm verilmez.
 
 ## Key Documents
+- `system_prompt_velox.md` — **Read this before every task**; AI operating rules, backend-first debug disiplini, doküman senkronizasyon yükümlülüğü
 - `SKILL.md` — **Read this before every task** (skill system entry point)
-- `system_prompt_velox.md` — AI agent çalışma kuralları, backend-first debug disiplini, Docker operasyon akışları
 - `docs/master_prompt_v2.md` — Complete system specification (runtime + product requirements)
 - `docs/admin_panel_domain_cutover.md` — Admin panel domain/path cutover planı, geçiş sırası ve rollback adımları
 - `docs/production_deployment.md` — Production deploy runbook'u, migration ve doğrulama adımları
@@ -133,6 +144,50 @@ Execute tasks in `tasks/` directory sequentially:
 9. **Admin auth**: Access token kısa ömürlü kalır; tekrar TOTP azaltma sadece doğrulanmış trusted device ile yapılır, 2FA kapatılmaz.
 10. **Migration disiplini**: DB schema değişikliği (yeni tablo/sütun/index/constraint) içeren her işte migration dosyası zorunludur ve deploy akışında otomatik çalıştırılır; sadece manuel psql adımına bırakılmaz.
 11. **Backend-first debugging zorunlu**: Problem analizi, hata ayıklama ve root cause analysis `docker compose` üstündeki backend servislerinin (`app`, `db`, `redis`, gerekiyorsa ilgili ingress/worker yan servisleri) durum, healthcheck, log, env/config, dependency readiness ve migration bütünlüğü doğrulanarak başlar; bu adım tamamlanmadan frontend/prompt/model katmanına geçilmez.
+12. **Kanıt temelli teşhis**: Hata mesajını tekrar etmek root cause analysis değildir. Belirti, tetikleyici ve sistemik neden ayrı ayrı ortaya konur; hipotezler tek tek test edilir.
+13. **Geçici çözüm etiketleme**: Workaround uygulanırsa bunu açıkça `geçici çözüm` diye işaretle; kalıcı çözümü ayrıca belirt.
+14. **Yarım iş bırakma**: Kullanıcı düzenleme veya düzeltme istiyorsa analizde durma; değişikliği uygula, doğrula, kalan riskleri net yaz.
+
+## Operational Discipline
+
+- **Zero fluff:** Gereksiz giriş, konu dışı tavsiye, süslü dil yok.
+- **Short but complete:** Teknik detay yeterli olacak, tekrar olmayacak.
+- **Evidence first:** Sonuca değil kanıta git; emin olunmayan şey varsayım olarak etiketlenir.
+- **Root cause first:** Belirtiyi kapatmak yerine nedeni ayır ve tekrarını önle.
+- **Backend before frontend:** Backend sözleşmesi ve runtime sağlığı netleşmeden frontend tahminiyle ilerleme.
+- **Observable debugging:** Log, request flow, dependency state, config/env, migration ve data integrity kontrol edilir.
+
+## Backend-First Debug Protocol
+
+Debugging, diagnosis, regression review, performance analysis, and root cause analysis must start with backend runtime validation.
+
+Minimum order:
+
+1. Run `docker compose ps` or equivalent and inspect `app`, `db`, `redis`, plus flow-related sidecars
+2. Check `unhealthy`, `restarting`, `exited`, readiness failure, or restart loops
+3. Inspect container logs to locate the first break in the error chain
+4. Validate env/config, ports, volumes, networks, `depends_on`, migrations/schema, DB/Redis connectivity, and health endpoints
+5. Only after backend health is understood move to prompt, model, frontend, or UX layers
+
+> **Binding rule:** A diagnosis completed without Docker backend validation is incomplete and must not be treated as a finished root cause analysis.
+
+## Critical Docs Sync Gate
+
+If the current change affects one of the following areas, update the matching document in the same task and same commit:
+
+- Prompt behavior, LLM flow, tool logic, QC or policy behavior -> `docs/master_prompt_v2.md`
+- Admin panel domain/path, proxy/ingress routing, cutover or rollback -> `docs/admin_panel_domain_cutover.md`
+- Deploy commands, migration/release flow, smoke checks, production validation -> `docs/production_deployment.md`
+
+If none apply, state that explicitly in the task summary.
+
+## ULTRATHINK Protocol
+
+If the developer explicitly writes `ULTRATHINK`, switch to deeper analysis mode:
+
+- Expand technical depth and edge-case coverage
+- Review performance, security, scalability, maintainability, and failure modes
+- Avoid early closure on the first plausible answer
 
 ## Auto-Commit Rule
 After completing each task, you MUST commit your changes:

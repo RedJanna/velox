@@ -1,5 +1,6 @@
 """Sequential and unique ID generation for domain entities."""
 
+from datetime import datetime, timezone
 from typing import Final
 
 from velox.db.database import fetchval
@@ -33,3 +34,25 @@ async def next_sequential_id(prefix: str, table: str, column: str) -> str:
         current_count = 0
     next_num = current_count + 1
     return f"{prefix}{next_num:03d}"
+
+
+async def next_reservation_no(hotel_id: int) -> str:
+    """Generate the next reservation number in VLX-{hotel_id}-{YYMM}-{seq} format."""
+    now = datetime.now(timezone.utc)
+    yymm = now.strftime("%y%m")
+    prefix = f"VLX-{hotel_id}-{yymm}-"
+
+    max_seq = await fetchval(
+        """
+        SELECT MAX(
+            CAST(
+                SUBSTRING(reservation_no FROM LENGTH($1) + 1) AS integer
+            )
+        )
+        FROM stay_holds
+        WHERE reservation_no LIKE $1 || '%'
+        """,
+        prefix,
+    )
+    next_seq = (int(max_seq) if max_seq is not None and max_seq != "" else 0) + 1
+    return f"{prefix}{next_seq:04d}"

@@ -62,6 +62,15 @@ class Settings(BaseSettings):
     openai_max_tokens: int = 2048
     openai_temperature: float = 0.3
 
+    # Operation Mode — controls outbound WhatsApp messaging behaviour.
+    # "test":     system receives messages and generates replies but NEVER sends
+    #             anything to WhatsApp; all outbound calls are blocked and logged.
+    # "ai":       system sends messages automatically with human-handoff rules.
+    # "approval": system generates replies and queues them; admin must approve
+    #             each message before it is sent via WhatsApp.
+    # "off":      system records data only; no reply generation, no sending.
+    operation_mode: str = "test"
+
     # WhatsApp
     whatsapp_api_version: str = "v21.0"
     whatsapp_api_base_url: str = "https://graph.facebook.com"
@@ -88,6 +97,12 @@ class Settings(BaseSettings):
     rate_limit_per_phone_per_minute: int = 30
     rate_limit_per_phone_per_hour: int = 200
     rate_limit_webhook_per_minute: int = 100
+
+    # Burst Buffer — aggregates rapid successive messages before LLM processing
+    burst_debounce_seconds: float = 2.5
+    burst_max_messages: int = 5
+    burst_max_wait_seconds: float = 10.0
+    burst_lock_ttl_seconds: int = 60
 
     # Paths
     hotel_profiles_dir: str = "data/hotel_profiles"

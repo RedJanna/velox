@@ -108,6 +108,10 @@ button,input,select,textarea{font:inherit}
 .split{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(340px,.8fr);gap:18px}
 .toolbar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
 .toolbar input,.toolbar select{padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--surface)}
+.toolbar-check{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
+.toolbar-check input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent,#e7bf5f)}
+.action-cell{display:flex;gap:6px;align-items:center}
+.pill-closed{display:inline-block;padding:4px 10px;border-radius:10px;font-size:12px;background:#6b7280;color:#fff}
 .table-shell{border:1px solid var(--line);border-radius:22px;overflow:hidden;background:var(--surface)}
 table{width:100%;border-collapse:collapse}
 thead th{padding:14px 16px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;background:#f7f2e9;color:#536173;text-align:left;border-bottom:1px solid var(--line)}
@@ -172,6 +176,7 @@ tbody tr:hover{background:#fffcf7}
 .dialog-textarea{min-height:120px}
 .inline-flex-center{display:flex;align-items:center;gap:8px}
 .pill-closed{background:#e5e7eb;color:#6b7280;font-size:11px}
+.pill-warning{display:inline-block;padding:2px 6px;border-radius:8px;font-size:11px;background:#fff4db;color:#7c4b06}
 .action-button-sm{font-size:12px;padding:6px 14px}
 @media(max-width:1240px){
   .card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -200,7 +205,7 @@ const API_ROOT = '/api/v1/admin';
 const READY_URL = '/api/v1/health/ready';
 const HOTEL_KEY = 'velox.admin.hotel';
 const CSRF_COOKIE = 'velox_admin_csrf';
-const LIVE_REFRESH_INTERVAL_MS = 10000;
+const LIVE_REFRESH_INTERVAL_MS = 3000;
 
 const state = {
   me: null,
@@ -212,9 +217,20 @@ const state = {
   dashboard: null,
   conversations: [],
   conversationDetail: null,
-  holds: [],
-  selectedHoldId: '',
-  selectedHold: null,
+  stayHolds: [],
+  selectedStayHoldId: '',
+  restaurantHolds: [],
+  selectedRestaurantHoldId: '',
+  transferHolds: [],
+  selectedTransferHoldId: '',
+  activeHoldsTab: 'stay',
+  stayStatusFilter: '',
+  restaurantStatusFilter: '',
+  transferStatusFilter: '',
+  stayDraft: {},
+  stayWizardStep: 1,
+  stayWizardUseExisting: false,
+  stayWizardReprocessHoldId: null,
   tickets: [],
   faqs: [],
   faqDetail: null,
@@ -245,8 +261,10 @@ function bindRefs() {
     'loginRememberOptions','loginVerificationOptions','loginSessionOptions',
     'otpSetup','otpSecret','otpUri','otpQrImage','otpVerifyForm','otpVerifyHint','currentUser','currentRole','hotelScope','hotelSelect','nav','pageTitle','pageLead',
     'dashboardCards','dashboardQueues','conversationFilters','conversationTableBody','conversationDetail',
-    'holdFilters','holdTableBody','ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor',
-    'holdDetail',
+    'stayHoldFilters','stayHoldTableBody','stayHoldDetail','stayHoldCreatePanel','stayWizardSteps','stayWizardBody','stayStatusChips',
+    'restaurantHoldFilters','restaurantHoldTableBody','restaurantHoldDetail','restaurantHoldCreatePanel','restaurantCreateForm','restaurantStatusChips',
+    'transferHoldFilters','transferHoldTableBody','transferHoldDetail','transferHoldCreatePanel','transferCreateForm','transferStatusChips',
+    'ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor',
     'faqFilters','faqTableBody','faqDetail',
     'notifPhoneTableBody','addNotifPhoneForm',
     'hotelProfileMeta','slotFilters','slotTableBody','slotCreateForm','systemChecks','systemMeta',
@@ -278,9 +296,27 @@ function bindEvents() {
     event.preventDefault();
     loadConversations();
   });
-  refs.holdFilters.addEventListener('submit', event => {
+  refs.stayHoldFilters.addEventListener('submit', event => {
     event.preventDefault();
-    loadHolds();
+    const resNo = new FormData(refs.stayHoldFilters).get('reservation_no');
+    if (resNo && resNo.trim()) { lookupStayReservationNo(resNo.trim()); }
+    else { loadStayHolds(); }
+  });
+  refs.restaurantHoldFilters.addEventListener('submit', event => {
+    event.preventDefault();
+    loadRestaurantHolds();
+  });
+  refs.transferHoldFilters.addEventListener('submit', event => {
+    event.preventDefault();
+    loadTransferHolds();
+  });
+  refs.restaurantCreateForm.addEventListener('submit', event => {
+    event.preventDefault();
+    submitRestaurantHold();
+  });
+  refs.transferCreateForm.addEventListener('submit', event => {
+    event.preventDefault();
+    submitTransferHold();
   });
   refs.ticketFilters.addEventListener('submit', event => {
     event.preventDefault();
@@ -310,6 +346,9 @@ function bindEvents() {
     if (event.data && event.data.type === 'chatlab:auth-required') {
       // Re-obtain a fresh token and send it to the iframe
       await loadChatLab();
+    }
+    if (event.data && event.data.type === 'chatlab:faq-created') {
+      if (state.currentView === 'faq') loadFaqs();
     }
   });
   window.addEventListener('resize', closeSidebar);
@@ -349,7 +388,10 @@ function bindDelegatedEvents() {
   // Single delegated click handler on panelView covers all dynamic table actions.
   // This avoids re-binding listeners every time a table is re-rendered.
   refs.panelView.addEventListener('click', async event => {
-    const target = event.target.closest('[data-open-conversation],[data-open-hold],[data-approve-hold],[data-reject-hold],[data-save-ticket]');
+    // Holds module events (tabs, wizards, filters, create toggles, hold selection)
+    if (typeof handleHoldsModuleClick === 'function' && handleHoldsModuleClick(event.target)) return;
+
+    const target = event.target.closest('[data-open-conversation],[data-deactivate-conversation],[data-approve-hold],[data-reject-hold],[data-save-ticket]');
     if (!target) return;
 
     // Conversation detail
@@ -358,8 +400,17 @@ function bindDelegatedEvents() {
       return;
     }
 
-    if (target.dataset.openHold) {
-      selectHold(target.dataset.openHold);
+    // Deactivate conversation
+    if (target.dataset.deactivateConversation) {
+      const convId = target.dataset.deactivateConversation;
+      if (!confirm('Bu konusmayi pasife almak istediginize emin misiniz?')) return;
+      try {
+        await apiFetch(`/conversations/${convId}/reset`, {method: 'POST'});
+        notify('Konusma pasife alindi.', 'success');
+        loadConversations();
+      } catch (error) {
+        notify(error.message || 'Pasife alma basarisiz.', 'error');
+      }
       return;
     }
 
@@ -372,7 +423,10 @@ function bindDelegatedEvents() {
       try {
         await apiFetch(`/holds/${target.dataset.approveHold}/approve`, {method: 'POST', body: {notes: ''}});
         notify('Hold onaylandi.', 'success');
-        loadHolds();
+        const tab = state.activeHoldsTab || 'stay';
+        if (tab === 'stay') loadStayHolds();
+        else if (tab === 'restaurant') loadRestaurantHolds();
+        else loadTransferHolds();
         loadDashboard();
       } catch (error) {
         approveButton.disabled = false;
@@ -731,7 +785,7 @@ function setView(view) {
 
   if (view === 'dashboard') loadDashboard();
   if (view === 'conversations') loadConversations();
-  if (view === 'holds') loadHolds();
+  if (view === 'holds') switchHoldsTab(state.activeHoldsTab || 'stay');
   if (view === 'tickets') loadTickets();
   if (view === 'hotels') loadHotelProfileSection();
   if (view === 'faq') loadFaqs();
@@ -753,8 +807,11 @@ function scheduleLiveRefresh() {
   clearLiveRefresh();
   const refreshers = {
     dashboard: async () => loadDashboard(),
+    conversations: async () => loadConversations(),
     holds: async () => {
-      await Promise.all([loadHolds(), loadDashboard()]);
+      const tab = state.activeHoldsTab || 'stay';
+      const loader = tab === 'stay' ? loadStayHolds : tab === 'restaurant' ? loadRestaurantHolds : loadTransferHolds;
+      await Promise.all([loader(), loadDashboard()]);
     },
   };
   const refresh = refreshers[state.currentView];
@@ -793,7 +850,7 @@ async function loadChatLab() {
   }
   // Send token to iframe once it finishes loading
   const sendToken = () => {
-    try { frame.contentWindow.postMessage({type: 'chatlab:token', token}, window.location.origin); } catch(_e) {}
+    try { frame.contentWindow.postMessage({type: 'chatlab:token', token, hotelId: state.selectedHotelId}, window.location.origin); } catch(_e) {}
   };
   if (needsLoad) {
     frame.addEventListener('load', sendToken, {once: true});
@@ -869,6 +926,7 @@ async function loadConversations() {
   const form = new FormData(refs.conversationFilters);
   const params = new URLSearchParams();
   if (state.me?.role === 'ADMIN' && state.selectedHotelId) params.set('hotel_id', state.selectedHotelId);
+  if (form.get('active_only')) params.set('active_only', 'true');
   if (form.get('status')) params.set('status', String(form.get('status')));
   if (form.get('date_from')) params.set('date_from', String(form.get('date_from')));
   if (form.get('date_to')) params.set('date_to', String(form.get('date_to')));
@@ -889,11 +947,14 @@ function renderConversationRows(items) {
   return items.map(item => `
     <tr>
       <td><div class="stack"><strong>${escapeHtml(item.phone_display || 'Maskeli kullanici')}</strong><span class="muted mono">${escapeHtml(item.id)}</span></div></td>
-      <td><span class="pill open">${escapeHtml(item.current_state || '-')}</span></td>
+      <td><span class="pill open">${escapeHtml(item.current_state || '-')}</span>${item.human_override ? ' <span class="pill pill-warning" title="Insan devri aktif">👤</span>' : ''}</td>
       <td>${escapeHtml(resolveConversationIntent(item, []))}</td>
       <td>${escapeHtml((item.risk_flags || []).join(', ') || 'Yok')}</td>
       <td>${escapeHtml(item.message_count || 0)}</td>
-      <td><button class="inline-button primary" data-open-conversation="${escapeHtml(item.id)}" aria-label="${escapeHtml((item.phone_display || 'Konusma') + ' detayini ac')}">Detay</button></td>
+      <td class="action-cell">
+        <button class="inline-button primary" data-open-conversation="${escapeHtml(item.id)}">Detay</button>
+        ${item.is_active ? `<button class="inline-button danger" data-deactivate-conversation="${escapeHtml(item.id)}">Pasife Al</button>` : '<span class="pill pill-closed">Pasif</span>'}
+      </td>
     </tr>
   `).join('');
 }
@@ -914,7 +975,10 @@ async function loadConversationDetail(conversationId) {
       </div>
       <div class="inline-flex-center">
         <div class="badge dark">${escapeHtml(resolvedIntent)}</div>
-        ${response.conversation.is_active ? `<button class="action-button danger action-button-sm" data-reset-conversation="${escapeHtml(String(response.conversation.id))}" aria-label="Secili konusmayi sifirla">Sifirla</button>` : '<span class="pill pill-closed">Kapali</span>'}
+        ${response.conversation.is_active ? `
+          <button class="action-button ${response.conversation.human_override ? 'primary' : 'warn'} action-button-sm" data-toggle-human-override="${escapeHtml(String(response.conversation.id))}" data-current-override="${response.conversation.human_override ? 'true' : 'false'}" aria-label="Insan devri / AI modu degistir">${response.conversation.human_override ? 'AI Moduna Al' : 'Insan Devrine Al'}</button>
+          <button class="action-button danger action-button-sm" data-reset-conversation="${escapeHtml(String(response.conversation.id))}" aria-label="Secili konusmayi sifirla">Sifirla</button>
+        ` : '<span class="pill pill-closed">Kapali</span>'}
       </div>
     </div>
     ${renderUserAuditSection(audit)}
@@ -928,6 +992,26 @@ async function loadConversationDetail(conversationId) {
       `).join('')}
     </div>
   `;
+  const overrideBtn = refs.conversationDetail.querySelector('[data-toggle-human-override]');
+  if (overrideBtn) {
+    overrideBtn.addEventListener('click', async () => {
+      const convId = overrideBtn.dataset.toggleHumanOverride;
+      const currentlyEnabled = overrideBtn.dataset.currentOverride === 'true';
+      const newState = !currentlyEnabled;
+      const confirmMsg = newState
+        ? 'Bu konuşmayı İNSAN DEVRİNE almak istediğinize emin misiniz? AI yanıt üretmeye devam edecek ancak mesajlar WhatsApp üzerinden GÖNDERİLMEYECEK.'
+        : 'Bu konuşmayı tekrar AI MODUNA almak istediğinize emin misiniz? Mesajlar otomatik olarak gönderilmeye başlanacak.';
+      if (!confirm(confirmMsg)) return;
+      try {
+        await apiFetch(`/conversations/${convId}/human-override?enable=${newState}`, {method: 'POST'});
+        notify(newState ? 'İnsan devri aktif — mesajlar gönderilmeyecek.' : 'AI modu aktif — mesajlar otomatik gönderilecek.', 'success');
+        loadConversationDetail(convId);
+        loadConversations();
+      } catch (error) {
+        notify(error.message, 'error');
+      }
+    });
+  }
   const resetBtn = refs.conversationDetail.querySelector('[data-reset-conversation]');
   if (resetBtn) {
     resetBtn.addEventListener('click', async () => {
@@ -943,267 +1027,7 @@ async function loadConversationDetail(conversationId) {
   }
 }
 
-async function loadHolds() {
-  const form = new FormData(refs.holdFilters);
-  const params = new URLSearchParams();
-  if (state.me?.role === 'ADMIN' && state.selectedHotelId) params.set('hotel_id', state.selectedHotelId);
-  if (form.get('hold_type')) params.set('hold_type', String(form.get('hold_type')));
-  if (form.get('status')) params.set('status', String(form.get('status')));
-  const response = await apiFetch(`/holds?${params.toString()}`);
-  state.holds = response.items || [];
-  const selectedExists = state.holds.some(item => String(item.hold_id) === String(state.selectedHoldId));
-  if (!selectedExists) {
-    state.selectedHoldId = state.holds.length ? String(state.holds[0].hold_id) : '';
-  }
-  state.selectedHold = state.holds.find(item => String(item.hold_id) === String(state.selectedHoldId)) || null;
-  refs.holdTableBody.innerHTML = renderHoldRows(state.holds);
-  renderHoldDetail(state.selectedHold);
-}
-
-function renderHoldRows(items) {
-  if (!items.length) {
-    return `<tr><td colspan="6"><div class="empty-state"><p>Onay akışında kayıt yok.</p></div></td></tr>`;
-  }
-  return items.map(item => `
-    <tr class="${String(item.hold_id) === String(state.selectedHoldId) ? 'is-selected' : ''}" data-open-hold="${escapeHtml(item.hold_id)}">
-      <td>
-        <button class="inline-button secondary" data-open-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' detayini ac')}">Detay</button>
-      </td>
-      <td>
-        <div class="stack">
-          <strong>${escapeHtml(item.hold_id)}</strong>
-          <span class="muted">${escapeHtml(item.type)} · Hotel ${escapeHtml(item.hotel_id)}</span>
-        </div>
-      </td>
-      <td><span class="pill ${holdStatusClass(item.status)}">${escapeHtml(item.status)}</span></td>
-      <td>${formatHoldSummary(item)}</td>
-      <td>${formatDate(item.created_at)}</td>
-      <td>${formatHoldTechnicalState(item)}</td>
-    </tr>
-  `).join('');
-}
-
-function selectHold(holdId) {
-  state.selectedHoldId = String(holdId || '');
-  state.selectedHold = state.holds.find(item => String(item.hold_id) === state.selectedHoldId) || null;
-  refs.holdTableBody.innerHTML = renderHoldRows(state.holds);
-  renderHoldDetail(state.selectedHold);
-}
-
-function renderHoldDetail(item) {
-  if (!item) {
-    refs.holdDetail.innerHTML = '<div class="empty-state"><p>Detay ve aksiyonlar icin listeden bir hold secin.</p></div>';
-    return;
-  }
-
-  refs.holdDetail.innerHTML = `
-    <div class="module-header">
-      <div>
-        <h3>${escapeHtml(String(item.hold_id || 'Hold'))}</h3>
-        <p>${escapeHtml(String(item.type || '-').toUpperCase())} · Hotel ${escapeHtml(String(item.hotel_id || '-'))}</p>
-      </div>
-      <span class="pill ${holdStatusClass(item.status)}">${escapeHtml(item.status)}</span>
-    </div>
-    <div class="hold-summary-grid mb-md">
-      ${formatHoldSummaryDetailCell('Misafir', holdDraftField(item, 'guest_name', '-'))}
-      ${formatHoldSummaryDetailCell('Tarih', `${holdDraftField(item, 'checkin_date', '-')} → ${holdDraftField(item, 'checkout_date', '-')}`)}
-      ${formatHoldSummaryDetailCell('Kisi', `${holdDraftField(item, 'adults', '0')}Y / ${holdChildrenCount(item)}C`)}
-      ${formatHoldSummaryDetailCell('Toplam', `${holdDraftField(item, 'total_price_eur', '-')} EUR`)}
-      ${formatHoldSummaryDetailCell('Politika', holdDraftField(item, 'cancel_policy_type', '-'))}
-      ${formatHoldSummaryDetailCell('Telefon', holdDraftField(item, 'phone', '-'))}
-    </div>
-    <div class="helper-box">
-      <strong>Teknik Durum</strong>
-      ${formatHoldTechnicalState(item)}
-    </div>
-    <div class="helper-box mt-md">
-      <strong>Islem Zaman Cizelgesi</strong>
-      ${formatHoldTimeline(item)}
-    </div>
-    <div class="dialog-actions hold-detail-actions mt-lg">
-      <button class="action-button primary" data-approve-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' holdunu onayla')}" ${isHoldApproveActionable(item) ? '' : 'disabled'}>${escapeHtml(holdApproveButtonLabel(item))}</button>
-      <button class="action-button danger" data-reject-hold="${escapeHtml(item.hold_id)}" aria-label="${escapeHtml(item.hold_id + ' holdunu reddet')}">Reddet</button>
-    </div>
-  `;
-}
-
-function holdDraftField(item, key, fallback) {
-  const draft = item && item.draft_json && typeof item.draft_json === 'object' ? item.draft_json : {};
-  const value = draft[key];
-  if (value === null || value === undefined || value === '') return String(fallback);
-  return String(value);
-}
-
-function holdChildrenCount(item) {
-  const draft = item && item.draft_json && typeof item.draft_json === 'object' ? item.draft_json : {};
-  return Array.isArray(draft.chd_ages) ? draft.chd_ages.length : 0;
-}
-
-function formatHoldSummaryDetailCell(label, value) {
-  return `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></div>`;
-}
-
-function holdStatusClass(status) {
-  const normalized = String(status || '').toUpperCase();
-  if (['PMS_FAILED', 'MANUAL_REVIEW', 'REJECTED'].includes(normalized)) return 'danger';
-  if (['PENDING_APPROVAL', 'PMS_PENDING', 'PAYMENT_PENDING'].includes(normalized)) return 'warn';
-  if (['PMS_CREATED', 'CONFIRMED'].includes(normalized)) return 'success';
-  if (['PAYMENT_EXPIRED', 'APPROVED'].includes(normalized)) return 'info';
-  return 'pending';
-}
-
-function formatHoldSummary(item) {
-  const checkin = holdDraftField(item, 'checkin_date', '-');
-  const checkout = holdDraftField(item, 'checkout_date', '-');
-  const guest = holdDraftField(item, 'guest_name', '-');
-  const adults = Number(holdDraftField(item, 'adults', '0') || 0);
-  const children = holdChildrenCount(item);
-  const total = `${escapeHtml(holdDraftField(item, 'total_price_eur', '-'))} EUR`;
-  const cancelPolicy = holdDraftField(item, 'cancel_policy_type', '-');
-  return `
-    <div class="hold-summary-grid">
-      <div><span>Misafir</span><strong>${escapeHtml(guest)}</strong></div>
-      <div><span>Tarih</span><strong>${escapeHtml(checkin)} → ${escapeHtml(checkout)}</strong></div>
-      <div><span>Kisi</span><strong>${escapeHtml(String(adults))}Y / ${escapeHtml(String(children))}C</strong></div>
-      <div><span>Tutar</span><strong>${total}</strong></div>
-      <div><span>Politika</span><strong>${escapeHtml(cancelPolicy)}</strong></div>
-      <div><span>Tip</span><strong>${escapeHtml(String(item.type || '-').toUpperCase())}</strong></div>
-    </div>
-  `;
-}
-
-function formatHoldTechnicalState(item) {
-  const workflowState = item.workflow_state ? String(item.workflow_state) : '-';
-  const reservationId = item.pms_reservation_id ? String(item.pms_reservation_id) : '-';
-  const voucherNo = item.voucher_no ? String(item.voucher_no) : '-';
-  const manualReason = mapManualReviewReason(item.manual_review_reason);
-  const failedTool = mapFailedTool(item.last_failed_tool);
-  const failedErrorType = item.last_failed_error_type ? String(item.last_failed_error_type) : '-';
-  return `
-    <div class="stack">
-      <span class="muted">Workflow: <strong>${escapeHtml(workflowState)}</strong></span>
-      <span class="muted">PMS ID: <strong>${escapeHtml(reservationId)}</strong></span>
-      <span class="muted">Voucher: <strong>${escapeHtml(voucherNo)}</strong></span>
-      <span class="muted">Son hata araci: <strong>${escapeHtml(failedTool)}</strong></span>
-      <span class="muted">Hata tipi: <strong>${escapeHtml(failedErrorType)}</strong></span>
-      <span class="muted">Not: <strong>${escapeHtml(manualReason)}</strong></span>
-    </div>
-  `;
-}
-
-function mapFailedTool(toolName) {
-  const normalized = String(toolName || '').trim();
-  if (!normalized) return '-';
-  if (normalized === 'booking_create_reservation') return 'PMS rezervasyon olusturma';
-  if (normalized === 'booking_get_reservation') return 'PMS readback dogrulamasi';
-  if (normalized === 'payment_request_prepayment') return 'Odeme talebi olusturma';
-  return normalized;
-}
-
-function mapManualReviewReason(reason) {
-  const normalized = String(reason || '').trim();
-  if (!normalized) return '-';
-  if (normalized === 'create_missing_identifiers') {
-    return 'PMS create yanitinda reservation id/voucher gelmedi.';
-  }
-  if (normalized === 'create_unverified_after_readback') {
-    return 'Create sonrasi readback dogrulamasi basarisiz.';
-  }
-  if (normalized.startsWith('create_failed:')) {
-    const parts = normalized.split(':');
-    const errorType = parts[1] || 'UnknownError';
-    const action = parts[2] || 'manual_review';
-    return `PMS create hatasi (${errorType}), aksiyon: ${action}.`;
-  }
-  return normalized;
-}
-
-function formatHoldTimeline(item) {
-  const approvalTimestamp = item.approval_decided_at || item.approved_at || null;
-  const rows = [
-    {
-      label: 'Hold olusturuldu',
-      value: item.created_at ? formatDate(item.created_at) : '-',
-      level: 'done',
-    },
-    {
-      label: 'Admin onayi',
-      value: approvalTimestamp ? formatDate(approvalTimestamp) : 'Bekleniyor',
-      level: approvalTimestamp ? 'done' : 'warn',
-    },
-    {
-      label: 'PMS create basladi',
-      value: item.pms_create_started_at ? formatDate(item.pms_create_started_at) : 'Baslamadi',
-      level: item.pms_create_started_at ? 'done' : 'warn',
-    },
-    {
-      label: 'PMS create tamamlandi',
-      value: item.pms_create_completed_at ? formatDate(item.pms_create_completed_at) : 'Tamamlanmadi',
-      level: item.pms_create_completed_at ? 'done' : 'warn',
-    },
-    {
-      label: 'Odeme talebi',
-      value: item.payment_requested_at ? formatDate(item.payment_requested_at) : 'Olusturulmadi',
-      level: item.payment_requested_at ? 'done' : 'warn',
-    },
-    {
-      label: 'Mevcut workflow',
-      value: String(item.workflow_state || item.status || '-'),
-      level: holdTimelineLevel(item),
-    },
-  ];
-  return `
-    <div class="hold-timeline">
-      ${rows.map(row => `
-        <div class="hold-timeline-item">
-          <span class="hold-timeline-dot ${escapeHtml(row.level)}"></span>
-          <div>
-            <strong>${escapeHtml(row.label)}</strong>
-            <span>${escapeHtml(row.value)}</span>
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
-
-function holdTimelineLevel(item) {
-  const status = String(item.status || '').toUpperCase();
-  if (['MANUAL_REVIEW', 'PMS_FAILED', 'REJECTED'].includes(status)) return 'danger';
-  if (['PMS_PENDING', 'PENDING_APPROVAL', 'PAYMENT_PENDING'].includes(status)) return 'warn';
-  return 'done';
-}
-
-function holdHasPersistedReservation(item) {
-  return Boolean(item && (item.pms_reservation_id || item.voucher_no));
-}
-
-function holdNeedsManualReviewIntervention(item) {
-  const reason = String(item?.manual_review_reason || '');
-  if (holdHasPersistedReservation(item)) return true;
-  return ['create_missing_identifiers', 'create_unverified_after_readback'].includes(reason);
-}
-
-function isHoldApproveActionable(item) {
-  const holdType = String(item?.type || '').toLowerCase();
-  const status = String(item?.status || '').toUpperCase();
-  if (holdType === 'stay') {
-    if (status === 'MANUAL_REVIEW' && holdNeedsManualReviewIntervention(item)) {
-      return false;
-    }
-    return ['PENDING_APPROVAL', 'APPROVED', 'MANUAL_REVIEW', 'PMS_FAILED'].includes(status);
-  }
-  return status === 'PENDING_APPROVAL';
-}
-
-function holdApproveButtonLabel(item) {
-  const status = String(item?.status || '').toUpperCase();
-  if (status === 'MANUAL_REVIEW' && holdNeedsManualReviewIntervention(item)) return 'Inceleme Gerekli';
-  if (['APPROVED', 'MANUAL_REVIEW', 'PMS_FAILED'].includes(status)) return 'Yeniden Dene';
-  return 'Onayla';
-}
-
-// Hold actions handled by delegated event listener (see bindDelegatedEvents)
+// Hold functions moved to admin_panel_holds_assets.py
 
 async function onDecisionSubmit(event) {
   event.preventDefault();
@@ -1217,7 +1041,10 @@ async function onDecisionSubmit(event) {
     await apiFetch(`/holds/${holdId}/reject`, {method: 'POST', body: {reason}});
     refs.decisionDialog.close();
     notify('Hold reddedildi.', 'success');
-    loadHolds();
+    const tab = state.activeHoldsTab || 'stay';
+    if (tab === 'stay') loadStayHolds();
+    else if (tab === 'restaurant') loadRestaurantHolds();
+    else loadTransferHolds();
     loadDashboard();
   } catch (error) {
     notify(error.message, 'error');

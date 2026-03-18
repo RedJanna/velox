@@ -1,7 +1,7 @@
 # Skill: Frontend Standards (Admin Panel & Chat Lab)
 
-> **Hiyerarsi:** Bu dosya `system_prompt_velox.md` hiyerarsisinde **Oncelik 3** seviyesindedir.
-> Guvenlik (`security_privacy.md`) ve kaynak dogrulama (`anti_hallucination.md`) kurallari bu dosyadan once gelir.
+> **Hiyerarsi:** Bu dosya `SKILL.md` kural hiyerarsisinde **Oncelik 3** seviyesindedir.
+> `security_privacy.md` ve `anti_hallucination.md` kurallari bu dosyadan once gelir; `system_prompt_velox.md` ise bu skill'den sonra gelir.
 
 > Kod bilmeyen biri icin benzetme: Bu dokuman, admin panelinin **"ic mimar kilavuzu"**dur.
 > Her ekran ayni stilde, ayni malzemeyle, ayni duzenle yapilsin diye kurallar koyar.

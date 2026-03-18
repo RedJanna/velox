@@ -859,6 +859,7 @@ async def list_conversations(
     user: Annotated[TokenData, Depends(get_current_user)],
     hotel_id: int | None = Query(None),
     status_filter: str | None = Query(None, alias="status"),
+    active_only: bool = Query(False),
     date_from: date | None = Query(None),  # noqa: B008
     date_to: date | None = Query(None),  # noqa: B008
     page: int = Query(1, ge=1),
@@ -905,13 +906,15 @@ async def list_conversations(
                   )
               AND ($3::date IS NULL OR c.created_at::date >= $3)
               AND ($4::date IS NULL OR c.created_at::date <= $4)
+              AND ($5::bool IS FALSE OR c.is_active = true)
             ORDER BY c.last_message_at DESC
-            LIMIT $5 OFFSET $6
+            LIMIT $6 OFFSET $7
             """,
             effective_hotel_id,
             status_filter,
             date_from,
             date_to,
+            active_only,
             per_page,
             offset,
         )
@@ -937,11 +940,13 @@ async def list_conversations(
                       )
                   AND ($3::date IS NULL OR c.created_at::date >= $3)
                   AND ($4::date IS NULL OR c.created_at::date <= $4)
+                  AND ($5::bool IS FALSE OR c.is_active = true)
                 """,
                 effective_hotel_id,
                 status_filter,
                 date_from,
                 date_to,
+                active_only,
             )
             or 0
         )
@@ -1034,6 +1039,151 @@ async def reset_conversation(
     repository = ConversationRepository()
     await repository.close(conversation_id)
     return {"status": "reset", "conversation_id": str(conversation_id)}
+
+
+@router.post("/conversations/{conversation_id}/messages/{message_id}/send")
+async def approve_and_send_message(
+    conversation_id: UUID,
+    message_id: UUID,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Approve a pending assistant message and send it via WhatsApp."""
+    check_permission(user, "conversations:read")
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        conv_row = await conn.fetchrow(
+            "SELECT id, hotel_id, phone_display FROM conversations WHERE id = $1",
+            conversation_id,
+        )
+        if conv_row is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        if user.role != Role.ADMIN and int(conv_row["hotel_id"]) != user.hotel_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        msg_row = await conn.fetchrow(
+            "SELECT id, role, content, internal_json FROM messages WHERE id = $1 AND conversation_id = $2",
+            message_id,
+            conversation_id,
+        )
+        if msg_row is None:
+            raise HTTPException(status_code=404, detail="Message not found")
+        if msg_row["role"] != "assistant":
+            raise HTTPException(status_code=400, detail="Only assistant messages can be sent")
+
+        user_phone_row = await conn.fetchrow(
+            """
+            SELECT internal_json FROM messages
+            WHERE conversation_id = $1 AND role = 'user'
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            conversation_id,
+        )
+
+    import orjson
+    from velox.adapters.whatsapp.client import get_whatsapp_client
+
+    def _pj(raw: Any) -> dict[str, Any]:
+        if raw is None:
+            return {}
+        if isinstance(raw, dict):
+            return raw
+        if isinstance(raw, (str, bytes, bytearray)):
+            try:
+                v = orjson.loads(raw)
+                return v if isinstance(v, dict) else {}
+            except Exception:
+                return {}
+        return {}
+
+    internal = _pj(msg_row["internal_json"])
+    if not internal.get("send_blocked") and not internal.get("approval_pending"):
+        return {"status": "already_sent", "message_id": str(message_id)}
+
+    phone = str(conv_row["phone_display"] or "")
+    if not phone or "*" in phone:
+        user_internal = _pj(user_phone_row["internal_json"] if user_phone_row else None)
+        wa_id = user_internal.get("wa_id") or ""
+        if wa_id:
+            phone = wa_id
+    if not phone or "*" in phone:
+        raise HTTPException(
+            status_code=400,
+            detail="Bu konusma icin gercek telefon numarasi bulunamadi.",
+        )
+
+    whatsapp_client = get_whatsapp_client()
+    try:
+        await whatsapp_client.send_text_message(to=phone, body=str(msg_row["content"]), force=True)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"WhatsApp gonderilemedi: {exc}") from exc
+
+    internal["send_blocked"] = False
+    internal["approval_pending"] = False
+    internal["approved_by"] = user.username
+    async with db.acquire() as conn:
+        await conn.execute(
+            "UPDATE messages SET internal_json = $1 WHERE id = $2",
+            orjson.dumps(internal).decode(),
+            message_id,
+        )
+
+    return {"status": "sent", "message_id": str(message_id), "conversation_id": str(conversation_id)}
+
+
+@router.post("/conversations/{conversation_id}/human-override")
+async def toggle_human_override(
+    conversation_id: UUID,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+    enable: bool = Query(..., description="true = insan devri, false = AI modu"),
+) -> dict[str, Any]:
+    """Toggle human override for a conversation.
+
+    When enabled, the system still generates AI replies but does NOT send them
+    via WhatsApp — the admin can review and manually send if desired.
+    """
+    check_permission(user, "conversations:read")
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, hotel_id, phone_hash, is_active FROM conversations WHERE id = $1",
+            conversation_id,
+        )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not row["is_active"]:
+        raise HTTPException(status_code=400, detail="Kapali konusmalarda insan devri ayarlanamaz.")
+
+    repository = ConversationRepository()
+    await repository.set_human_override(conversation_id, enable)
+
+    # Sync to Redis for fast webhook-level lookup
+    redis_client = getattr(request.app.state, "redis", None)
+    if redis_client is not None:
+        redis_key = f"velox:human_override:{row['phone_hash']}"
+        try:
+            if enable:
+                await redis_client.set(redis_key, "1")
+            else:
+                await redis_client.delete(redis_key)
+        except Exception:
+            pass  # Best-effort; DB is the source of truth
+
+    import structlog
+    structlog.get_logger(__name__).info(
+        "human_override_toggled",
+        conversation_id=str(conversation_id),
+        enabled=enable,
+        toggled_by=user.username,
+    )
+    return {
+        "status": "human_override_enabled" if enable else "human_override_disabled",
+        "conversation_id": str(conversation_id),
+        "human_override": enable,
+    }
 
 
 @router.post("/conversations/reset-by-phone")

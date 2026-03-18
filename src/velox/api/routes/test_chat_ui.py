@@ -20,6 +20,81 @@ TEST_CHAT_HTML = (
 </head>
 <body>
 <div id="toast" class="toast info" role="status" aria-live="polite"></div>
+<div id="conv-detail-overlay" class="conv-modal-overlay hidden" role="dialog" aria-modal="true" aria-label="Konusma detayi">
+  <div class="conv-modal">
+    <div class="conv-modal-header">
+      <strong>Konusma Detayi</strong>
+      <button class="conv-modal-close" id="conv-modal-close" type="button" aria-label="Kapat">&times;</button>
+    </div>
+    <div class="conv-modal-meta" id="conv-modal-meta"></div>
+    <div class="conv-modal-messages" id="conv-modal-messages"></div>
+    <div class="conv-modal-json-toggle">
+      <button class="btn btn-ghost btn-mini" id="conv-modal-json-btn" type="button">Sistem Detaylari (JSON)</button>
+    </div>
+    <div class="conv-modal-json hidden" id="conv-modal-json"></div>
+    <div class="conv-modal-feedback hidden" id="conv-modal-feedback">
+      <div class="conv-modal-feedback-title">Olumsuz Geri Bildirim</div>
+      <div class="field-stack">
+        <label for="conv-fb-category">Kategori</label>
+        <select id="conv-fb-category" class="debug-select"></select>
+      </div>
+      <div class="field-stack">
+        <label for="conv-fb-gold">Dogru yanit ne olmali?</label>
+        <textarea id="conv-fb-gold" class="debug-textarea" rows="3" placeholder="Ideal cevabi yazin..."></textarea>
+      </div>
+      <div class="field-stack">
+        <label for="conv-fb-notes">Admin Notu (opsiyonel)</label>
+        <textarea id="conv-fb-notes" class="debug-textarea" rows="2" placeholder="Ek not..."></textarea>
+      </div>
+      <button class="btn btn-save btn-block mt-sm" id="conv-fb-submit" type="button">Geri Bildirimi Kaydet</button>
+      <div class="feedback-muted mt-xs" id="conv-fb-result"></div>
+    </div>
+    <div class="conv-modal-send" id="conv-modal-send">
+      <textarea id="conv-modal-msg-input" rows="1" placeholder="Mesaj yazin..."></textarea>
+      <button class="btn btn-primary" id="conv-modal-send-btn" type="button">Gonder</button>
+    </div>
+    <div class="conv-modal-actions" id="conv-modal-actions"></div>
+  </div>
+</div>
+<dialog id="faq-dialog" class="faq-dialog">
+  <div class="faq-dialog-card">
+    <div class="faq-dialog-head">
+      <h3>SSS'e Ekle</h3>
+      <button id="faq-dialog-close" type="button" aria-label="Kapat">&times;</button>
+    </div>
+    <form id="faq-dialog-form">
+      <div class="field-stack">
+        <label for="faq-topic">Konu</label>
+        <input id="faq-topic" class="debug-input" type="text" required maxlength="120" placeholder="Ornegin: Odada utu var mi?">
+      </div>
+      <div class="field-stack">
+        <label for="faq-question-tr">Soru (TR)</label>
+        <textarea id="faq-question-tr" class="debug-textarea" rows="3" maxlength="500"></textarea>
+      </div>
+      <div class="field-stack">
+        <label for="faq-answer-tr">Cevap (TR)</label>
+        <textarea id="faq-answer-tr" class="debug-textarea" rows="4" required maxlength="4000"></textarea>
+      </div>
+      <div class="field-stack">
+        <label for="faq-question-en">Soru (EN)</label>
+        <textarea id="faq-question-en" class="debug-textarea" rows="3" maxlength="500"></textarea>
+      </div>
+      <div class="field-stack">
+        <label for="faq-answer-en">Cevap (EN)</label>
+        <textarea id="faq-answer-en" class="debug-textarea" rows="4" required maxlength="4000"></textarea>
+      </div>
+      <div class="field-stack">
+        <label for="faq-status">Durum</label>
+        <select id="faq-status" class="debug-select">
+          <option value="DRAFT">Taslak (DRAFT)</option>
+          <option value="ACTIVE" selected>Aktif (ACTIVE)</option>
+        </select>
+      </div>
+      <button class="btn btn-save btn-block mt-md" type="submit">SSS Kaydet</button>
+    </form>
+    <div id="faq-dialog-result" class="meta-box hidden mt-sm"></div>
+  </div>
+</dialog>
 <div class="app">
   <div class="header">
     <div class="header-brand">
@@ -47,6 +122,15 @@ TEST_CHAT_HTML = (
         <select id="import-select" class="header-select header-select-import">
           <option value="">Yeni Test</option>
         </select>
+      </div>
+      <div class="field">
+        <label>Mod</label>
+        <div class="mode-switch" id="mode-switch">
+          <button class="mode-btn" data-mode="test" type="button" title="Test: mesaj alinir, AI cevap uretir ama gondermez">Test</button>
+          <button class="mode-btn" data-mode="ai" type="button" title="AI: mesaj alinir, AI cevap uretir ve gonderir">AI</button>
+          <button class="mode-btn" data-mode="approval" type="button" title="Onay: AI cevap uretir, admin onaylayana kadar gondermez">Onay</button>
+          <button class="mode-btn" data-mode="off" type="button" title="Off: sadece veri kaydedilir, cevap uretilmez">Off</button>
+        </div>
       </div>
       <button class="btn btn-ghost" id="refresh-imports" type="button" aria-label="Import listesini yenile">Importlar</button>
       <button class="btn btn-reset" id="reset-btn" type="button" aria-label="Konusmayi sifirla">Reset</button>
@@ -87,6 +171,18 @@ TEST_CHAT_HTML = (
         <div class="debug-section">
           <h3>Aktif Kaynak</h3>
           <div class="source-badge" id="source-banner">Canli test gorunumu aktif.</div>
+        </div>
+        <div class="debug-section">
+          <div class="studio-head">
+            <div>
+              <h3>Canli Mesaj Akisi</h3>
+              <p>Gercek misafirlerden gelen son mesajlar ve AI taslak yanitlari.</p>
+            </div>
+            <button class="btn btn-ghost btn-mini" id="live-feed-refresh" type="button">Yenile</button>
+          </div>
+          <div id="live-feed-container">
+            <div class="feedback-muted">Yukleniyor...</div>
+          </div>
         </div>
         <div class="debug-section">
           <h3>Conversation State</h3>
@@ -135,7 +231,7 @@ TEST_CHAT_HTML = (
             <div class="feedback-muted mt-xs" id="feedback-rating-help">-</div>
             <div class="meta-box mt-sm" id="feedback-meta"></div>
             <div class="field-stack">
-              <label for="feedback-category">Hata Kategorizasyonu</label>
+              <label for="feedback-category" id="lbl-category">Hata Kategorizasyonu</label>
               <select id="feedback-category" class="debug-select"></select>
               <div class="helper-card" id="feedback-category-help"><strong>Secim Yardimi</strong>Ana problem turunu secin; buna gore etiket onerileri hazirlanir.</div>
             </div>
@@ -144,7 +240,7 @@ TEST_CHAT_HTML = (
               <input id="feedback-custom-category" class="debug-input" type="text" placeholder="Kategori aciklamasi">
             </div>
             <div class="field-stack">
-              <label>Hata Etiketleri</label>
+              <label id="lbl-tags">Hata Etiketleri</label>
               <div class="tag-toolbar">
                 <div class="feedback-muted" id="feedback-tags-note">Kategori secince ilgili etiketler otomatik onerilir.</div>
                 <button class="btn btn-ghost btn-mini" id="apply-tag-suggestions" type="button">Onerileri Uygula</button>
@@ -156,7 +252,7 @@ TEST_CHAT_HTML = (
               <input id="feedback-custom-tags" class="debug-input" type="text" placeholder="Virgul ile ayirin">
             </div>
             <div class="field-stack">
-              <label for="feedback-gold-standard">Altin Standart</label>
+              <label for="feedback-gold-standard" id="lbl-gold">Altin Standart</label>
               <textarea id="feedback-gold-standard" class="debug-textarea" placeholder="Dogru bilgiyi veya ideal cevabi yazin..."></textarea>
               <div class="inline-note">1-4 puan icin zorunludur.</div>
             </div>
@@ -172,6 +268,18 @@ TEST_CHAT_HTML = (
             </div>
             <button class="btn btn-save btn-block mt-md" id="feedback-submit" type="button">Geri Bildirimi Kaydet</button>
             <div class="meta-box hidden mt-sm" id="feedback-result" aria-live="polite"></div>
+          </div>
+        </div>
+        <div class="debug-section">
+          <div class="studio-head">
+            <div>
+              <h3>Feedback Metrikleri</h3>
+              <p>Toplam geri bildirim, puan dagilimi, kategori ve dil bazli ozet istatistikler.</p>
+            </div>
+            <button class="btn btn-ghost btn-mini" id="metrics-refresh" type="button">Yenile</button>
+          </div>
+          <div id="metrics-container">
+            <div class="feedback-muted">Metrikler yukleniyor...</div>
           </div>
         </div>
         <div class="debug-section">

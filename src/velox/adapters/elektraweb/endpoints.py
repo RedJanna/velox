@@ -735,6 +735,7 @@ def _needs_offer_refresh(error: httpx.HTTPStatusError) -> bool:
             "agency not found",
             "price quote",
             "must be",
+            "no price",
         )
     )
 
@@ -878,6 +879,40 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
     """Create reservation in Elektraweb with booking API primary and HotelAdvisor fallback."""
     client = get_elektraweb_client()
     last_error: Exception | None = None
+
+    # Proactively refresh offer identifiers to correct any stale or hallucinated IDs
+    # (rate_type_id, rate_code_id, board_type_id, price_agency_id) from the hold draft.
+    refreshed_draft = await _refresh_offer_identifiers(hotel_id, draft)
+    if refreshed_draft is not None:
+        original_room_type_id = _safe_int(draft.get("room_type_id"))
+        refreshed_room_type_id = _safe_int(refreshed_draft.get("room_type_id"))
+        if refreshed_room_type_id != original_room_type_id:
+            logger.error(
+                "elektraweb_room_type_changed_during_refresh",
+                hotel_id=hotel_id,
+                original_room_type_id=original_room_type_id,
+                refreshed_room_type_id=refreshed_room_type_id,
+                context="proactive_refresh",
+            )
+            raise RuntimeError(
+                f"Room type changed during offer refresh: "
+                f"{original_room_type_id} -> {refreshed_room_type_id}. "
+                f"Reservation creation aborted to prevent wrong room type booking."
+            )
+        logger.info(
+            "elektraweb_proactive_offer_refresh_applied",
+            hotel_id=hotel_id,
+            rate_type_id=refreshed_draft.get("rate_type_id"),
+            rate_code_id=refreshed_draft.get("rate_code_id"),
+            board_type_id=refreshed_draft.get("board_type_id"),
+        )
+        draft = refreshed_draft
+    else:
+        logger.warning(
+            "elektraweb_proactive_offer_refresh_unavailable",
+            hotel_id=hotel_id,
+            room_type_id=_safe_int(draft.get("room_type_id")),
+        )
 
     booking_api_payload = _build_booking_api_create_payload(hotel_id, draft)
 

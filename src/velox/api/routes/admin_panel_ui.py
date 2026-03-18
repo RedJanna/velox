@@ -8,6 +8,7 @@ import json
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
+from velox.api.routes.admin_panel_holds_assets import ADMIN_HOLDS_SCRIPT, ADMIN_HOLDS_STYLE
 from velox.api.routes.admin_panel_ui_assets import ADMIN_PANEL_SCRIPT, ADMIN_PANEL_STYLE
 from velox.config.settings import settings
 
@@ -31,7 +32,8 @@ def render_admin_panel_html() -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>NexlumeAI Admin Panel</title>
-  <style>{ADMIN_PANEL_STYLE}</style>
+  <style>{ADMIN_PANEL_STYLE}
+{ADMIN_HOLDS_STYLE}</style>
 </head>
 <body>
   <div id="toast" class="toast info" role="status" aria-live="polite"></div>
@@ -241,6 +243,7 @@ def render_admin_panel_html() -> str:
                 <div><h3>Konuşma Listesi</h3><p>Filtreleri sade tutun, riskli olanları hızlıca açın.</p></div>
               </div>
               <form id="conversationFilters" class="toolbar">
+                <label class="toolbar-check"><input name="active_only" type="checkbox" checked> Sadece aktif</label>
                 <select name="status" aria-label="Konusma durumu">
                   <option value="">Tum durumlar</option>
                   <option value="GREETING">GREETING</option>
@@ -254,7 +257,7 @@ def render_admin_panel_html() -> str:
               </form>
               <div class="table-shell">
                 <table>
-                  <thead><tr><th>Kullanici</th><th>Durum</th><th>Intent</th><th>Risk</th><th>Mesaj</th><th></th></tr></thead>
+                  <thead><tr><th>Kullanici</th><th>Durum</th><th>Intent</th><th>Risk</th><th>Mesaj</th><th>Aksiyon</th></tr></thead>
                   <tbody id="conversationTableBody"></tbody>
                 </table>
               </div>
@@ -266,42 +269,120 @@ def render_admin_panel_html() -> str:
         </section>
 
         <section data-view="holds" class="section-grid" hidden>
-          <div class="split">
-            <article class="module-card">
+          <div class="holds-tabs">
+            <button class="holds-tab is-active" data-holds-tab="stay">Konaklama</button>
+            <button class="holds-tab" data-holds-tab="restaurant">Restoran</button>
+            <button class="holds-tab" data-holds-tab="transfer">Transfer</button>
+          </div>
+
+          <div data-holds-panel="stay" class="holds-panel">
+            <div class="split">
+              <article class="module-card">
+                <div class="module-header">
+                  <div><h3>Konaklama Talepleri</h3><p>Otel rezervasyon onay, red ve takip islemleri.</p></div>
+                  <button class="inline-button primary" data-stay-toggle-create aria-label="Yeni konaklama rezervasyonu olustur">Yeni Rezervasyon</button>
+                </div>
+                <form id="stayHoldFilters" class="toolbar">
+                  <div class="filter-chips" id="stayStatusChips"></div>
+                  <input name="reservation_no" placeholder="Rez. No ile ara" aria-label="Rezervasyon numarasi aramasi">
+                  <button class="primary" type="submit">Ara</button>
+                </form>
+                <div class="table-shell">
+                  <table class="holds-table"><thead><tr>
+                    <th>Ac</th><th>Rez. No</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Tarih</th><th>Tutar</th>
+                  </tr></thead><tbody id="stayHoldTableBody"></tbody></table>
+                </div>
+              </article>
+              <article id="stayHoldDetail" class="module-card">
+                <div class="empty-state"><p>Detay icin listeden bir kayit secin.</p></div>
+              </article>
+            </div>
+            <article id="stayHoldCreatePanel" class="module-card" hidden>
               <div class="module-header">
-                <div><h3>Birleşik Hold Masası</h3><p>Konaklama, restoran ve transfer taleplerini tek kurgu ile yönetin.</p></div>
+                <div><h3>Konaklama Rezervasyonu Olustur</h3><p>Bilgileri adim adim girin.</p></div>
+                <button class="inline-button secondary" data-stay-toggle-create>Kapat</button>
               </div>
-              <form id="holdFilters" class="toolbar">
-                <select name="hold_type" aria-label="Hold tipi">
-                  <option value="">Tum tipler</option>
-                  <option value="stay">Stay</option>
-                  <option value="restaurant">Restaurant</option>
-                  <option value="transfer">Transfer</option>
-                </select>
-                <select name="status" aria-label="Hold durumu">
-                  <option value="">Tum statuler</option>
-                  <option value="PENDING_APPROVAL">PENDING_APPROVAL</option>
-                  <option value="PMS_PENDING">PMS_PENDING</option>
-                  <option value="PMS_CREATED">PMS_CREATED</option>
-                  <option value="PAYMENT_PENDING">PAYMENT_PENDING</option>
-                  <option value="PAYMENT_EXPIRED">PAYMENT_EXPIRED</option>
-                  <option value="MANUAL_REVIEW">MANUAL_REVIEW</option>
-                  <option value="PMS_FAILED">PMS_FAILED</option>
-                  <option value="APPROVED">APPROVED</option>
-                  <option value="CONFIRMED">CONFIRMED</option>
-                  <option value="REJECTED">REJECTED</option>
-                </select>
-                <button class="primary" type="submit">Filtrele</button>
-              </form>
-              <div class="table-shell">
-                <table class="holds-table">
-                  <thead><tr><th>Ac</th><th>Hold</th><th>Durum</th><th>Rezervasyon Ozeti</th><th>Zaman</th><th>Teknik Durum</th></tr></thead>
-                  <tbody id="holdTableBody"></tbody>
-                </table>
-              </div>
+              <div class="wizard-steps" id="stayWizardSteps"></div>
+              <div id="stayWizardBody" class="wizard-body"></div>
             </article>
-            <article id="holdDetail" class="module-card">
-              <div class="empty-state"><p>Detay ve aksiyonlar icin listeden bir hold secin.</p></div>
+          </div>
+
+          <div data-holds-panel="restaurant" class="holds-panel" hidden>
+            <div class="split">
+              <article class="module-card">
+                <div class="module-header">
+                  <div><h3>Restoran Talepleri</h3><p>Restoran rezervasyon onay ve red islemleri.</p></div>
+                  <button class="inline-button primary" data-restaurant-toggle-create aria-label="Yeni restoran rezervasyonu olustur">Yeni Rezervasyon</button>
+                </div>
+                <form id="restaurantHoldFilters" class="toolbar">
+                  <div class="filter-chips" id="restaurantStatusChips"></div>
+                  <button class="primary" type="submit">Filtrele</button>
+                </form>
+                <div class="table-shell">
+                  <table class="holds-table"><thead><tr>
+                    <th>Ac</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Tarih/Saat</th><th>Kisi</th>
+                  </tr></thead><tbody id="restaurantHoldTableBody"></tbody></table>
+                </div>
+              </article>
+              <article id="restaurantHoldDetail" class="module-card">
+                <div class="empty-state"><p>Detay icin listeden bir kayit secin.</p></div>
+              </article>
+            </div>
+            <article id="restaurantHoldCreatePanel" class="module-card" hidden>
+              <div class="module-header">
+                <div><h3>Restoran Rezervasyonu Olustur</h3><p>Bilgileri girin.</p></div>
+                <button class="inline-button secondary" data-restaurant-toggle-create>Kapat</button>
+              </div>
+              <form id="restaurantCreateForm" class="field-grid">
+                <div class="field"><label for="rc-date">Tarih</label><input id="rc-date" name="date" type="date" required></div>
+                <div class="field"><label for="rc-time">Saat</label><input id="rc-time" name="time" type="time" required></div>
+                <div class="field"><label for="rc-guest">Misafir Adi</label><input id="rc-guest" name="guest_name" required></div>
+                <div class="field"><label for="rc-pax">Kisi Sayisi</label><input id="rc-pax" name="pax" type="number" min="1" required></div>
+                <div class="field"><label for="rc-phone">Telefon</label><input id="rc-phone" name="phone" placeholder="+905XXXXXXXXX" required></div>
+                <div class="field"><label for="rc-area">Alan</label><select id="rc-area" name="area"><option value="outdoor">Dis Mekan</option><option value="indoor">Ic Mekan</option></select></div>
+                <div class="field full"><label for="rc-notes">Notlar</label><textarea id="rc-notes" name="notes" style="min-height:80px"></textarea></div>
+                <div class="field full"><button class="inline-button primary" type="submit">Restoran Rezervasyonu Olustur</button></div>
+              </form>
+            </article>
+          </div>
+
+          <div data-holds-panel="transfer" class="holds-panel" hidden>
+            <div class="split">
+              <article class="module-card">
+                <div class="module-header">
+                  <div><h3>Transfer Talepleri</h3><p>Transfer onay ve red islemleri.</p></div>
+                  <button class="inline-button primary" data-transfer-toggle-create aria-label="Yeni transfer talebi olustur">Yeni Transfer</button>
+                </div>
+                <form id="transferHoldFilters" class="toolbar">
+                  <div class="filter-chips" id="transferStatusChips"></div>
+                  <button class="primary" type="submit">Filtrele</button>
+                </form>
+                <div class="table-shell">
+                  <table class="holds-table"><thead><tr>
+                    <th>Ac</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Guzergah</th><th>Tarih</th>
+                  </tr></thead><tbody id="transferHoldTableBody"></tbody></table>
+                </div>
+              </article>
+              <article id="transferHoldDetail" class="module-card">
+                <div class="empty-state"><p>Detay icin listeden bir kayit secin.</p></div>
+              </article>
+            </div>
+            <article id="transferHoldCreatePanel" class="module-card" hidden>
+              <div class="module-header">
+                <div><h3>Transfer Talebi Olustur</h3><p>Bilgileri girin.</p></div>
+                <button class="inline-button secondary" data-transfer-toggle-create>Kapat</button>
+              </div>
+              <form id="transferCreateForm" class="field-grid">
+                <div class="field"><label for="tc-date">Tarih</label><input id="tc-date" name="date" type="date" required></div>
+                <div class="field"><label for="tc-time">Saat</label><input id="tc-time" name="time" type="time" required></div>
+                <div class="field"><label for="tc-guest">Misafir Adi</label><input id="tc-guest" name="guest_name" required></div>
+                <div class="field"><label for="tc-pax">Kisi Sayisi</label><input id="tc-pax" name="pax" type="number" min="1" required></div>
+                <div class="field"><label for="tc-phone">Telefon</label><input id="tc-phone" name="phone" placeholder="+905XXXXXXXXX" required></div>
+                <div class="field"><label for="tc-from">Kalkis</label><input id="tc-from" name="pickup_location" required></div>
+                <div class="field"><label for="tc-to">Varis</label><input id="tc-to" name="dropoff_location" required></div>
+                <div class="field full"><label for="tc-notes">Notlar</label><textarea id="tc-notes" name="notes" style="min-height:80px"></textarea></div>
+                <div class="field full"><button class="inline-button primary" type="submit">Transfer Talebi Olustur</button></div>
+              </form>
             </article>
           </div>
         </section>
@@ -519,7 +600,8 @@ def render_admin_panel_html() -> str:
   </dialog>
 
   <script>window.ADMIN_PANEL_CONFIG = {config_json};</script>
-  <script>{ADMIN_PANEL_SCRIPT}</script>
+  <script>{ADMIN_PANEL_SCRIPT}
+{ADMIN_HOLDS_SCRIPT}</script>
 </body>
 </html>
 """

@@ -463,6 +463,7 @@ async def test_create_reservation_uses_booking_api_payload(monkeypatch: pytest.M
     mock_client = AsyncMock()
     mock_client.post.return_value = {"reservation-id": "RSV-1", "voucher-no": "V-1"}
     monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    monkeypatch.setattr(endpoints, "_refresh_offer_identifiers", AsyncMock(return_value=None))
 
     draft = {
         "guest_name": "Test User",
@@ -500,6 +501,7 @@ async def test_create_reservation_child_payload_includes_child_guest_and_bucket_
     mock_client = AsyncMock()
     mock_client.post.return_value = {"reservation-id": "RSV-CHD-1", "voucher-no": "V-CHD-1"}
     monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    monkeypatch.setattr(endpoints, "_refresh_offer_identifiers", AsyncMock(return_value=None))
 
     draft = {
         "guest_name": "Test User",
@@ -546,6 +548,7 @@ async def test_create_reservation_uses_pms_pax_override_counts(monkeypatch: pyte
     mock_client = AsyncMock()
     mock_client.post.return_value = {"reservation-id": "RSV-PAX-1", "voucher-no": "V-PAX-1"}
     monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    monkeypatch.setattr(endpoints, "_refresh_offer_identifiers", AsyncMock(return_value=None))
 
     draft = {
         "guest_name": "Test User",
@@ -586,6 +589,7 @@ async def test_create_reservation_uses_explicit_extra_guest_names_when_provided(
     mock_client = AsyncMock()
     mock_client.post.return_value = {"reservation-id": "RSV-NAMES-1", "voucher-no": "V-NAMES-1"}
     monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    monkeypatch.setattr(endpoints, "_refresh_offer_identifiers", AsyncMock(return_value=None))
 
     draft = {
         "guest_name": "Primary Guest",
@@ -756,6 +760,23 @@ def test_create_reservation_refresh_detector_accepts_price_mismatch_errors() -> 
     assert endpoints._is_price_mismatch_error(error) is True
 
 
+def test_create_reservation_refresh_detector_accepts_no_price_found_errors() -> None:
+    """400 'no price found' responses should trigger quote refresh retry path."""
+    request = httpx.Request("POST", "https://bookingapi.elektraweb.com/hotel/21966/createReservation")
+    error = httpx.HTTPStatusError(
+        "no-price-found",
+        request=request,
+        response=httpx.Response(
+            400,
+            json={"success": False, "message": "no price where found to match with the body parameters"},
+            request=request,
+        ),
+    )
+
+    assert endpoints._needs_offer_refresh(error) is True
+    assert endpoints._is_price_mismatch_error(error) is False
+
+
 @pytest.mark.asyncio
 async def test_create_reservation_agency_error_without_refresh_falls_back_to_hoteladvisor(
     monkeypatch: pytest.MonkeyPatch,
@@ -843,6 +864,7 @@ async def test_create_reservation_uses_second_refresh_after_price_mismatch(
         "_refresh_offer_identifiers",
         AsyncMock(
             side_effect=[
+                # Proactive refresh (corrects stale IDs before first attempt)
                 {
                     "guest_name": "Test User",
                     "phone": "+905301112233",
@@ -859,6 +881,24 @@ async def test_create_reservation_uses_second_refresh_after_price_mismatch(
                     "currency_display": "EUR",
                     "cancel_policy_type": "FREE_CANCEL",
                 },
+                # First error recovery refresh (after agency error)
+                {
+                    "guest_name": "Test User",
+                    "phone": "+905301112233",
+                    "checkin_date": "2026-10-01",
+                    "checkout_date": "2026-10-03",
+                    "adults": 2,
+                    "chd_ages": [12, 11],
+                    "room_type_id": 396095,
+                    "board_type_id": 44512,
+                    "rate_type_id": 24170,
+                    "rate_code_id": 183666,
+                    "price_agency_id": 247664,
+                    "total_price_eur": "504.0",
+                    "currency_display": "EUR",
+                    "cancel_policy_type": "FREE_CANCEL",
+                },
+                # Second error recovery refresh (after price mismatch)
                 {
                     "guest_name": "Test User",
                     "phone": "+905301112233",
@@ -944,6 +984,7 @@ async def test_create_reservation_uses_final_price_override_after_second_refresh
         "_refresh_offer_identifiers",
         AsyncMock(
             side_effect=[
+                # Proactive refresh (corrects stale IDs before first attempt)
                 {
                     "guest_name": "Test User",
                     "phone": "+905301112233",
@@ -959,6 +1000,23 @@ async def test_create_reservation_uses_final_price_override_after_second_refresh
                     "total_price_eur": "1501.5",
                     "currency_display": "EUR",
                 },
+                # First error recovery refresh (after agency error)
+                {
+                    "guest_name": "Test User",
+                    "phone": "+905301112233",
+                    "checkin_date": "2026-10-01",
+                    "checkout_date": "2026-10-03",
+                    "adults": 2,
+                    "chd_ages": [12, 11],
+                    "room_type_id": 438550,
+                    "board_type_id": 44512,
+                    "rate_type_id": 24178,
+                    "rate_code_id": 183666,
+                    "price_agency_id": 247664,
+                    "total_price_eur": "1501.5",
+                    "currency_display": "EUR",
+                },
+                # Second error recovery refresh (after price mismatch)
                 {
                     "guest_name": "Test User",
                     "phone": "+905301112233",

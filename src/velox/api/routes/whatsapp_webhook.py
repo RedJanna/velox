@@ -14,7 +14,8 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, s
 from fastapi.responses import PlainTextResponse
 
 from velox.adapters.elektraweb.endpoints import CHILD_OCCUPANCY_UNVERIFIED
-from velox.adapters.whatsapp.client import get_whatsapp_client
+from velox.core.burst_buffer import AggregatedMessage, BufferedMessage, enqueue_or_fallback
+from velox.adapters.whatsapp.client import WhatsAppSendBlockedError, get_whatsapp_client
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.adapters.whatsapp.webhook import IncomingMessage, WhatsAppWebhook
 from velox.config.constants import CONTEXT_WINDOW_MAX_MESSAGES, SUPPORTED_LANGUAGES
@@ -77,94 +78,155 @@ TR_NO_AVAILABLE_ROOM_FOR_QUOTE = (
 )
 PRICE_ROUNDING_INCREMENT = Decimal("5")
 SUPPORTED_LANGUAGE_CODES = set(SUPPORTED_LANGUAGES)
+# ── Language hint dictionaries (expanded) ─────────────────────────
+# Each tuple contains common greetings, polite words, travel/hotel
+# vocabulary AND short everyday words so even a single-word message
+# like "hello" or "привет" triggers the correct language.
+
 TURKISH_LANGUAGE_HINTS = (
-    "ve",
-    "icin",
-    "lutfen",
-    "merhaba",
-    "rezervasyon",
-    "otel",
-    "fiyat",
-    "kisi",
-    "kişi",
+    # greetings & polite
+    "merhaba", "selam", "hosgeldiniz", "hos geldiniz", "gunaydin",
+    "iyi gunler", "iyi aksamlar", "tesekkurler", "tesekkur",
+    "lutfen", "sagol", "sagolun", "evet", "hayir", "tamam",
+    # travel & hotel
+    "rezervasyon", "otel", "fiyat", "oda", "kahvalti", "havaalani",
+    "transfer", "gece", "gecelik", "konaklama", "giris", "cikis",
+    "tarih", "kisi", "kişi", "yetiskin", "cocuk", "iptal",
+    # connectors & common
+    "ve", "icin", "bir", "bu", "ne", "nasil", "var", "yok",
+    "istiyorum", "bilgi", "musait", "bos",
 )
 ENGLISH_LANGUAGE_HINTS = (
-    "i",
-    "need",
-    "please",
-    "hotel",
-    "booking",
-    "price",
-    "checkin",
-    "checkout",
-    "airport",
-    "transfer",
+    # greetings & polite
+    "hello", "hi", "hey", "good morning", "good evening", "good afternoon",
+    "good night", "thanks", "thank you", "please", "yes", "no", "ok", "okay",
+    "sorry", "excuse me", "welcome", "bye", "goodbye",
+    # travel & hotel
+    "hotel", "room", "booking", "reservation", "price", "rate", "night",
+    "checkin", "check-in", "checkout", "check-out", "airport", "transfer",
+    "breakfast", "pool", "spa", "beach", "available", "availability",
+    "cancel", "cancellation", "guest", "adult", "child", "children",
+    # common verbs & words
+    "i", "you", "we", "need", "want", "would", "like", "can", "could",
+    "have", "do", "is", "are", "the", "for", "how", "much", "when",
+    "what", "where", "my", "your",
 )
 GERMAN_LANGUAGE_HINTS = (
-    "hallo",
-    "bitte",
-    "zimmer",
-    "preis",
-    "buchung",
-    "flughafen",
-    "transfer",
-    "fruhstuck",
+    # greetings & polite
+    "hallo", "guten morgen", "guten tag", "guten abend", "gute nacht",
+    "danke", "bitte", "ja", "nein", "entschuldigung", "tschuss",
+    "willkommen", "auf wiedersehen",
+    # travel & hotel
+    "zimmer", "preis", "buchung", "reservierung", "ubernachtung",
+    "flughafen", "transfer", "fruhstuck", "strand", "schwimmbad",
+    "verfugbar", "stornierung", "stornieren", "anreise", "abreise",
+    "erwachsene", "kinder", "nacht",
+    # common
+    "ich", "wir", "sie", "mochte", "haben", "ist", "ein", "eine",
+    "fur", "wie", "viel", "wann", "wo", "das", "der", "die",
 )
 ARABIC_LANGUAGE_HINTS = (
-    "حجز",
-    "غرفة",
-    "سعر",
-    "مطار",
-    "نقل",
+    # greetings & polite
+    "مرحبا", "اهلا", "سلام", "صباح الخير", "مساء الخير",
+    "شكرا", "من فضلك", "نعم", "لا", "مع السلامة",
+    # travel & hotel
+    "حجز", "غرفة", "فندق", "سعر", "ليلة", "مطار", "نقل",
+    "فطور", "شاطئ", "مسبح", "متاح", "الغاء", "وصول", "مغادرة",
+    "بالغ", "طفل", "اطفال",
+    # common
+    "انا", "نحن", "اريد", "كم", "متى", "اين", "هل", "كيف",
+)
+RUSSIAN_LANGUAGE_HINTS = (
+    # greetings & polite
+    "привет", "здравствуйте", "доброе утро", "добрый день",
+    "добрый вечер", "спасибо", "пожалуйста", "да", "нет",
+    "извините", "до свидания",
+    # travel & hotel
+    "отель", "гостиница", "номер", "бронирование", "бронь",
+    "цена", "стоимость", "ночь", "аэропорт", "трансфер",
+    "завтрак", "бассейн", "пляж", "свободно", "отмена",
+    "заезд", "выезд", "взрослый", "ребенок", "дети",
+    # common
+    "я", "мы", "вы", "хочу", "нужно", "можно", "есть",
+    "сколько", "когда", "где", "как", "мне", "нам",
 )
 SPANISH_LANGUAGE_HINTS = (
-    "hola",
-    "por favor",
-    "habitacion",
-    "precio",
-    "reserva",
-    "aeropuerto",
-    "traslado",
-    "desayuno",
+    # greetings & polite
+    "hola", "buenos dias", "buenas tardes", "buenas noches",
+    "gracias", "por favor", "si", "no", "perdon", "disculpe",
+    "bienvenido", "adios", "hasta luego",
+    # travel & hotel
+    "habitacion", "hotel", "precio", "reserva", "reservacion",
+    "noche", "aeropuerto", "traslado", "transfer", "desayuno",
+    "piscina", "playa", "disponible", "cancelacion", "cancelar",
+    "llegada", "salida", "adulto", "nino", "ninos",
+    # common
+    "yo", "nosotros", "quiero", "necesito", "puedo", "tiene",
+    "cuanto", "cuando", "donde", "como", "el", "la", "un", "una",
+    "para", "con",
 )
 FRENCH_LANGUAGE_HINTS = (
-    "bonjour",
-    "chambre",
-    "prix",
-    "reservation",
-    "aeroport",
-    "transfert",
-    "petit dejeuner",
+    # greetings & polite
+    "bonjour", "bonsoir", "bonne nuit", "salut", "merci",
+    "s'il vous plait", "sil vous plait", "oui", "non",
+    "excusez-moi", "bienvenue", "au revoir",
+    # travel & hotel
+    "chambre", "hotel", "prix", "reservation", "nuit", "nuitee",
+    "aeroport", "transfert", "petit dejeuner", "piscine", "plage",
+    "disponible", "annulation", "annuler", "arrivee", "depart",
+    "adulte", "enfant", "enfants",
+    # common
+    "je", "nous", "vous", "voudrais", "besoin", "pouvez",
+    "combien", "quand", "ou", "comment", "le", "la", "un", "une",
+    "pour", "avec",
 )
 CHINESE_LANGUAGE_HINTS = (
-    "酒店",
-    "房间",
-    "价格",
-    "机场",
-    "接送",
+    # greetings & polite
+    "你好", "您好", "早上好", "晚上好", "谢谢", "请", "是", "不",
+    "对不起", "再见",
+    # travel & hotel
+    "酒店", "宾馆", "房间", "预订", "价格", "费用", "晚",
+    "机场", "接送", "早餐", "游泳池", "海滩", "可以", "取消",
+    "入住", "退房", "成人", "儿童", "孩子",
+    # common
+    "我", "我们", "你", "要", "需要", "多少", "什么时候",
+    "哪里", "怎么", "有", "没有",
 )
 HINDI_LANGUAGE_HINTS = (
-    "होटल",
-    "कमरा",
-    "कीमत",
-    "बुकिंग",
-    "एयरपोर्ट",
+    # greetings & polite
+    "नमस्ते", "नमस्कार", "सुप्रभात", "शुभ संध्या",
+    "धन्यवाद", "शुक्रिया", "कृपया", "हां", "नहीं",
+    "माफ कीजिए", "अलविदा",
+    # travel & hotel
+    "होटल", "कमरा", "बुकिंग", "रिज़र्वेशन", "कीमत", "दाम",
+    "रात", "एयरपोर्ट", "हवाई अड्डा", "ट्रांसफर", "नाश्ता",
+    "स्विमिंग पूल", "बीच", "उपलब्ध", "रद्द", "चेक इन",
+    "चेक आउट", "वयस्क", "बच्चा", "बच्चे",
+    # common
+    "मैं", "हम", "आप", "चाहिए", "कितना", "कब", "कहां",
+    "कैसे", "है", "हैं", "मुझे", "हमें",
 )
 PORTUGUESE_LANGUAGE_HINTS = (
-    "ola",
-    "por favor",
-    "quarto",
-    "preco",
-    "reserva",
-    "aeroporto",
-    "transfer",
-    "cafe da manha",
+    # greetings & polite
+    "ola", "bom dia", "boa tarde", "boa noite", "obrigado",
+    "obrigada", "por favor", "sim", "nao", "desculpe",
+    "bem-vindo", "adeus", "ate logo",
+    # travel & hotel
+    "quarto", "hotel", "preco", "reserva", "noite",
+    "aeroporto", "transfer", "translado", "cafe da manha",
+    "piscina", "praia", "disponivel", "cancelamento", "cancelar",
+    "chegada", "saida", "adulto", "crianca", "criancas",
+    # common
+    "eu", "nos", "voce", "quero", "preciso", "posso", "tem",
+    "quanto", "quando", "onde", "como", "o", "a", "um", "uma",
+    "para", "com",
 )
 LANGUAGE_HINTS = {
     "tr": TURKISH_LANGUAGE_HINTS,
     "en": ENGLISH_LANGUAGE_HINTS,
     "de": GERMAN_LANGUAGE_HINTS,
     "ar": ARABIC_LANGUAGE_HINTS,
+    "ru": RUSSIAN_LANGUAGE_HINTS,
     "es": SPANISH_LANGUAGE_HINTS,
     "fr": FRENCH_LANGUAGE_HINTS,
     "zh": CHINESE_LANGUAGE_HINTS,
@@ -1991,6 +2053,7 @@ async def _run_message_pipeline(
     normalized_text: str,
     dispatcher: Any | None = None,
     expected_language: str | None = None,
+    burst_metadata: dict[str, Any] | None = None,
 ) -> LLMResponse:
     """Run message pipeline and return structured LLM response."""
     target_language = (
@@ -2021,7 +2084,9 @@ async def _run_message_pipeline(
     try:
         prompt_builder = get_prompt_builder()
         llm_client = get_llm_client()
-        messages = prompt_builder.build_messages(conversation, normalized_text)
+        messages = prompt_builder.build_messages(
+            conversation, normalized_text, detected_language=target_language, burst_metadata=burst_metadata,
+        )
         tools = get_tool_definitions()
         if dispatcher is not None:
             tool_executor = _build_dispatcher_executor(dispatcher, conversation)
@@ -2150,8 +2215,8 @@ async def _run_message_pipeline(
             parsed.internal_json.next_step = "await_admin_approval"
         _enforce_single_step_collection(parsed)
         return parsed
-    except LLMUnavailableError:
-        logger.warning("llm_unavailable_fallback")
+    except LLMUnavailableError as llm_err:
+        logger.warning("llm_unavailable_fallback", error_detail=str(llm_err)[:500])
         return LLMResponse(
             user_message=_default_reply_message(target_language),
             internal_json=InternalJSON(
@@ -2244,7 +2309,7 @@ async def _create_or_get_conversation(
     new_conversation = Conversation(
         hotel_id=hotel_id,
         phone_hash=phone_hash,
-        phone_display=_mask_phone(incoming.phone),
+        phone_display=incoming.phone,
         language=initial_language,
     )
     return await repository.create(new_conversation)
@@ -2317,17 +2382,40 @@ async def _process_incoming_message(
             risk_flags=next_risk_flags,
         )
 
+        # Check human override before sending
+        human_override = await _is_human_override_active(conversation.phone_hash, conversation.id)
+        if human_override:
+            logger.info(
+                "human_override_send_blocked",
+                conversation_id=str(conversation.id),
+                phone=_mask_phone(incoming.phone),
+            )
+
         message_parts = _extract_user_message_parts(llm_response)
         if not message_parts:
             message_parts = [llm_response.user_message]
 
         for index, raw_message in enumerate(message_parts, start=1):
             reply_text = formatter.truncate(raw_message)
-            await whatsapp_client.send_text_message(to=incoming.phone, body=reply_text)
+            send_blocked = human_override or settings.operation_mode != "ai"
+            if not human_override:
+                try:
+                    await whatsapp_client.send_text_message(to=incoming.phone, body=reply_text)
+                except WhatsAppSendBlockedError:
+                    logger.info(
+                        "whatsapp_reply_blocked_by_mode",
+                        phone=incoming.phone[:3] + "***",
+                        operation_mode=settings.operation_mode,
+                        reply_length=len(reply_text),
+                    )
 
             assistant_internal_json = llm_response.internal_json.model_dump(mode="json")
             assistant_internal_json["message_part_index"] = index
             assistant_internal_json["message_part_total"] = len(message_parts)
+            assistant_internal_json["send_blocked"] = send_blocked
+            assistant_internal_json["human_override_blocked"] = human_override
+            if settings.operation_mode == "approval" or human_override:
+                assistant_internal_json["approval_pending"] = True
 
             assistant_msg = Message(
                 conversation_id=conversation.id,
@@ -2363,6 +2451,225 @@ async def _process_incoming_message(
         )
 
 
+async def _is_human_override_active(
+    phone_hash: str,
+    conversation_id: Any = None,
+    redis_client: Any = None,
+) -> bool:
+    """Check if human override is active — Redis first, then DB fallback."""
+    # Try Redis (fast path)
+    if redis_client is not None:
+        try:
+            val = await redis_client.get(f"velox:human_override:{phone_hash}")
+            if val is not None:
+                return val == "1" or val == b"1"
+        except Exception:
+            pass
+
+    # DB fallback
+    if conversation_id is not None:
+        try:
+            repo = ConversationRepository()
+            return await repo.get_human_override(conversation_id)
+        except Exception:
+            pass
+    return False
+
+
+async def _process_burst_aggregated(
+    aggregated: AggregatedMessage,
+    hotel_id: int,
+    dispatcher: Any,
+    escalation_engine: Any,
+    tools: dict[str, Any],
+    db_pool: Any,
+    redis_client: Any = None,
+) -> None:
+    """Process an aggregated burst payload through the standard pipeline.
+
+    Each original message is stored individually for audit, but the LLM
+    receives a single merged user turn so it can produce one coherent reply.
+    """
+    conversation_repository = ConversationRepository()
+    whatsapp_client = get_whatsapp_client()
+    phone_hash = _hash_phone(aggregated.phone)
+
+    try:
+        # Re-use the first audit context for conversation creation
+        first_audit = aggregated.audit_contexts[0] if aggregated.audit_contexts else {}
+
+        # Build a minimal IncomingMessage for conversation lookup
+        first_incoming = IncomingMessage(
+            message_id=aggregated.message_ids[0],
+            phone=aggregated.phone,
+            display_name=aggregated.display_name,
+            text=aggregated.original_texts[0],
+            timestamp=aggregated.first_timestamp,
+            message_type=aggregated.message_type,
+            phone_number_id=aggregated.phone_number_id,
+            display_phone_number=aggregated.display_phone_number,
+        )
+        conversation = await _create_or_get_conversation(conversation_repository, first_incoming, hotel_id)
+        if conversation.id is None:
+            raise RuntimeError("Conversation id is missing.")
+
+        # Detect language from the combined text
+        combined_normalized = _normalize_text(aggregated.combined_text)
+        detected_language = _detect_message_language(combined_normalized, conversation.language)
+        if conversation.language != detected_language:
+            conversation.language = detected_language
+            await conversation_repository.update_language(conversation.id, detected_language)
+
+        # Store each original message as a separate DB record (audit trail)
+        user_messages: list[Message] = []
+        for i, text in enumerate(aggregated.original_texts):
+            audit = aggregated.audit_contexts[i] if i < len(aggregated.audit_contexts) else first_audit
+            burst_audit = {
+                **audit,
+                "burst_part_index": i + 1,
+                "burst_part_total": aggregated.part_count,
+            }
+            msg = Message(
+                conversation_id=conversation.id,
+                role="user",
+                content=_normalize_text(text),
+                internal_json=burst_audit,
+            )
+            user_messages.append(msg)
+
+        if len(user_messages) == 1:
+            await conversation_repository.add_message(user_messages[0])
+        else:
+            await conversation_repository.add_messages_batch(user_messages)
+
+        conversation.messages = await conversation_repository.get_recent_messages(
+            conversation.id,
+            count=CONTEXT_WINDOW_MAX_MESSAGES,
+        )
+
+        # Mark all original messages as read
+        for mid in aggregated.message_ids:
+            try:
+                await whatsapp_client.mark_as_read(mid)
+            except Exception:
+                pass
+
+        # Build burst metadata for prompt builder
+        burst_metadata: dict[str, Any] | None = None
+        if aggregated.part_count > 1:
+            burst_metadata = {
+                "part_count": aggregated.part_count,
+                "span_seconds": round(aggregated.last_timestamp - aggregated.first_timestamp, 1),
+                "message_ids": aggregated.message_ids,
+            }
+
+        # Run LLM pipeline with the combined text
+        llm_response = await _run_message_pipeline(
+            conversation=conversation,
+            normalized_text=combined_normalized,
+            dispatcher=dispatcher,
+            expected_language=detected_language,
+            burst_metadata=burst_metadata,
+        )
+
+        # State update (same as original pipeline)
+        current_state_value = (
+            str(conversation.current_state.value)
+            if hasattr(conversation.current_state, "value")
+            else str(conversation.current_state or "GREETING")
+        )
+        next_state = str(llm_response.internal_json.state or current_state_value)
+        next_intent = str(llm_response.internal_json.intent or "").strip() or None
+        merged_entities = _merge_entities_with_context(
+            conversation.entities_json,
+            llm_response.internal_json.entities if isinstance(llm_response.internal_json.entities, dict) else {},
+        )
+        llm_response.internal_json.entities = merged_entities
+        conversation.entities_json = merged_entities
+        next_entities = merged_entities or None
+        next_risk_flags = llm_response.internal_json.risk_flags or None
+        await conversation_repository.update_state(
+            conversation_id=conversation.id,
+            state=next_state,
+            intent=next_intent,
+            entities=next_entities,
+            risk_flags=next_risk_flags,
+        )
+
+        # Check human override before sending
+        human_override = await _is_human_override_active(phone_hash, conversation.id, redis_client)
+        if human_override:
+            logger.info(
+                "human_override_send_blocked",
+                conversation_id=str(conversation.id),
+                phone=_mask_phone(aggregated.phone),
+            )
+
+        # Send reply (single unified response)
+        message_parts = _extract_user_message_parts(llm_response)
+        if not message_parts:
+            message_parts = [llm_response.user_message]
+
+        for index, raw_message in enumerate(message_parts, start=1):
+            reply_text = formatter.truncate(raw_message)
+            send_blocked = human_override or settings.operation_mode != "ai"
+            if not human_override:
+                try:
+                    await whatsapp_client.send_text_message(to=aggregated.phone, body=reply_text)
+                except WhatsAppSendBlockedError:
+                    logger.info(
+                        "whatsapp_reply_blocked_by_mode",
+                        phone=aggregated.phone[:3] + "***",
+                        operation_mode=settings.operation_mode,
+                        reply_length=len(reply_text),
+                    )
+
+            assistant_internal_json = llm_response.internal_json.model_dump(mode="json")
+            assistant_internal_json["message_part_index"] = index
+            assistant_internal_json["message_part_total"] = len(message_parts)
+            assistant_internal_json["send_blocked"] = send_blocked
+            assistant_internal_json["human_override_blocked"] = human_override
+            if burst_metadata:
+                assistant_internal_json["burst_metadata"] = burst_metadata
+            if settings.operation_mode == "approval" or human_override:
+                assistant_internal_json["approval_pending"] = True
+
+            assistant_msg = Message(
+                conversation_id=conversation.id,
+                role="assistant",
+                content=reply_text,
+                internal_json=assistant_internal_json,
+            )
+            await conversation_repository.add_message(assistant_msg)
+            conversation.messages.append(assistant_msg)
+
+        # Escalation post-processing
+        if escalation_engine is not None and db_pool is not None and "handoff" in tools and "notify" in tools:
+            escalation_result = await post_process_escalation(
+                user_message_text=combined_normalized,
+                llm_response=llm_response,
+                conversation=conversation,
+                escalation_engine=escalation_engine,
+                tools=tools,
+                db_pool=db_pool,
+            )
+            if escalation_result.level.value != "L0" or escalation_result.risk_flags_matched:
+                logger.info(
+                    "escalation_check",
+                    conversation_id=str(conversation.id),
+                    level=escalation_result.level.value,
+                    flags=escalation_result.risk_flags_matched,
+                    actions=escalation_result.actions,
+                )
+    except Exception:
+        logger.exception(
+            "whatsapp_burst_processing_failed",
+            phone=_mask_phone(aggregated.phone),
+            message_count=aggregated.part_count,
+            message_ids=aggregated.message_ids[:3],
+        )
+
+
 def _schedule_background_task(
     background_tasks: BackgroundTasks,
     incoming: IncomingMessage,
@@ -2372,17 +2679,41 @@ def _schedule_background_task(
     escalation_engine: Any,
     tools: dict[str, Any],
     db_pool: Any,
+    redis_client: Any | None = None,
 ) -> None:
-    """Add incoming message task to FastAPI background worker."""
+    """Route incoming message through burst buffer (or direct processing fallback)."""
+    phone_hash = _hash_phone(incoming.phone)
+
+    buffered = BufferedMessage(
+        message_id=incoming.message_id,
+        phone=incoming.phone,
+        display_name=incoming.display_name,
+        text=incoming.text,
+        timestamp=incoming.timestamp,
+        message_type=incoming.message_type,
+        phone_number_id=incoming.phone_number_id,
+        display_phone_number=incoming.display_phone_number,
+        audit_context=audit_context,
+    )
+
+    async def _burst_callback(aggregated: AggregatedMessage, h_id: int) -> None:
+        await _process_burst_aggregated(
+            aggregated=aggregated,
+            hotel_id=h_id,
+            dispatcher=dispatcher,
+            escalation_engine=escalation_engine,
+            tools=tools,
+            db_pool=db_pool,
+            redis_client=redis_client,
+        )
+
     background_tasks.add_task(
-        _process_incoming_message,
-        incoming,
+        enqueue_or_fallback,
+        redis_client,
         hotel_id,
-        audit_context,
-        dispatcher,
-        escalation_engine,
-        tools,
-        db_pool,
+        phone_hash,
+        buffered,
+        _burst_callback,
     )
 
 
@@ -2450,6 +2781,12 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
     redis_client = getattr(request.app.state, "redis", None)
 
     if redis_client is not None:
+        try:
+            stored_mode = await redis_client.get("velox:operation_mode")
+            if stored_mode and stored_mode in ("test", "ai", "approval", "off"):
+                settings.operation_mode = stored_mode
+        except Exception:
+            pass
         if await _redis_is_duplicate_message(redis_client, incoming.message_id):
             logger.info("whatsapp_webhook_duplicate", message_id=incoming.message_id)
             return {"status": "ok"}
@@ -2520,6 +2857,7 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
         "source_type": "live_whatsapp",
         "hotel_id": resolved_hotel_id,
         "sender_profile_name": incoming.display_name or None,
+        "wa_id": incoming.phone,
         "wa_id_masked": _mask_phone(incoming.phone),
         "wa_id_hash": phone_hash,
         "message_id": incoming.message_id,
@@ -2536,6 +2874,7 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
         escalation_engine,
         tools,
         db_pool,
+        redis_client=redis_client,
     )
     logger.info(
         "whatsapp_webhook_message_accepted",

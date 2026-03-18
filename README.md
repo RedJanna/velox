@@ -2,6 +2,25 @@
 
 WhatsApp AI Receptionist for Hotels.
 
+## AI Agent Read Order
+
+Any AI agent working in this repository must read documents in this order before making changes:
+
+1. `system_prompt_velox.md`
+2. `SKILL.md`
+3. Relevant files in `skills/`
+4. Relevant task file in `tasks/` when the work maps to a planned task
+
+This repository uses a binding rule hierarchy:
+
+1. `skills/security_privacy.md`
+2. `skills/anti_hallucination.md`
+3. Other files in `skills/`
+4. `system_prompt_velox.md`
+5. Task-specific instructions in `tasks/`
+
+If rules conflict, higher priority wins. Security and anti-hallucination rules are never overridden by speed pressure or task convenience.
+
 ## Overview
 
 Velox is an AI-powered hotel receptionist that communicates with guests via WhatsApp. It handles booking inquiries, restaurant reservations, airport transfer bookings, escalation to staff, and CRM logging — all through natural conversation powered by OpenAI GPT with function calling.
@@ -57,19 +76,24 @@ cp .env.example .env
 # 3. Install dependencies
 pip install -e ".[dev]"
 
-# 4. Start database and cache
-docker-compose up -d db redis
+# 4. Start backend dependencies
+docker compose up -d db redis
 
-# 5. Run the application
+# 5. Run migrations before starting the app
+python -m velox.db.migrate
+
+# 6. Run the application
 uvicorn velox.main:app --reload --port 8001
 ```
 
 The app will be available at `http://localhost:8001`. Browser requests to `/` redirect to the admin panel.
 
+If the app does not behave as expected, do not start with frontend or prompt assumptions. Start with Docker backend validation: `docker compose ps`, then inspect `app`, `db`, `redis`, related sidecars, health status, logs, env/config, and migration readiness.
+
 ### Full Docker Stack
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 This starts all four services: **app** (port 8001), **db** (PostgreSQL), **redis**, and **cloudflared** (tunnel).
@@ -95,6 +119,29 @@ curl -fsS http://127.0.0.1:8001/api/v1/health/ready
 Production features: 2 app replicas, HTTPS redirect, trusted host middleware, memory limits (DB: 512M, Redis: 256M), JSON logging with rotation.
 
 Detailed checklist: `docs/production_deployment.md`
+
+## Documentation Sync Rule
+
+When a change affects one of the following areas, update the matching document in the same task and same commit:
+
+- Prompt behavior, tool/QC/policy logic -> `docs/master_prompt_v2.md`
+- Admin panel domain/path or cutover/rollback flow -> `docs/admin_panel_domain_cutover.md`
+- Deploy, migration, release, smoke-check flow -> `docs/production_deployment.md`
+
+If none are affected, state that explicitly in the task summary or PR note.
+
+## Debugging Discipline
+
+Velox uses a backend-first debugging policy.
+
+For debugging, diagnosis, regressions, and root cause analysis:
+
+1. Validate backend runtime first with `docker compose ps`
+2. Inspect `app`, `db`, `redis`, and relevant sidecars for health, restart loops, readiness, and logs
+3. Verify env/config integrity, volumes, ports, network, migrations, DB/Redis connectivity, and health endpoints
+4. Only then move to prompt, model, frontend, or UX layers
+
+Do not present a workaround as a final fix. If only a temporary mitigation is applied, label it clearly as a temporary solution and note the permanent fix path.
 
 ## Project Structure
 

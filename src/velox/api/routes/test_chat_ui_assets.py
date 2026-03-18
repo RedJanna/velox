@@ -98,6 +98,7 @@ body{overflow:hidden}
 .check-item{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:14px;background:rgba(2,6,23,.24);border:1px solid rgba(255,255,255,.08)}
 .check-item input{margin-top:2px}.check-copy strong{display:block;font-size:12px;color:#fff}.check-copy span{display:block;font-size:11px;color:rgba(255,255,255,.6);margin-top:2px}
 .inline-note{font-size:11px;color:#fcd34d}
+.required-mark{color:#f87171;font-weight:800;margin-left:3px}
 .hidden{display:none!important}
 .source-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(233,191,95,.16);color:#ffe49a;font-size:12px;font-weight:700}
 .list{display:flex;flex-direction:column;gap:8px}
@@ -105,6 +106,106 @@ body{overflow:hidden}
 .list-item strong{display:block;font-size:12px}.list-item span{display:block;font-size:11px;color:rgba(255,255,255,.64);margin-top:3px}
 .mt-xs{margin-top:8px}.mt-sm{margin-top:10px}.mt-md{margin-top:12px}
 .btn-block{width:100%}
+.ctx-menu{position:fixed;z-index:1100;min-width:140px;padding:6px 0;background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);animation:fadeIn .12s ease}
+.ctx-menu-item{display:flex;align-items:center;gap:8px;width:100%;padding:8px 14px;border:none;background:none;color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;transition:background .12s ease}
+.ctx-menu-item:hover{background:rgba(21,117,111,.08)}
+.ctx-menu-item svg{width:15px;height:15px;fill:currentColor;opacity:.7}
+.metrics-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.metric-card{padding:10px 12px;border-radius:14px;background:rgba(2,6,23,.24);border:1px solid rgba(255,255,255,.08)}
+.metric-card .metric-value{font-size:20px;font-weight:800;color:#ffe49a;line-height:1.2}
+.metric-card .metric-label{font-size:11px;color:rgba(255,255,255,.6);margin-top:2px}
+.metric-bar-group{margin-top:8px}
+.metric-bar-row{display:flex;align-items:center;gap:8px;margin-top:4px}
+.metric-bar-label{font-size:11px;color:rgba(255,255,255,.6);min-width:90px;text-align:right}
+.metric-bar-track{flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden}
+.metric-bar-fill{height:100%;border-radius:4px;transition:width .3s ease}
+.metric-bar-count{font-size:11px;color:rgba(255,255,255,.5);min-width:28px}
+.mode-switch{display:flex;gap:0;border-radius:10px;overflow:hidden;border:1px solid rgba(18,33,59,.14)}
+.mode-btn{padding:6px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:rgba(18,33,59,.06);color:var(--muted);transition:all .15s ease}
+.mode-btn:hover{background:rgba(18,33,59,.12)}
+.mode-btn.is-active-mode[data-mode="test"]{background:#fef3c7;color:#92400e}
+.mode-btn.is-active-mode[data-mode="ai"]{background:#dcfce7;color:#166534}
+.mode-btn.is-active-mode[data-mode="approval"]{background:#e0e7ff;color:#3730a3}
+.mode-btn.is-active-mode[data-mode="off"]{background:#fee2e2;color:#991b1b}
+.live-feed-card{padding:10px 12px;border-radius:14px;background:rgba(2,6,23,.24);border:1px solid rgba(255,255,255,.08);margin-top:6px;cursor:pointer;transition:border-color .15s ease}
+.live-feed-card:hover{border-color:rgba(255,255,255,.2)}
+.live-feed-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.live-feed-phone{font-size:12px;font-weight:700;color:#ffe49a}
+.live-feed-time{font-size:10px;color:rgba(255,255,255,.4)}
+.live-feed-msgs{margin-top:6px;font-size:12px;line-height:1.6}
+.live-feed-user,.live-feed-assistant{white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.live-feed-user{color:rgba(255,255,255,.7)}
+.live-feed-assistant{color:rgba(42,157,143,.8)}
+#live-feed-container{min-height:320px;max-height:60vh;overflow-y:auto;padding-right:4px}
+#live-feed-container::-webkit-scrollbar{width:5px}
+#live-feed-container::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:999px}
+.live-feed-blocked{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:800;background:rgba(234,179,8,.2);color:#fbbf24}
+.live-feed-sent{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:800;background:rgba(34,197,94,.25);color:#4ade80}
+.live-feed-badges{display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap}
+.live-feed-badge{padding:2px 6px;border-radius:6px;font-size:9px;font-weight:700;background:rgba(255,255,255,.1);color:rgba(255,255,255,.6)}
+.live-feed-approve-btn{padding:2px 8px;border-radius:6px;font-size:9px;font-weight:800;background:rgba(99,102,241,.3);color:#c7d2fe;border:1px solid rgba(99,102,241,.5);cursor:pointer;transition:all .15s ease}
+.live-feed-approve-btn:hover{background:rgba(99,102,241,.5);color:#fff}
+.live-feed-reject-btn{padding:2px 8px;border-radius:6px;font-size:9px;font-weight:800;background:rgba(239,68,68,.25);color:#fca5a5;border:1px solid rgba(239,68,68,.45);cursor:pointer;transition:all .15s ease}
+.live-feed-reject-btn:hover{background:rgba(239,68,68,.45);color:#fff}
+.live-feed-reject-btn.confirm-state{background:rgba(239,68,68,.55);color:#fff;animation:pulse .6s infinite alternate}
+.live-feed-rejected{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:800;background:rgba(239,68,68,.35);color:#fca5a5}
+.live-feed-card[draggable="true"]{cursor:grab}.live-feed-card[draggable="true"]:active{cursor:grabbing}
+.live-feed-card.is-dragging{opacity:.4}
+.chat-panel.drop-active{outline:2px dashed var(--teal);outline-offset:-4px;background:rgba(21,117,111,.05)}
+.chat-panel.drop-active .messages::after{content:'Konusmayi buraya birakin';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--teal);background:rgba(21,117,111,.06);border-radius:18px;pointer-events:none}
+.messages{position:relative}
+.conv-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s ease}
+.conv-modal-overlay.hidden{display:none!important}
+.conv-modal{width:min(720px,95vw);max-height:85vh;background:linear-gradient(180deg,#1a2740,#0f172a);color:#fff;border-radius:18px;box-shadow:0 24px 48px rgba(0,0,0,.4);display:flex;flex-direction:column;overflow:hidden}
+.conv-modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.08)}
+.conv-modal-header strong{font-size:15px}
+.conv-modal-close{background:none;border:none;color:rgba(255,255,255,.6);font-size:24px;cursor:pointer;padding:0 4px;line-height:1}
+.conv-modal-close:hover{color:#fff}
+.conv-modal-meta{display:flex;flex-wrap:wrap;gap:8px;padding:12px 20px;border-bottom:1px solid rgba(255,255,255,.06)}
+.conv-modal-meta-item{padding:3px 8px;border-radius:8px;font-size:11px;font-weight:700;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7)}
+.conv-modal-meta-item.highlight{background:rgba(42,157,143,.2);color:#8df7e8}
+.conv-modal-messages{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:10px}
+.conv-modal-messages::-webkit-scrollbar{width:5px}
+.conv-modal-messages::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:999px}
+.conv-msg{padding:10px 14px;border-radius:14px;max-width:88%}
+.conv-msg-user{align-self:flex-end;background:rgba(42,157,143,.18);border:1px solid rgba(42,157,143,.25)}
+.conv-msg-assistant{align-self:flex-start;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08)}
+.conv-msg-system{align-self:center;background:rgba(255,255,255,.05);color:rgba(255,255,255,.5);font-size:11px;max-width:95%}
+.conv-msg-role{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.conv-msg-user .conv-msg-role{color:#86efac}
+.conv-msg-assistant .conv-msg-role{color:#93c5fd}
+.conv-msg-body{font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.conv-msg-time{font-size:10px;color:rgba(255,255,255,.35);margin-top:4px}
+.conv-msg-status{display:inline-flex;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:800;margin-left:6px}
+.conv-msg-status.sent{background:rgba(34,197,94,.25);color:#4ade80}
+.conv-msg-status.pending{background:rgba(234,179,8,.25);color:#fbbf24}
+.conv-msg-status.rejected{background:rgba(239,68,68,.3);color:#f87171}
+.conv-modal-json-toggle{padding:8px 20px;border-top:1px solid rgba(255,255,255,.06)}
+.conv-modal-json{padding:0 20px 12px;max-height:200px;overflow:auto}
+.conv-modal-json pre{font-family:var(--mono);font-size:11px;white-space:pre-wrap;word-break:break-word;color:#bfdbfe;background:rgba(2,6,23,.4);border-radius:12px;padding:10px}
+.conv-modal-actions{display:flex;gap:8px;padding:14px 20px;border-top:1px solid rgba(255,255,255,.08);justify-content:flex-end}
+.conv-modal-actions .btn{height:34px;font-size:12px}
+.conv-modal-feedback{padding:14px 20px;border-top:1px solid rgba(255,255,255,.08);background:rgba(239,68,68,.06)}
+.conv-modal-feedback.hidden{display:none!important}
+.conv-modal-feedback-title{font-size:13px;font-weight:800;color:#fca5a5;margin-bottom:10px}
+.conv-modal-feedback .debug-select,.conv-modal-feedback .debug-textarea{background:#1e293b;color:#e2e8f0;border:1px solid rgba(255,255,255,.18);border-radius:10px}
+.conv-modal-feedback .debug-select option{background:#1e293b;color:#e2e8f0}
+.conv-modal-feedback .field-stack label{color:rgba(255,255,255,.7)}
+.conv-modal-send{padding:12px 20px;border-top:1px solid rgba(255,255,255,.06);display:flex;gap:8px;align-items:flex-end}
+.conv-modal-send textarea{flex:1;min-height:38px;max-height:100px;resize:vertical;padding:8px 12px;font-size:13px;line-height:1.4;background:#1e293b;color:#e2e8f0;border:1px solid rgba(255,255,255,.15);border-radius:10px;outline:none;font-family:inherit}
+.conv-modal-send textarea:focus{border-color:var(--teal)}
+.conv-modal-send .btn{height:38px;flex-shrink:0}
+.faq-dialog{border:none;border-radius:18px;padding:0;background:transparent;max-width:520px;width:92vw}
+.faq-dialog::backdrop{background:rgba(0,0,0,.45)}
+.faq-dialog-card{background:var(--paper);border-radius:18px;box-shadow:var(--shadow);padding:24px;display:flex;flex-direction:column;gap:14px}
+.faq-dialog-head{display:flex;align-items:center;justify-content:space-between}
+.faq-dialog-head h3{font-size:16px;font-weight:700;color:var(--ink)}
+.faq-dialog-head button{background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;padding:0 4px;line-height:1}
+.faq-dialog-head button:hover{color:var(--ink)}
+.faq-dialog .field-stack{margin-top:0}
+.faq-dialog .field-stack label{color:var(--ink)}
+.faq-dialog .debug-input,.faq-dialog .debug-textarea,.faq-dialog .debug-select{background:rgba(255,255,255,.94);color:var(--ink)}
+@keyframes pulse{from{opacity:.8}to{opacity:1}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes bounce{to{opacity:.35;transform:translateY(-4px)}}
 @media(max-width:1240px){
@@ -176,6 +277,7 @@ const DEFAULT_FEEDBACK_TAGS = [
 
 const state = {
   adminToken: '',
+  hotelId: '',
   sourceType: 'live_test_chat',
   importFile: '',
   roleMapping: {},
@@ -194,6 +296,10 @@ const state = {
   selectedFeedback: null,
   manualTagTouched: false,
   refreshPromise: null,
+  operationMode: 'test',
+  liveConversations: [],
+  importItems: [],
+  activeConversationId: null,
 };
 const CATEGORY_PRIORITY = ['yanlis_bilgi', 'eksik_bilgi', 'baglam_kopuklugu', 'intent_iskalama', 'mantik_celiskisi', 'format_ihlali', 'gevezelik', 'alakasiz_yanit', 'uydurma_bilgi', 'ton_politika_ihlali', 'ozel_kategori'];
 const CATEGORY_TAG_SUGGESTIONS = {
@@ -360,7 +466,7 @@ async function apiFetch(path, options = {}) {
   if (token) headers.Authorization = `Bearer ${token}`;
   let response;
   try {
-    response = await fetch(API + path, {
+    response = await fetch((path.startsWith('/api/') ? path : API + path), {
       ...options,
       headers,
       credentials: 'same-origin',
@@ -566,6 +672,16 @@ function renderFeedbackStudio() {
     ? 'Daha sade ve kisa onayli cevabi yazin...'
     : 'Dogru bilgiyi veya Altin Standart cevabi yazin...';
   customCategory.classList.toggle('hidden', el('feedback-category').value !== 'ozel_kategori');
+
+  const r = state.selectedFeedback.rating;
+  const mark = '<span class="required-mark">*</span>';
+  const lblCat = el('lbl-category');
+  const lblTags = el('lbl-tags');
+  const lblGold = el('lbl-gold');
+  if (lblCat) lblCat.innerHTML = 'Hata Kategorizasyonu' + (r <= 4 ? mark : '');
+  if (lblTags) lblTags.innerHTML = 'Hata Etiketleri' + (r <= 3 ? mark : '');
+  if (lblGold) lblGold.innerHTML = 'Altin Standart' + (r <= 4 ? mark : '');
+
   updateCategoryGuidance();
 }
 
@@ -588,12 +704,23 @@ function renderTagOptions() {
   updateCategoryGuidance();
 }
 
-function renderImportOptions(items) {
+function renderImportOptions(items, liveConvs) {
   const select = el('import-select');
-  const selected = state.importFile;
-  select.innerHTML = '<option value="">Yeni Test</option>' + items.map(item => `
-    <option value="${escapeHtml(item.filename)}">${escapeHtml(item.label || item.filename)}</option>`).join('');
-  select.value = selected || '';
+  const prev = select.value || state.importFile || '';
+  let html = '<option value="">Yeni Test</option>';
+  if (liveConvs && liveConvs.length) {
+    html += '<optgroup label="Aktif Konusmalar">' + liveConvs.map(c => {
+      const label = (c.phone_display || '***') + ' (' + c.msg_count + ' mesaj)';
+      return '<option value="conv:' + escapeHtml(c.id) + '">' + escapeHtml(label) + '</option>';
+    }).join('') + '</optgroup>';
+  }
+  if (items && items.length) {
+    html += '<optgroup label="Import Dosyalari">' + items.map(item =>
+      '<option value="' + escapeHtml(item.filename) + '">' + escapeHtml(item.label || item.filename) + '</option>'
+    ).join('') + '</optgroup>';
+  }
+  select.innerHTML = html;
+  select.value = prev;
 }
 
 function renderRoleMappingPanel(response) {
@@ -628,16 +755,19 @@ function currentRoleMapping() {
 }
 
 function setComposerMode(isLive) {
-  el('msg-input').disabled = !isLive || state.isSending;
-  el('send-btn').disabled = !isLive || state.isSending;
+  el('msg-input').disabled = !isLive;
+  el('send-btn').disabled = !isLive;
   el('export-btn').disabled = !isLive;
-  el('msg-input').placeholder = isLive
-    ? 'Mesajinizi yazin...'
-    : 'Import gorunumu salt okunur. Yeni mesaj icin New Test secin.';
-  const sourceLabel = isLive
-    ? 'Canli test gorunumu aktif.'
-    : `Import gorunumu aktif: ${state.importFile || '-'}`;
-  el('source-banner').textContent = sourceLabel;
+  if (state.sourceType === 'live_conversation') {
+    el('msg-input').placeholder = 'Canli konusma salt okunur. Mesaj gondermek icin detay modalini kullanin.';
+    el('source-banner').textContent = 'Canli konusma goruntuleniyor.';
+  } else if (isLive) {
+    el('msg-input').placeholder = 'Mesajinizi yazin...';
+    el('source-banner').textContent = 'Canli test gorunumu aktif.';
+  } else {
+    el('msg-input').placeholder = 'Import gorunumu salt okunur. Yeni mesaj icin New Test secin.';
+    el('source-banner').textContent = 'Import gorunumu aktif: ' + (state.importFile || '-');
+  }
 }
 
 function updateDebug(message = null) {
@@ -680,8 +810,19 @@ async function sendMessage() {
   const message = el('msg-input').value.trim();
   if (!message) return;
 
+  const userMsg = {
+    id: `user_${Date.now()}`,
+    role: 'user',
+    content: message,
+    created_at: new Date().toISOString(),
+    internal_json: null,
+  };
+  state.messages.push(userMsg);
+  el('msg-input').value = '';
+  renderMessages();
+
   state.isSending = true;
-  setComposerMode(true);
+  el('send-btn').disabled = true;
   showTyping();
   try {
     const payload = {
@@ -694,14 +835,8 @@ async function sendMessage() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload),
     });
+    userMsg.created_at = data.timestamp;
     state.messages.push(
-      {
-        id: `user_${Date.now()}`,
-        role: 'user',
-        content: message,
-        created_at: data.timestamp,
-        internal_json: null,
-      },
       {
         id: data.assistant_message_id,
         role: 'assistant',
@@ -712,7 +847,6 @@ async function sendMessage() {
       },
     );
     state.conversation = data.conversation || null;
-    el('msg-input').value = '';
     renderMessages();
     updateDebug(state.messages[state.messages.length - 1]);
     notify('Mesaj gonderildi.', 'success');
@@ -721,7 +855,7 @@ async function sendMessage() {
   } finally {
     hideTyping();
     state.isSending = false;
-    setComposerMode(state.sourceType === 'live_test_chat');
+    el('send-btn').disabled = false;
   }
 }
 
@@ -764,9 +898,45 @@ async function downloadConversation() {
 async function refreshImportFiles() {
   try {
     const data = await apiFetch('/chat/import-files');
-    renderImportOptions(data.items || []);
+    state.importItems = data.items || [];
+    renderImportOptions(state.importItems, state.liveConversations);
   } catch (error) {
     notify(error.message || 'Import listesi yuklenemedi.', 'error');
+  }
+}
+
+async function loadLiveConversation(convId) {
+  state.sourceType = 'live_conversation';
+  state.activeConversationId = convId;
+  state.importFile = '';
+  state.importMetadata = {};
+  state.roleMapping = {};
+  setComposerMode(false);
+  renderRoleMappingPanel(null);
+  el('source-banner').textContent = 'Canli konusma goruntuleniyor.';
+  try {
+    const data = await apiFetch('/chat/conversation/' + encodeURIComponent(convId));
+    state.messages = (data.messages || []).map(m => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      created_at: m.created_at,
+      internal_json: m.internal_json || null,
+      model: m.model || null,
+      send_blocked: m.send_blocked || false,
+      rejected: m.rejected || false,
+    }));
+    state.conversation = {
+      id: data.id,
+      language: data.language || '-',
+      state: data.state || '-',
+      intent: data.intent || '-',
+      risk_flags: data.risk_flags || [],
+    };
+    renderMessages();
+    refreshDebugFromLatestAssistant();
+  } catch (error) {
+    notify(error.message || 'Konusma yuklenemedi.', 'error');
   }
 }
 
@@ -777,9 +947,17 @@ async function loadSelectedImport(roleMapping = {}) {
     state.importFile = '';
     state.importMetadata = {};
     state.roleMapping = {};
+    state.activeConversationId = null;
     setComposerMode(true);
     renderRoleMappingPanel(null);
     await loadHistory();
+    return;
+  }
+
+  // Handle active conversation selection
+  if (filename.startsWith('conv:')) {
+    const convId = filename.slice(5);
+    await loadLiveConversation(convId);
     return;
   }
 
@@ -850,6 +1028,16 @@ async function submitFeedback() {
   const notes = (el('feedback-notes').value || '').trim() || null;
   const approvedExample = state.selectedFeedback.rating === 5 ? el('feedback-approved-example').checked : false;
 
+  const rating = state.selectedFeedback.rating;
+  const errors = [];
+  if (rating <= 4 && !goldStandard) errors.push('Altin Standart / dogru cevap alani zorunlu.');
+  if (rating <= 4 && !category && !customCategory) errors.push('Kategori secimi zorunlu.');
+  if (rating <= 3 && !tags.length && !customTags.length) errors.push('En az bir etiket secimi zorunlu.');
+  if (errors.length) {
+    notify(errors[0], 'error');
+    return;
+  }
+
   try {
     const payload = {
       source_type: state.sourceType,
@@ -865,6 +1053,7 @@ async function submitFeedback() {
       approved_example: approvedExample,
       import_file: state.importFile || null,
       role_mapping: state.roleMapping,
+      conversation_id: state.activeConversationId || null,
     };
     const data = await apiFetch('/chat/feedback', {
       method: 'POST',
@@ -879,6 +1068,7 @@ async function submitFeedback() {
     el('feedback-result').classList.remove('hidden');
     el('feedback-result').textContent = `Kayit: ${data.storage_path}`;
     notify('Geri bildirim kaydedildi.', 'success');
+    loadMetrics();
   } catch (error) {
     el('feedback-result').classList.remove('hidden');
     el('feedback-result').textContent = error.message || 'Geri bildirim kaydedilemedi.';
@@ -979,9 +1169,578 @@ function toggleDebug() {
   el('debug-panel').classList.toggle('collapsed');
 }
 
+function removeCtxMenu() {
+  const prev = document.querySelector('.ctx-menu');
+  if (prev) prev.remove();
+}
+
+function showCtxMenu(event, text, bubble) {
+  event.preventDefault();
+  removeCtxMenu();
+  const menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+  menu.setAttribute('role', 'menu');
+  const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.className = 'ctx-menu-item';
+  copyBtn.setAttribute('role', 'menuitem');
+  copyBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>Kopyala';
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(text).then(() => notify('Panoya kopyalandi.', 'success')).catch(() => notify('Kopyalanamadi.', 'error'));
+    removeCtxMenu();
+  });
+  menu.appendChild(copyBtn);
+  if (bubble) {
+    const faqBtn = document.createElement('button');
+    faqBtn.type = 'button';
+    faqBtn.className = 'ctx-menu-item';
+    faqBtn.setAttribute('role', 'menuitem');
+    faqBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2zm0 15l-5-2.18L7 18V5h10v13z"/></svg>SSS&#39;e Ekle';
+    faqBtn.addEventListener('click', () => {
+      removeCtxMenu();
+      openFaqDialog(bubble);
+    });
+    menu.appendChild(faqBtn);
+  }
+  document.body.appendChild(menu);
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  let x = event.clientX;
+  let y = event.clientY;
+  if (x + menu.offsetWidth > vw) x = vw - menu.offsetWidth - 4;
+  if (y + menu.offsetHeight > vh) y = vh - menu.offsetHeight - 4;
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+}
+
+function extractFaqPair(bubble) {
+  const role = bubble.dataset.role;
+  const text = (bubble.querySelector('.msg-body') || {}).textContent || '';
+  let question = '';
+  let answer = '';
+  if (role === 'user') {
+    question = text;
+    let sibling = bubble.nextElementSibling;
+    while (sibling) {
+      if (sibling.dataset.role === 'assistant') {
+        answer = (sibling.querySelector('.msg-body') || {}).textContent || '';
+        break;
+      }
+      sibling = sibling.nextElementSibling;
+    }
+  } else if (role === 'assistant') {
+    answer = text;
+    let sibling = bubble.previousElementSibling;
+    while (sibling) {
+      if (sibling.dataset.role === 'user') {
+        question = (sibling.querySelector('.msg-body') || {}).textContent || '';
+        break;
+      }
+      sibling = sibling.previousElementSibling;
+    }
+  }
+  return {question, answer};
+}
+
+function openFaqDialog(bubble) {
+  const pair = extractFaqPair(bubble);
+  el('faq-topic').value = '';
+  el('faq-question-tr').value = pair.question;
+  el('faq-answer-tr').value = pair.answer;
+  el('faq-question-en').value = pair.question;
+  el('faq-answer-en').value = pair.answer;
+  el('faq-status').value = 'ACTIVE';
+  el('faq-dialog-result').classList.add('hidden');
+  el('faq-dialog-result').textContent = '';
+  el('faq-dialog').showModal();
+}
+
+async function onFaqSubmit(event) {
+  event.preventDefault();
+  if (!state.hotelId) {
+    notify('Hotel bilgisi eksik. Lutfen admin panelden hotel seciniz.', 'error');
+    return;
+  }
+  const topic = el('faq-topic').value.trim();
+  const questionTr = el('faq-question-tr').value.trim();
+  const answerTr = el('faq-answer-tr').value.trim();
+  const questionEn = el('faq-question-en').value.trim();
+  const answerEn = el('faq-answer-en').value.trim();
+  const status = el('faq-status').value;
+  if (!topic) { notify('Konu alani zorunludur.', 'warn'); return; }
+  if (!answerTr) { notify('Cevap (TR) alani zorunludur.', 'warn'); return; }
+  if (!answerEn) { notify('Cevap (EN) alani zorunludur.', 'warn'); return; }
+  const submitBtn = el('faq-dialog-form').querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Kaydediliyor...';
+  try {
+    const payload = {topic, question_tr: questionTr, answer_tr: answerTr, question_en: questionEn, answer_en: answerEn, status};
+    await apiFetch('/api/v1/admin/hotels/' + encodeURIComponent(state.hotelId) + '/faq', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    notify('SSS kaydi olusturuldu.', 'success');
+    el('faq-dialog').close();
+    if (window.parent !== window) {
+      try { window.parent.postMessage({type: 'chatlab:faq-created'}, window.location.origin); } catch(_e) {}
+    }
+  } catch (error) {
+    notify(error.message || 'SSS kaydi olusturulamadi.', 'error');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'SSS Kaydet';
+  }
+}
+
+async function loadMode() {
+  try {
+    const data = await apiFetch('/chat/mode');
+    updateModeUI(data.mode);
+  } catch (error) {
+    notify('Mod bilgisi alinamadi.', 'error');
+  }
+}
+
+function updateModeUI(mode) {
+  state.operationMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.classList.toggle('is-active-mode', btn.dataset.mode === mode);
+  });
+}
+
+async function changeMode(newMode) {
+  if (newMode === 'ai') {
+    if (!confirm('AI moduna gecmek gercek misafirlere mesaj gondermeyi aktif eder. Emin misiniz?')) return;
+  }
+  try {
+    const data = await apiFetch('/chat/mode', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mode: newMode}),
+    });
+    updateModeUI(data.mode);
+    notify('Mod degistirildi: ' + data.mode.toUpperCase(), 'success');
+  } catch (error) {
+    notify(error.message || 'Mod degistirilemedi.', 'error');
+  }
+}
+
+// ── Conversation Detail Modal ──────────────────────────────────
+let _modalRefreshTimer = null;
+function openConvModal() {
+  el('conv-detail-overlay').classList.remove('hidden');
+  _startModalAutoRefresh();
+}
+function closeConvModal() {
+  el('conv-detail-overlay').classList.add('hidden');
+  _modalConvId = null;
+  _stopModalAutoRefresh();
+}
+function _startModalAutoRefresh() {
+  _stopModalAutoRefresh();
+  _modalRefreshTimer = setInterval(() => {
+    if (_modalConvId) _silentRefreshModal(_modalConvId);
+  }, 3000);
+}
+function _stopModalAutoRefresh() {
+  if (_modalRefreshTimer) { clearInterval(_modalRefreshTimer); _modalRefreshTimer = null; }
+}
+async function _silentRefreshModal(convId) {
+  // Skip refresh if feedback form is open or user is typing
+  if (!el('conv-modal-feedback').classList.contains('hidden')) return;
+  const input = document.getElementById('conv-modal-msg-input');
+  if (input && input.value.trim()) return;
+  try {
+    const data = await apiFetch('/chat/conversation/' + encodeURIComponent(convId));
+    if (_modalConvId === convId) renderConvModal(data);
+  } catch (_) { /* silent fail — next tick will retry */ }
+}
+
+async function showConversationDetail(convId) {
+  _modalConvId = convId;
+  openConvModal();
+  el('conv-modal-meta').innerHTML = '<span class="feedback-muted">Yukleniyor...</span>';
+  el('conv-modal-messages').innerHTML = '';
+  el('conv-modal-json').classList.add('hidden');
+  el('conv-modal-json').innerHTML = '';
+  el('conv-modal-feedback').classList.add('hidden');
+  el('conv-modal-actions').innerHTML = '';
+  document.getElementById('conv-modal-msg-input').value = '';
+  try {
+    const data = await apiFetch('/chat/conversation/' + encodeURIComponent(convId));
+    renderConvModal(data);
+  } catch (error) {
+    el('conv-modal-meta').innerHTML = '<span class="feedback-muted">Hata: ' + escapeHtml(error.message || '') + '</span>';
+  }
+}
+
+function renderConvModal(data) {
+  // Meta badges
+  const metaItems = [
+    {label: data.phone_display, highlight: true},
+    {label: 'Dil: ' + data.language},
+    {label: 'State: ' + data.state},
+    {label: 'Intent: ' + data.intent},
+    {label: data.is_active ? 'Aktif' : 'Kapali', highlight: data.is_active},
+  ];
+  if (data.hotel_id) metaItems.push({label: 'Otel: ' + data.hotel_id});
+  const flags = data.risk_flags || [];
+  flags.forEach(f => metaItems.push({label: 'Risk: ' + f}));
+  el('conv-modal-meta').innerHTML = metaItems.map(m =>
+    '<span class="conv-modal-meta-item' + (m.highlight ? ' highlight' : '') + '">' + escapeHtml(m.label) + '</span>'
+  ).join('');
+
+  // Messages
+  const msgs = data.messages || [];
+  let lastAssistantMsg = null;
+  const msgHtml = msgs.map(m => {
+    const roleClass = m.role === 'user' ? 'conv-msg-user' : m.role === 'assistant' ? 'conv-msg-assistant' : 'conv-msg-system';
+    const roleName = m.role === 'user' ? 'Misafir' : m.role === 'assistant' ? 'AI Onerisi' : 'Sistem';
+    const timeStr = m.created_at ? formatTime(m.created_at) : '';
+    let statusHtml = '';
+    if (m.role === 'assistant') {
+      lastAssistantMsg = m;
+      const hasInternalFlags = m.internal_json && Object.keys(m.internal_json).length > 0;
+      if (m.rejected) {
+        statusHtml = '<span class="conv-msg-status rejected">REDDEDILDI</span>';
+      } else if (m.send_blocked) {
+        statusHtml = '<span class="conv-msg-status pending">BEKLIYOR</span>';
+      } else if (!hasInternalFlags && state.operationMode !== 'ai') {
+        // No flags recorded — treat as pending in non-ai modes (legacy data safety)
+        statusHtml = '<span class="conv-msg-status pending">BEKLIYOR</span>';
+        m.send_blocked = true;
+      } else {
+        statusHtml = '<span class="conv-msg-status sent">GONDERILDI</span>';
+      }
+    }
+    return '<div class="conv-msg ' + roleClass + '">' +
+      '<div class="conv-msg-role">' + roleName + statusHtml + '</div>' +
+      '<div class="conv-msg-body">' + escapeHtml(m.content) + '</div>' +
+      '<div class="conv-msg-time">' + escapeHtml(timeStr) + '</div>' +
+    '</div>';
+  }).join('');
+  el('conv-modal-messages').innerHTML = msgHtml || '<div class="feedback-muted">Mesaj bulunamadi.</div>';
+
+  // JSON toggle content (last assistant internal_json)
+  if (lastAssistantMsg && lastAssistantMsg.internal_json) {
+    el('conv-modal-json').innerHTML = '<pre>' + escapeHtml(JSON.stringify(lastAssistantMsg.internal_json, null, 2)) + '</pre>';
+  } else {
+    el('conv-modal-json').innerHTML = '<pre>{}</pre>';
+  }
+
+  // Action buttons
+  let actionsHtml = '';
+  if (lastAssistantMsg) {
+    if (!lastAssistantMsg.rejected && lastAssistantMsg.send_blocked) {
+      actionsHtml += '<button class="btn btn-primary" id="conv-modal-approve" data-conv="' + escapeHtml(data.id) + '" data-msg="' + escapeHtml(lastAssistantMsg.id) + '">Onayla ve Gonder</button>';
+      actionsHtml += '<button class="btn btn-reset" id="conv-modal-reject" data-conv="' + escapeHtml(data.id) + '" data-msg="' + escapeHtml(lastAssistantMsg.id) + '">Gonderme</button>';
+    }
+    // Always show "Yeniden Isle" for messages that haven't been sent yet
+    if (lastAssistantMsg.send_blocked || lastAssistantMsg.rejected) {
+      actionsHtml += '<button class="btn btn-save" id="conv-modal-regenerate" data-conv="' + escapeHtml(data.id) + '">Yeniden Isle</button>';
+    }
+    // Show feedback button for rejected messages that were closed without feedback
+    if (lastAssistantMsg.rejected) {
+      actionsHtml += '<button class="btn btn-reset" id="conv-modal-show-feedback" data-conv="' + escapeHtml(data.id) + '" data-msg="' + escapeHtml(lastAssistantMsg.id) + '">Geri Bildirim Ver</button>';
+    }
+  }
+  actionsHtml += '<button class="btn btn-ghost" id="conv-modal-close-bottom">Kapat</button>';
+  el('conv-modal-actions').innerHTML = actionsHtml;
+
+  // Wire modal action buttons
+  const approveBtn = document.getElementById('conv-modal-approve');
+  if (approveBtn) {
+    approveBtn.addEventListener('click', async () => {
+      approveBtn.disabled = true;
+      approveBtn.textContent = 'Gonderiliyor...';
+      try {
+        await apiFetch('/chat/approve-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: approveBtn.dataset.conv, message_id: approveBtn.dataset.msg})});
+        notify('Mesaj onaylandi ve gonderildi.', 'success');
+        loadLiveFeed();
+        showConversationDetail(approveBtn.dataset.conv);
+      } catch (err) {
+        notify(err.message || 'Onay gonderilemedi.', 'error');
+        approveBtn.disabled = false;
+        approveBtn.textContent = 'Onayla ve Gonder';
+      }
+    });
+  }
+  const rejectBtn = document.getElementById('conv-modal-reject');
+  if (rejectBtn) {
+    rejectBtn.addEventListener('click', async () => {
+      if (!confirm('Bu mesaji reddetmek istediginize emin misiniz?')) return;
+      rejectBtn.disabled = true;
+      rejectBtn.textContent = 'Reddediliyor...';
+      try {
+        await apiFetch('/chat/reject-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: rejectBtn.dataset.conv, message_id: rejectBtn.dataset.msg})});
+        notify('Mesaj reddedildi.', 'success');
+        loadLiveFeed();
+        // Show inline negative feedback form
+        showModalFeedbackForm(rejectBtn.dataset.conv, rejectBtn.dataset.msg);
+        rejectBtn.disabled = true;
+        rejectBtn.textContent = 'Reddedildi';
+        if (approveBtn) approveBtn.remove();
+      } catch (err) {
+        notify(err.message || 'Reddetme basarisiz.', 'error');
+        rejectBtn.disabled = false;
+        rejectBtn.textContent = 'Gonderme';
+      }
+    });
+  }
+  // Regenerate button
+  const regenBtn = document.getElementById('conv-modal-regenerate');
+  if (regenBtn) {
+    regenBtn.addEventListener('click', async () => {
+      if (!confirm('AI mesaji yeniden uretilecek. Eski oneri silinecek. Emin misiniz?')) return;
+      regenBtn.disabled = true;
+      regenBtn.textContent = 'Uretiliyor...';
+      try {
+        await apiFetch('/chat/regenerate', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: regenBtn.dataset.conv})});
+        notify('Mesaj yeniden uretildi.', 'success');
+        loadLiveFeed();
+        showConversationDetail(regenBtn.dataset.conv);
+      } catch (err) {
+        notify(err.message || 'Yeniden uretim basarisiz.', 'error');
+        regenBtn.disabled = false;
+        regenBtn.textContent = 'Yeniden Isle';
+      }
+    });
+  }
+  // Show feedback for already-rejected messages
+  const showFbBtn = document.getElementById('conv-modal-show-feedback');
+  if (showFbBtn) {
+    showFbBtn.addEventListener('click', () => {
+      showModalFeedbackForm(showFbBtn.dataset.conv, showFbBtn.dataset.msg);
+    });
+  }
+  const closeBottom = document.getElementById('conv-modal-close-bottom');
+  if (closeBottom) closeBottom.addEventListener('click', closeConvModal);
+}
+
+function showModalFeedbackForm(convId, msgId) {
+  const fbPanel = el('conv-modal-feedback');
+  fbPanel.classList.remove('hidden');
+  // Populate categories
+  const catSelect = document.getElementById('conv-fb-category');
+  const cats = state.feedbackCategories || DEFAULT_FEEDBACK_CATEGORIES;
+  catSelect.innerHTML = '<option value="">Kategori secin...</option>' +
+    cats.map(c => '<option value="' + escapeHtml(c.key) + '">' + escapeHtml(c.label) + '</option>').join('');
+  document.getElementById('conv-fb-gold').value = '';
+  document.getElementById('conv-fb-notes').value = '';
+  document.getElementById('conv-fb-result').textContent = '';
+
+  const submitBtn = document.getElementById('conv-fb-submit');
+  // Remove old listeners by replacing node
+  const freshBtn = submitBtn.cloneNode(true);
+  submitBtn.parentNode.replaceChild(freshBtn, submitBtn);
+  freshBtn.addEventListener('click', async () => {
+    const category = catSelect.value;
+    const gold = document.getElementById('conv-fb-gold').value.trim();
+    const notes = document.getElementById('conv-fb-notes').value.trim();
+    if (!category) { notify('Kategori secin.', 'warn'); return; }
+    if (!gold) { notify('Dogru yanit alanini doldurun.', 'warn'); return; }
+    freshBtn.disabled = true;
+    freshBtn.textContent = 'Kaydediliyor...';
+    try {
+      await apiFetch('/chat/feedback', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          source_type: 'live_conversation',
+          phone: 'admin_reject',
+          assistant_message_id: msgId,
+          rating: 1,
+          category: category,
+          tags: ['reddedilen_mesaj'],
+          custom_tags: [],
+          gold_standard: gold,
+          notes: notes || null,
+          approved_example: false,
+          conversation_id: convId || null,
+        }),
+      });
+      document.getElementById('conv-fb-result').textContent = 'Geri bildirim kaydedildi.';
+      document.getElementById('conv-fb-result').style.color = '#86efac';
+      notify('Olumsuz geri bildirim kaydedildi.', 'success');
+      freshBtn.textContent = 'Kaydedildi';
+    } catch (err) {
+      document.getElementById('conv-fb-result').textContent = 'Hata: ' + (err.message || '');
+      document.getElementById('conv-fb-result').style.color = '#fca5a5';
+      freshBtn.disabled = false;
+      freshBtn.textContent = 'Geri Bildirimi Kaydet';
+    }
+  });
+
+  // Scroll feedback form into view
+  fbPanel.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+
+// Track current modal conversation ID for send
+let _modalConvId = null;
+
+async function sendModalMessage() {
+  const input = document.getElementById('conv-modal-msg-input');
+  const text = (input.value || '').trim();
+  if (!text || !_modalConvId) return;
+  const btn = document.getElementById('conv-modal-send-btn');
+  btn.disabled = true;
+  btn.textContent = 'Gonderiliyor...';
+  input.disabled = true;
+  try {
+    await apiFetch('/chat/send-to-conversation', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({conversation_id: _modalConvId, message: text}),
+    });
+    input.value = '';
+    notify('Mesaj gonderildi.', 'success');
+    loadLiveFeed();
+    showConversationDetail(_modalConvId);
+  } catch (err) {
+    notify(err.message || 'Mesaj gonderilemedi.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Gonder';
+    input.disabled = false;
+    input.focus();
+  }
+}
+
+async function loadLiveFeed() {
+  const container = el('live-feed-container');
+  try {
+    const data = await apiFetch('/chat/live-feed?limit=15');
+    state.liveConversations = data.conversations || [];
+    renderLiveFeed(container, data);
+    renderImportOptions(state.importItems, state.liveConversations);
+  } catch (error) {
+    container.innerHTML = '<div class="feedback-muted">Canli akis yuklenemedi: ' + escapeHtml(error.message || '') + '</div>';
+  }
+}
+
+function renderLiveFeed(container, data) {
+  const convs = data.conversations || [];
+  if (!convs.length) {
+    container.innerHTML = '<div class="feedback-muted">Henuz gercek misafir mesaji yok.</div>';
+    return;
+  }
+
+  container.innerHTML = convs.map(c => {
+    const timeStr = c.last_message_at ? formatTime(c.last_message_at) : '-';
+    const userSnippet = c.last_user_msg ? escapeHtml(c.last_user_msg.slice(0, 300)) : '-';
+    const assistantSnippet = c.last_assistant_msg ? escapeHtml(c.last_assistant_msg.slice(0, 300)) : '-';
+    let blocked = c.send_blocked === 'true' || c.send_blocked === true;
+    const rejected = c.rejected === 'true' || c.rejected === true;
+    // Safety: if no send_blocked flag at all and mode is not ai, treat as pending
+    if (!blocked && !rejected && c.send_blocked === null && state.operationMode !== 'ai') {
+      blocked = true;
+    }
+    let statusTag;
+    if (rejected) {
+      statusTag = '<span class="live-feed-rejected">REDDEDILDI</span>';
+    } else if (blocked && c.last_assistant_msg_id) {
+      statusTag = '<span class="live-feed-blocked">BEKLIYOR</span> ' +
+        '<button class="live-feed-approve-btn" data-approve-conv="' + escapeHtml(c.id) + '" data-approve-msg="' + escapeHtml(String(c.last_assistant_msg_id)) + '">Onayla</button>' +
+        ' <button class="live-feed-reject-btn" data-reject-conv="' + escapeHtml(c.id) + '" data-reject-msg="' + escapeHtml(String(c.last_assistant_msg_id)) + '">Gonderme</button>';
+    } else if (blocked) {
+      statusTag = '<span class="live-feed-blocked">BEKLIYOR</span>';
+    } else {
+      statusTag = '<span class="live-feed-sent">GONDERILDI</span>';
+    }
+
+    const flags = (c.risk_flags || []).map(f => '<span class="live-feed-badge">' + escapeHtml(f) + '</span>').join('');
+
+    return '<div class="live-feed-card" draggable="true" data-conv-id="' + escapeHtml(c.id) + '">' +
+      '<div class="live-feed-head">' +
+        '<span class="live-feed-phone">' + escapeHtml(c.phone_display) + ' (' + c.msg_count + ' mesaj)</span>' +
+        '<span class="live-feed-time">' + timeStr + '</span>' +
+      '</div>' +
+      '<div class="live-feed-msgs">' +
+        '<div class="live-feed-user">Misafir: ' + userSnippet + '</div>' +
+        '<div class="live-feed-assistant">AI: ' + assistantSnippet + ' ' + statusTag + '</div>' +
+      '</div>' +
+      '<div class="live-feed-badges">' +
+        '<span class="live-feed-badge">' + escapeHtml(c.language || '-') + '</span>' +
+        '<span class="live-feed-badge">' + escapeHtml(c.state || '-') + '</span>' +
+        (c.intent && c.intent !== '-' ? '<span class="live-feed-badge">' + escapeHtml(c.intent) + '</span>' : '') +
+        (c.is_active ? '<span class="live-feed-badge" style="color:#86efac">aktif</span>' : '<span class="live-feed-badge" style="color:#fca5a5">kapali</span>') +
+        flags +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+async function loadMetrics() {
+  const container = el('metrics-container');
+  try {
+    const data = await apiFetch('/chat/metrics');
+    renderMetrics(container, data);
+  } catch (error) {
+    container.innerHTML = '<div class="feedback-muted">Metrik yuklenemedi: ' + escapeHtml(error.message || 'Bilinmeyen hata') + '</div>';
+  }
+}
+
+function renderMetrics(container, m) {
+  if (!m || m.total_feedbacks === 0) {
+    container.innerHTML = '<div class="feedback-muted">Henuz geri bildirim kaydedilmemis.</div>';
+    return;
+  }
+  const pct = (n) => m.total_feedbacks ? Math.round(n / m.total_feedbacks * 100) : 0;
+  const barColors = {'1':'#ef4444','2':'#f97316','3':'#eab308','4':'#22d3ee','5':'#22c55e'};
+
+  let ratingBars = '';
+  for (let r = 5; r >= 1; r--) {
+    const count = (m.rating_distribution || {})[String(r)] || 0;
+    const w = pct(count);
+    const color = barColors[r] || '#888';
+    ratingBars += '<div class="metric-bar-row">' +
+      '<span class="metric-bar-label">' + r + ' Puan</span>' +
+      '<div class="metric-bar-track"><div class="metric-bar-fill" style="width:' + w + '%;background:' + color + '"></div></div>' +
+      '<span class="metric-bar-count">' + count + '</span></div>';
+  }
+
+  let catBars = '';
+  const cats = Object.entries(m.category_distribution || {}).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  cats.forEach(([key, count]) => {
+    const w = pct(count);
+    catBars += '<div class="metric-bar-row">' +
+      '<span class="metric-bar-label">' + escapeHtml(key) + '</span>' +
+      '<div class="metric-bar-track"><div class="metric-bar-fill" style="width:' + w + '%;background:var(--amber)"></div></div>' +
+      '<span class="metric-bar-count">' + count + '</span></div>';
+  });
+
+  let langBars = '';
+  const langs = Object.entries(m.language_distribution || {}).sort((a, b) => b[1] - a[1]);
+  langs.forEach(([key, count]) => {
+    const w = pct(count);
+    langBars += '<div class="metric-bar-row">' +
+      '<span class="metric-bar-label">' + escapeHtml(key.toUpperCase()) + '</span>' +
+      '<div class="metric-bar-track"><div class="metric-bar-fill" style="width:' + w + '%;background:var(--teal-2)"></div></div>' +
+      '<span class="metric-bar-count">' + count + '</span></div>';
+  });
+
+  container.innerHTML =
+    '<div class="metrics-grid">' +
+      '<div class="metric-card"><div class="metric-value">' + m.total_feedbacks + '</div><div class="metric-label">Toplam Geri Bildirim</div></div>' +
+      '<div class="metric-card"><div class="metric-value">' + (m.avg_rating || 0).toFixed(1) + '</div><div class="metric-label">Ortalama Puan</div></div>' +
+      '<div class="metric-card"><div class="metric-value">' + (m.good_count || 0) + '</div><div class="metric-label">Iyi (4-5)</div></div>' +
+      '<div class="metric-card"><div class="metric-value">' + (m.bad_count || 0) + '</div><div class="metric-label">Kotu (1-3)</div></div>' +
+    '</div>' +
+    '<div class="metric-bar-group"><strong style="font-size:12px;color:rgba(255,255,255,.7)">Puan Dagilimi</strong>' + ratingBars + '</div>' +
+    (catBars ? '<div class="metric-bar-group mt-sm"><strong style="font-size:12px;color:rgba(255,255,255,.7)">Kategori Dagilimi (Top 5)</strong>' + catBars + '</div>' : '') +
+    (langBars ? '<div class="metric-bar-group mt-sm"><strong style="font-size:12px;color:rgba(255,255,255,.7)">Dil Dagilimi</strong>' + langBars + '</div>' : '');
+}
+
 function wireEvents() {
   if (_eventsBound) return;
   _eventsBound = true;
+  document.addEventListener('click', removeCtxMenu);
+  el('faq-dialog-close').addEventListener('click', () => el('faq-dialog').close());
+  el('faq-dialog-form').addEventListener('submit', onFaqSubmit);
+  el('messages').addEventListener('contextmenu', event => {
+    const bubble = event.target.closest('.msg');
+    if (!bubble) return;
+    const body = bubble.querySelector('.msg-body');
+    if (!body) return;
+    showCtxMenu(event, body.textContent, bubble);
+  });
   el('send-btn').addEventListener('click', sendMessage);
   el('msg-input').addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -1004,6 +1763,148 @@ function wireEvents() {
   });
   el('apply-tag-suggestions').addEventListener('click', () => applyCategorySuggestions(true));
   el('feedback-submit').addEventListener('click', submitFeedback);
+  el('metrics-refresh').addEventListener('click', loadMetrics);
+  el('live-feed-refresh').addEventListener('click', loadLiveFeed);
+  el('live-feed-container').addEventListener('click', async event => {
+    // Approve button
+    const approveBtn = event.target.closest('.live-feed-approve-btn');
+    if (approveBtn) {
+      event.stopPropagation();
+      const convId = approveBtn.dataset.approveConv;
+      const msgId = approveBtn.dataset.approveMsg;
+      if (!convId || !msgId) return;
+      approveBtn.disabled = true;
+      approveBtn.textContent = 'Gonderiliyor...';
+      try {
+        await apiFetch('/chat/approve-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: convId, message_id: msgId})});
+        notify('Mesaj onaylandi ve gonderildi.', 'success');
+        loadLiveFeed();
+      } catch (error) {
+        notify(error.message || 'Onay gonderilemedi.', 'error');
+        approveBtn.disabled = false;
+        approveBtn.textContent = 'Onayla ve Gonder';
+      }
+      return;
+    }
+    // Reject button with confirm state
+    const rejectBtn = event.target.closest('.live-feed-reject-btn');
+    if (rejectBtn) {
+      event.stopPropagation();
+      if (!rejectBtn.classList.contains('confirm-state')) {
+        rejectBtn.classList.add('confirm-state');
+        rejectBtn.textContent = 'Emin misiniz?';
+        setTimeout(() => { rejectBtn.classList.remove('confirm-state'); rejectBtn.textContent = 'Gonderme'; }, 3000);
+        return;
+      }
+      const convId = rejectBtn.dataset.rejectConv;
+      const msgId = rejectBtn.dataset.rejectMsg;
+      if (!convId || !msgId) return;
+      rejectBtn.disabled = true;
+      rejectBtn.textContent = 'Reddediliyor...';
+      try {
+        await apiFetch('/chat/reject-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: convId, message_id: msgId})});
+        notify('Mesaj reddedildi.', 'success');
+        loadLiveFeed();
+        // Open modal with feedback form for the rejected message
+        showConversationDetail(convId).then(() => {
+          showModalFeedbackForm(convId, msgId);
+        });
+      } catch (error) {
+        notify(error.message || 'Reddetme basarisiz.', 'error');
+        rejectBtn.disabled = false;
+        rejectBtn.textContent = 'Gonderme';
+        rejectBtn.classList.remove('confirm-state');
+      }
+      return;
+    }
+    // Card click → open modal
+    const card = event.target.closest('.live-feed-card');
+    if (card && card.dataset.convId) {
+      showConversationDetail(card.dataset.convId);
+    }
+  });
+  // Right-click copy on live feed messages
+  el('live-feed-container').addEventListener('contextmenu', event => {
+    // Find the closest message text element or fall back to the card itself
+    let msgEl = event.target.closest('.live-feed-user') || event.target.closest('.live-feed-assistant');
+    const card = event.target.closest('.live-feed-card');
+    if (!msgEl && card) {
+      // User right-clicked elsewhere on the card — pick the assistant (AI response) text
+      msgEl = card.querySelector('.live-feed-assistant');
+    }
+    if (!msgEl) return;
+    event.preventDefault();
+    // Clone node and remove status badges so copied text is clean
+    const clone = msgEl.cloneNode(true);
+    clone.querySelectorAll('.live-feed-blocked,.live-feed-sent,.live-feed-rejected,.live-feed-approve-btn,.live-feed-reject-btn').forEach(n => n.remove());
+    const raw = clone.textContent.replace(/^(Misafir|AI):\\s*/, '').trim();
+    if (raw) showCtxMenu(event, raw);
+  });
+  // Drag-and-drop: live feed card → chat panel
+  el('live-feed-container').addEventListener('dragstart', event => {
+    const card = event.target.closest('.live-feed-card');
+    if (!card || !card.dataset.convId) { event.preventDefault(); return; }
+    event.dataTransfer.setData('text/plain', card.dataset.convId);
+    event.dataTransfer.effectAllowed = 'copy';
+    card.classList.add('is-dragging');
+    requestAnimationFrame(() => document.querySelector('.chat-panel').classList.add('drop-active'));
+  });
+  el('live-feed-container').addEventListener('dragend', event => {
+    const card = event.target.closest('.live-feed-card');
+    if (card) card.classList.remove('is-dragging');
+    document.querySelector('.chat-panel').classList.remove('drop-active');
+  });
+  const chatPanel = document.querySelector('.chat-panel');
+  chatPanel.addEventListener('dragover', event => {
+    if (!event.dataTransfer.types.includes('text/plain')) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    chatPanel.classList.add('drop-active');
+  });
+  chatPanel.addEventListener('dragleave', event => {
+    if (!chatPanel.contains(event.relatedTarget)) chatPanel.classList.remove('drop-active');
+  });
+  chatPanel.addEventListener('drop', event => {
+    event.preventDefault();
+    chatPanel.classList.remove('drop-active');
+    const convId = event.dataTransfer.getData('text/plain');
+    if (!convId) return;
+    // Update dropdown selection to match
+    const selectVal = 'conv:' + convId;
+    const select = el('import-select');
+    if (select.querySelector('option[value="' + selectVal.replace(/"/g, '\\"') + '"]')) {
+      select.value = selectVal;
+    }
+    loadLiveConversation(convId);
+  });
+  // Modal close handlers
+  el('conv-modal-close').addEventListener('click', closeConvModal);
+  el('conv-detail-overlay').addEventListener('click', event => {
+    if (event.target === el('conv-detail-overlay')) closeConvModal();
+  });
+  el('conv-modal-json-btn').addEventListener('click', () => {
+    el('conv-modal-json').classList.toggle('hidden');
+  });
+  // Right-click copy on modal messages
+  el('conv-modal-messages').addEventListener('contextmenu', event => {
+    const msgEl = event.target.closest('.conv-msg');
+    if (!msgEl) return;
+    const body = msgEl.querySelector('.conv-msg-body');
+    if (!body) return;
+    showCtxMenu(event, body.textContent);
+  });
+  // Send message from modal
+  el('conv-modal-send-btn').addEventListener('click', sendModalMessage);
+  el('conv-modal-msg-input').addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendModalMessage();
+    }
+  });
+  el('mode-switch').addEventListener('click', event => {
+    const btn = event.target.closest('.mode-btn');
+    if (btn && btn.dataset.mode) changeMode(btn.dataset.mode);
+  });
   el('report-submit').addEventListener('click', generateReport);
   el('model-select').addEventListener('change', changeModel);
   el('phone-input').addEventListener('change', () => {
@@ -1020,7 +1921,7 @@ async function boot() {
   renderCategoryOptions();
   renderTagOptions();
   try {
-    await Promise.all([loadCatalog(), loadModels(), refreshImportFiles()]);
+    await Promise.all([loadCatalog(), loadModels(), refreshImportFiles(), loadMetrics(), loadMode(), loadLiveFeed()]);
   } catch (error) {
     notify(error.message || 'Panel baslatilamadi. Lutfen tekrar deneyin.', 'error');
     _booted = false;
@@ -1028,6 +1929,8 @@ async function boot() {
   }
   setComposerMode(true);
   await loadHistory();
+  // Auto-refresh live feed and mode every 3 seconds
+  setInterval(() => { loadLiveFeed(); loadMode(); }, 3000);
 }
 
 let _eventsBound = false;
@@ -1040,6 +1943,7 @@ window.addEventListener('message', event => {
   if (event.origin !== window.location.origin) return;
   if (event.data && event.data.type === 'chatlab:token') {
     state.adminToken = String(event.data.token || '');
+    state.hotelId = String(event.data.hotelId || '');
     finishParentRefresh(Boolean(state.adminToken));
     if (state.adminToken) {
       boot();

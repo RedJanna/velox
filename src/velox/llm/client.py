@@ -188,6 +188,7 @@ class LLMClient:
                     service="openai",
                     model=model_name,
                     error_type=type(error).__name__,
+                    error_detail=str(error)[:500],
                     attempt_number=attempt,
                     duration_ms=duration_ms,
                 )
@@ -203,6 +204,7 @@ class LLMClient:
                     service="openai",
                     model=model_name,
                     error_type=type(error).__name__,
+                    error_detail=str(error)[:500],
                     attempt_number=attempt,
                     duration_ms=duration_ms,
                 )

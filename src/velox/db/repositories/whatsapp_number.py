@@ -67,6 +67,21 @@ class WhatsAppNumberRepository:
             if not normalized_display:
                 normalized_display = None
 
+        # Remove any stale row that holds the same display_phone_number under a
+        # different phone_number_id — avoids unique-constraint violation on the
+        # display_phone_number index when the upsert targets phone_number_id.
+        stripped_pnid = phone_number_id.strip()
+        if normalized_display:
+            await execute(
+                """
+                DELETE FROM whatsapp_numbers
+                WHERE display_phone_number = $1
+                  AND phone_number_id <> $2
+                """,
+                normalized_display,
+                stripped_pnid,
+            )
+
         row = await fetchrow(
             """
             INSERT INTO whatsapp_numbers (hotel_id, phone_number_id, display_phone_number, is_active)
@@ -79,7 +94,7 @@ class WhatsAppNumberRepository:
             RETURNING *
             """,
             hotel_id,
-            phone_number_id.strip(),
+            stripped_pnid,
             normalized_display,
             is_active,
         )

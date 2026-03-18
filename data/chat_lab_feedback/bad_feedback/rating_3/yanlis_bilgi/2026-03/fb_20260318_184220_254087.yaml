@@ -1,0 +1,361 @@
+schema_version: chat_lab_feedback.v1
+feedback_id: fb_20260318_184220_254087
+status: new
+approved_example: false
+created_at: '2026-03-18T18:42:20.254305+00:00'
+rating: 3
+rating_label: Eksik Bilgi
+category: yanlis_bilgi
+category_label: Yanlis Bilgi
+tags:
+- yanlis_bilgi
+- tool_output_celiskisi
+gold_standard: 'Sigara içimine sadece açık teras bölümünde izin verilmektedir. Diğer misafirlerimizin rahatlığı ve konforu için sigara içmemenizi önemle tavsiye ederiz.
+
+
+  English:
+
+  Smoking is permitted in the open terrace area. For the comfort and convenience of our other guests, we kindly and strongly recommend refraining from smoking.
+
+
+  Русский:
+
+  Курение разрешено только в открытой зоне террасы. Ради комфорта и удобства других гостей мы настоятельно рекомендуем воздержаться от курения.
+
+
+  العربية:
+
+  يُسمح بالتدخين فقط في منطقة التراس المفتوحة. ومن أجل راحة ورفاهية ضيوفنا الآخرين، نوصي بشدة بالامتناع عن التدخين.
+
+
+  中文:
+
+  仅可在室外露台区域吸烟。为保障其他宾客的舒适与便利，我们诚挚建议您尽量不要吸烟。
+
+
+  Español:
+
+  Se permite fumar únicamente en la zona de la terraza al aire libre. Por la comodidad y el bienestar de nuestros demás huéspedes, le recomendamos encarecidamente no fumar.
+
+
+  हिन्दी:
+
+  धूम्रपान केवल खुले टैरेस क्षेत्र में ही अनुमत है। अन्य अतिथियों की सुविधा और आराम के लिए, हम आपसे विनम्रतापूर्वक धूम्रपान न करने का आग्रह करते हैं।
+
+
+  Deutsch:
+
+  Das Rauchen ist ausschließlich im offenen Terrassenbereich gestattet. Für den Komfort und das Wohlbefinden unserer anderen Gäste empfehlen wir Ihnen nachdrücklich, auf das Rauchen zu verzichten.
+
+
+  Français:
+
+  Il est permis de fumer uniquement dans l’espace terrasse extérieure. Pour le confort et le bien-être de nos autres clients, nous vous recommandons vivement de ne pas fumer.
+
+
+  Português:
+
+  É permitido fumar apenas na área da varanda externa. Para o conforto e o bem-estar dos demais hóspedes, recomendamos fortemente que evite fumar.'
+notes: Restoranda kapalı alan mevcut değildir. Restoranımızda yarı kapalı alan bulunmqaktaır ve restorana sigara içmek serbesttir.
+source_type: live_conversation
+storage_group: bad_feedback
+input: Restoranda sigara içiliyor mu
+output: "Restoranımızın **kapalı alanı sigarasızdır** \U0001F33F  \n\nSigara kullanımı yalnızca **açık teras bölümünde** mümkündür.  \nDilerseniz rezervasyonunuzda sigarasız alanda masa talebinizi özellikle not edebiliriz."
+conversation_id: 0f8a55df-da97-4bb9-b8ba-7cf9127dfb17
+assistant_message_id: 431d641a-7f06-4c90-91a9-4700b5e0fcb4
+timestamp: '2026-03-18T13:17:10.281591+00:00'
+language: tr
+intent: faq_info
+state: INTENT_DETECTED
+risk_flags:
+- ALLERGY_HIGH_RISK
+tool_calls: []
+model: gpt-5.2-chat-latest
+excerpt:
+- id: cea4a529-7ec8-4c18-adb2-ba34c46c734c
+  role: user
+  content: '7'
+  created_at: '2026-03-18T13:13:00.128058+00:00'
+  internal_json:
+    wa_id: '905012969548'
+    hotel_id: 21966
+    message_id: wamid.HBgMOTA1MDEyOTY5NTQ4FQIAEhggQUM2QTkwNDBENDU1QjgyNDEwOUQyMjYxRDU2MTdGQjIA
+    wa_id_hash: 27915b745eab6a8146904fdbbc848f055c134f7bf795a6e7b579fc45464b7886
+    route_audit:
+      route: /api/v1/webhook/whatsapp
+      webhook_ip: '2a03:2880:10ff:52::'
+      received_at: '2026-03-18T13:12:57.288606+00:00'
+      phone_number_id: '1057804854074583'
+      signature_valid: true
+      resolved_hotel_id: 21966
+      display_phone_number: '15551659223'
+    source_type: live_whatsapp
+    message_type: text
+    wa_id_masked: 905***48
+    burst_part_index: 1
+    burst_part_total: 1
+    sender_profile_name: suatergul364
+- id: 40483678-01e1-49e3-90f3-8902e2773078
+  role: assistant
+  content: 'Otelimize göstermiş olduğunuz ilgi için teşekkür ederiz.
+
+
+    2026-06-16 - 2026-06-26 tarihleri arasında 10 gece
+
+    kahvaltı dahil 2 yetişkin + 1 çocuk fiyatlarımız aşağıdaki gibidir;
+
+
+    Superior (30m2)
+
+    İptal edilemez: 2275 €
+
+    Ücretsiz İptal: 2505 €
+
+
+    Exclusive Sokak Manzaralı (40m2)
+
+    İptal edilemez: 2345 €
+
+    Ücretsiz İptal: 2580 €
+
+
+    Penthouse - Jakuzili (45m2)
+
+    İptal edilemez: 2520 €
+
+    Ücretsiz İptal: 2770 €
+
+
+    Premium - Jakuzili (40m2)
+
+    İptal edilemez: 2625 €
+
+    Ücretsiz İptal: 2890 €
+
+
+    Ücretsiz iptal seçeneği ile yapılan rezervasyonlarda girişten 5 gün öncesine kadar iptal olması halinde %100 geri ödeme alabilirsiniz.
+
+
+    Rezervasyon onayı için iptal edilemez rezervasyonlarda 1 gecelik ödeme tahsil edilmektedir. Kalan ödemeyi giriş günündeki güncel döviz kuruna göre TL veya döviz olarak yapabilirsiniz.
+
+
+    Nazik bilgilendirme: Oda numarası için önceden garanti veremiyoruz; ancak girişiniz sırasında uygunluk doğrultusunda size memnuniyetle yardımcı oluruz.'
+  created_at: '2026-03-18T13:13:17.380533+00:00'
+  internal_json:
+    state: CONFIRMED
+    intent: stay_quote
+    handoff:
+      needed: false
+      reason: ''
+    entities:
+      adults: 2
+      chd_ages:
+      - 7
+      currency: EUR
+      chd_count: 1
+      party_size: 3
+      nationality: FR
+      checkin_date: '2026-06-16'
+      checkout_date: '2026-06-26'
+      restaurant_date: '2026-06-16'
+    language: tr
+    next_step: guest_select_room_type_and_cancel_policy
+    escalation:
+      level: L0
+      reason: normal_flow
+      sla_hint: low
+      dedupe_key: stay_quote_2026-06-16_2026-06-26_2A1C
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls:
+    - name: booking_availability
+    - name: booking_quote
+    send_blocked: false
+    notifications: []
+    message_part_index: 1
+    message_part_total: 1
+    required_questions: []
+    human_override_blocked: false
+- id: d6cf00c9-d384-403c-97ab-3573c93a9ace
+  role: user
+  content: Çocuk havuzu var mıdır yeme içme için restorantınız var mıdır varsa menü ile ilgili bilgi onun dışında varsa zeminle alakalı bilgi onun dışında varsa gece saat kaça kadar restorantınız açık teşekkürler
+  created_at: '2026-03-18T13:14:27.317278+00:00'
+  internal_json:
+    wa_id: '905012969548'
+    hotel_id: 21966
+    message_id: wamid.HBgMOTA1MDEyOTY5NTQ4FQIAEhggQUMxOUZFNjlEQTBFMERCODhEQzVCNTQ5NzAwMjZCNzQA
+    wa_id_hash: 27915b745eab6a8146904fdbbc848f055c134f7bf795a6e7b579fc45464b7886
+    route_audit:
+      route: /api/v1/webhook/whatsapp
+      webhook_ip: '2a03:2880:22ff:74::'
+      received_at: '2026-03-18T13:14:24.476212+00:00'
+      phone_number_id: '1057804854074583'
+      signature_valid: true
+      resolved_hotel_id: 21966
+      display_phone_number: '15551659223'
+    source_type: live_whatsapp
+    message_type: text
+    wa_id_masked: 905***48
+    burst_part_index: 1
+    burst_part_total: 1
+    sender_profile_name: suatergul364
+- id: 7d974489-49b6-479b-9eb6-b22aecbad7ce
+  role: assistant
+  content: "Çocuk havuzumuz mevcuttur \U0001F33F  \nAyrıca ana havuzumuzla birlikte sakin ve güvenli bir bahçe alanımız bulunmaktadır.\n\nRestoranımız bulunmaktadır ve kahvaltı açık büfe olarak sunulmaktadır.  \nAkşamları ise à la carte servis veriyoruz (Türk ve Akdeniz mutfağı ağırlıklı).\n\nZemin genel olarak bahçe ve teras konseptindedir; otelimiz butik ve sakin bir yapıya sahiptir.  \nRestoranımız 08:00 – 22:00 saatleri arasında hizmet vermektedir.\n\nMenüyü PDF olarak da iletebilirim. İster misiniz?"
+  created_at: '2026-03-18T13:14:34.740910+00:00'
+  internal_json:
+    state: INTENT_DETECTED
+    intent: faq_info
+    handoff:
+      needed: false
+      reason: ''
+      ticket_id: ''
+    entities:
+      adults: 2
+      chd_ages:
+      - 7
+      currency: EUR
+      chd_count: 1
+      party_size: 3
+      nationality: FR
+      checkin_date: '2026-06-16'
+      checkout_date: '2026-06-26'
+      restaurant_date: '2026-06-16'
+    language: tr
+    next_step: Await guest response about menu PDF or further questions.
+    escalation:
+      level: L0
+      reason: general_info_request
+      sla_hint: low
+      dedupe_key: ''
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls: []
+    send_blocked: false
+    notifications: []
+    message_part_index: 1
+    message_part_total: 1
+    required_questions: []
+    human_override_blocked: false
+- id: 1e9a362a-de1c-4871-8761-11a40d6b15e8
+  role: user
+  content: Eşim engelli onun için yürüme yolu odaya giriş ve çıkış restorana gidiş ve geliş tuvaleti kullanma onun gibi kolaylıklar var mıdır
+  created_at: '2026-03-18T13:16:03.379729+00:00'
+  internal_json:
+    wa_id: '905012969548'
+    hotel_id: 21966
+    message_id: wamid.HBgMOTA1MDEyOTY5NTQ4FQIAEhggQUM0NkJBMDZBM0FDRUQ4NzNERjgyOTBDRDA3NDk2RDMA
+    wa_id_hash: 27915b745eab6a8146904fdbbc848f055c134f7bf795a6e7b579fc45464b7886
+    route_audit:
+      route: /api/v1/webhook/whatsapp
+      webhook_ip: '2a03:2880:12ff:4::'
+      received_at: '2026-03-18T13:16:00.544157+00:00'
+      phone_number_id: '1057804854074583'
+      signature_valid: true
+      resolved_hotel_id: 21966
+      display_phone_number: '15551659223'
+    source_type: live_whatsapp
+    message_type: text
+    wa_id_masked: 905***48
+    burst_part_index: 1
+    burst_part_total: 1
+    sender_profile_name: suatergul364
+- id: 0afa9a50-7013-4cd2-bda9-f2e1cb467993
+  role: assistant
+  content: "Bu konuda içiniz rahat olsun \U0001F33F  \n\nOtelimizde **erişilebilir (engelli dostu) zemin kat Deluxe odalarımız** bulunmaktadır.  \nBu odalarda:  \n- Odaya giriş düz ayak (basamaksız)  \n- Restoran ve havuza erişim kolay  \n- Geniş kapı geçişleri  \n- Erişilebilir banyo/WC düzeni  \n\nEşiniz için özellikle tekerlekli sandalye kullanımı söz konusu mu? Böyleyse detaylı ölçü bilgisi de paylaşabilirim."
+  created_at: '2026-03-18T13:16:12.326618+00:00'
+  internal_json:
+    state: INTENT_DETECTED
+    intent: faq_info
+    handoff:
+      needed: false
+      reason: ''
+      ticket_id: ''
+    entities:
+      adults: 2
+      chd_ages:
+      - 7
+      currency: EUR
+      chd_count: 1
+      party_size: 3
+      nationality: FR
+      checkin_date: '2026-06-16'
+      checkout_date: '2026-06-26'
+      restaurant_date: '2026-06-16'
+    language: tr
+    next_step: Engel durumunun detayına göre uygun oda tipi önerilecek ve gerekirse rezervasyon sürecine devam edilecek.
+    escalation:
+      level: L0
+      reason: ''
+      sla_hint: low
+      dedupe_key: ''
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls: []
+    send_blocked: false
+    notifications: []
+    message_part_index: 1
+    message_part_total: 1
+    required_questions: []
+    human_override_blocked: false
+- id: d096dfce-fa68-4a7e-93d4-22921bedbf72
+  role: user
+  content: Restoranda sigara içiliyor mu
+  created_at: '2026-03-18T13:17:06.410769+00:00'
+  internal_json:
+    wa_id: '905012969548'
+    hotel_id: 21966
+    message_id: wamid.HBgMOTA1MDEyOTY5NTQ4FQIAEhggQUM1QzE3QUU0MERCMkM2Q0I3QjlBMjEzNTdCRjc2OUUA
+    wa_id_hash: 27915b745eab6a8146904fdbbc848f055c134f7bf795a6e7b579fc45464b7886
+    route_audit:
+      route: /api/v1/webhook/whatsapp
+      webhook_ip: '2a03:2880:21ff:3::'
+      received_at: '2026-03-18T13:17:03.577427+00:00'
+      phone_number_id: '1057804854074583'
+      signature_valid: true
+      resolved_hotel_id: 21966
+      display_phone_number: '15551659223'
+    source_type: live_whatsapp
+    message_type: text
+    wa_id_masked: 905***48
+    burst_part_index: 1
+    burst_part_total: 1
+    sender_profile_name: suatergul364
+- id: 431d641a-7f06-4c90-91a9-4700b5e0fcb4
+  role: assistant
+  content: "Restoranımızın **kapalı alanı sigarasızdır** \U0001F33F  \n\nSigara kullanımı yalnızca **açık teras bölümünde** mümkündür.  \nDilerseniz rezervasyonunuzda sigarasız alanda masa talebinizi özellikle not edebiliriz."
+  created_at: '2026-03-18T13:17:10.281591+00:00'
+  internal_json:
+    state: INTENT_DETECTED
+    intent: faq_info
+    handoff:
+      needed: false
+      reason: ''
+    entities:
+      adults: 2
+      chd_ages:
+      - 7
+      currency: EUR
+      chd_count: 1
+      party_size: 3
+      nationality: FR
+      checkin_date: '2026-06-16'
+      checkout_date: '2026-06-26'
+      restaurant_date: '2026-06-16'
+    language: tr
+    next_step: Misafirin konaklama ile ilgili sorularina devam etmesini bekle
+    escalation:
+      level: L0
+      reason: General information request
+      sla_hint: low
+      dedupe_key: faq_smoking_policy
+      route_to_role: NONE
+    risk_flags: []
+    tool_calls: []
+    send_blocked: false
+    notifications: []
+    message_part_index: 1
+    message_part_total: 1
+    required_questions: []
+    human_override_blocked: false
+source_file: null

@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 import structlog
 
-from velox.adapters.whatsapp.client import get_whatsapp_client
+from velox.adapters.whatsapp.client import WhatsAppSendBlockedError, get_whatsapp_client
 from velox.db.database import execute
 from velox.db.repositories.hotel import (
     ApprovalRequestRepository,
@@ -117,6 +117,8 @@ class ApprovalRequestTool(BaseTool):
                     timeout=_WHATSAPP_SEND_TIMEOUT,
                 )
                 logger.info("approval_whatsapp_sent", phone=phone[:5] + "***")
+            except WhatsAppSendBlockedError:
+                logger.info("approval_whatsapp_blocked_by_mode", phone=phone[:5] + "***")
             except Exception:
                 logger.warning("approval_whatsapp_failed", phone=phone[:5] + "***")
 

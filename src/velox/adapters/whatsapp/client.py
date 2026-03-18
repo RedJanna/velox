@@ -43,6 +43,10 @@ def _mask_phone(phone: str) -> str:
     return f"{phone[:3]}***{phone[-2:]}"
 
 
+class WhatsAppSendBlockedError(Exception):
+    """Raised when outbound messaging is blocked by the current operation mode."""
+
+
 class WhatsAppClient:
     """Meta WhatsApp Business Cloud API client."""
 
@@ -50,7 +54,26 @@ class WhatsAppClient:
         self.base_url = f"{app_settings.whatsapp_api_base_url}/{app_settings.whatsapp_api_version}"
         self.phone_number_id = app_settings.whatsapp_phone_number_id
         self.access_token = app_settings.whatsapp_access_token
+        self._settings = app_settings
         self._client: httpx.AsyncClient | None = None
+
+    def _assert_send_allowed(self, action: str, to: str, *, force: bool = False) -> None:
+        """Block outbound messages unless operation_mode is 'ai' or force is True."""
+        if force:
+            return
+        mode = self._settings.operation_mode
+        if mode == "ai":
+            return
+        logger.warning(
+            "whatsapp_send_blocked",
+            operation_mode=mode,
+            action=action,
+            to=_mask_phone(to),
+        )
+        raise WhatsAppSendBlockedError(
+            f"Outbound WhatsApp messaging is blocked in '{mode}' mode. "
+            f"Switch to 'ai' mode to enable sending."
+        )
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create async HTTP client."""
@@ -105,8 +128,9 @@ class WhatsAppClient:
             raise last_error
         raise RuntimeError("WhatsApp request failed.")
 
-    async def send_text_message(self, to: str, body: str) -> dict[str, Any]:
+    async def send_text_message(self, to: str, body: str, *, force: bool = False) -> dict[str, Any]:
         """Send a plain text message."""
+        self._assert_send_allowed("send_text_message", to, force=force)
         normalized_to = _normalize_recipient_phone(to)
         truncated = body if len(body) <= MAX_MESSAGE_LENGTH else f"{body[: MAX_MESSAGE_LENGTH - 3]}..."
         payload = {
@@ -126,6 +150,7 @@ class WhatsAppClient:
         components: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """Send a template message."""
+        self._assert_send_allowed("send_template_message", to)
         normalized_to = _normalize_recipient_phone(to)
         payload = {
             "messaging_product": "whatsapp",

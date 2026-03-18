@@ -62,6 +62,29 @@ async def check_openai_api_key() -> dict[str, Any]:
     return _result(True, "openai_api_key_configured")
 
 
+async def check_openai_live() -> dict[str, Any]:
+    """Send a minimal request to OpenAI to verify the key works end-to-end."""
+    from openai import AsyncOpenAI
+
+    if not settings.openai_api_key.strip():
+        return _result(False, "openai_api_key_missing")
+
+    client = AsyncOpenAI(api_key=settings.openai_api_key)
+    try:
+        async with asyncio.timeout(15):
+            response = await client.chat.completions.create(
+                model=settings.openai_model,
+                messages=[{"role": "user", "content": "Say OK"}],
+                max_tokens=5,
+            )
+        content = (response.choices[0].message.content or "").strip() if response.choices else ""
+        return _result(True, "openai_live_ok", model=settings.openai_model, response_preview=content[:50])
+    except Exception as exc:
+        return _result(False, "openai_live_error", error_type=type(exc).__name__, error_detail=str(exc)[:300])
+    finally:
+        await client.close()
+
+
 async def check_elektraweb() -> dict[str, Any]:
     """Validate Elektraweb configuration format."""
     base_url = settings.elektra_api_base_url.strip()
@@ -104,7 +127,19 @@ def check_migrations(request: Request) -> dict[str, Any]:
 @router.get("")
 async def health_check() -> dict[str, str]:
     """Basic health check endpoint."""
-    return {"status": "ok", "service": "velox", "version": "0.1.0"}
+    from velox.config.settings import settings
+
+    return {"status": "ok", "service": "velox", "version": "0.1.0", "operation_mode": settings.operation_mode}
+
+
+@router.get("/openai")
+async def openai_check() -> JSONResponse:
+    """Live OpenAI connectivity check — tests actual API call."""
+    result = await check_openai_live()
+    return JSONResponse(
+        content=result,
+        status_code=200 if result.get("ok") else 503,
+    )
 
 
 @router.get("/ready")

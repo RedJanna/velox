@@ -10,6 +10,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import structlog
 import yaml
@@ -179,15 +180,19 @@ class ChatLabFeedbackService:
         except Exception:
             logger.exception("chat_lab_import_auto_export_failed")
         files = sorted(self._imports_root.glob("*.json"))
-        items = [
-            ChatLabImportFileItem(
-                filename=file_path.name,
-                label=self._import_file_label(file_path),
-                modified_at=datetime.fromtimestamp(file_path.stat().st_mtime, tz=UTC).isoformat(),
-                size_bytes=file_path.stat().st_size,
+        items = []
+        active_conv_ids = await self._get_active_conversation_ids()
+        for file_path in files:
+            if not self._is_import_file_active(file_path, active_conv_ids):
+                continue
+            items.append(
+                ChatLabImportFileItem(
+                    filename=file_path.name,
+                    label=self._import_file_label(file_path),
+                    modified_at=datetime.fromtimestamp(file_path.stat().st_mtime, tz=UTC).isoformat(),
+                    size_bytes=file_path.stat().st_size,
+                )
             )
-            for file_path in files
-        ]
         return ChatLabImportListResponse(items=items)
 
     async def load_import(self, payload: ChatLabImportRequest) -> ChatLabImportResponse:
@@ -219,6 +224,8 @@ class ChatLabFeedbackService:
     async def _load_source(self, payload: ChatLabFeedbackRequest) -> dict[str, Any]:
         if payload.source_type in {"imported_real", "imported_test"}:
             return await self._load_import_source(payload)
+        if payload.source_type == "live_conversation":
+            return await self._load_live_conversation_source(payload)
         return await self._load_live_source(payload)
 
     async def _load_live_source(self, payload: ChatLabFeedbackRequest) -> dict[str, Any]:
@@ -227,6 +234,43 @@ class ChatLabFeedbackService:
         conversation = await self._repository.get_active_by_phone(settings.elektra_hotel_id, hashed_phone)
         if conversation is None or conversation.id is None:
             raise FeedbackConversationNotFoundError("No active test conversation found for this phone.")
+
+        messages = await self._repository.get_messages(conversation.id, limit=500, offset=0)
+        excerpt = _messages_until_target(messages, payload.assistant_message_id)
+        assistant_message = excerpt[-1]
+        if assistant_message.role != "assistant":
+            raise FeedbackMessageNotFoundError("The selected message is not an assistant reply.")
+
+        assistant_internal = assistant_message.internal_json or {}
+        return {
+            "conversation_id": str(conversation.id),
+            "input_text": _latest_user_message(excerpt),
+            "output_text": assistant_message.content,
+            "assistant_created_at": assistant_message.created_at.astimezone(UTC),
+            "language": conversation.language,
+            "intent": str(assistant_internal.get("intent") or conversation.current_intent or ""),
+            "state": str(assistant_internal.get("state") or conversation.current_state),
+            "risk_flags": [str(flag) for flag in assistant_internal.get("risk_flags") or conversation.risk_flags],
+            "tool_calls": _tool_call_names(assistant_internal.get("tool_calls") or assistant_message.tool_calls),
+            "model": str(assistant_internal.get("model") or get_llm_client().primary_model),
+            "excerpt": _serialize_excerpt(excerpt),
+            "source_file": None,
+        }
+
+    async def _load_live_conversation_source(self, payload: ChatLabFeedbackRequest) -> dict[str, Any]:
+        """Load feedback source from a live conversation selected by conversation ID."""
+        if not payload.conversation_id:
+            raise FeedbackConversationNotFoundError("Conversation ID is required for live conversation feedback.")
+        try:
+            conv_uuid = UUID(str(payload.conversation_id))
+        except ValueError:
+            raise FeedbackConversationNotFoundError("Invalid conversation ID format.")
+
+        conversation = await self._repository.get_by_id(conv_uuid)
+        if conversation is None or conversation.id is None:
+            raise FeedbackConversationNotFoundError(
+                f"Conversation not found for ID: {payload.conversation_id}"
+            )
 
         messages = await self._repository.get_messages(conversation.id, limit=500, offset=0)
         excerpt = _messages_until_target(messages, payload.assistant_message_id)
@@ -311,6 +355,30 @@ class ChatLabFeedbackService:
         if schema_version is not None and schema_version != _TRANSCRIPT_SCHEMA_VERSION:
             logger.warning("chat_lab_import_schema_mismatch", filename=safe_name, schema_version=schema_version)
         return data
+
+    async def _get_active_conversation_ids(self) -> set[str]:
+        """Return set of active conversation IDs from the database."""
+        try:
+            rows = await self._repository._get_active_ids()
+            return {str(row) for row in rows}
+        except Exception:
+            logger.debug("chat_lab_active_ids_fetch_failed")
+            return set()
+
+    @staticmethod
+    def _is_import_file_active(file_path: Path, active_ids: set[str]) -> bool:
+        """Check if a live_conv_ import file belongs to an active conversation."""
+        if not file_path.name.startswith("live_conv_"):
+            return True
+        if not active_ids:
+            return True
+        try:
+            with file_path.open(encoding="utf-8") as file_obj:
+                data = json.load(file_obj)
+            conv_id = str(data.get("conversation_id") or "")
+            return conv_id in active_ids
+        except Exception:
+            return True
 
     def _import_file_label(self, file_path: Path) -> str:
         """Build a readable option label from import file metadata."""

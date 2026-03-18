@@ -3,9 +3,11 @@
 ## What Is This?
 This file is the **entry point** for all AI coding agents (Codex, Claude, Copilot, etc.) working on the Velox project. It defines which rule files ("skills") must be read before writing any code.
 
+**RULE: Before reading skill files, read `system_prompt_velox.md`.**
 **RULE: Never write or modify code without reading the relevant skill files first.**
 **RULE: For debugging, diagnosis, and root cause analysis tasks, validate the Docker backend runtime before any frontend, prompt, or model-level analysis.**
 **RULE: If a change affects prompt behavior, admin domain cutover flow, or production deployment flow, update the related critical docs in the same commit (`docs/master_prompt_v2.md`, `docs/admin_panel_domain_cutover.md`, `docs/production_deployment.md`).**
+**RULE: If you apply only a workaround, label it explicitly as `geçici çözüm`; do not present it as the permanent fix.**
 
 ---
 
@@ -29,15 +31,38 @@ Kurallar arasında çakışma olursa aşağıdaki öncelik sırası geçerlidir.
 
 ## How It Works
 
-1. Before starting any task, read this file (`SKILL.md`)
-2. If the task is debugging, diagnosis, or root cause analysis, start with Docker backend validation: inspect `app`, `db`, `redis`, and relevant sidecars for container state, health checks, logs, config/env integrity, dependency readiness, and migration compatibility
-3. Find your task in the **Task → Skill Map** below
-4. Read each listed skill file from the `skills/` directory
-5. Follow every rule in those files while writing code
-6. Run the **Critical Docs Sync Gate** (below) and update required docs in the same commit
-7. Before marking a task as done, run the **Validation Checklist** from each skill
+1. Before starting any task, read `system_prompt_velox.md`
+2. Read this file (`SKILL.md`)
+3. If the task is debugging, diagnosis, or root cause analysis, start with Docker backend validation: inspect `app`, `db`, `redis`, and relevant sidecars for container state, health checks, logs, config/env integrity, dependency readiness, and migration compatibility
+4. Find your task in the **Task → Skill Map** below
+5. Read each listed skill file from the `skills/` directory
+6. Follow every rule in those files while writing code
+7. Run the **Critical Docs Sync Gate** (below) and update required docs in the same commit
+8. Before marking a task as done, run the **Validation Checklist** from each skill
 
 > **Bağlayıcı debug sırası:** `SKILL.md` + gerekli skill dosyaları okunur, ardından Docker backend doğrulaması yapılır; bu doğrulama tamamlanmadan prompt, model, frontend veya saf UI katmanına geçilmez.
+
+## Operating Principles
+
+These principles come from `system_prompt_velox.md` and are binding unless a higher-priority security or anti-hallucination rule overrides them:
+
+- **Evidence first:** Do not claim certainty without evidence
+- **Root cause first:** Separate symptom, trigger, and systemic cause
+- **Short but complete:** Communicate directly without fluff, but do not skip required technical detail
+- **Backend before frontend:** Establish backend contract and runtime health before UI-level assumptions
+- **Finish the task:** Do not stop at analysis if the request requires an actual change
+
+## Debugging Minimum Protocol
+
+For problem analysis, diagnosis, regressions, and root cause analysis, complete at least this sequence:
+
+1. Check container/runtime state with `docker compose ps` or equivalent
+2. Inspect `app`, `db`, `redis`, and relevant sidecars for `unhealthy`, `restarting`, `exited`, readiness failures, or restart loops
+3. Review container and application logs to identify the first break in the chain
+4. Validate env/config, volumes, ports, networks, `depends_on`, migrations/schema, DB/Redis access, and health endpoints
+5. Only after backend health is understood move to prompt, model, frontend, or UX analysis
+
+> **Binding rule:** A root cause analysis is incomplete if Docker backend validation was skipped.
 
 ---
 
@@ -93,6 +118,18 @@ Rules:
 1. Required doc updates are not deferred to a later task; they are part of the current task completion.
 2. If multiple rows match, update all matched documents in the same commit.
 3. If no row matches, state a short reason in the task summary.
+
+## ULTRATHINK Trigger
+
+If the developer explicitly writes `ULTRATHINK`, increase analysis depth and cover:
+
+- performance
+- security
+- scalability
+- maintainability
+- edge cases and failure modes
+
+Do not settle on the first plausible explanation in this mode.
 
 ---
 

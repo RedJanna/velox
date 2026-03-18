@@ -10,8 +10,9 @@ import asyncpg
 import orjson
 import structlog
 
-from velox.adapters.whatsapp.client import get_whatsapp_client
+from velox.adapters.whatsapp.client import WhatsAppSendBlockedError, get_whatsapp_client
 from velox.config.constants import MAX_TOOL_RETRIES, TOOL_RETRY_BACKOFF_SECONDS, HoldStatus
+from velox.config.settings import settings
 from velox.core.hotel_profile_loader import get_profile
 from velox.core.hold_workflow import HoldWorkflowEvent, HoldWorkflowState, apply_hold_transition
 from velox.core.idempotency import (
@@ -708,22 +709,38 @@ class EventProcessor:
             )
         )
 
-    async def _append_assistant_message(self, conversation_id: UUID | None, content: str) -> None:
-        """Store assistant message in conversation history."""
+    async def _append_assistant_message(self, conversation_id: UUID | None, content: str) -> Message | None:
+        """Store assistant message in conversation history with approval mode flags."""
         if conversation_id is None:
-            return
-        await self._conversation_repository.add_message(
+            return None
+        mode = settings.operation_mode
+        internal: dict[str, Any] = {"source": "system_event"}
+        if mode != "ai":
+            internal["send_blocked"] = True
+        if mode == "approval":
+            internal["approval_pending"] = True
+        return await self._conversation_repository.add_message(
             Message(
                 conversation_id=conversation_id,
                 role="assistant",
                 content=content,
+                internal_json=internal,
             )
         )
 
     async def _send_user_message(self, phone: str, message: str) -> None:
-        """Send WhatsApp message to user if a raw phone is available."""
+        """Send WhatsApp message to user if a raw phone is available and mode allows."""
         if not phone or "*" in phone:
             logger.warning("webhook_user_message_skipped_no_phone")
+            return
+
+        mode = settings.operation_mode
+        if mode != "ai":
+            logger.info(
+                "webhook_user_message_blocked_by_mode",
+                phone=_mask_phone(phone),
+                operation_mode=mode,
+            )
             return
 
         whatsapp_client = get_whatsapp_client()
@@ -735,6 +752,9 @@ class EventProcessor:
                     timeout=EXTERNAL_TIMEOUT_SECONDS,
                 )
                 logger.info("webhook_user_message_sent", phone=_mask_phone(phone))
+                return
+            except WhatsAppSendBlockedError:
+                logger.info("webhook_user_message_blocked_by_mode", phone=_mask_phone(phone))
                 return
             except Exception:
                 duration_ms = int((perf_counter() - started) * 1000)
