@@ -114,7 +114,7 @@ Mesaj uzarsa, aşağıdaki sırayla "en az önemli" kısımlar kesilir:
 
 ---
 
-## 6) Interactive Message Types (WhatsApp Business API)
+## 6) Interactive Mesaj Tipleri (WhatsApp Business API)
 
 > WhatsApp Business API sadece düz metin değil, **yapısal mesaj tipleri** de destekler.
 > Bu tipler misafir deneyimini iyileştirir ve seçim kolaylığı sağlar.
@@ -146,7 +146,7 @@ Mesaj uzarsa, aşağıdaki sırayla "en az önemli" kısımlar kesilir:
 
 ---
 
-## 7) Media Handling (Misafirden gelen medya)
+## 7) Medya İşleme (Misafirden gelen medya)
 
 > Misafir sadece yazı göndermez — fotoğraf, video, konum, belge de gönderebilir.
 > Sistem bunlara nasıl tepki verir?
@@ -196,7 +196,7 @@ Sistem şu durumlarda medya gönderebilir:
 
 ---
 
-## 9) Validation Checklist (kontrol listesi)
+## 9) Kontrol Listesi
 
 - [ ] 4096 karakteri geçmiyor
 - [ ] Tek mesaj

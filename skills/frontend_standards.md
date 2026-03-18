@@ -1,7 +1,7 @@
 # Skill: Frontend Standards (Admin Panel & Chat Lab)
 
 > **Hiyerarşi:** Bu dosya `SKILL.md` kural hiyerarşisinde **Öncelik 3** seviyesindedir.
-> `security_privacy.md` ve `anti_hallucination.md` kuralları bu dosyadan önce gelir; `system_prompt_velox.md` ise bu skill'den sonra gelir.
+> `security_privacy.md` ve `anti_hallüçination.md` kuralları bu dosyadan önce gelir; `system_prompt_velox.md` ise bu skill'den sonra gelir.
 
 > Kod bilmeyen biri için benzetme: Bu doküman, admin panelinin **"iç mimar kılavuzu"**dur.
 > Her ekran aynı stilde, aynı malzemeyle, aynı düzenle yapılsın diye kurallar koyar.
@@ -29,7 +29,7 @@ Bağımsız bir frontend build pipeline'ı yoktur; tüm UI kodu FastAPI uygulama
 |--------|-----------|-----|
 | Render | FastAPI `HTMLResponse` | Python f-string ile HTML assembly |
 | Dil | Vanilla JavaScript (ES2020+) | TypeScript yok, tip kontrolü yok |
-| Stil | Özel CSS (CSS cüstom properties) | Tailwind yok, inline `<style>` blokları |
+| Stil | Özel CSS (CSS custom properties) | Tailwind yok, inline `<style>` blokları |
 | Component | Yok (DOM manipülasyonu) | `innerHTML` template literal ile render |
 | State | Global `state` objesi | Framework yok, doğrudan mutation |
 | HTTP Client | Native `fetch` + wrapper (`apiFetch`) | Merkezi client, CSRF ve auth destekli |
@@ -65,7 +65,7 @@ Ancak şu kısıtlamaları taşır:
 - **Inline event handler yasaktır** (`onclick="fn()"` gibi). Tüm event'ler `addEventListener` ile bağlanmalıdır.
 - URL parametreleri DOM'a yazılmadan önce `encodeURIComponent` ile encode edilmelidir.
 
-**Benzetme:** Her musluktan gelen şu filtrelenir — kaynağı ne olursa olsun.
+**Benzetme:** Her musluktan gelen su filtrelenir — kaynağı ne olursa olsun.
 
 ### 2.2 `escapeHtml` Kullanım Kuralı
 
@@ -79,36 +79,36 @@ Ancak şu kısıtlamaları taşır:
 // YASAK: Inline event handler
 `<button onclick="doSomething('${value}')">Tıkla</button>`
 
-// DOGRU: Event delegation veya addEventListener
+// DOĞRU: Event delegation veya addEventListener
 button.addEventListener('click', () => doSomething(value));
 ```
 
 ### 2.3 State Yönetimi
 
 - Her UI'nin tek bir `state` objesi vardır. Bu obje global scope'ta tanımlıdır.
-- State değişiklikleri yalnızca ilgili `load*` veya `on*` fonksiyonları icerisinde yapılır.
+- State değişiklikleri yalnızca ilgili `load*` veya `on*` fonksiyonları içerisinde yapılır.
 - State'ten okuma yapan render fonksiyonları (`render*`) state'i **değiştirmez**, yalnızca DOM'u günceller.
-- Yeni state alani eklendiginde `clearClientSession()` fonksiyonuna da eklenmesi gerekir.
+- Yeni state alanı eklendiğinde `clearClientSession()` fonksiyonuna da eklenmesi gerekir.
 
 ### 2.4 API Client Kuralları
 
-- Tum API cagrilari merkezi `apiFetch()` fonksiyonu uzerinden yapılır.
+- Tüm API çağrıları merkezi `apiFetch()` fonksiyonu üzerinden yapılır.
 - `apiFetch()` otomatik olarak:
   - CSRF token ekler (unsafe method'larda)
   - 401 durumunda token refresh dener
-  - Basarisiz refresh'te login ekranina yonlendirir
-- Dogrudan `fetch()` cagrisi **yasaktir** (tek istisna: `apiFetchFromAbsolute` gibi acikca tanımlanmis wrapper'lar).
-- Hata durumlarinda kullanıcıya `notify()` ile toast gösterilir, teknik detay gosterilmez.
+  - Başarısız refresh'te login ekranına yönlendirir
+- Doğrudan `fetch()` çağrısı **yasaktır** (tek istisna: `apiFetchFromAbsolute` gibi açıkça tanımlanmış wrapper'lar).
+- Hata durumlarında kullanıcıya `notify()` ile toast gösterilir, teknik detay gösterilmez.
 
 ### 2.5 Event Yönetimi
 
 - **Event delegation tercih edilir:** Tablo satırlarındaki butonlar için her satırda ayrı listener yerine, üst container'a tek listener bağlanmalıdır.
-- **Listener temizliği:** `bind*Actions()` fonksiyonları her çağrıldığında eski listener'lar temizlenmelidir. `innerHTML` ile yeniden render edilen alanlarda listener zaten kaybolur, ancak `addEventListener` ile baglanan durable listener'lar için dikkatli olunmalidir.
-- **Inline handler yasak:** `onclick`, `onchange` gibi HTML attribute event handler'lari kullanilmaz.
+- **Listener temizliği:** `bind*Actions()` fonksiyonları her çağrıldığında eski listener'lar temizlenmelidir. `innerHTML` ile yeniden render edilen alanlarda listener zaten kaybölur, ancak `addEventListener` ile bağlanan durable listener'lar için dikkatli olunmalıdır.
+- **Inline handler yasak:** `onclick`, `onchange` gibi HTML attribute event handler'lari kullanılmaz.
 
 ### 2.6 İsimlendirme
 
-| Oge | Kural | Ornek |
+| Öğe | Kural | Örnek |
 |-----|-------|-------|
 | JS fonksiyon | camelCase | `loadConversations`, `renderHoldRows` |
 | JS sabit | UPPER_SNAKE_CASE | `API_ROOT`, `CSRF_COOKIE` |
@@ -120,117 +120,117 @@ button.addEventListener('click', () => doSomething(value));
 
 ### 2.7 Dosya Boyutu
 
-- **Hedef:** Assets dosyalari 1200 satıri asmamali.
-- **Asilarsa:** Ortak yardimci fonksiyonları ayrı bir shared module'e tasi.
-- **HTML iskeleti:** 600 satıri asmamali. Asilarsa section'lari ayrı fonksiyonlara bol.
+- **Hedef:** Assets dosyaları 1200 satırı aşmamalı.
+- **Aşılırsa:** Ortak yardımcı fonksiyonları ayrı bir shared module'e taşı.
+- **HTML iskeleti:** 600 satırı aşmamalı. Aşılırsa section'lari ayrı fonksiyonlara böl.
 
 ---
 
 ## 3) Tasarım Felsefesi: "Bilinçli Minimalizm"
 
-- **Anti-Jenerik:** Standart "bootstrap" gorunumunu reddet. Template gibi gorunuyorsa yanlistir.
-- **Ozgunluk:** Bespoke layout, asimetri ve ayirt edici tipografi hedefle.
-- **"Neden" Faktoru:** Her elementi yerlestirmeden once amacini hesapla. Amaci yoksa sil.
+- **Anti-Jenerik:** Standart "bootstrap" görünümünü reddet. Template gibi görünüyorsa yanlıştır.
+- **Özgünlük:** Bespoke layout, asimetri ve ayırt edici tipografi hedefle.
+- **"Neden" Faktörü:** Her elementi yerleştirmeden önce amacını hesapla. Amacı yoksa sil.
 - **Minimalizm:** Azaltma en yuksek zarafettir.
 - **Micro-interactions:** Hover, focus, transition efektleri kaliteli olsun.
-- **Spacing:** Tutarli spacing scale (CSS cüstom properties ile).
+- **Spacing:** Tutarlı spacing scale (CSS custom properties ile).
 
 ---
 
 ## 4) CSS Kuralları
 
-### 4.1 Cüstom Properties (Zorunlu)
+### 4.1 Custom Properties (Zorunlu)
 
-- Tum renkler, olculer ve font'lar `:root` değişkenleri ile tanımlanir.
-- Yeni renk veya spacing eklerken once mevcut değişkenleri kontrol et; gereksiz yeni değişken olüsturma.
-- Admin Panel ve Chat Lab **ayni değişken isimlerini kullanmalidir** (uyumluluk hedefi).
+- Tüm renkler, ölçüler ve font'lar `:root` değişkenleri ile tanımlanır.
+- Yeni renk veya spacing eklerken önce mevcut değişkenleri kontrol et; gereksiz yeni değişken oluşturma.
+- Admin Panel ve Chat Lab **aynı değişken isimlerini kullanmalıdır** (uyumluluk hedefi).
 
 ### 4.2 Inline Style Yasağı
 
 - `style="..."` HTML attribute'u **yalnızca** dinamik değerler için (JS ile hesaplanan değerler) kullanılabilir.
-- Sabit gorunum değerleri (`margin-top:14px`, `min-width:240px` gibi) CSS class'i olarak tanımlanmalidir.
-- Yeni sabit gorunum ihtiyaci varsa, mevcut utility class'lari kontrol et veya yeni class ekle.
+- Sabit görünüm değerleri (`margin-top:14px`, `min-width:240px` gibi) CSS class'i olarak tanımlanmalıdır.
+- Yeni sabit görünüm ihtiyacı varsa, mevcut utility class'lari kontrol et veya yeni class ekle.
 
 ### 4.3 Responsive Tasarım
 
-- En az uc breakpoint tanimli olmalidir: desktop (varsayilan), tablet (~1240px), mobil (~980px).
-- Tablolar dar ekranda yatay scroll veya kart gorunumune gecmelidir.
-- Sidebar mobilde collapse olmali, toggle butonu ile acilmalidir.
+- En az üç breakpoint tanımlı olmalıdır: desktop (varsayılan), tablet (~1240px), mobil (~980px).
+- Tablolar dar ekranda yatay scroll veya kart görünümune geçmelidir.
+- Sidebar mobilde collapse olmalı, toggle butonu ile açılmalıdır.
 
 ### 4.4 `!important` Yasağı
 
 - `!important` yalnızca `[hidden]` ve `.hidden` gibi framework-level override'lar için kullanılabilir.
-- Diger tüm durumlarda spesifiklik ile cozum uretilmelidir.
+- Diğer tüm durumlarda spesifiklik ile çözüm üretilmelidir.
 
 ---
 
 ## 5) Güvenlik (Frontend Özel)
 
 ### 5.1 XSS Koruması
-- `innerHTML` kullanilan her yerde tüm değişkenler `escapeHtml()` ile sanitize edilir.
-- Inline event handler (`onclick`, `onchange`) **yasaktir** — `addEventListener` kullanilir.
-- URL parametreleri DOM'a yazilmadan once sanitize edilir.
+- `innerHTML` kullanılan her yerde tüm değişkenler `escapeHtml()` ile sanitize edilir.
+- Inline event handler (`onclick`, `onchange`) **yasaktır** — `addEventListener` kullanılır.
+- URL parametreleri DOM'a yazılmadan önce sanitize edilir.
 
 ### 5.2 Auth & Route Koruması
-- Admin panel JWT token'i `httpOnly` cookie'de saklanir (localStorage'da **degil**).
-- Token şuresi dolunca otomatik refresh denenir; basarisizsa login ekranina yonlendirilir.
+- Admin panel JWT token'i `httpOnly` cookie'de saklanır (localStorage'da **değil**).
+- Token süresi dolunca otomatik refresh denenir; başarısızsa login ekranına yonlendirilir.
 - CSRF token her unsafe request'e (`POST`, `PUT`, `DELETE`) otomatik eklenir.
-- Chat Lab iframe içinde calistiginda, token `postMessage` ile gonderilir; origin kontrolu zorunludur.
+- Chat Lab iframe içinde çalıştığında, token `postMessage` ile gönderilir; origin kontrolü zorunludur.
 
-### 5.3 Hassas Veri Gosterimi
-- Telefon numaralari admin panelde **maskelenmis** gösterilir (`phone_display` alani).
-- Kart/CVV/OTP bilgisi admin panelde **asla** gosterilmez.
-- `console.log`'da hassas veri yazdirmak **yasaktir**.
+### 5.3 Hassas Veri Gösterimi
+- Telefon numaraları admin panelde **maskelenmiş** gösterilir (`phone_display` alanı).
+- Kart/CVV/OTP bilgisi admin panelde **asla** gösterilmez.
+- `console.log`'da hassas veri yazdırmak **yasaktır**.
 
-### 5.4 API Iletisimi
-- Tum API cagrilari merkezi `apiFetch()` uzerinden yapılır.
-- Hata durumlarinda kullanıcıya toast/notification gösterilir, teknik detay gosterilmez.
-- API hata mesajlari `extractErrorMessage()` ile parse edilir; ham JSON kullanıcıya yansitilmaz.
+### 5.4 API İletişimi
+- Tüm API çağrıları merkezi `apiFetch()` üzerinden yapılır.
+- Hata durumlarında kullanıcıya toast/notification gösterilir, teknik detay gösterilmez.
+- API hata mesajları `extractErrorMessage()` ile parse edilir; ham JSON kullanıcıya yansıtılmaz.
 
 ---
 
 ## 6) Erişilebilirlik (a11y)
 
-- Tum interactive elementlerde `aria-label` veya `aria-labelledby` olmalidir.
+- Tüm interactive elementlerde `aria-label` veya `aria-labelledby` olmalıdır.
 - Navigasyon için `<nav>` elementi `aria-label` ile etiketlenmelidir.
-- Keyboard navigation calismalidir (Tab sirasi mantikli).
-- Renk kontrasti WCAG AA minimum (4.5:1 normal metin, 3:1 buyuk metin).
-- Focus ring gorunur olmalidir (CSS `outline` veya `box-shadow` ile).
-- Form hata mesajlari `aria-describedby` ile input'a bağlanmalıdır.
-- Dialog/modal elemanlari `<dialog>` HTML elementi ile uygulanmalidir (mevcut durum uygun).
+- Keyboard navigation çalışmalıdır (Tab sırası mantıklı).
+- Renk kontrastı WCAG AA minimum (4.5:1 normal metin, 3:1 büyük metin).
+- Focus ring görünür olmalıdır (CSS `outline` veya `box-shadow` ile).
+- Form hata mesajları `aria-describedby` ile input'a bağlanmalıdır.
+- Dialog/modal elemanları `<dialog>` HTML elementi ile uygulanmalıdır (mevcut durum uygun).
 
 ---
 
 ## 7) Hata Yönetimi (Frontend)
 
-- API hata durumlari:
-  - `401` -> Token refresh dene, basarisizsa login ekranina yonlendir
-  - `403` -> "Yetkiniz yok" toast mesaji
-  - `404` -> "Bulunamadi" empty state
-  - `500` -> "Bir sorun olüstu, lutfen tekrar deneyin" (teknik detay yok)
-- Network hatasi -> "Baglanti sorunu" toast mesaji
-- Form validation hatalari `notify()` ile gösterilir; gerekce net ve Turkce olmalidir.
-- JSON parse hatalari için kullanıcıya anlaşılır mesaj gösterilir (`Profile JSON parse edilemedi` gibi).
+- API hata durumları:
+  - `401` -> Token refresh dene, başarısızsa login ekranına yönlendir
+  - `403` -> "Yetkiniz yok" toast mesajı
+  - `404` -> "Bulunamadı" empty state
+  - `500` -> "Bir sorun oluştu, lütfen tekrar deneyin" (teknik detay yok)
+- Network hatası -> "Bağlantı sorunu" toast mesajı
+- Form validation hataları `notify()` ile gösterilir; gerekçe net ve Türkçe olmalıdır.
+- JSON parse hataları için kullanıcıya anlaşılır mesaj gösterilir (`Profile JSON parse edilemedi` gibi).
 
 ---
 
 ## 8) Dil ve Metin Tutarlılığı
 
 ### 8.1 Temel Kural
-- UI metinleri **Turkce** olarak yazilir.
-- Teknik terimler (Dashboard, Hold, Ticket, FAQ, Chat Lab) Turkce karsiliklarinin yaygin olmadigi durumlarda Ingilizce kalabilir, ancak **ayni terim her yerde ayni sekilde yazilir**.
+- UI metinleri **Türkçe** olarak yazılır.
+- Teknik terimler (Dashboard, Hold, Ticket, FAQ, Chat Lab) Türkçe karşılıklarının yaygın olmadığı durumlarda İngilizce kalabilir, ancak **aynı terim her yerde aynı şekilde yazılır**.
 
 ### 8.2 Karakter Kuralı
-- HTML içindeki Turkce metinlerde ozel karakter (`i`, `s`, `g`, `u`, `o`, `c`) kullanilir.
-- Ancak **CSS class isimleri ve JS değişken isimleri** ASCII ile sinirli kalir.
+- HTML içindeki Türkçe metinlerde özel karakter (`i`, `s`, `g`, `u`, `o`, `c`) kullanılır.
+- Ancak **CSS class isimleri ve JS değişken isimleri** ASCII ile sınırlı kalır.
 
-### 8.3 Tutarlılık Tabloşu
+### 8.3 Tutarlılık Tablosu
 
-| Terim | Dogru Kullanım | Yanlis Kullanım |
+| Terim | Doğru Kullanım | Yanlış Kullanım |
 |-------|---------------|----------------|
-| Konusmalar | Konusmalar | Conversations |
-| Holdlar | Holdlar | Holds / Bekleyen Onaylar (karisik) |
-| Ticketlar | Ticketlar | Tickets / Talepler (karisik) |
+| Konuşmalar | Konuşmalar | Conversations |
+| Holdlar | Holdlar | Holds / Bekleyen Onaylar (karışık) |
+| Ticketlar | Ticketlar | Tickets / Talepler (karışık) |
 | Durum | Durum | Status (UI metninde) |
 | Aksiyon | Aksiyon | Action (UI metninde) |
 
@@ -241,57 +241,57 @@ button.addEventListener('click', () => doSomething(value));
 1. `innerHTML` içinde `escapeHtml()` olmadan değişken yazmak -> **XSS riski**
 2. Inline event handler (`onclick`, `onchange`) kullanmak -> **addEventListener kullan**
 3. JWT token'i localStorage'da tutmak -> **httpOnly cookie**
-4. `console.log`'da hassas veri yazdirmak
-5. Dogrudan `fetch()` cagrisi yapmak (`apiFetch()` wrapper'i yerine)
-6. Ayni yardimci fonksiyonu birden fazla dosyada tekrar tanımlamak -> **shared module'e tasi**
+4. `console.log`'da hassas veri yazdırmak
+5. Doğrudan `fetch()` çağrısı yapmak (`apiFetch()` wrapper'i yerine)
+6. Ayni yardımcı fonksiyonu birden fazla dosyada tekrar tanımlamak -> **shared module'e taşı**
 7. Backend URL'yi koda gommek -> `CONFIG` objesi veya env variable kullan
 8. `postMessage` gonderirken `'*'` origin kullanmak -> **`window.location.origin` kullan**
-9. CSS'de sabit deger için inline `style="..."` kullanmak -> **CSS class tanımla**
+9. CSS'de sabit değer için inline `style="..."` kullanmak -> **CSS class tanımla**
 10. Event listener'lari temizlemeden yeniden bind etmek -> **delegation veya cleanup**
 
 ---
 
 ## 10) Kontrol Listesi
 
-Her frontend degisikligi sonrasi asagidaki kontrol uygulanir:
+Her frontend değişikliği sonrası aşağıdaki kontrol uygulanır:
 
-- [ ] Tum `innerHTML` template'lerinde değişkenler `escapeHtml()` ile sarili
+- [ ] Tüm `innerHTML` template'lerinde değişkenler `escapeHtml()` ile sarılı
 - [ ] Inline event handler yok (onclick, onchange vb.)
-- [ ] API cagrilari `apiFetch()` uzerinden
-- [ ] JWT httpOnly cookie'de, localStorage'da degil
-- [ ] CSRF token unsafe method'larda gonderiliyor
-- [ ] Hassas veri maskelenmis gosteriliyor
+- [ ] API çağrıları `apiFetch()` üzerinden
+- [ ] JWT httpOnly cookie'de, localStorage'da değil
+- [ ] CSRF token unsafe method'larda gönderiliyor
+- [ ] Hassas veri maskelenmiş gösteriliyor
 - [ ] `console.log`'da hassas veri yok
-- [ ] CSS cüstom properties kullaniliyor, hardcoded renk/font yok
+- [ ] CSS custom properties kullanılıyor, hardcoded renk/font yok
 - [ ] Inline style yalnızca dinamik değerler için (sabit değerler class'ta)
 - [ ] Event listener'lar temiz (delegation veya innerHTML ile yeniden render)
-- [ ] Toast mesajlari Turkce ve anlaşılır
-- [ ] Empty state tasarimi mevcut (bos tablo, bos liste)
-- [ ] Responsive breakpoint'lar calisiyor (1240px, 980px)
+- [ ] Toast mesajları Türkçe ve anlaşılır
+- [ ] Empty state tasarımı mevcut (boş tablo, boş liste)
+- [ ] Responsive breakpoint'lar çalışıyor (1240px, 980px)
 - [ ] `aria-label` interactive elementlerde mevcut
-- [ ] Yardimci fonksiyonlar tekrar tanımlanmamis (shared module'den import)
+- [ ] Yardımcı fonksiyonlar tekrar tanımlanmamış (shared module'den import)
 
 ---
 
 ## 11) Gelecek Mimari Hedefi (Referans)
 
-Proje büyüdükçe asagidaki stack'e gecis planlanmaktadir.
-Bu bolum **mevcut kurallari gecersiz kilmaz**; yalnızca yol haritasi referansidir.
+Proje büyüdükçe aşağıdaki stack'e geçiş planlanmaktadır.
+Bu bölüm **mevcut kuralları geçersiz kılmaz**; yalnızca yol haritası referansıdır.
 
 | Katman | Hedef Teknoloji | Not |
 |--------|----------------|-----|
 | Framework | React 18+ / Next.js | SPA veya SSR |
 | Dil | TypeScript (strict mode) | `any` tipi yasak |
 | Stil | Tailwind CSS | Özel CSS minimumda |
-| Component Library | Shadcn UI (Radix primitives) | Mevcut kutuphaneden faydalanilir |
-| State Management | React Context / Züstand | Basit state Context, karmasik state Züstand |
+| Component Library | Shadcn UI (Radix primitives) | Mevcut kütüphaneden faydalanılır |
+| State Management | React Context / Zustand | Basit state Context, karmaşık state Zustand |
 | HTTP Client | Axios veya fetch + wrapper | Merkezi client |
 | Form | React Hook Form + Zod | Validasyon Zod ile |
-| Tablo | TanStack Table | Sayfalama, siralama, filtreleme |
+| Tablo | TanStack Table | Sayfalama, sıralama, filtreleme |
 
-**Gecis koşullari:**
-- Frontend dosya boyutları 2000+ satıri astiginda
-- Birden fazla bagimsiz frontend gelistirici calistiginda
-- Karmasik form akislari ve client-side routing ihtiyaci dogdugunda
+**Geçiş koşulları:**
+- Frontend dosya boyutları 2000+ satırı aştığında
+- Birden fazla bağımsız frontend geliştirici çalıştığında
+- Karmaşık form akışları ve client-side routing ihtiyacı doğduğunda
 
-Bu gecis gerceklestiginde bu bolum "Mevcut Mimari" bolumunun yerine tasinir ve eski kurallar kaldirilir.
+Bu geçiş gerçekleştiğinde bu bölüm "Mevcut Mimari" bölümünün yerine taşınır ve eski kurallar kaldırılır.

@@ -32,18 +32,18 @@ Bir hata, performans sorunu, regresyon veya "sistem neden bozuldu?" araştırmas
 
 ---
 
-## 1) Üç Sütun: Log, Metrik, Trace
+## 1) Üç Sütun: Log, Metrik, İz Takibi
 
 | Sütun | Ne işe yarar? | Araç önerisi |
 |-------|---------------|-------------|
 | **Logging** | "Ne oldu?" — olayların kaydı | `structlog` (JSON format) |
-| **Metrics** | "Ne kadar?" — sayaçlar, süreler, oranlar | Prometheus + Grafana |
-| **Tracing** | "Nasıl aktı?" — bir isteğin uçtan uca yolu | OpenTelemetry (OTLP) |
+| **Metrikler** | "Ne kadar?" — sayaçlar, süreler, oranlar | Prometheus + Grafana |
+| **İz Takibi** | "Nasıl aktı?" — bir isteğin uçtan uca yolu | OpenTelemetry (OTLP) |
 
 **Benzetme:**
 - Log = Olay defteri ("Saat 14:00'te şu oldu")
-- Metric = Dashboard göstergeleri ("Bugün 200 misafir, ortalama yanıt 3sn")
-- Trace = Bir misafirin "baştan sona" yolculuk haritası
+- Metrik = Dashboard göstergeleri ("Bugün 200 misafir, ortalama yanıt 3sn")
+- İz takibi = Bir misafirin "baştan sona" yolculuk haritası
 
 ---
 
@@ -90,7 +90,7 @@ def get_system_status(checks: dict[str, bool]) -> str:
 
 ### 3.1 Zorunlu metrikler
 
-| Metric adı | Tip | Açıklama |
+| Metrik adı | Tip | Açıklama |
 |------------|-----|----------|
 | `velox_requests_total` | Counter | Toplam gelen istek sayısı (endpoint, method, status) |
 | `velox_request_duration_seconds` | Histogram | İstek işleme süresi (endpoint bazlı) |
@@ -113,7 +113,7 @@ def get_system_status(checks: dict[str, bool]) -> str:
 
 ### 3.2 Metrik kuralları
 
-- Metric isimleri `velox_` prefix ile başlar
+- Metrik isimleri `velox_` prefix ile başlar
 - Label'larda **asla PII olmaz** (telefon, isim vb.)
 - Histogram bucket'ları: `[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0]`
 - Prometheus scrape endpoint: `/metrics` (admin-only veya internal network)
@@ -175,7 +175,7 @@ logger.info(
 
 ---
 
-## 5) Distributed Tracing (İz Takibi)
+## 5) Dağıtık İz Takibi
 
 ### 5.1 Neden gerekli?
 
@@ -270,7 +270,7 @@ Admin panelde veya Grafana'da şu dashboard'lar olmalı:
 
 - Log/metric/trace'de **PII olmaz** (telefon, isim, e-posta, kart) → security_privacy.md kuralı
 - `print()` kullanılmaz → `structlog` kullan
-- Metric label'larında kardinalite patlaması yok (ör: `phone_number` label'ı **yasak**)
+- Metrik label'larında kardinalite patlaması yok (ör: `phone_number` label'ı **yasak**)
 - Alert spam yok → dedup süresi en az 15dk
 - Health check endpoint'i iş mantığı çalıştırmaz (sadece bağlantı kontrolü)
 - Production'da `DEBUG` seviye log **kapalı** olmalı
@@ -278,7 +278,7 @@ Admin panelde veya Grafana'da şu dashboard'lar olmalı:
 
 ---
 
-## 9) Validation Checklist
+## 9) Kontrol Listesi
 
 - [ ] Debug/RCA işlerinde önce `app`, `db`, `redis` ve ilgili yan servislerin container state, healthcheck, restart ve readiness durumu kontrol edildi
 - [ ] Debug/RCA işlerinde container logları metric/trace yorumundan önce incelendi

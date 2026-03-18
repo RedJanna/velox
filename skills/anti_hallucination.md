@@ -163,28 +163,28 @@ def select_template(
 
 ## Kesin Yasaklar
 
-- **NEVER** state a price that did not come from `booking.quote` tool output.
-- **NEVER** state room availability that did not come from `booking.availability` tool output.
-- **NEVER** invent hotel features, amenities, or policies not in HOTEL_PROFILE.
-- **NEVER** calculate or estimate currency exchange rates.
-- **NEVER** say "according to the website" or reference external data sources.
-- **NEVER** skip the QC gate — if any check fails, ask a question, call a tool, or escalate.
-- **NEVER** generate long free text when a matching template exists.
-- **NEVER** promise specific timelines ("you'll hear back in 10 minutes") — say "as soon as possible."
+- `booking.quote` tool çıktısı gelmeden fiyat söyleme
+- `booking.availability` tool çıktısı gelmeden müsaitlik söyleme
+- `HOTEL_PROFILE` dışında otel özelliği, imkan veya politika uydurma
+- Kur hesaplama veya tahmini döviz dönüşümü yapma
+- "Web sitesine göre" diyerek harici veri kaynağı referansı verme
+- QC gate'i atlama; kontrol fail ederse soru sor, tool çağır veya escalate et
+- Uygun şablon varken uzun serbest metin üretme
+- Kesin süre verme; "10 dakika içinde" yerine "en kısa sürede" de
 
 ## Kontrol Listesi
 
-- [ ] System prompt includes HOTEL_PROFILE and FACILITY_POLICIES
-- [ ] Every price shown to user traces back to a `booking.quote` tool call
-- [ ] Every availability claim traces back to a `booking.availability` tool call
-- [ ] QC1-QC7 checks are implemented and run before every response
-- [ ] Template selection is attempted before free text generation
-- [ ] TEMPLATE_MISSING risk flag is logged when no template found
+- [ ] System prompt içinde `HOTEL_PROFILE` ve `FACILITY_POLICIES` var
+- [ ] Gösterilen her fiyat bir `booking.quote` tool çağrısına dayanıyor
+- [ ] Her müsaitlik iddiası bir `booking.availability` tool çağrısına dayanıyor
+- [ ] QC1-QC7 kontrolleri implement edildi ve her yanıt öncesi çalışıyor
+- [ ] Serbest metin üretmeden önce şablon seçimi deneniyor
+- [ ] Uygun şablon bulunmazsa `TEMPLATE_MISSING` risk flag'i loglanıyor
 - [ ] EUR her zaman referans fiyat olarak gösteriliyor; diğer para birimleri "ödeme anında kur" notu ile
 - [ ] Tanınan para birimi tablosundaki kategorilere uygun davranılıyor (ödeme destekli vs sadece bilgi vs tanınmayan)
 - [ ] Tanınmayan para birimlerinde EUR fiyat + bilgilendirme yapılıyor (insan devri yok)
 - [ ] Ödeme desteklenmeyen para biriminde ödeme konuşması → insan devri
-- [ ] No hardcoded hotel facts in prompt builder — all from HOTEL_PROFILE
+- [ ] Prompt builder içinde hardcoded otel bilgisi yok; her şey `HOTEL_PROFILE` üzerinden geliyor
 - [ ] QC check'ler `asyncio.gather` ile paralel çalışıyor (seri değil)
 - [ ] QC gate toplam süresi ≤500ms (logda `qc_duration_ms` alanı var)
 - [ ] QC fail durumunda öncelik sırası uygulanıyor (Security > Escalation > Policy > Source > Intent > Format > Session)

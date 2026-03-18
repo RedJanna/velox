@@ -237,7 +237,7 @@ Misafir “verilerimi silin” derse:
 
 ---
 
-## 5) Validation Checklist (kontrol listesi)
+## 5) Kontrol Listesi
 
 - [ ] DB’de ham PII yok (telefon `phone_hash`)
 - [ ] Loglarda ham telefon/e-posta/isim yok (mask/hash var)
