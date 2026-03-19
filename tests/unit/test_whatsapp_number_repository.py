@@ -41,7 +41,11 @@ async def test_upsert_mapping_normalizes_display_phone(monkeypatch: pytest.Monke
         captured["is_active"] = is_active
         return {"hotel_id": hotel_id, "phone_number_id": phone_number_id}
 
+    async def _fake_execute(_query: str, *_args: object) -> str:
+        return "DELETE 0"
+
     monkeypatch.setattr(whatsapp_number, "fetchrow", _fake_fetchrow)
+    monkeypatch.setattr(whatsapp_number, "execute", _fake_execute)
     row = await repository.upsert_mapping(
         hotel_id=21966,
         phone_number_id="  123456789012345  ",

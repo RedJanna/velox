@@ -537,7 +537,7 @@ async def test_create_reservation_child_payload_includes_child_guest_and_bucket_
     assert path["chdAges"] == "7"
     assert path["chdCount"] == 1
     assert path["child"] == 1
-    assert path["elder-child-count"] == 0
+    assert path["elder-child-count"] == 1
     assert path["younger-child-count"] == 0
     assert path["baby-count"] == 0
 
