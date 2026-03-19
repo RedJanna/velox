@@ -44,6 +44,19 @@ def _mask_phone(phone: str) -> str:
     return f"{phone[:3]}***{phone[-2:]}"
 
 
+def _extract_whatsapp_message_id(send_result: Any) -> str | None:
+    """Read provider WhatsApp message id from send response payload."""
+    if not isinstance(send_result, dict):
+        return None
+    messages = send_result.get("messages")
+    if not isinstance(messages, list) or not messages:
+        return None
+    first = messages[0]
+    if not isinstance(first, dict):
+        return None
+    return str(first.get("id", "")).strip() or None
+
+
 class EventProcessor:
     """Process admin webhook events and continue related conversation flow."""
 
@@ -285,8 +298,9 @@ class EventProcessor:
                             "timestamp": event.timestamp.isoformat(),
                         },
                     )
-                    await self._append_assistant_message(conversation_id, user_message)
-                    await self._send_user_message(phone, user_message)
+                    assistant_message = await self._append_assistant_message(conversation_id, user_message)
+                    wa_message_id = await self._send_user_message(phone, user_message)
+                    await self._attach_whatsapp_message_id(assistant_message, wa_message_id)
                     return {
                         "approval_request_id": event.approval_request_id,
                         "status": "processed",
@@ -336,8 +350,9 @@ class EventProcessor:
                             "timestamp": event.timestamp.isoformat(),
                         },
                     )
-                    await self._append_assistant_message(conversation_id, user_message)
-                    await self._send_user_message(phone, user_message)
+                    assistant_message = await self._append_assistant_message(conversation_id, user_message)
+                    wa_message_id = await self._send_user_message(phone, user_message)
+                    await self._attach_whatsapp_message_id(assistant_message, wa_message_id)
                     return {
                         "approval_request_id": event.approval_request_id,
                         "status": "processed",
@@ -414,8 +429,9 @@ class EventProcessor:
                             "timestamp": event.timestamp.isoformat(),
                         },
                     )
-                    await self._append_assistant_message(conversation_id, user_message)
-                    await self._send_user_message(phone, user_message)
+                    assistant_message = await self._append_assistant_message(conversation_id, user_message)
+                    wa_message_id = await self._send_user_message(phone, user_message)
+                    await self._attach_whatsapp_message_id(assistant_message, wa_message_id)
                     return {
                         "approval_request_id": event.approval_request_id,
                         "status": "processed",
@@ -531,8 +547,9 @@ class EventProcessor:
                     "timestamp": event.timestamp.isoformat(),
                 },
             )
-            await self._append_assistant_message(conversation_id, user_message)
-            await self._send_user_message(phone, user_message)
+            assistant_message = await self._append_assistant_message(conversation_id, user_message)
+            wa_message_id = await self._send_user_message(phone, user_message)
+            await self._attach_whatsapp_message_id(assistant_message, wa_message_id)
 
         return {
             "approval_request_id": event.approval_request_id,
@@ -631,8 +648,11 @@ class EventProcessor:
                         "timestamp": event.timestamp.isoformat(),
                     },
                 )
-                await self._append_assistant_message(conversation_id, user_message)
-            await self._send_user_message(phone, user_message)
+                assistant_message = await self._append_assistant_message(conversation_id, user_message)
+                wa_message_id = await self._send_user_message(phone, user_message)
+                await self._attach_whatsapp_message_id(assistant_message, wa_message_id)
+            else:
+                await self._send_user_message(phone, user_message)
 
         return {
             "payment_request_id": event.payment_request_id,
@@ -686,8 +706,9 @@ class EventProcessor:
                     "timestamp": event.timestamp.isoformat(),
                 },
             )
-            await self._append_assistant_message(conversation_id, message)
-            await self._send_user_message(self._extract_phone("TRANSFER", hold), message)
+            assistant_message = await self._append_assistant_message(conversation_id, message)
+            wa_message_id = await self._send_user_message(self._extract_phone("TRANSFER", hold), message)
+            await self._attach_whatsapp_message_id(assistant_message, wa_message_id)
 
         return {
             "transfer_hold_id": event.transfer_hold_id,
@@ -728,11 +749,23 @@ class EventProcessor:
             )
         )
 
-    async def _send_user_message(self, phone: str, message: str) -> None:
+    async def _attach_whatsapp_message_id(
+        self,
+        message: Message | None,
+        wa_message_id: str | None,
+    ) -> None:
+        """Persist provider WhatsApp message id on an assistant message."""
+        if message is None or message.id is None or not wa_message_id:
+            return
+        internal = dict(message.internal_json or {})
+        internal["whatsapp_message_id"] = wa_message_id
+        await self._conversation_repository.update_message_internal_json(message.id, internal)
+
+    async def _send_user_message(self, phone: str, message: str) -> str | None:
         """Send WhatsApp message to user if a raw phone is available and mode allows."""
         if not phone or "*" in phone:
             logger.warning("webhook_user_message_skipped_no_phone")
-            return
+            return None
 
         mode = settings.operation_mode
         if mode != "ai":
@@ -741,21 +774,21 @@ class EventProcessor:
                 phone=_mask_phone(phone),
                 operation_mode=mode,
             )
-            return
+            return None
 
         whatsapp_client = get_whatsapp_client()
         for attempt in range(1, MAX_TOOL_RETRIES + 1):
             started = perf_counter()
             try:
-                await asyncio.wait_for(
+                send_result = await asyncio.wait_for(
                     whatsapp_client.send_text_message(to=phone, body=message),
                     timeout=EXTERNAL_TIMEOUT_SECONDS,
                 )
                 logger.info("webhook_user_message_sent", phone=_mask_phone(phone))
-                return
+                return _extract_whatsapp_message_id(send_result)
             except WhatsAppSendBlockedError:
                 logger.info("webhook_user_message_blocked_by_mode", phone=_mask_phone(phone))
-                return
+                return None
             except Exception:
                 duration_ms = int((perf_counter() - started) * 1000)
                 logger.exception(
@@ -765,9 +798,10 @@ class EventProcessor:
                     duration_ms=duration_ms,
                 )
                 if attempt >= MAX_TOOL_RETRIES:
-                    return
+                    return None
                 backoff = TOOL_RETRY_BACKOFF_SECONDS[min(attempt - 1, len(TOOL_RETRY_BACKOFF_SECONDS) - 1)]
                 await asyncio.sleep(backoff)
+        return None
 
     async def _dispatch_with_retry(self, tool_name: str, **kwargs: Any) -> dict[str, Any]:
         """Dispatch tool call with bounded retries and timeout."""

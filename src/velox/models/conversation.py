@@ -15,6 +15,8 @@ class Message(BaseModel):
     role: str  # user, assistant, system
     content: str
     client_message_id: str | None = None
+    whatsapp_message_id: str | None = None
+    reply_to_whatsapp_message_id: str | None = None
     internal_json: dict[str, Any] | None = None
     tool_calls: list[dict[str, Any]] | None = None
     created_at: datetime = Field(default_factory=datetime.now)

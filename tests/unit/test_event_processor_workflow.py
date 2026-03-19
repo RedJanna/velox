@@ -227,7 +227,7 @@ async def test_process_approval_event_stay_create_reservation_id_without_voucher
             "cancel_policy_type": "FREE_CANCEL",
         },
     }
-    processor, _conn, dispatcher = _build_processor(hold_row, monkeypatch=monkeypatch)
+    processor, conn, dispatcher = _build_processor(hold_row, monkeypatch=monkeypatch)
     dispatcher.create_result = {"reservation_id": "TMP-ONLY", "voucher_no": ""}
     dispatcher.readback_result = {"reservation_id": "TMP-ONLY", "voucher_no": ""}
 
@@ -241,7 +241,7 @@ async def test_process_approval_event_stay_create_reservation_id_without_voucher
     result = await processor.process_approval_event(event)
 
     assert result["status"] == "processed"
-    assert result["reconciliation_action"] == "verified"
+    assert "reconciliation_action" not in result
     tool_names = [name for name, _ in dispatcher.calls]
     assert tool_names == ["booking_create_reservation", "booking_get_reservation", "payment_request_prepayment"]
     clear_manual_reason_updates = [
@@ -389,7 +389,7 @@ async def test_process_approval_event_persists_verified_readback_voucher_only(
         for query, args in conn.executed
         if "SET pms_reservation_id = COALESCE($2, pms_reservation_id)" in query
     ]
-    assert (None, "V-9") in persisted_ids
+    assert ("TMP-9", "V-9") in persisted_ids
 
 
 @pytest.mark.asyncio

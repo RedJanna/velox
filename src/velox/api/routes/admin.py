@@ -5,10 +5,12 @@ from typing import Annotated, Any
 from uuid import UUID, uuid4
 
 import asyncpg
+import orjson
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from passlib.hash import bcrypt
 from pydantic import BaseModel, Field, field_validator
 
+from velox.adapters.whatsapp.client import get_whatsapp_client
 from velox.api.middleware.auth import (
     TokenData,
     TokenResponse,
@@ -1080,9 +1082,6 @@ async def approve_and_send_message(
             conversation_id,
         )
 
-    import orjson
-    from velox.adapters.whatsapp.client import get_whatsapp_client
-
     def _pj(raw: Any) -> dict[str, Any]:
         if raw is None:
             return {}
@@ -1114,17 +1113,33 @@ async def approve_and_send_message(
 
     whatsapp_client = get_whatsapp_client()
     try:
-        await whatsapp_client.send_text_message(to=phone, body=str(msg_row["content"]), force=True)
+        send_result = await whatsapp_client.send_text_message(to=phone, body=str(msg_row["content"]), force=True)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"WhatsApp gonderilemedi: {exc}") from exc
+
+    whatsapp_message_id: str | None = None
+    if isinstance(send_result, dict):
+        messages = send_result.get("messages")
+        if isinstance(messages, list) and messages:
+            first = messages[0]
+            if isinstance(first, dict):
+                whatsapp_message_id = str(first.get("id", "")).strip() or None
 
     internal["send_blocked"] = False
     internal["approval_pending"] = False
     internal["approved_by"] = user.username
+    if whatsapp_message_id:
+        internal["whatsapp_message_id"] = whatsapp_message_id
     async with db.acquire() as conn:
         await conn.execute(
-            "UPDATE messages SET internal_json = $1 WHERE id = $2",
+            """
+            UPDATE messages
+            SET internal_json = $1,
+                whatsapp_message_id = COALESCE($2, whatsapp_message_id)
+            WHERE id = $3
+            """,
             orjson.dumps(internal).decode(),
+            whatsapp_message_id,
             message_id,
         )
 

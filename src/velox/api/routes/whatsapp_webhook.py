@@ -2056,6 +2056,7 @@ async def _run_message_pipeline(
     dispatcher: Any | None = None,
     expected_language: str | None = None,
     burst_metadata: dict[str, Any] | None = None,
+    reply_context: dict[str, Any] | None = None,
 ) -> LLMResponse:
     """Run message pipeline and return structured LLM response."""
     target_language = (
@@ -2087,7 +2088,11 @@ async def _run_message_pipeline(
         prompt_builder = get_prompt_builder()
         llm_client = get_llm_client()
         messages = prompt_builder.build_messages(
-            conversation, normalized_text, detected_language=target_language, burst_metadata=burst_metadata,
+            conversation,
+            normalized_text,
+            detected_language=target_language,
+            burst_metadata=burst_metadata,
+            reply_context=reply_context,
         )
         tools = get_tool_definitions()
         if dispatcher is not None:
@@ -2345,12 +2350,19 @@ async def _process_incoming_message(
             conversation_id=conversation.id,
             role="user",
             content=normalized_text,
+            whatsapp_message_id=incoming.message_id,
+            reply_to_whatsapp_message_id=incoming.reply_to_message_id,
             internal_json=audit_context,
         )
         await conversation_repository.add_message(user_msg)
         conversation.messages = await conversation_repository.get_recent_messages(
             conversation.id,
             count=CONTEXT_WINDOW_MAX_MESSAGES,
+        )
+        reply_context = await _resolve_reply_context(
+            conversation_repository,
+            conversation,
+            [audit_context],
         )
 
         await whatsapp_client.mark_as_read(incoming.message_id)
@@ -2369,6 +2381,7 @@ async def _process_incoming_message(
             normalized_text=normalized_text,
             dispatcher=dispatcher,
             expected_language=detected_language,
+            reply_context=reply_context,
         )
         current_state_value = (
             str(conversation.current_state.value)
@@ -2411,9 +2424,11 @@ async def _process_incoming_message(
         for index, raw_message in enumerate(message_parts, start=1):
             reply_text = formatter.truncate(raw_message)
             send_blocked = settings.operation_mode != "ai"
+            wa_message_id: str | None = None
             if settings.operation_mode == "ai":
                 try:
-                    await whatsapp_client.send_text_message(to=incoming.phone, body=reply_text)
+                    send_result = await whatsapp_client.send_text_message(to=incoming.phone, body=reply_text)
+                    wa_message_id = _extract_whatsapp_message_id(send_result)
                 except WhatsAppSendBlockedError:
                     logger.info(
                         "whatsapp_reply_blocked_by_mode",
@@ -2428,6 +2443,8 @@ async def _process_incoming_message(
             assistant_internal_json["send_blocked"] = send_blocked
             assistant_internal_json["human_override_blocked"] = False
             assistant_internal_json["handoff_lock_activated"] = handoff_lock_activated
+            if wa_message_id:
+                assistant_internal_json["whatsapp_message_id"] = wa_message_id
             if settings.operation_mode == "approval":
                 assistant_internal_json["approval_pending"] = True
 
@@ -2435,6 +2452,7 @@ async def _process_incoming_message(
                 conversation_id=conversation.id,
                 role="assistant",
                 content=reply_text,
+                whatsapp_message_id=wa_message_id,
                 internal_json=assistant_internal_json,
             )
             await conversation_repository.add_message(assistant_msg)
@@ -2551,6 +2569,73 @@ def _build_handoff_transcript_summary(messages: list[Message], limit: int = 5) -
         content = str(getattr(message, "content", ""))[:200]
         lines.append(f"[{role}] {content}")
     return "\n".join(lines)
+
+
+def _extract_whatsapp_message_id(send_result: Any) -> str | None:
+    """Read provider WhatsApp message id from send response payload."""
+    if not isinstance(send_result, dict):
+        return None
+    messages = send_result.get("messages")
+    if not isinstance(messages, list) or not messages:
+        return None
+    first = messages[0]
+    if not isinstance(first, dict):
+        return None
+    return str(first.get("id", "")).strip() or None
+
+
+async def _resolve_reply_context(
+    conversation_repository: ConversationRepository,
+    conversation: Conversation,
+    audit_contexts: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Resolve a WhatsApp reply-to target into prompt-safe context."""
+    if conversation.id is None:
+        return None
+
+    reply_entries = [
+        ctx for ctx in audit_contexts
+        if isinstance(ctx, dict) and str(ctx.get("reply_to_message_id") or "").strip()
+    ]
+    if not reply_entries:
+        return None
+
+    unique_reply_ids = {
+        str(ctx.get("reply_to_message_id") or "").strip()
+        for ctx in reply_entries
+        if str(ctx.get("reply_to_message_id") or "").strip()
+    }
+    if len(unique_reply_ids) != 1:
+        return {
+            "present": True,
+            "resolved": False,
+            "reason": "multiple_reply_targets",
+            "reply_to_message_ids": sorted(unique_reply_ids),
+        }
+
+    reply_to_message_id = next(iter(unique_reply_ids))
+    target = await conversation_repository.get_by_whatsapp_message_id(
+        conversation.id,
+        reply_to_message_id,
+    )
+    if target is None:
+        return {
+            "present": True,
+            "resolved": False,
+            "reason": "target_not_found",
+            "reply_to_message_id": reply_to_message_id,
+        }
+
+    reply_to_from = str(reply_entries[0].get("reply_to_from") or "").strip() or None
+    return {
+        "present": True,
+        "resolved": True,
+        "reply_to_message_id": reply_to_message_id,
+        "reply_to_from": reply_to_from,
+        "target_message_db_id": str(target.id) if target.id is not None else None,
+        "target_role": target.role,
+        "target_content": str(target.content or "")[:500],
+    }
 
 
 async def _activate_handoff_guard(
@@ -2774,6 +2859,8 @@ async def _process_burst_aggregated(
                 conversation_id=conversation.id,
                 role="user",
                 content=_normalize_text(text),
+                whatsapp_message_id=str(audit.get("message_id") or "").strip() or None,
+                reply_to_whatsapp_message_id=str(audit.get("reply_to_message_id") or "").strip() or None,
                 internal_json=burst_audit,
             )
             user_messages.append(msg)
@@ -2786,6 +2873,11 @@ async def _process_burst_aggregated(
         conversation.messages = await conversation_repository.get_recent_messages(
             conversation.id,
             count=CONTEXT_WINDOW_MAX_MESSAGES,
+        )
+        reply_context = await _resolve_reply_context(
+            conversation_repository,
+            conversation,
+            aggregated.audit_contexts,
         )
 
         # Mark all original messages as read
@@ -2820,6 +2912,7 @@ async def _process_burst_aggregated(
             dispatcher=dispatcher,
             expected_language=detected_language,
             burst_metadata=burst_metadata,
+            reply_context=reply_context,
         )
 
         # State update (same as original pipeline)
@@ -2866,9 +2959,11 @@ async def _process_burst_aggregated(
         for index, raw_message in enumerate(message_parts, start=1):
             reply_text = formatter.truncate(raw_message)
             send_blocked = settings.operation_mode != "ai"
+            wa_message_id: str | None = None
             if settings.operation_mode == "ai":
                 try:
-                    await whatsapp_client.send_text_message(to=aggregated.phone, body=reply_text)
+                    send_result = await whatsapp_client.send_text_message(to=aggregated.phone, body=reply_text)
+                    wa_message_id = _extract_whatsapp_message_id(send_result)
                 except WhatsAppSendBlockedError:
                     logger.info(
                         "whatsapp_reply_blocked_by_mode",
@@ -2883,6 +2978,8 @@ async def _process_burst_aggregated(
             assistant_internal_json["send_blocked"] = send_blocked
             assistant_internal_json["human_override_blocked"] = False
             assistant_internal_json["handoff_lock_activated"] = handoff_lock_activated
+            if wa_message_id:
+                assistant_internal_json["whatsapp_message_id"] = wa_message_id
             if burst_metadata:
                 assistant_internal_json["burst_metadata"] = burst_metadata
             if settings.operation_mode == "approval":
@@ -2892,6 +2989,7 @@ async def _process_burst_aggregated(
                 conversation_id=conversation.id,
                 role="assistant",
                 content=reply_text,
+                whatsapp_message_id=wa_message_id,
                 internal_json=assistant_internal_json,
             )
             await conversation_repository.add_message(assistant_msg)
@@ -3126,6 +3224,8 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
         "wa_id_hash": phone_hash,
         "message_id": incoming.message_id,
         "message_type": incoming.message_type,
+        "reply_to_message_id": incoming.reply_to_message_id,
+        "reply_to_from": incoming.reply_to_from,
         "route_audit": route_audit,
     }
 

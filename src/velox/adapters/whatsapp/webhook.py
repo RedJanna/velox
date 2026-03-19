@@ -18,6 +18,8 @@ class IncomingMessage:
     message_type: str
     phone_number_id: str | None = None
     display_phone_number: str | None = None
+    reply_to_message_id: str | None = None
+    reply_to_from: str | None = None
 
 
 @dataclass(slots=True)
@@ -131,6 +133,7 @@ class WhatsAppWebhook:
         message_id = str(message.get("id", ""))
         phone = str(message.get("from", ""))
         message_type = str(message.get("type", "unknown"))
+        context = message.get("context", {})
 
         try:
             timestamp = int(str(message.get("timestamp", "0")))
@@ -173,6 +176,11 @@ class WhatsAppWebhook:
             text = message_type
 
         text = text.strip()
+        reply_to_message_id = None
+        reply_to_from = None
+        if isinstance(context, dict):
+            reply_to_message_id = str(context.get("id", "")).strip() or None
+            reply_to_from = str(context.get("from", "")).strip() or None
         return IncomingMessage(
             message_id=message_id,
             phone=phone,
@@ -182,6 +190,8 @@ class WhatsAppWebhook:
             message_type=message_type,
             phone_number_id=phone_number_id,
             display_phone_number=display_phone_number,
+            reply_to_message_id=reply_to_message_id,
+            reply_to_from=reply_to_from,
         )
 
     @staticmethod

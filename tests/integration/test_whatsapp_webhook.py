@@ -86,6 +86,16 @@ class _FakeHandoffConversationRepository:
         _ = conversation_id
         return self.__class__.human_override
 
+    async def get_by_whatsapp_message_id(self, conversation_id, whatsapp_message_id: str) -> Message | None:
+        _ = conversation_id
+        for message in reversed(self.__class__.assistant_messages + self.__class__.user_messages):
+            internal = message.internal_json or {}
+            if internal.get("whatsapp_message_id") == whatsapp_message_id:
+                return message
+            if internal.get("message_id") == whatsapp_message_id:
+                return message
+        return None
+
 
 @pytest.fixture
 async def webhook_client(reset_whatsapp_webhook_state: None) -> httpx.AsyncClient:
@@ -1043,6 +1053,79 @@ async def test_process_burst_aggregated_skips_llm_after_handoff_lock(
     assert len(_FakeHandoffConversationRepository.assistant_messages) == 1
     assert len(_FakeHandoffConversationRepository.user_messages) == 2
     assert mock_whatsapp.send_text_message.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_process_incoming_message_resolves_reply_target_and_persists_outbound_whatsapp_id(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_whatsapp: Any,
+) -> None:
+    """Reply-to metadata should resolve prior target content and persist outbound provider ids."""
+    _FakeHandoffConversationRepository.reset()
+
+    previous_assistant = Message(
+        conversation_id=_FakeHandoffConversationRepository.conversation_id,
+        role="assistant",
+        content="Deluxe 180 EUR, Premium 220 EUR. Hangisini istersiniz?",
+        internal_json={"whatsapp_message_id": "wamid.prev.1"},
+    )
+    _FakeHandoffConversationRepository.assistant_messages.append(previous_assistant)
+    captured: dict[str, Any] = {}
+
+    async def _fake_pipeline(**kwargs: Any) -> LLMResponse:
+        captured["reply_context"] = kwargs.get("reply_context")
+        return LLMResponse(
+            user_message="Premium odayi ayiriyorum.",
+            internal_json=InternalJSON(
+                language="tr",
+                intent="stay_booking_create",
+                state="INFORMATION_GATHERING",
+                risk_flags=[],
+                escalation={"level": "L0", "route_to_role": "NONE"},
+            ),
+        )
+
+    monkeypatch.setattr(whatsapp_webhook, "ConversationRepository", _FakeHandoffConversationRepository)
+    monkeypatch.setattr(whatsapp_webhook, "_run_message_pipeline", _fake_pipeline)
+    monkeypatch.setattr(whatsapp_webhook, "get_whatsapp_client", lambda: mock_whatsapp)
+    monkeypatch.setattr(whatsapp_webhook.settings, "operation_mode", "ai")
+
+    incoming = IncomingMessage(
+        message_id="reply-live-1",
+        phone="905551112233",
+        display_name="Guest",
+        text="bunu alalim",
+        timestamp=int(time.time()),
+        message_type="text",
+        reply_to_message_id="wamid.prev.1",
+        reply_to_from="905559998877",
+    )
+
+    await whatsapp_webhook._process_incoming_message(
+        incoming=incoming,
+        hotel_id=21966,
+        audit_context={
+            "source_type": "test",
+            "message_id": incoming.message_id,
+            "reply_to_message_id": incoming.reply_to_message_id,
+            "reply_to_from": incoming.reply_to_from,
+        },
+        dispatcher=None,
+        escalation_engine=None,
+        tools={},
+        db_pool=None,
+    )
+
+    assert captured["reply_context"] == {
+        "present": True,
+        "resolved": True,
+        "reply_to_message_id": "wamid.prev.1",
+        "reply_to_from": "905559998877",
+        "target_message_db_id": None,
+        "target_role": "assistant",
+        "target_content": "Deluxe 180 EUR, Premium 220 EUR. Hangisini istersiniz?",
+    }
+    assert _FakeHandoffConversationRepository.assistant_messages[-1].internal_json["whatsapp_message_id"] == "wamid.1"
 
 
 def test_parking_reply_uses_profile_policy(monkeypatch: pytest.MonkeyPatch) -> None:

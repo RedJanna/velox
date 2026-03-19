@@ -42,6 +42,42 @@ def test_parse_message_extracts_destination_metadata() -> None:
     assert parsed.text == "Merhaba"
 
 
+def test_parse_message_extracts_reply_context_metadata() -> None:
+    """Parser should preserve reply-to metadata for downstream context resolution."""
+    webhook = WhatsAppWebhook(verify_token="token", app_secret="secret")  # noqa: S106
+    payload = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "contacts": [{"profile": {"name": "Guest User"}}],
+                            "messages": [
+                                {
+                                    "id": "wamid.reply.1",
+                                    "from": "905551112233",
+                                    "timestamp": "1710000001",
+                                    "type": "text",
+                                    "text": {"body": "bunu alalim"},
+                                    "context": {
+                                        "id": "wamid.previous.7",
+                                        "from": "905559998877",
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+    parsed = webhook.parse_message(payload)
+    assert parsed is not None
+    assert parsed.reply_to_message_id == "wamid.previous.7"
+    assert parsed.reply_to_from == "905559998877"
+
+
 def test_parse_status_events_extracts_failed_delivery_details() -> None:
     """Parser should capture status failure details for observability."""
     webhook = WhatsAppWebhook(verify_token="token", app_secret="secret")  # noqa: S106

@@ -70,6 +70,33 @@ MIGRATION_SIGNATURES = {
             WHERE table_schema = 'public' AND table_name = 'whatsapp_numbers'
         )
     """,
+    "008": """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'conversations'
+              AND column_name = 'human_override'
+        )
+    """,
+    "009": """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'stay_holds'
+              AND column_name = 'reservation_no'
+        )
+    """,
+    "010": """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'messages'
+              AND column_name = 'whatsapp_message_id'
+        )
+    """,
 }
 
 

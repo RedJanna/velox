@@ -156,6 +156,7 @@ class PromptBuilder:
         system_events: list[dict[str, Any]] | None = None,
         detected_language: str | None = None,
         burst_metadata: dict[str, Any] | None = None,
+        reply_context: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Build OpenAI messages array for current turn."""
         messages: list[dict[str, Any]] = [
@@ -178,6 +179,32 @@ class PromptBuilder:
         if system_events:
             for event in system_events:
                 messages.append({"role": "system", "content": f"SYSTEM_EVENT: {event}"})
+
+        if reply_context and reply_context.get("present"):
+            if reply_context.get("resolved"):
+                messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "REPLY_CONTEXT: The guest explicitly used WhatsApp reply-to for this turn.\n"
+                            f"Replied target role: {reply_context.get('target_role', 'unknown')}\n"
+                            f"Replied target message: {reply_context.get('target_content', '')}\n"
+                            "Interpret short references like 'this', 'that', 'yes', 'no', "
+                            "or 'the second one' relative to that replied target first."
+                        ),
+                    }
+                )
+            else:
+                messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "REPLY_CONTEXT: The guest used WhatsApp reply-to, but the referenced "
+                            "message could not be resolved reliably. Use normal conversation history "
+                            "and do not over-assume the target."
+                        ),
+                    }
+                )
 
         if burst_metadata and burst_metadata.get("part_count", 1) > 1:
             messages.append(

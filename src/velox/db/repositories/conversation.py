@@ -24,6 +24,30 @@ _TRANSCRIPT_WRITE_LOCK = asyncio.Lock()
 class ConversationRepository:
     """CRUD operations for conversations and messages."""
 
+    @staticmethod
+    def _resolve_whatsapp_message_id(msg: Message) -> str | None:
+        """Resolve provider/inbound WhatsApp id from explicit field or internal_json."""
+        if msg.whatsapp_message_id:
+            return msg.whatsapp_message_id
+        internal = msg.internal_json if isinstance(msg.internal_json, dict) else {}
+        return str(
+            internal.get("whatsapp_message_id")
+            or internal.get("message_id")
+            or ""
+        ).strip() or None
+
+    @staticmethod
+    def _resolve_reply_to_whatsapp_message_id(msg: Message) -> str | None:
+        """Resolve replied target WhatsApp id from explicit field or internal_json."""
+        if msg.reply_to_whatsapp_message_id:
+            return msg.reply_to_whatsapp_message_id
+        internal = msg.internal_json if isinstance(msg.internal_json, dict) else {}
+        return str(
+            internal.get("reply_to_whatsapp_message_id")
+            or internal.get("reply_to_message_id")
+            or ""
+        ).strip() or None
+
     async def create(self, conv: Conversation) -> Conversation:
         """Insert a new conversation."""
         row = await fetchrow(
@@ -161,15 +185,25 @@ class ConversationRepository:
                 for msg in messages:
                     row = await conn.fetchrow(
                         """
-                        INSERT INTO messages (conversation_id, role, content, client_message_id,
-                                              internal_json, tool_calls)
-                        VALUES ($1, $2, $3, $4, $5, $6)
+                        INSERT INTO messages (
+                            conversation_id,
+                            role,
+                            content,
+                            client_message_id,
+                            whatsapp_message_id,
+                            reply_to_whatsapp_message_id,
+                            internal_json,
+                            tool_calls
+                        )
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                         RETURNING id, created_at
                         """,
                         msg.conversation_id,
                         msg.role,
                         msg.content,
                         msg.client_message_id,
+                        self._resolve_whatsapp_message_id(msg),
+                        self._resolve_reply_to_whatsapp_message_id(msg),
                         orjson.dumps(msg.internal_json).decode() if msg.internal_json else None,
                         orjson.dumps(msg.tool_calls).decode() if msg.tool_calls else None,
                     )
@@ -194,14 +228,25 @@ class ConversationRepository:
         """Insert a message into a conversation."""
         row = await fetchrow(
             """
-            INSERT INTO messages (conversation_id, role, content, client_message_id, internal_json, tool_calls)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO messages (
+                conversation_id,
+                role,
+                content,
+                client_message_id,
+                whatsapp_message_id,
+                reply_to_whatsapp_message_id,
+                internal_json,
+                tool_calls
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING id, created_at
             """,
             msg.conversation_id,
             msg.role,
             msg.content,
             msg.client_message_id,
+            self._resolve_whatsapp_message_id(msg),
+            self._resolve_reply_to_whatsapp_message_id(msg),
             orjson.dumps(msg.internal_json).decode() if msg.internal_json else None,
             orjson.dumps(msg.tool_calls).decode() if msg.tool_calls else None,
         )
@@ -300,6 +345,56 @@ class ConversationRepository:
             return None
         return self._row_to_message(row)
 
+    async def get_by_whatsapp_message_id(
+        self,
+        conversation_id: UUID,
+        whatsapp_message_id: str,
+    ) -> Message | None:
+        """Return message linked to a WhatsApp provider/inbound message id."""
+        row = await fetchrow(
+            """
+            SELECT *
+            FROM messages
+            WHERE conversation_id = $1
+              AND (
+                whatsapp_message_id = $2
+                OR internal_json->>'whatsapp_message_id' = $2
+                OR internal_json->>'message_id' = $2
+              )
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            conversation_id,
+            whatsapp_message_id,
+        )
+        if row is None:
+            return None
+        return self._row_to_message(row)
+
+    async def update_message_internal_json(
+        self,
+        message_id: UUID,
+        internal_json: dict[str, Any],
+    ) -> None:
+        """Replace internal_json for a single message."""
+        await execute(
+            """
+            UPDATE messages
+            SET internal_json = $2,
+                whatsapp_message_id = COALESCE($3, whatsapp_message_id),
+                reply_to_whatsapp_message_id = COALESCE($4, reply_to_whatsapp_message_id)
+            WHERE id = $1
+            """,
+            message_id,
+            orjson.dumps(internal_json).decode(),
+            str(internal_json.get("whatsapp_message_id") or "").strip() or None,
+            str(
+                internal_json.get("reply_to_whatsapp_message_id")
+                or internal_json.get("reply_to_message_id")
+                or ""
+            ).strip() or None,
+        )
+
     @staticmethod
     def _row_to_conversation(row: asyncpg.Record) -> Conversation:
         """Map asyncpg row to Conversation model."""
@@ -327,6 +422,8 @@ class ConversationRepository:
             role=row["role"],
             content=row["content"],
             client_message_id=row.get("client_message_id"),
+            whatsapp_message_id=row.get("whatsapp_message_id"),
+            reply_to_whatsapp_message_id=row.get("reply_to_whatsapp_message_id"),
             internal_json=orjson.loads(row["internal_json"]) if row["internal_json"] else None,
             tool_calls=orjson.loads(row["tool_calls"]) if row["tool_calls"] else None,
             created_at=row["created_at"],
