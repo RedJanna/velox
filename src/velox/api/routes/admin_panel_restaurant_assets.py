@@ -1,0 +1,866 @@
+"""CSS and JS assets for the restaurant floor plan editor, daily view, and settings."""
+
+# ruff: noqa: E501
+
+ADMIN_RESTAURANT_STYLE = """
+/* ── Floor plan workspace ───────────────────────────── */
+.floor-plan-workspace{display:flex;gap:1rem;min-height:560px}
+.floor-plan-toolbox{width:180px;flex-shrink:0;display:flex;flex-direction:column;gap:.35rem;padding:.75rem;background:var(--bg-2);border-radius:var(--radius);border:1px solid var(--border);max-height:620px;overflow-y:auto}
+.toolbox-title{font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.6rem 0 .15rem;font-weight:700}
+.toolbox-item{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;border-radius:var(--radius);background:var(--bg-1);border:1px solid var(--border);cursor:grab;font-size:.78rem;transition:background .15s,border-color .15s}
+.toolbox-item:hover{background:var(--accent-bg);border-color:var(--accent)}
+.toolbox-item.active-tool{background:var(--accent);color:#fff;border-color:var(--accent)}
+.toolbox-item[draggable]{user-select:none}
+
+/* Toolbox mini previews */
+.toolbox-preview{width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.toolbox-preview svg{width:100%;height:100%}
+
+/* Toolbar buttons */
+.fp-toolbar{display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.5rem}
+.fp-toolbar .fp-tool-btn{display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .55rem;border-radius:var(--radius);background:var(--bg-2);border:1px solid var(--border);cursor:pointer;font-size:.72rem;color:var(--fg);transition:all .15s}
+.fp-toolbar .fp-tool-btn:hover{background:var(--accent-bg);border-color:var(--accent)}
+.fp-toolbar .fp-tool-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.fp-toolbar .fp-tool-btn.danger{color:var(--danger,#ef4444)}
+.fp-toolbar .fp-tool-btn.danger:hover{background:#fef2f2;border-color:var(--danger,#ef4444)}
+.fp-toolbar .fp-sep{width:1px;height:22px;background:var(--border);margin:0 .15rem;align-self:center}
+
+/* Canvas */
+.floor-plan-canvas{flex:1;position:relative;background:var(--bg-1);border:2px dashed var(--border);border-radius:var(--radius);min-height:560px;overflow:hidden}
+.floor-plan-canvas.show-grid{background-image:radial-gradient(circle,var(--border,#d1cdc4) 1px,transparent 1px);background-size:20px 20px}
+.floor-plan-canvas.drag-over{border-color:var(--accent);background-color:var(--accent-bg)}
+.floor-plan-canvas.click-place-mode{cursor:crosshair}
+
+/* Snap guide lines */
+.snap-guide{position:absolute;z-index:50;pointer-events:none}
+.snap-guide.horizontal{left:0;right:0;height:1px;background:var(--accent);opacity:.5}
+.snap-guide.vertical{top:0;bottom:0;width:1px;background:var(--accent);opacity:.5}
+
+/* ── SVG-based canvas table elements ─────────────── */
+.canvas-table{position:absolute;cursor:move;z-index:2;user-select:none;transition:filter .15s}
+.canvas-table:hover{filter:brightness(1.08) drop-shadow(0 2px 6px rgba(0,0,0,.18))}
+.canvas-table.selected{filter:drop-shadow(0 0 0 3px var(--accent)) drop-shadow(0 0 8px rgba(99,102,241,.4))}
+
+/* Canvas table label */
+.canvas-table .table-label{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-size:.65rem;font-weight:600;color:var(--fg);white-space:nowrap;pointer-events:none;text-shadow:0 1px 2px rgba(255,255,255,.8)}
+
+/* Canvas table action buttons */
+.canvas-table .table-actions{position:absolute;top:-10px;right:-10px;display:none;gap:2px;z-index:5}
+.canvas-table:hover .table-actions{display:flex}
+.table-actions .tbl-act-btn{width:20px;height:20px;border-radius:50%;border:none;font-size:.6rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:transform .1s}
+.table-actions .tbl-act-btn:hover{transform:scale(1.15)}
+.tbl-act-btn.del{background:var(--danger,#ef4444);color:#fff}
+.tbl-act-btn.dup{background:#3b82f6;color:#fff}
+.tbl-act-btn.rot{background:#8b5cf6;color:#fff}
+
+/* Canvas shapes */
+.canvas-shape{position:absolute;background:var(--muted);z-index:1;cursor:move;border-radius:2px}
+.canvas-shape[data-shape="HORIZONTAL_DIVIDER"]{height:3px;width:120px}
+.canvas-shape[data-shape="VERTICAL_DIVIDER"]{width:3px;height:120px}
+.canvas-shape[data-shape="WALL"]{background:#64748b;border-radius:0}
+.canvas-shape .del-btn{position:absolute;top:-8px;right:-8px;width:18px;height:18px;border-radius:50%;background:var(--danger,#ef4444);color:#fff;border:none;font-size:.65rem;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1;z-index:3}
+.canvas-shape:hover .del-btn{display:flex}
+
+/* Rotation transforms */
+.canvas-table[data-rot="90"]{transform:rotate(90deg)}
+.canvas-table[data-rot="180"]{transform:rotate(180deg)}
+.canvas-table[data-rot="270"]{transform:rotate(270deg)}
+
+/* ── Daily view ───────────────────────────────────── */
+.daily-view-canvas{min-height:400px}
+.daily-view-canvas .canvas-table{cursor:pointer}
+
+/* Status colors for daily view */
+.canvas-table.st-BEKLEMEDE svg .table-surface{fill:#FEF3C7;stroke:#F59E0B}
+.canvas-table.st-ONAYLANDI svg .table-surface{fill:#D1FAE5;stroke:#10B981}
+.canvas-table.st-GELDI svg .table-surface{fill:#A7F3D0;stroke:#059669}
+.canvas-table.st-GELMEDI svg .table-surface{fill:#FEE2E2;stroke:#EF4444}
+.canvas-table.st-IPTAL svg .table-surface{fill:#E5E7EB;stroke:#6B7280}
+.canvas-table.st-IPTAL .table-label{text-decoration:line-through}
+.canvas-table.st-DEGISIKLIK_UYGULA svg .table-surface{fill:#EDE9FE;stroke:#8B5CF6}
+
+/* Daily view guest info overlay */
+.canvas-table .guest-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;font-size:.6rem;line-height:1.2;color:#1e293b;font-weight:500;max-width:90%}
+.canvas-table .guest-overlay .guest-time{font-size:.55rem;color:#64748b}
+
+/* ── Table detail dialog ──────────────────────────── */
+.table-detail-dialog{border:none;border-radius:var(--radius);padding:0;width:min(440px,90vw);background:var(--bg-1);color:var(--fg);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+.table-detail-dialog::backdrop{background:rgba(0,0,0,.5)}
+.dialog-header{display:flex;justify-content:space-between;align-items:center;padding:.8rem 1rem;border-bottom:1px solid var(--border)}
+.dialog-header h3{margin:0;font-size:1rem}
+.close-dialog-btn{background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted);padding:0 .3rem}
+.dialog-body{padding:1rem;display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.dialog-body .field.full{grid-column:1/-1}
+.dialog-body .readonly-info{grid-column:1/-1;font-size:.75rem;color:var(--muted);border-top:1px solid var(--border);padding-top:.5rem;display:flex;flex-direction:column;gap:.2rem}
+.dialog-body .readonly-field{font-size:.85rem;color:var(--muted);padding:.3rem 0}
+.dialog-footer{display:flex;justify-content:flex-end;gap:.5rem;padding:.8rem 1rem;border-top:1px solid var(--border)}
+.inline-button.danger{background:var(--danger,#ef4444);color:#fff}
+
+/* ── Toggle switch ──────────────────────────────── */
+.toggle-switch{position:relative;display:inline-block;width:42px;height:22px}
+.toggle-switch input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--border);border-radius:22px;transition:.2s}
+.toggle-slider::before{content:'';position:absolute;height:16px;width:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
+.toggle-switch input:checked+.toggle-slider{background:var(--accent)}
+.toggle-switch input:checked+.toggle-slider::before{transform:translateX(20px)}
+
+@media(max-width:980px){
+  .floor-plan-workspace{flex-direction:column}
+  .floor-plan-toolbox{width:100%;flex-direction:row;flex-wrap:wrap;min-height:auto;max-height:none}
+  .fp-toolbar{justify-content:center}
+}
+"""
+
+ADMIN_RESTAURANT_SCRIPT = """
+/* ═══════════════════════════════════════════════════════
+   Restaurant Floor Plan Editor, Daily View, Settings
+   — Realistic SVG tables with chairs, advanced tools
+   ═══════════════════════════════════════════════════════ */
+(function(){
+'use strict';
+
+const GRID = 20;
+let fpState = {tables:[],shapes:[],planId:null,counter:0};
+let selectedEl = null;
+let undoStack = [];
+const MAX_UNDO = 30;
+let clickPlaceMode = null; // null or {type, capacity} or {shape}
+let showGrid = true;
+
+/* ── SVG Table Generators ────────────────────── */
+
+function chairCircle(cx, cy){
+  return '<circle cx="'+cx+'" cy="'+cy+'" r="5" fill="#78716c" stroke="#57534e" stroke-width="1"/>';
+}
+
+function svgTable2(w,h){
+  // Round 2-person bistro table
+  w=w||52; h=h||52;
+  var cx=w/2, cy=h/2;
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">';
+  // Chairs: top and bottom
+  svg += chairCircle(cx, 4);
+  svg += chairCircle(cx, h-4);
+  // Table surface (circle)
+  svg += '<circle class="table-surface" cx="'+cx+'" cy="'+cy+'" r="14" fill="#d4a574" stroke="#92400e" stroke-width="2"/>';
+  // Table highlight
+  svg += '<circle cx="'+cx+'" cy="'+cy+'" r="10" fill="none" stroke="#e8c89e" stroke-width="0.5" opacity="0.5"/>';
+  svg += '</svg>';
+  return {svg:svg, w:w, h:h};
+}
+
+function svgTable4(w,h){
+  w=w||72; h=h||72;
+  var cx=w/2, cy=h/2, tw=24, th=24;
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">';
+  // 4 chairs: top, bottom, left, right
+  svg += chairCircle(cx, 5);
+  svg += chairCircle(cx, h-5);
+  svg += chairCircle(5, cy);
+  svg += chairCircle(w-5, cy);
+  // Table surface (rounded rect)
+  svg += '<rect class="table-surface" x="'+(cx-tw/2)+'" y="'+(cy-th/2)+'" width="'+tw+'" height="'+th+'" rx="4" fill="#d4a574" stroke="#92400e" stroke-width="2"/>';
+  svg += '<rect x="'+(cx-tw/2+3)+'" y="'+(cy-th/2+3)+'" width="'+(tw-6)+'" height="'+(th-6)+'" rx="2" fill="none" stroke="#e8c89e" stroke-width="0.5" opacity="0.5"/>';
+  svg += '</svg>';
+  return {svg:svg, w:w, h:h};
+}
+
+function svgTable6(w,h){
+  w=w||110; h=h||72;
+  var cx=w/2, cy=h/2, tw=60, th=26;
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">';
+  // 6 chairs: 3 top, 3 bottom
+  svg += chairCircle(cx-20, 5);
+  svg += chairCircle(cx, 5);
+  svg += chairCircle(cx+20, 5);
+  svg += chairCircle(cx-20, h-5);
+  svg += chairCircle(cx, h-5);
+  svg += chairCircle(cx+20, h-5);
+  // Table surface (rounded rect)
+  svg += '<rect class="table-surface" x="'+(cx-tw/2)+'" y="'+(cy-th/2)+'" width="'+tw+'" height="'+th+'" rx="5" fill="#d4a574" stroke="#92400e" stroke-width="2"/>';
+  svg += '<rect x="'+(cx-tw/2+3)+'" y="'+(cy-th/2+3)+'" width="'+(tw-6)+'" height="'+(th-6)+'" rx="3" fill="none" stroke="#e8c89e" stroke-width="0.5" opacity="0.5"/>';
+  svg += '</svg>';
+  return {svg:svg, w:w, h:h};
+}
+
+function svgTable8(w,h){
+  w=w||130; h=h||80;
+  var cx=w/2, cy=h/2, tw=76, th=30;
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">';
+  // 8 chairs: 3 top, 3 bottom, 1 left, 1 right
+  svg += chairCircle(cx-22, 5);
+  svg += chairCircle(cx, 5);
+  svg += chairCircle(cx+22, 5);
+  svg += chairCircle(cx-22, h-5);
+  svg += chairCircle(cx, h-5);
+  svg += chairCircle(cx+22, h-5);
+  svg += chairCircle(8, cy);
+  svg += chairCircle(w-8, cy);
+  // Table surface
+  svg += '<rect class="table-surface" x="'+(cx-tw/2)+'" y="'+(cy-th/2)+'" width="'+tw+'" height="'+th+'" rx="6" fill="#d4a574" stroke="#92400e" stroke-width="2"/>';
+  svg += '<rect x="'+(cx-tw/2+3)+'" y="'+(cy-th/2+3)+'" width="'+(tw-6)+'" height="'+(th-6)+'" rx="4" fill="none" stroke="#e8c89e" stroke-width="0.5" opacity="0.5"/>';
+  svg += '</svg>';
+  return {svg:svg, w:w, h:h};
+}
+
+function svgTable10(w,h){
+  w=w||156; h=h||84;
+  var cx=w/2, cy=h/2, tw=96, th=32;
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">';
+  // 10 chairs: 4 top, 4 bottom, 1 left, 1 right
+  svg += chairCircle(cx-30, 5);
+  svg += chairCircle(cx-10, 5);
+  svg += chairCircle(cx+10, 5);
+  svg += chairCircle(cx+30, 5);
+  svg += chairCircle(cx-30, h-5);
+  svg += chairCircle(cx-10, h-5);
+  svg += chairCircle(cx+10, h-5);
+  svg += chairCircle(cx+30, h-5);
+  svg += chairCircle(8, cy);
+  svg += chairCircle(w-8, cy);
+  // Table surface
+  svg += '<rect class="table-surface" x="'+(cx-tw/2)+'" y="'+(cy-th/2)+'" width="'+tw+'" height="'+th+'" rx="6" fill="#d4a574" stroke="#92400e" stroke-width="2"/>';
+  svg += '<rect x="'+(cx-tw/2+3)+'" y="'+(cy-th/2+3)+'" width="'+(tw-6)+'" height="'+(th-6)+'" rx="4" fill="none" stroke="#e8c89e" stroke-width="0.5" opacity="0.5"/>';
+  svg += '</svg>';
+  return {svg:svg, w:w, h:h};
+}
+
+var TABLE_SVG_MAP = {
+  TABLE_2: svgTable2,
+  TABLE_4: svgTable4,
+  TABLE_6: svgTable6,
+  TABLE_8: svgTable8,
+  TABLE_10: svgTable10
+};
+
+var TABLE_DIMS = {
+  TABLE_2: {w:52,h:52},
+  TABLE_4: {w:72,h:72},
+  TABLE_6: {w:110,h:72},
+  TABLE_8: {w:130,h:80},
+  TABLE_10: {w:156,h:84}
+};
+
+function getTableSvg(type){
+  var fn = TABLE_SVG_MAP[type];
+  if(!fn) return {svg:'<div style="width:50px;height:50px;background:#ccc;border-radius:6px"></div>',w:50,h:50};
+  var dims = TABLE_DIMS[type] || {w:72,h:72};
+  return fn(dims.w, dims.h);
+}
+
+/* Mini preview SVGs for toolbox */
+function miniSvg2(){
+  return '<svg viewBox="0 0 36 36"><circle cx="18" cy="3" r="3" fill="#78716c"/><circle cx="18" cy="33" r="3" fill="#78716c"/><circle cx="18" cy="18" r="10" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg>';
+}
+function miniSvg4(){
+  return '<svg viewBox="0 0 36 36"><circle cx="18" cy="3" r="3" fill="#78716c"/><circle cx="18" cy="33" r="3" fill="#78716c"/><circle cx="3" cy="18" r="3" fill="#78716c"/><circle cx="33" cy="18" r="3" fill="#78716c"/><rect x="10" y="10" width="16" height="16" rx="3" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg>';
+}
+function miniSvg6(){
+  return '<svg viewBox="0 0 44 36"><circle cx="12" cy="3" r="3" fill="#78716c"/><circle cx="22" cy="3" r="3" fill="#78716c"/><circle cx="32" cy="3" r="3" fill="#78716c"/><circle cx="12" cy="33" r="3" fill="#78716c"/><circle cx="22" cy="33" r="3" fill="#78716c"/><circle cx="32" cy="33" r="3" fill="#78716c"/><rect x="6" y="10" width="32" height="16" rx="4" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg>';
+}
+function miniSvg8(){
+  return '<svg viewBox="0 0 48 36"><circle cx="12" cy="3" r="2.5" fill="#78716c"/><circle cx="24" cy="3" r="2.5" fill="#78716c"/><circle cx="36" cy="3" r="2.5" fill="#78716c"/><circle cx="12" cy="33" r="2.5" fill="#78716c"/><circle cx="24" cy="33" r="2.5" fill="#78716c"/><circle cx="36" cy="33" r="2.5" fill="#78716c"/><circle cx="3" cy="18" r="2.5" fill="#78716c"/><circle cx="45" cy="18" r="2.5" fill="#78716c"/><rect x="8" y="9" width="32" height="18" rx="4" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg>';
+}
+function miniSvg10(){
+  return '<svg viewBox="0 0 52 36"><circle cx="10" cy="3" r="2.5" fill="#78716c"/><circle cx="20" cy="3" r="2.5" fill="#78716c"/><circle cx="30" cy="3" r="2.5" fill="#78716c"/><circle cx="40" cy="3" r="2.5" fill="#78716c"/><circle cx="10" cy="33" r="2.5" fill="#78716c"/><circle cx="20" cy="33" r="2.5" fill="#78716c"/><circle cx="30" cy="33" r="2.5" fill="#78716c"/><circle cx="40" cy="33" r="2.5" fill="#78716c"/><circle cx="3" cy="18" r="2.5" fill="#78716c"/><circle cx="49" cy="18" r="2.5" fill="#78716c"/><rect x="7" y="9" width="38" height="18" rx="4" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg>';
+}
+
+/* ── Helpers ──────────────────────────────── */
+
+function snap(v){ return Math.round(v/GRID)*GRID; }
+function nextId(prefix){ fpState.counter++; return prefix + fpState.counter; }
+
+function pushUndo(){
+  undoStack.push(JSON.stringify({tables:fpState.tables,shapes:fpState.shapes}));
+  if(undoStack.length > MAX_UNDO) undoStack.shift();
+}
+
+function popUndo(){
+  if(undoStack.length === 0) return false;
+  var snap = JSON.parse(undoStack.pop());
+  fpState.tables = snap.tables;
+  fpState.shapes = snap.shapes;
+  rerenderCanvas();
+  return true;
+}
+
+function rerenderCanvas(){
+  var canvas = document.getElementById('floorPlanCanvas');
+  if(!canvas) return;
+  // Keep only non-table/shape children (like snap guides)
+  canvas.querySelectorAll('.canvas-table,.canvas-shape').forEach(function(el){el.remove();});
+  fpState.tables.forEach(function(t){ renderCanvasTable(canvas,t); });
+  fpState.shapes.forEach(function(s){ renderCanvasShape(canvas,s); });
+}
+
+/* ── Floor Plan Editor ────────────────────── */
+
+function initFloorPlanEditor(){
+  var canvas = document.getElementById('floorPlanCanvas');
+  var toolbox = document.getElementById('floorPlanToolbox');
+  if(!canvas||!toolbox) return;
+
+  // Show grid by default
+  if(showGrid) canvas.classList.add('show-grid');
+
+  // Drag from toolbox
+  toolbox.addEventListener('dragstart', function(e){
+    var item = e.target.closest('.toolbox-item');
+    if(!item) return;
+    var tt = item.dataset.tableType;
+    var st = item.dataset.shapeType;
+    if(tt) e.dataTransfer.setData('text/plain', JSON.stringify({action:'add_table',type:tt,capacity:parseInt(item.dataset.capacity,10)}));
+    else if(st) e.dataTransfer.setData('text/plain', JSON.stringify({action:'add_shape',type:st}));
+  });
+
+  canvas.addEventListener('dragover', function(e){ e.preventDefault(); canvas.classList.add('drag-over'); });
+  canvas.addEventListener('dragleave', function(){ canvas.classList.remove('drag-over'); });
+
+  canvas.addEventListener('drop', function(e){
+    e.preventDefault();
+    canvas.classList.remove('drag-over');
+    var data;
+    try{ data = JSON.parse(e.dataTransfer.getData('text/plain')); }catch{ return; }
+    var rect = canvas.getBoundingClientRect();
+    var x = snap(e.clientX - rect.left);
+    var y = snap(e.clientY - rect.top);
+    placeItem(data, x, y);
+  });
+
+  // Click-to-place on canvas
+  canvas.addEventListener('click', function(e){
+    if(!clickPlaceMode) return;
+    if(e.target.closest('.canvas-table') || e.target.closest('.canvas-shape')) return;
+    var rect = canvas.getBoundingClientRect();
+    var x = snap(e.clientX - rect.left);
+    var y = snap(e.clientY - rect.top);
+    placeItem(clickPlaceMode, x, y);
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function(e){
+    if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    if(e.key === 'Escape'){
+      exitClickPlaceMode();
+    }
+    if((e.ctrlKey || e.metaKey) && e.key === 'z'){
+      e.preventDefault();
+      popUndo();
+    }
+  });
+
+  // Save & Reset buttons
+  var saveBtn = document.getElementById('saveFloorPlanBtn');
+  if(saveBtn) saveBtn.addEventListener('click', saveFloorPlan);
+  var resetBtn = document.getElementById('resetFloorPlanBtn');
+  if(resetBtn) resetBtn.addEventListener('click', loadFloorPlan);
+
+  // Toolbar buttons
+  var undoBtn = document.getElementById('fpUndoBtn');
+  if(undoBtn) undoBtn.addEventListener('click', function(){ popUndo(); });
+
+  var gridBtn = document.getElementById('fpGridBtn');
+  if(gridBtn) gridBtn.addEventListener('click', function(){
+    showGrid = !showGrid;
+    canvas.classList.toggle('show-grid', showGrid);
+    gridBtn.classList.toggle('active', showGrid);
+  });
+
+  var clearBtn = document.getElementById('fpClearBtn');
+  if(clearBtn) clearBtn.addEventListener('click', function(){
+    if(!confirm('Tum masalari ve sekilleri silmek istediginizden emin misiniz?')) return;
+    pushUndo();
+    fpState.tables = [];
+    fpState.shapes = [];
+    rerenderCanvas();
+  });
+
+  // Make toolbox items clickable for click-to-place mode
+  toolbox.querySelectorAll('.toolbox-item').forEach(function(item){
+    item.addEventListener('click', function(e){
+      // Don't activate click-place if user is starting a drag
+      if(e.detail === 0) return; // programmatic
+      var tt = item.dataset.tableType;
+      var st = item.dataset.shapeType;
+      if(tt){
+        setClickPlaceMode({action:'add_table',type:tt,capacity:parseInt(item.dataset.capacity,10)}, item);
+      } else if(st){
+        setClickPlaceMode({action:'add_shape',type:st}, item);
+      }
+    });
+  });
+
+  loadFloorPlan();
+}
+
+function setClickPlaceMode(data, activeItem){
+  var canvas = document.getElementById('floorPlanCanvas');
+  var toolbox = document.getElementById('floorPlanToolbox');
+  // Toggle off if same tool clicked again
+  if(clickPlaceMode && clickPlaceMode.type === data.type && clickPlaceMode.action === data.action){
+    exitClickPlaceMode();
+    return;
+  }
+  clickPlaceMode = data;
+  if(canvas) canvas.classList.add('click-place-mode');
+  toolbox.querySelectorAll('.toolbox-item').forEach(function(i){ i.classList.remove('active-tool'); });
+  if(activeItem) activeItem.classList.add('active-tool');
+}
+
+function exitClickPlaceMode(){
+  clickPlaceMode = null;
+  var canvas = document.getElementById('floorPlanCanvas');
+  if(canvas) canvas.classList.remove('click-place-mode');
+  var toolbox = document.getElementById('floorPlanToolbox');
+  if(toolbox) toolbox.querySelectorAll('.toolbox-item').forEach(function(i){ i.classList.remove('active-tool'); });
+}
+
+function placeItem(data, x, y){
+  var canvas = document.getElementById('floorPlanCanvas');
+  if(!canvas) return;
+  pushUndo();
+
+  if(data.action === 'add_table'){
+    var dims = TABLE_DIMS[data.type] || {w:72,h:72};
+    // Center on click point
+    x = snap(Math.max(0, x - dims.w/2));
+    y = snap(Math.max(0, y - dims.h/2));
+    var id = nextId('T' + data.capacity + '-');
+    var t = {table_id:id,type:data.type,capacity:data.capacity,x:x,y:y,rotation:0,label:id};
+    fpState.tables.push(t);
+    renderCanvasTable(canvas,t);
+  } else if(data.action === 'add_shape'){
+    var shapeId = nextId('S-');
+    var sw = data.type==='HORIZONTAL_DIVIDER'?120:data.type==='WALL'?160:3;
+    var sh = data.type==='VERTICAL_DIVIDER'?120:data.type==='WALL'?8:3;
+    var s = {shape_id:shapeId,type:data.type,x:x,y:y,width:sw,height:sh};
+    fpState.shapes.push(s);
+    renderCanvasShape(canvas,s);
+  }
+}
+
+function renderCanvasTable(canvas, t){
+  var svgData = getTableSvg(t.type);
+  var el = document.createElement('div');
+  el.className = 'canvas-table';
+  el.dataset.type = t.type;
+  el.dataset.tableId = t.table_id;
+  el.dataset.rot = t.rotation || 0;
+  el.style.left = t.x + 'px';
+  el.style.top = t.y + 'px';
+  el.style.width = svgData.w + 'px';
+  el.style.height = svgData.h + 'px';
+
+  var html = svgData.svg;
+  html += '<span class="table-label">' + escapeHtml(t.label||t.table_id) + '</span>';
+  html += '<div class="table-actions">';
+  html += '<button class="tbl-act-btn rot" title="Dondur" aria-label="Dondur">&#x21BB;</button>';
+  html += '<button class="tbl-act-btn dup" title="Kopyala" aria-label="Kopyala">&#x2398;</button>';
+  html += '<button class="tbl-act-btn del" title="Sil" aria-label="Sil">&times;</button>';
+  html += '</div>';
+  el.innerHTML = html;
+
+  makeDraggable(el, canvas, function(nx,ny){
+    t.x = nx; t.y = ny;
+  });
+
+  // Delete
+  el.querySelector('.tbl-act-btn.del').addEventListener('click', function(ev){
+    ev.stopPropagation();
+    pushUndo();
+    fpState.tables = fpState.tables.filter(function(tt){return tt.table_id !== t.table_id;});
+    el.remove();
+  });
+
+  // Duplicate
+  el.querySelector('.tbl-act-btn.dup').addEventListener('click', function(ev){
+    ev.stopPropagation();
+    pushUndo();
+    var newId = nextId('T' + t.capacity + '-');
+    var nt = {table_id:newId,type:t.type,capacity:t.capacity,x:t.x+GRID*2,y:t.y+GRID*2,rotation:t.rotation||0,label:newId};
+    fpState.tables.push(nt);
+    renderCanvasTable(canvas,nt);
+  });
+
+  // Rotate
+  el.querySelector('.tbl-act-btn.rot').addEventListener('click', function(ev){
+    ev.stopPropagation();
+    pushUndo();
+    var r = (parseInt(t.rotation||0,10) + 90) % 360;
+    t.rotation = r;
+    el.dataset.rot = r;
+  });
+
+  canvas.appendChild(el);
+}
+
+function renderCanvasShape(canvas, s){
+  var el = document.createElement('div');
+  el.className = 'canvas-shape';
+  el.dataset.shape = s.type;
+  el.dataset.shapeId = s.shape_id;
+  el.style.left = s.x + 'px';
+  el.style.top = s.y + 'px';
+  el.style.width = s.width + 'px';
+  el.style.height = s.height + 'px';
+  el.innerHTML = '<button class="del-btn" aria-label="Sil">&times;</button>';
+  makeDraggable(el, canvas, function(nx,ny){
+    s.x = nx; s.y = ny;
+  });
+  el.querySelector('.del-btn').addEventListener('click', function(ev){
+    ev.stopPropagation();
+    pushUndo();
+    fpState.shapes = fpState.shapes.filter(function(ss){return ss.shape_id !== s.shape_id;});
+    el.remove();
+  });
+  canvas.appendChild(el);
+}
+
+function makeDraggable(el, canvas, onMove){
+  var startX, startY, origX, origY;
+  el.addEventListener('pointerdown', function(e){
+    if(e.target.closest('.tbl-act-btn') || e.target.closest('.del-btn')) return;
+    e.preventDefault();
+    startX = e.clientX; startY = e.clientY;
+    origX = parseInt(el.style.left,10)||0;
+    origY = parseInt(el.style.top,10)||0;
+    el.setPointerCapture(e.pointerId);
+
+    function onPointerMove(ev){
+      var nx = snap(origX + ev.clientX - startX);
+      var ny = snap(origY + ev.clientY - startY);
+      el.style.left = Math.max(0,nx) + 'px';
+      el.style.top = Math.max(0,ny) + 'px';
+    }
+    function onPointerUp(ev){
+      el.releasePointerCapture(ev.pointerId);
+      el.removeEventListener('pointermove', onPointerMove);
+      el.removeEventListener('pointerup', onPointerUp);
+      var nx = parseInt(el.style.left,10)||0;
+      var ny = parseInt(el.style.top,10)||0;
+      if(onMove) onMove(nx,ny);
+    }
+    el.addEventListener('pointermove', onPointerMove);
+    el.addEventListener('pointerup', onPointerUp);
+  });
+}
+
+async function loadFloorPlan(){
+  var canvas = document.getElementById('floorPlanCanvas');
+  if(!canvas) return;
+  canvas.querySelectorAll('.canvas-table,.canvas-shape').forEach(function(el){el.remove();});
+  fpState = {tables:[],shapes:[],planId:null,counter:0};
+  undoStack = [];
+
+  try{
+    var hid = state.hotelId || state.selectedHotelId;
+    if(!hid) return;
+    var res = await apiFetch('/hotels/' + hid + '/restaurant/floor-plans');
+    var data = res;
+    if(data.plan && data.plan.layout_data){
+      fpState.planId = data.plan.id;
+      var ld = data.plan.layout_data;
+      (ld.tables||[]).forEach(function(t){
+        fpState.tables.push(t);
+        fpState.counter = Math.max(fpState.counter, parseInt((t.table_id.match(/\\d+$/)||['0'])[0],10));
+        renderCanvasTable(canvas,t);
+      });
+      (ld.shapes||[]).forEach(function(s){
+        fpState.shapes.push(s);
+        fpState.counter = Math.max(fpState.counter, parseInt((s.shape_id.match(/\\d+$/)||['0'])[0],10));
+        renderCanvasShape(canvas,s);
+      });
+    }
+  }catch(e){ /* fresh canvas */ }
+}
+
+async function saveFloorPlan(){
+  var hid = state.hotelId || state.selectedHotelId;
+  if(!hid){ notify('Otel secilmedi','error'); return; }
+
+  var layout = {
+    canvas_width: 1200,
+    canvas_height: 800,
+    tables: fpState.tables,
+    shapes: fpState.shapes
+  };
+
+  try{
+    var res;
+    if(fpState.planId){
+      res = await apiFetch('/hotels/' + hid + '/restaurant/floor-plans/' + fpState.planId, {
+        method:'PUT',
+        body:({layout_data:layout})
+      });
+    } else {
+      res = await apiFetch('/hotels/' + hid + '/restaurant/floor-plans', {
+        method:'POST',
+        body:({name:'Ana Plan',layout_data:layout})
+      });
+    }
+    var data = res;
+    if(data.plan) fpState.planId = data.plan.id;
+    notify('Plan kaydedildi','success');
+  }catch(e){
+    notify('Plan kaydedilemedi','error');
+  }
+}
+
+/* ── Daily View ───────────────────────────── */
+
+function initDailyView(){
+  var btn = document.getElementById('loadDailyViewBtn');
+  var dateInput = document.getElementById('dailyViewDate');
+  if(!btn||!dateInput) return;
+  dateInput.value = new Date().toISOString().slice(0,10);
+  btn.addEventListener('click', loadDailyView);
+}
+
+async function loadDailyView(){
+  var canvas = document.getElementById('dailyViewCanvas');
+  var dateInput = document.getElementById('dailyViewDate');
+  if(!canvas||!dateInput) return;
+  canvas.innerHTML = '';
+
+  var hid = state.hotelId || state.selectedHotelId;
+  if(!hid){ notify('Otel secilmedi','error'); return; }
+
+  try{
+    var res = await apiFetch('/hotels/' + hid + '/restaurant/tables/daily-view?target_date=' + encodeURIComponent(dateInput.value));
+    var data = res;
+    (data.items||[]).forEach(function(item){
+      var svgData = getTableSvg(item.table_type);
+      var el = document.createElement('div');
+      el.className = 'canvas-table' + (item.status ? ' st-' + item.status : '');
+      el.dataset.type = item.table_type;
+      el.style.left = item.x + 'px';
+      el.style.top = item.y + 'px';
+      el.style.width = svgData.w + 'px';
+      el.style.height = svgData.h + 'px';
+
+      var html = svgData.svg;
+      html += '<span class="table-label">' + escapeHtml(item.table_id) + '</span>';
+
+      if(item.status && item.hold_id){
+        html += '<div class="guest-overlay">';
+        html += '<div>' + escapeHtml(item.guest_name||'') + '</div>';
+        if(item.reservation_time) html += '<div class="guest-time">' + escapeHtml(item.reservation_time) + '</div>';
+        html += '</div>';
+      }
+
+      el.innerHTML = html;
+      if(item.hold_id){
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', function(){ openTableDetail(item.hold_id); });
+      }
+      canvas.appendChild(el);
+    });
+    if(!data.items || data.items.length === 0){
+      canvas.innerHTML = '<div class="empty-state">Aktif plan yok veya bu tarihte masa atamasi bulunamadi.</div>';
+    }
+  }catch(e){
+    notify('Gunluk gorunum yuklenemedi','error');
+  }
+}
+
+/* ── Table Detail Dialog ──────────────────── */
+
+async function openTableDetail(holdId){
+  var dialog = document.getElementById('tableDetailDialog');
+  if(!dialog) return;
+
+  try{
+    var hid = state.hotelId || state.selectedHotelId;
+    var listRes = await apiFetch('/holds/restaurant?hotel_id=' + hid + '&per_page=100');
+    var listData = listRes;
+    var hold = (listData.items||[]).find(function(h){ return h.hold_id === holdId; });
+    if(!hold){ notify('Rezervasyon bulunamadi','error'); return; }
+
+    document.getElementById('tableDetailTitle').textContent = 'Masa Detayi - ' + escapeHtml(holdId);
+    document.getElementById('tdGuestName').value = hold.guest_name || '';
+    document.getElementById('tdPhone').textContent = hold.phone ? ('***' + (hold.phone||'').slice(-4)) : '-';
+    document.getElementById('tdPartySize').value = hold.party_size || '';
+    document.getElementById('tdTime').value = hold.time || '';
+    var tdArea = document.getElementById('tdArea');
+    if(tdArea) tdArea.value = hold.area || 'outdoor';
+    document.getElementById('tdNotes').value = hold.notes || '';
+    var tdStatus = document.getElementById('tdStatus');
+    if(tdStatus) tdStatus.value = hold.status || 'BEKLEMEDE';
+    document.getElementById('tdHoldId').textContent = holdId;
+    document.getElementById('tdCreatedAt').textContent = hold.created_at || '-';
+    document.getElementById('tdApprovedBy').textContent = hold.approved_by || '-';
+
+    dialog.dataset.holdId = holdId;
+    dialog.showModal();
+  }catch(e){
+    notify('Detay yuklenemedi','error');
+  }
+}
+
+function initTableDetailDialog(){
+  var dialog = document.getElementById('tableDetailDialog');
+  if(!dialog) return;
+
+  var closeBtn = dialog.querySelector('[data-close-table-dialog]');
+  if(closeBtn) closeBtn.addEventListener('click', function(){ dialog.close(); });
+
+  var form = document.getElementById('tableDetailForm');
+  if(form) form.addEventListener('submit', async function(e){
+    e.preventDefault();
+    var holdId = dialog.dataset.holdId;
+    if(!holdId) return;
+
+    var updateBody = {};
+    var gn = document.getElementById('tdGuestName').value.trim();
+    var ps = parseInt(document.getElementById('tdPartySize').value,10);
+    var tm = document.getElementById('tdTime').value;
+    var ar = document.getElementById('tdArea').value;
+    var nt = document.getElementById('tdNotes').value.trim();
+    if(gn) updateBody.guest_name = gn;
+    if(ps > 0) updateBody.party_size = ps;
+    if(tm) updateBody.time = tm;
+    if(ar) updateBody.area = ar;
+    if(nt !== undefined) updateBody.notes = nt;
+
+    try{
+      if(Object.keys(updateBody).length > 0){
+        await apiFetch('/holds/restaurant/' + encodeURIComponent(holdId), {
+          method:'PUT',
+          body:(updateBody)
+        });
+      }
+
+      var newStatus = document.getElementById('tdStatus').value;
+      if(newStatus){
+        try{
+          await apiFetch('/holds/restaurant/' + encodeURIComponent(holdId) + '/status', {
+            method:'PUT',
+            body:({status:newStatus})
+          });
+        }catch(statusErr){}
+      }
+
+      notify('Rezervasyon guncellendi','success');
+      dialog.close();
+      loadDailyView();
+    }catch(e){
+      notify('Guncelleme basarisiz','error');
+    }
+  });
+
+  var extendBtn = document.getElementById('tdExtendBtn');
+  if(extendBtn) extendBtn.addEventListener('click', async function(){
+    var holdId = dialog.dataset.holdId;
+    if(!holdId) return;
+    try{
+      var res = await apiFetch('/holds/restaurant/' + encodeURIComponent(holdId) + '/extend', {method:'POST'});
+      var data = res;
+      notify('+15 dakika eklendi (toplam: ' + data.total_extended_minutes + ' dk)','success');
+      document.getElementById('tdTime').value = data.new_time || '';
+    }catch(e){
+      var errMsg = e.message || 'Uzatma basarisiz';
+      notify(errMsg,'error');
+    }
+  });
+
+  var cancelBtn = document.getElementById('tdCancelBtn');
+  if(cancelBtn) cancelBtn.addEventListener('click', async function(){
+    var holdId = dialog.dataset.holdId;
+    if(!holdId) return;
+    if(!confirm('Bu rezervasyonu iptal etmek istediginizden emin misiniz?')) return;
+    try{
+      await apiFetch('/holds/restaurant/' + encodeURIComponent(holdId) + '/status', {
+        method:'PUT',
+        body:({status:'IPTAL',reason:'Admin tarafindan iptal'})
+      });
+      notify('Rezervasyon iptal edildi','success');
+      dialog.close();
+      loadDailyView();
+    }catch(e){
+      notify('Iptal basarisiz','error');
+    }
+  });
+}
+
+/* ── Restaurant Settings ──────────────────── */
+
+function initRestaurantSettings(){
+  var form = document.getElementById('restaurantSettingsForm');
+  if(!form) return;
+
+  form.addEventListener('submit', async function(e){
+    e.preventDefault();
+    var hid = state.hotelId || state.selectedHotelId;
+    if(!hid){ notify('Otel secilmedi','error'); return; }
+
+    var enabled = document.getElementById('dailyCapToggle').checked;
+    var count = parseInt(document.getElementById('dailyCapCount').value,10);
+    if(isNaN(count) || count < 1){ notify('Gecerli bir sayi girin','error'); return; }
+
+    try{
+      await apiFetch('/hotels/' + hid + '/restaurant/settings', {
+        method:'PUT',
+        body:({daily_max_reservations_enabled:enabled,daily_max_reservations_count:count})
+      });
+      notify('Kapasite ayarlari kaydedildi','success');
+    }catch(e){
+      notify('Ayarlar kaydedilemedi','error');
+    }
+  });
+}
+
+async function loadRestaurantSettings(){
+  var hid = state.hotelId || state.selectedHotelId;
+  if(!hid) return;
+  try{
+    var res = await apiFetch('/hotels/' + hid + '/restaurant/settings');
+    var data = res;
+    if(data.settings){
+      var toggle = document.getElementById('dailyCapToggle');
+      var count = document.getElementById('dailyCapCount');
+      if(toggle) toggle.checked = !!data.settings.daily_max_reservations_enabled;
+      if(count) count.value = data.settings.daily_max_reservations_count || 50;
+    }
+  }catch(e){ /* defaults */ }
+}
+
+/* ── Init ─────────────────────────────────── */
+
+function initRestaurantModule(){
+  initFloorPlanEditor();
+  initDailyView();
+  initTableDetailDialog();
+  initRestaurantSettings();
+}
+
+// Hook into navigation
+let _restaurantInited = false;
+function _onRestaurantView(){
+  if(!_restaurantInited){ initRestaurantModule(); _restaurantInited = true; }
+  loadFloorPlan();
+  loadDailyView();
+  loadRestaurantSettings();
+}
+
+window.addEventListener('hashchange', function(){
+  if(window.location.hash === '#restaurant') _onRestaurantView();
+});
+document.addEventListener('click', function(e){
+  if(e.target.closest('[data-nav="restaurant"]')){
+    setTimeout(_onRestaurantView, 50);
+  }
+});
+
+function _initOnReady(){
+  initRestaurantModule();
+  _restaurantInited = true;
+  if(window.location.hash === '#restaurant') _onRestaurantView();
+}
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', _initOnReady);
+} else {
+  _initOnReady();
+}
+
+})();
+"""

@@ -9,6 +9,7 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
 from velox.api.routes.admin_panel_holds_assets import ADMIN_HOLDS_SCRIPT, ADMIN_HOLDS_STYLE
+from velox.api.routes.admin_panel_restaurant_assets import ADMIN_RESTAURANT_SCRIPT, ADMIN_RESTAURANT_STYLE
 from velox.api.routes.admin_panel_ui_assets import ADMIN_PANEL_SCRIPT, ADMIN_PANEL_STYLE
 from velox.config.settings import settings
 
@@ -33,7 +34,8 @@ def render_admin_panel_html() -> str:
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>NexlumeAI Admin Panel</title>
   <style>{ADMIN_PANEL_STYLE}
-{ADMIN_HOLDS_STYLE}</style>
+{ADMIN_HOLDS_STYLE}
+{ADMIN_RESTAURANT_STYLE}</style>
 </head>
 <body>
   <div id="toast" class="toast info" role="status" aria-live="polite"></div>
@@ -496,6 +498,112 @@ def render_admin_panel_html() -> str:
               <div class="field full"><button class="inline-button primary" type="submit">Slot Araligi Olustur</button></div>
             </form>
           </article>
+
+          <article class="module-card" id="restaurantSettingsCard">
+            <div class="module-header">
+              <div><h3>Kapasite Ayarlari</h3><p>Gunluk maksimum rezervasyon sayisini sinirlayin.</p></div>
+            </div>
+            <form id="restaurantSettingsForm" class="dense-form">
+              <div class="field">
+                <label>Gunluk limit aktif</label>
+                <label class="toggle-switch"><input type="checkbox" id="dailyCapToggle" name="daily_max_reservations_enabled" aria-label="Gunluk kapasite limiti"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="field">
+                <label>Maks. gunluk rezervasyon</label>
+                <input name="daily_max_reservations_count" type="number" min="1" value="50" id="dailyCapCount" aria-label="Gunluk maksimum rezervasyon sayisi">
+              </div>
+              <div class="field full"><button class="inline-button primary" type="submit">Kaydet</button></div>
+            </form>
+          </article>
+
+          <article class="module-card" id="floorPlanEditorCard">
+            <div class="module-header">
+              <div><h3>Restoran Plan Cizimi</h3><p>Masalari surukle-birak veya tiklayarak yerlestirin. Her masanin uzerinde dondurme, kopyalama ve silme butonlari vardir.</p></div>
+              <div>
+                <button class="inline-button primary" id="saveFloorPlanBtn" type="button" aria-label="Plani kaydet">Kaydet</button>
+                <button class="inline-button secondary" id="resetFloorPlanBtn" type="button" aria-label="Plani sifirla">Sifirla</button>
+              </div>
+            </div>
+            <div class="fp-toolbar">
+              <button class="fp-tool-btn active" id="fpGridBtn" type="button" title="Izgara goster/gizle">&#9638; Izgara</button>
+              <button class="fp-tool-btn" id="fpUndoBtn" type="button" title="Geri al (Ctrl+Z)">&#8630; Geri Al</button>
+              <span class="fp-sep"></span>
+              <button class="fp-tool-btn danger" id="fpClearBtn" type="button" title="Tum elemanlari temizle">&#10005; Temizle</button>
+              <span class="fp-sep"></span>
+              <span style="font-size:.7rem;color:var(--muted);align-self:center">Ipucu: Aracinizi secin, sonra canvas uzerine tiklayin veya surukleyin. ESC ile modu iptal edin.</span>
+            </div>
+            <div class="floor-plan-workspace">
+              <div class="floor-plan-toolbox" id="floorPlanToolbox">
+                <p class="toolbox-title">Masalar</p>
+                <div class="toolbox-item" draggable="true" data-table-type="TABLE_2" data-capacity="2" aria-label="2 kisilik masa ekle">
+                  <span class="toolbox-preview"><svg viewBox="0 0 36 36"><circle cx="18" cy="3" r="3" fill="#78716c"/><circle cx="18" cy="33" r="3" fill="#78716c"/><circle cx="18" cy="18" r="10" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 2 Kisilik
+                </div>
+                <div class="toolbox-item" draggable="true" data-table-type="TABLE_4" data-capacity="4" aria-label="4 kisilik masa ekle">
+                  <span class="toolbox-preview"><svg viewBox="0 0 36 36"><circle cx="18" cy="3" r="3" fill="#78716c"/><circle cx="18" cy="33" r="3" fill="#78716c"/><circle cx="3" cy="18" r="3" fill="#78716c"/><circle cx="33" cy="18" r="3" fill="#78716c"/><rect x="10" y="10" width="16" height="16" rx="3" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 4 Kisilik
+                </div>
+                <div class="toolbox-item" draggable="true" data-table-type="TABLE_6" data-capacity="6" aria-label="6 kisilik masa ekle">
+                  <span class="toolbox-preview"><svg viewBox="0 0 44 36"><circle cx="12" cy="3" r="3" fill="#78716c"/><circle cx="22" cy="3" r="3" fill="#78716c"/><circle cx="32" cy="3" r="3" fill="#78716c"/><circle cx="12" cy="33" r="3" fill="#78716c"/><circle cx="22" cy="33" r="3" fill="#78716c"/><circle cx="32" cy="33" r="3" fill="#78716c"/><rect x="6" y="10" width="32" height="16" rx="4" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 6 Kisilik
+                </div>
+                <div class="toolbox-item" draggable="true" data-table-type="TABLE_8" data-capacity="8" aria-label="8 kisilik masa ekle">
+                  <span class="toolbox-preview"><svg viewBox="0 0 48 36"><circle cx="12" cy="3" r="2.5" fill="#78716c"/><circle cx="24" cy="3" r="2.5" fill="#78716c"/><circle cx="36" cy="3" r="2.5" fill="#78716c"/><circle cx="12" cy="33" r="2.5" fill="#78716c"/><circle cx="24" cy="33" r="2.5" fill="#78716c"/><circle cx="36" cy="33" r="2.5" fill="#78716c"/><circle cx="3" cy="18" r="2.5" fill="#78716c"/><circle cx="45" cy="18" r="2.5" fill="#78716c"/><rect x="8" y="9" width="32" height="18" rx="4" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 8 Kisilik
+                </div>
+                <div class="toolbox-item" draggable="true" data-table-type="TABLE_10" data-capacity="10" aria-label="10 kisilik masa ekle">
+                  <span class="toolbox-preview"><svg viewBox="0 0 52 36"><circle cx="10" cy="3" r="2.5" fill="#78716c"/><circle cx="20" cy="3" r="2.5" fill="#78716c"/><circle cx="30" cy="3" r="2.5" fill="#78716c"/><circle cx="40" cy="3" r="2.5" fill="#78716c"/><circle cx="10" cy="33" r="2.5" fill="#78716c"/><circle cx="20" cy="33" r="2.5" fill="#78716c"/><circle cx="30" cy="33" r="2.5" fill="#78716c"/><circle cx="40" cy="33" r="2.5" fill="#78716c"/><circle cx="3" cy="18" r="2.5" fill="#78716c"/><circle cx="49" cy="18" r="2.5" fill="#78716c"/><rect x="7" y="9" width="38" height="18" rx="4" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 10 Kisilik
+                </div>
+                <p class="toolbox-title">Sekiller</p>
+                <div class="toolbox-item" draggable="true" data-shape-type="HORIZONTAL_DIVIDER" aria-label="Yatay ayirici ekle">━ Yatay Ayirici</div>
+                <div class="toolbox-item" draggable="true" data-shape-type="VERTICAL_DIVIDER" aria-label="Dikey ayirici ekle">┃ Dikey Ayirici</div>
+                <div class="toolbox-item" draggable="true" data-shape-type="WALL" aria-label="Duvar ekle">&#9632; Duvar</div>
+              </div>
+              <div class="floor-plan-canvas show-grid" id="floorPlanCanvas" aria-label="Restoran plan cizim alani"></div>
+            </div>
+          </article>
+
+          <article class="module-card" id="dailyViewCard">
+            <div class="module-header">
+              <div><h3>Gunluk Gorunum</h3><p>Masalarin doluluk durumunu gorun, masa uzerine tiklayarak detaylari inceleyin.</p></div>
+            </div>
+            <div class="toolbar">
+              <input type="date" id="dailyViewDate" aria-label="Gunluk gorunum tarihi">
+              <button class="primary" id="loadDailyViewBtn" type="button" aria-label="Gunluk goruntule">Goruntule</button>
+            </div>
+            <div class="floor-plan-canvas daily-view-canvas" id="dailyViewCanvas" aria-label="Gunluk masa gorunumu"></div>
+          </article>
+
+          <dialog id="tableDetailDialog" class="table-detail-dialog" aria-label="Masa detay penceresi">
+            <form id="tableDetailForm" method="dialog">
+              <div class="dialog-header">
+                <h3 id="tableDetailTitle">Masa Detayi</h3>
+                <button type="button" class="close-dialog-btn" aria-label="Kapat" data-close-table-dialog>&times;</button>
+              </div>
+              <div class="dialog-body">
+                <div class="field"><label>Durum</label><select id="tdStatus" name="status" aria-label="Rezervasyon durumu">
+                  <option value="BEKLEMEDE">Beklemede</option>
+                  <option value="ONAYLANDI">Onaylandi</option>
+                  <option value="GELDI">Geldi</option>
+                  <option value="GELMEDI">Gelmedi</option>
+                  <option value="IPTAL">Iptal</option>
+                  <option value="DEGISIKLIK_UYGULA">Degisiklik Uygula</option>
+                </select></div>
+                <div class="field"><label>Misafir Adi</label><input id="tdGuestName" name="guest_name" type="text" maxlength="100" aria-label="Misafir adi"></div>
+                <div class="field"><label>Telefon</label><span id="tdPhone" class="readonly-field"></span></div>
+                <div class="field"><label>Kisi Sayisi</label><input id="tdPartySize" name="party_size" type="number" min="1" aria-label="Kisi sayisi"></div>
+                <div class="field"><label>Saat</label><input id="tdTime" name="time" type="time" aria-label="Rezervasyon saati"></div>
+                <div class="field"><label>Alan</label><select id="tdArea" name="area" aria-label="Alan"><option value="outdoor">Acik Hava</option><option value="indoor">Kapali Alan</option></select></div>
+                <div class="field full"><label>Notlar</label><textarea id="tdNotes" name="notes" maxlength="500" rows="2" aria-label="Notlar"></textarea></div>
+                <div class="readonly-info">
+                  <p>Hold ID: <span id="tdHoldId"></span></p>
+                  <p>Olusturulma: <span id="tdCreatedAt"></span></p>
+                  <p>Onaylayan: <span id="tdApprovedBy"></span></p>
+                </div>
+              </div>
+              <div class="dialog-footer">
+                <button type="button" class="inline-button secondary" id="tdExtendBtn" aria-label="15 dakika uzat">+15 Dk Ver</button>
+                <button type="button" class="inline-button danger" id="tdCancelBtn" aria-label="Iptal et">Iptal</button>
+                <button type="submit" class="inline-button primary" aria-label="Kaydet">Kaydet</button>
+              </div>
+            </form>
+          </dialog>
         </section>
 
         <section data-view="notifications" class="section-grid" hidden>
@@ -601,7 +709,8 @@ def render_admin_panel_html() -> str:
 
   <script>window.ADMIN_PANEL_CONFIG = {config_json};</script>
   <script>{ADMIN_PANEL_SCRIPT}
-{ADMIN_HOLDS_SCRIPT}</script>
+{ADMIN_HOLDS_SCRIPT}
+{ADMIN_RESTAURANT_SCRIPT}</script>
 </body>
 </html>
 """
