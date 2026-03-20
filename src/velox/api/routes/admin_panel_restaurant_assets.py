@@ -69,8 +69,17 @@ ADMIN_RESTAURANT_STYLE = """
 .shape-actions .shape-act-btn:hover,.table-actions .tbl-act-btn:hover{transform:scale(1.15)}
 .shape-act-btn.del{background:var(--danger,#ef4444);color:#fff}
 .shape-act-btn.rot{background:#8b5cf6;color:#fff}
-.shape-resize-handle{position:absolute;right:-10px;bottom:-10px;width:18px;height:18px;border-radius:50%;background:#fff;border:2px solid var(--accent);cursor:nwse-resize;display:none;z-index:7;box-shadow:0 2px 6px rgba(15,23,42,.18);pointer-events:auto}
-.canvas-shape:hover .shape-resize-handle,.canvas-shape.selected .shape-resize-handle{display:block}
+.shape-act-btn.edit{background:#0f766e;color:#fff}
+.canvas-shape.shape-editing{outline-offset:10px;z-index:4}
+.canvas-shape.shape-editing .shape-actions,.canvas-shape.shape-compact .shape-actions,.canvas-shape.shape-editing .shape-resize-handle,.canvas-shape.shape-compact .shape-resize-handle{display:flex}
+.canvas-shape.shape-compact .shape-actions{top:calc(100% + 10px);right:auto;left:50%;transform:translateX(-50%)}
+.shape-resize-handle{position:absolute;right:-14px;bottom:-14px;width:24px;height:24px;border-radius:999px;background:#fff;border:2px solid var(--accent);cursor:nwse-resize;display:none;align-items:center;justify-content:center;z-index:7;box-shadow:0 4px 12px rgba(15,23,42,.24);pointer-events:auto;touch-action:none}
+.shape-resize-handle::before{content:'';position:absolute;inset:-10px;border-radius:999px}
+.shape-resize-handle::after{content:'';width:10px;height:10px;border-radius:999px;background:var(--accent);box-shadow:0 0 0 2px #fff}
+.canvas-shape:hover .shape-resize-handle,.canvas-shape.selected .shape-resize-handle{display:flex}
+.canvas-shape[data-shape="HORIZONTAL_DIVIDER"] .shape-resize-handle,.canvas-shape[data-shape="VERTICAL_DIVIDER"] .shape-resize-handle,.canvas-shape[data-shape="WALL"] .shape-resize-handle{right:-12px;bottom:-12px}
+.canvas-shape[data-shape="HORIZONTAL_DIVIDER"].shape-editing .shape-resize-handle,.canvas-shape[data-shape="WALL"].shape-editing .shape-resize-handle,.canvas-shape[data-shape="HORIZONTAL_DIVIDER"].shape-compact .shape-resize-handle,.canvas-shape[data-shape="WALL"].shape-compact .shape-resize-handle{right:-6px;bottom:50%;transform:translateY(50%)}
+.canvas-shape[data-shape="VERTICAL_DIVIDER"].shape-editing .shape-resize-handle,.canvas-shape[data-shape="VERTICAL_DIVIDER"].shape-compact .shape-resize-handle{right:50%;bottom:-8px;transform:translateX(50%)}
 
 /* Rotation transforms */
 .canvas-table,.canvas-shape{transform:rotate(var(--rot,0deg))}
@@ -131,6 +140,7 @@ ADMIN_RESTAURANT_SCRIPT = """
 const GRID = 20;
 let fpState = {tables:[],shapes:[],planId:null,counter:0};
 let selectedEl = null;
+let activeShapeEditId = null;
 let undoStack = [];
 const MAX_UNDO = 30;
 let clickPlaceMode = null; // null or {type, capacity} or {shape}
@@ -321,6 +331,38 @@ function setSelectedElement(nextEl){
   if(selectedEl && selectedEl !== nextEl) selectedEl.classList.remove('selected');
   selectedEl = nextEl || null;
   if(selectedEl) selectedEl.classList.add('selected');
+}
+
+function isCompactShape(shape){
+  var width = shape.width || 0;
+  var height = shape.height || 0;
+  return width <= 72 || height <= 40 || Math.min(width, height) <= 32;
+}
+
+function syncShapeEditState(el, shape){
+  if(!el || !shape) return;
+  var isEditing = activeShapeEditId === shape.shape_id;
+  var compact = isCompactShape(shape);
+  el.classList.toggle('shape-editing', isEditing);
+  el.classList.toggle('shape-compact', compact);
+  var editBtn = el.querySelector('.shape-act-btn.edit');
+  if(editBtn){
+    editBtn.classList.toggle('active', isEditing);
+    editBtn.setAttribute('aria-pressed', isEditing ? 'true' : 'false');
+    editBtn.setAttribute('title', isEditing ? 'Sekil duzenlemeyi kapat' : 'Sekil duzenle');
+  }
+  var resizeHandle = el.querySelector('.shape-resize-handle');
+  if(resizeHandle){
+    resizeHandle.setAttribute('aria-hidden', isEditing || compact ? 'false' : 'true');
+  }
+}
+
+function setActiveShapeEdit(shapeId){
+  activeShapeEditId = shapeId || null;
+  document.querySelectorAll('.canvas-shape').forEach(function(node){
+    var shape = fpState.shapes.find(function(item){ return item.shape_id === node.dataset.shapeId; });
+    if(shape) syncShapeEditState(node, shape);
+  });
 }
 
 /* ── Floor Plan Editor ────────────────────── */
@@ -543,17 +585,23 @@ function renderCanvasShape(canvas, s){
   el.style.width = s.width + 'px';
   el.style.height = s.height + 'px';
   el.style.setProperty('--rot', getRotation(s) + 'deg');
-  el.innerHTML = '<div class="shape-body" aria-hidden="true"></div><div class="shape-actions"><button class="shape-act-btn rot" title="Dondur" aria-label="Dondur">&#x21BB;</button><button class="shape-act-btn del" title="Sil" aria-label="Sil">&times;</button></div>' + (isWallShape(s.type) ? '<button class="shape-resize-handle" type="button" aria-label="Boyutlandir"></button>' : '');
+  el.innerHTML = '<div class="shape-body" aria-hidden="true"></div><div class="shape-actions"><button class="shape-act-btn edit" title="Sekil duzenle" aria-label="Sekil duzenle" aria-pressed="false">&#x25C8;</button><button class="shape-act-btn rot" title="Dondur" aria-label="Dondur">&#x21BB;</button><button class="shape-act-btn del" title="Sil" aria-label="Sil">&times;</button></div><button class="shape-resize-handle" type="button" aria-label="Boyutlandir"></button>';
   makeDraggable(el, canvas, function(nx,ny){
     s.x = nx; s.y = ny;
   });
   el.addEventListener('pointerdown', function(){
     setSelectedElement(el);
   });
+  el.querySelector('.shape-act-btn.edit').addEventListener('click', function(ev){
+    ev.stopPropagation();
+    setSelectedElement(el);
+    setActiveShapeEdit(activeShapeEditId === s.shape_id ? null : s.shape_id);
+  });
   el.querySelector('.shape-act-btn.del').addEventListener('click', function(ev){
     ev.stopPropagation();
     pushUndo();
     fpState.shapes = fpState.shapes.filter(function(ss){return ss.shape_id !== s.shape_id;});
+    if(activeShapeEditId === s.shape_id) setActiveShapeEdit(null);
     el.remove();
   });
   el.querySelector('.shape-act-btn.rot').addEventListener('click', function(ev){
@@ -562,11 +610,14 @@ function renderCanvasShape(canvas, s){
     var r = (getRotation(s) + 90) % 360;
     s.rotation = r;
     el.style.setProperty('--rot', r + 'deg');
+    setSelectedElement(el);
+    setActiveShapeEdit(s.shape_id);
   });
   var resizeHandle = el.querySelector('.shape-resize-handle');
   if(resizeHandle){
     makeShapeResizable(resizeHandle, el, s);
   }
+  syncShapeEditState(el, s);
   canvas.appendChild(el);
 }
 
@@ -575,6 +626,8 @@ function makeShapeResizable(handle, el, shape){
     e.preventDefault();
     e.stopPropagation();
     pushUndo();
+    setSelectedElement(el);
+    setActiveShapeEdit(shape.shape_id);
     var startX = e.clientX;
     var startY = e.clientY;
     var startWidth = shape.width || parseInt(el.style.width,10) || 0;
@@ -584,24 +637,35 @@ function makeShapeResizable(handle, el, shape){
     function onPointerMove(ev){
       var nextWidth = clampSize(startWidth + (ev.clientX - startX), 40, 480);
       var nextHeight = clampSize(startHeight + (ev.clientY - startY), 12, 480);
+      if(shape.type === 'HORIZONTAL_DIVIDER'){
+        nextHeight = clampSize(startHeight, 12, 24);
+      }
+      if(shape.type === 'VERTICAL_DIVIDER'){
+        nextWidth = clampSize(startWidth, 12, 24);
+      }
       if(shape.type === 'WALL'){
         nextHeight = clampSize(startHeight, 12, 32);
       }
-      if(shape.type === 'CURVED_WALL'){
+      if(shape.type === 'CURVED_WALL' || shape.type === 'TREE'){
         var size = clampSize(Math.max(nextWidth, nextHeight), 60, 320);
         nextWidth = size;
         nextHeight = size;
+      }
+      if(shape.type === 'BUSH'){
+        nextHeight = clampSize(nextHeight, 24, 200);
       }
       shape.width = nextWidth;
       shape.height = nextHeight;
       el.style.width = nextWidth + 'px';
       el.style.height = nextHeight + 'px';
+      syncShapeEditState(el, shape);
     }
 
     function onPointerUp(ev){
       handle.releasePointerCapture(ev.pointerId);
       handle.removeEventListener('pointermove', onPointerMove);
       handle.removeEventListener('pointerup', onPointerUp);
+      syncShapeEditState(el, shape);
     }
 
     handle.addEventListener('pointermove', onPointerMove);
@@ -618,6 +682,7 @@ function makeDraggable(el, canvas, onMove){
     origX = parseInt(el.style.left,10)||0;
     origY = parseInt(el.style.top,10)||0;
     el.setPointerCapture(e.pointerId);
+    if(el.classList.contains('canvas-shape')) setSelectedElement(el);
 
     function onPointerMove(ev){
       var nx = snap(origX + ev.clientX - startX);
@@ -632,6 +697,11 @@ function makeDraggable(el, canvas, onMove){
       var nx = parseInt(el.style.left,10)||0;
       var ny = parseInt(el.style.top,10)||0;
       if(onMove) onMove(nx,ny);
+      if(el.classList.contains('canvas-shape')){
+        var shapeId = el.dataset.shapeId;
+        var shape = fpState.shapes.find(function(item){ return item.shape_id === shapeId; });
+        if(shape) syncShapeEditState(el, shape);
+      }
     }
     el.addEventListener('pointermove', onPointerMove);
     el.addEventListener('pointerup', onPointerUp);
@@ -643,6 +713,7 @@ async function loadFloorPlan(){
   if(!canvas) return;
   canvas.querySelectorAll('.canvas-table,.canvas-shape').forEach(function(el){el.remove();});
   fpState = {tables:[],shapes:[],planId:null,counter:0};
+  activeShapeEditId = null;
   undoStack = [];
 
   try{

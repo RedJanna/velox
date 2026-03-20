@@ -43,13 +43,18 @@ def test_restaurant_editor_exposes_new_floor_plan_tools() -> None:
     assert "Duvarlari uzatip kisaltabilir" in html
 
 
-def test_restaurant_assets_support_shape_rotation_resize_and_non_drag_actions() -> None:
+def test_restaurant_assets_support_flexible_shape_editing_controls() -> None:
     assert "CURVED_WALL" in ADMIN_RESTAURANT_SCRIPT
     assert "shape-resize-handle" in ADMIN_RESTAURANT_SCRIPT
-    assert "makeShapeResizable" in ADMIN_RESTAURANT_SCRIPT
+    assert "shape-act-btn edit" in ADMIN_RESTAURANT_SCRIPT
+    assert "setActiveShapeEdit" in ADMIN_RESTAURANT_SCRIPT
+    assert "syncShapeEditState" in ADMIN_RESTAURANT_SCRIPT
+    assert "HORIZONTAL_DIVIDER" in ADMIN_RESTAURANT_SCRIPT
+    assert "VERTICAL_DIVIDER" in ADMIN_RESTAURANT_SCRIPT
     assert "TREE" in ADMIN_RESTAURANT_SCRIPT
     assert "BUSH" in ADMIN_RESTAURANT_SCRIPT
-    assert "setSelectedElement" in ADMIN_RESTAURANT_SCRIPT
     assert "e.target.closest('.shape-act-btn')" in ADMIN_RESTAURANT_SCRIPT
     assert "e.target.closest('.shape-resize-handle')" in ADMIN_RESTAURANT_SCRIPT
-    assert ".canvas-shape .shape-actions{top:-30px;right:0}" in ADMIN_RESTAURANT_STYLE
+    assert ".canvas-shape.shape-editing .shape-actions" in ADMIN_RESTAURANT_STYLE
+    assert ".shape-resize-handle::before" in ADMIN_RESTAURANT_STYLE
+    assert ".canvas-shape.shape-compact .shape-actions{top:calc(100% + 10px);right:auto;left:50%;transform:translateX(-50%)}" in ADMIN_RESTAURANT_STYLE
