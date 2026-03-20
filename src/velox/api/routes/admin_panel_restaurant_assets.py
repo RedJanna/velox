@@ -26,10 +26,14 @@ ADMIN_RESTAURANT_STYLE = """
 .fp-toolbar .fp-sep{width:1px;height:22px;background:var(--border);margin:0 .15rem;align-self:center}
 
 /* Canvas */
-.floor-plan-canvas{flex:1;position:relative;background:var(--bg-1);border:2px dashed var(--border);border-radius:var(--radius);min-height:560px;overflow:hidden}
-.floor-plan-canvas.show-grid{background-image:radial-gradient(circle,var(--border,#d1cdc4) 1px,transparent 1px);background-size:20px 20px}
+.floor-plan-canvas{flex:1;position:relative;background:var(--floor-base,var(--bg-1));background-image:var(--floor-texture,none);background-size:var(--floor-size,auto);background-position:center;border:2px dashed var(--border);border-radius:var(--radius);min-height:560px;overflow:hidden}
+.floor-plan-canvas.show-grid{background-image:var(--floor-texture,none),radial-gradient(circle,var(--border,#d1cdc4) 1px,transparent 1px);background-size:var(--floor-size,auto),20px 20px;background-position:center,0 0}
 .floor-plan-canvas.drag-over{border-color:var(--accent);background-color:var(--accent-bg)}
 .floor-plan-canvas.click-place-mode{cursor:crosshair}
+.floor-plan-canvas.floor-cream-marble-classic{--floor-base:#f4ecdf;--floor-texture:linear-gradient(135deg,rgba(255,255,255,.35),rgba(255,255,255,0) 38%),radial-gradient(circle at 18% 22%,rgba(201,179,150,.18) 0 2px,transparent 3px),radial-gradient(circle at 72% 68%,rgba(181,157,128,.14) 0 2px,transparent 3px),linear-gradient(115deg,transparent 0 28%,rgba(181,157,128,.16) 29% 31%,transparent 32% 58%,rgba(214,198,175,.18) 59% 61%,transparent 62% 100%),linear-gradient(25deg,transparent 0 18%,rgba(196,171,141,.12) 19% 20%,transparent 21% 100%);--floor-size:100% 100%,160px 160px,220px 220px,260px 260px,210px 210px}
+.floor-plan-canvas.floor-cream-marble-warm{--floor-base:#efe2d2;--floor-texture:linear-gradient(140deg,rgba(255,255,255,.3),rgba(255,255,255,0) 42%),linear-gradient(90deg,transparent 0 22%,rgba(196,161,128,.16) 23% 24%,transparent 25% 55%,rgba(224,204,184,.22) 56% 58%,transparent 59% 100%),linear-gradient(25deg,transparent 0 35%,rgba(182,150,118,.14) 36% 37%,transparent 38% 100%),radial-gradient(circle at 24% 30%,rgba(255,248,240,.34) 0 20%,transparent 21% 100%);--floor-size:100% 100%,240px 240px,220px 220px,180px 180px}
+.floor-plan-canvas.floor-cream-marble-soft{--floor-base:#f7f1e8;--floor-texture:linear-gradient(135deg,rgba(255,255,255,.42),rgba(255,255,255,0) 44%),linear-gradient(115deg,transparent 0 30%,rgba(221,209,191,.18) 31% 33%,transparent 34% 64%,rgba(205,188,167,.14) 65% 67%,transparent 68% 100%),linear-gradient(35deg,transparent 0 18%,rgba(188,172,153,.1) 19% 20%,transparent 21% 100%);--floor-size:100% 100%,280px 280px,220px 220px}
+.fp-floor-select{min-width:220px;max-width:280px}
 
 /* Snap guide lines */
 .snap-guide{position:absolute;z-index:50;pointer-events:none}
@@ -138,7 +142,13 @@ ADMIN_RESTAURANT_SCRIPT = """
 'use strict';
 
 const GRID = 20;
-let fpState = {tables:[],shapes:[],planId:null,counter:0};
+const FLOOR_THEMES = {
+  CREAM_MARBLE_CLASSIC: 'floor-cream-marble-classic',
+  CREAM_MARBLE_WARM: 'floor-cream-marble-warm',
+  CREAM_MARBLE_SOFT: 'floor-cream-marble-soft'
+};
+const DEFAULT_FLOOR_THEME = 'CREAM_MARBLE_CLASSIC';
+let fpState = {tables:[],shapes:[],planId:null,counter:0,floorTheme:DEFAULT_FLOOR_THEME};
 let selectedEl = null;
 let activeShapeEditId = null;
 let undoStack = [];
@@ -289,8 +299,22 @@ function miniSvg10(){
 function snap(v){ return Math.round(v/GRID)*GRID; }
 function nextId(prefix){ fpState.counter++; return prefix + fpState.counter; }
 function getRotation(item){ return parseInt(item.rotation || 0, 10) || 0; }
+function getNormalizedRotation(item){
+  var raw = getRotation(item) % 360;
+  return raw < 0 ? raw + 360 : raw;
+}
 function clampSize(value, min, max){ return Math.max(min, Math.min(max, snap(value))); }
 function isWallShape(type){ return type === 'WALL' || type === 'CURVED_WALL'; }
+function applyFloorTheme(themeKey){
+  var canvas = document.getElementById('floorPlanCanvas');
+  if(!canvas) return;
+  Object.keys(FLOOR_THEMES).forEach(function(key){ canvas.classList.remove(FLOOR_THEMES[key]); });
+  var resolved = FLOOR_THEMES[themeKey] ? themeKey : DEFAULT_FLOOR_THEME;
+  canvas.classList.add(FLOOR_THEMES[resolved]);
+  fpState.floorTheme = resolved;
+  var select = document.getElementById('fpFloorTheme');
+  if(select && select.value !== resolved) select.value = resolved;
+}
 function getShapeDefaults(type){
   switch(type){
     case 'HORIZONTAL_DIVIDER': return {width:120,height:12};
@@ -374,6 +398,7 @@ function initFloorPlanEditor(){
 
   // Show grid by default
   if(showGrid) canvas.classList.add('show-grid');
+  applyFloorTheme(fpState.floorTheme || DEFAULT_FLOOR_THEME);
 
   // Drag from toolbox
   toolbox.addEventListener('dragstart', function(e){
@@ -450,6 +475,15 @@ function initFloorPlanEditor(){
     fpState.shapes = [];
     rerenderCanvas();
   });
+
+  var floorThemeSelect = document.getElementById('fpFloorTheme');
+  if(floorThemeSelect){
+    floorThemeSelect.value = fpState.floorTheme || DEFAULT_FLOOR_THEME;
+    floorThemeSelect.addEventListener('change', function(){
+      pushUndo();
+      applyFloorTheme(floorThemeSelect.value || DEFAULT_FLOOR_THEME);
+    });
+  }
 
   // Make toolbox items clickable for click-to-place mode
   toolbox.querySelectorAll('.toolbox-item').forEach(function(item){
@@ -635,16 +669,28 @@ function makeShapeResizable(handle, el, shape){
     handle.setPointerCapture(e.pointerId);
 
     function onPointerMove(ev){
-      var nextWidth = clampSize(startWidth + (ev.clientX - startX), 40, 480);
-      var nextHeight = clampSize(startHeight + (ev.clientY - startY), 12, 480);
+      var deltaX = ev.clientX - startX;
+      var deltaY = ev.clientY - startY;
+      var nextWidth = clampSize(startWidth + deltaX, 40, 480);
+      var nextHeight = clampSize(startHeight + deltaY, 12, 480);
+      var normalizedRotation = getNormalizedRotation(shape);
       if(shape.type === 'HORIZONTAL_DIVIDER'){
+        nextWidth = clampSize(startWidth + deltaX, 40, 480);
         nextHeight = clampSize(startHeight, 12, 24);
       }
       if(shape.type === 'VERTICAL_DIVIDER'){
         nextWidth = clampSize(startWidth, 12, 24);
+        nextHeight = clampSize(startHeight + deltaY, 40, 480);
       }
       if(shape.type === 'WALL'){
-        nextHeight = clampSize(startHeight, 12, 32);
+        var isVerticalWall = normalizedRotation === 90 || normalizedRotation === 270;
+        if(isVerticalWall){
+          nextWidth = clampSize(startWidth, 12, 32);
+          nextHeight = clampSize(startHeight + deltaY, 40, 480);
+        } else {
+          nextWidth = clampSize(startWidth + deltaX, 40, 480);
+          nextHeight = clampSize(startHeight, 12, 32);
+        }
       }
       if(shape.type === 'CURVED_WALL' || shape.type === 'TREE'){
         var size = clampSize(Math.max(nextWidth, nextHeight), 60, 320);
@@ -712,9 +758,10 @@ async function loadFloorPlan(){
   var canvas = document.getElementById('floorPlanCanvas');
   if(!canvas) return;
   canvas.querySelectorAll('.canvas-table,.canvas-shape').forEach(function(el){el.remove();});
-  fpState = {tables:[],shapes:[],planId:null,counter:0};
+  fpState = {tables:[],shapes:[],planId:null,counter:0,floorTheme:DEFAULT_FLOOR_THEME};
   activeShapeEditId = null;
   undoStack = [];
+  applyFloorTheme(DEFAULT_FLOOR_THEME);
 
   try{
     var hid = state.hotelId || state.selectedHotelId;
@@ -724,6 +771,7 @@ async function loadFloorPlan(){
     if(data.plan && data.plan.layout_data){
       fpState.planId = data.plan.id;
       var ld = data.plan.layout_data;
+      applyFloorTheme(ld.floor_theme || DEFAULT_FLOOR_THEME);
       (ld.tables||[]).forEach(function(t){
         fpState.tables.push(t);
         fpState.counter = Math.max(fpState.counter, parseInt((t.table_id.match(/\\d+$/)||['0'])[0],10));
@@ -745,6 +793,7 @@ async function saveFloorPlan(){
   var layout = {
     canvas_width: 1200,
     canvas_height: 800,
+    floor_theme: fpState.floorTheme || DEFAULT_FLOOR_THEME,
     tables: fpState.tables,
     shapes: fpState.shapes
   };

@@ -528,6 +528,15 @@ def render_admin_panel_html() -> str:
               <button class="fp-tool-btn active" id="fpGridBtn" type="button" title="Izgara goster/gizle">&#9638; Izgara</button>
               <button class="fp-tool-btn" id="fpUndoBtn" type="button" title="Geri al (Ctrl+Z)">&#8630; Geri Al</button>
               <span class="fp-sep"></span>
+              <label class="field fp-floor-select" style="margin:0">
+                <span style="display:block;font-size:.68rem;color:var(--muted);margin-bottom:.2rem">Zemin</span>
+                <select id="fpFloorTheme" aria-label="Restoran zemin secimi">
+                  <option value="CREAM_MARBLE_CLASSIC">Krem Mermer - Klasik</option>
+                  <option value="CREAM_MARBLE_WARM">Krem Mermer - Sicak Ton</option>
+                  <option value="CREAM_MARBLE_SOFT">Krem Mermer - Yumusayak Doku</option>
+                </select>
+              </label>
+              <span class="fp-sep"></span>
               <button class="fp-tool-btn danger" id="fpClearBtn" type="button" title="Tum elemanlari temizle">&#10005; Temizle</button>
               <span class="fp-sep"></span>
               <span style="font-size:.7rem;color:var(--muted);align-self:center">Ipucu: Aracinizi secin, sonra canvas uzerine tiklayin veya surukleyin. ESC ile modu iptal edin.</span>

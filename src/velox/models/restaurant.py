@@ -109,6 +109,7 @@ class FloorPlanLayout(BaseModel):
     """Full layout stored in restaurant_floor_plans.layout_data."""
     canvas_width: int = 1200
     canvas_height: int = 800
+    floor_theme: str = "CREAM_MARBLE_CLASSIC"
     tables: list[FloorPlanTableItem] = Field(default_factory=list)
     shapes: list[FloorPlanShapeItem] = Field(default_factory=list)
 
