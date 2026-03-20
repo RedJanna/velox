@@ -45,16 +45,19 @@ ADMIN_RESTAURANT_STYLE = """
 .canvas-table .table-label{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-size:.65rem;font-weight:600;color:var(--fg);white-space:nowrap;pointer-events:none;text-shadow:0 1px 2px rgba(255,255,255,.8)}
 
 /* Canvas table action buttons */
-.canvas-table .table-actions,.canvas-shape .shape-actions{position:absolute;top:-8px;right:-8px;display:none;gap:2px;z-index:5}
-.canvas-table:hover .table-actions,.canvas-shape:hover .shape-actions{display:flex}
-.table-actions .tbl-act-btn,.shape-actions .shape-act-btn{width:18px;height:18px;border-radius:50%;border:none;font-size:.55rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:transform .1s}
-.table-actions .tbl-act-btn:hover{transform:scale(1.15)}
+.canvas-table .table-actions,.canvas-shape .shape-actions{position:absolute;display:none;gap:2px;z-index:6}
+.canvas-table .table-actions{top:-8px;right:-8px}
+.canvas-shape .shape-actions{top:-30px;right:0}
+.canvas-table:hover .table-actions,.canvas-shape:hover .shape-actions,.canvas-table.selected .table-actions,.canvas-shape.selected .shape-actions{display:flex}
+.table-actions .tbl-act-btn,.shape-actions .shape-act-btn{width:18px;height:18px;border-radius:50%;border:none;font-size:.55rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:transform .1s;pointer-events:auto}
+.table-actions .tbl-act-btn:hover,.shape-actions .shape-act-btn:hover{transform:scale(1.15)}
 .tbl-act-btn.del{background:var(--danger,#ef4444);color:#fff}
 .tbl-act-btn.dup{background:#3b82f6;color:#fff}
 .tbl-act-btn.rot{background:#8b5cf6;color:#fff}
 
 /* Canvas shapes */
 .canvas-shape{position:absolute;z-index:1;cursor:move;border-radius:2px;transform-origin:center center}
+.canvas-shape.selected{outline:2px solid var(--accent);outline-offset:8px;z-index:3}
 .canvas-shape .shape-body{position:absolute;inset:0}
 .canvas-shape[data-shape="HORIZONTAL_DIVIDER"] .shape-body{background:var(--muted);height:3px;width:100%;top:50%;transform:translateY(-50%)}
 .canvas-shape[data-shape="VERTICAL_DIVIDER"] .shape-body{background:var(--muted);width:3px;height:100%;left:50%;transform:translateX(-50%)}
@@ -66,8 +69,8 @@ ADMIN_RESTAURANT_STYLE = """
 .shape-actions .shape-act-btn:hover,.table-actions .tbl-act-btn:hover{transform:scale(1.15)}
 .shape-act-btn.del{background:var(--danger,#ef4444);color:#fff}
 .shape-act-btn.rot{background:#8b5cf6;color:#fff}
-.shape-resize-handle{position:absolute;right:-5px;bottom:-5px;width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid var(--accent);cursor:nwse-resize;display:none;z-index:4}
-.canvas-shape:hover .shape-resize-handle{display:block}
+.shape-resize-handle{position:absolute;right:-10px;bottom:-10px;width:18px;height:18px;border-radius:50%;background:#fff;border:2px solid var(--accent);cursor:nwse-resize;display:none;z-index:7;box-shadow:0 2px 6px rgba(15,23,42,.18);pointer-events:auto}
+.canvas-shape:hover .shape-resize-handle,.canvas-shape.selected .shape-resize-handle{display:block}
 
 /* Rotation transforms */
 .canvas-table,.canvas-shape{transform:rotate(var(--rot,0deg))}
@@ -307,10 +310,17 @@ function popUndo(){
 function rerenderCanvas(){
   var canvas = document.getElementById('floorPlanCanvas');
   if(!canvas) return;
+  selectedEl = null;
   // Keep only non-table/shape children (like snap guides)
   canvas.querySelectorAll('.canvas-table,.canvas-shape').forEach(function(el){el.remove();});
   fpState.tables.forEach(function(t){ renderCanvasTable(canvas,t); });
   fpState.shapes.forEach(function(s){ renderCanvasShape(canvas,s); });
+}
+
+function setSelectedElement(nextEl){
+  if(selectedEl && selectedEl !== nextEl) selectedEl.classList.remove('selected');
+  selectedEl = nextEl || null;
+  if(selectedEl) selectedEl.classList.add('selected');
 }
 
 /* ── Floor Plan Editor ────────────────────── */
@@ -355,6 +365,10 @@ function initFloorPlanEditor(){
     var x = snap(e.clientX - rect.left);
     var y = snap(e.clientY - rect.top);
     placeItem(clickPlaceMode, x, y);
+  });
+
+  canvas.addEventListener('pointerdown', function(e){
+    if(e.target === canvas) setSelectedElement(null);
   });
 
   // Keyboard shortcuts
@@ -483,6 +497,9 @@ function renderCanvasTable(canvas, t){
   makeDraggable(el, canvas, function(nx,ny){
     t.x = nx; t.y = ny;
   });
+  el.addEventListener('pointerdown', function(){
+    setSelectedElement(el);
+  });
 
   // Delete
   el.querySelector('.tbl-act-btn.del').addEventListener('click', function(ev){
@@ -529,6 +546,9 @@ function renderCanvasShape(canvas, s){
   el.innerHTML = '<div class="shape-body" aria-hidden="true"></div><div class="shape-actions"><button class="shape-act-btn rot" title="Dondur" aria-label="Dondur">&#x21BB;</button><button class="shape-act-btn del" title="Sil" aria-label="Sil">&times;</button></div>' + (isWallShape(s.type) ? '<button class="shape-resize-handle" type="button" aria-label="Boyutlandir"></button>' : '');
   makeDraggable(el, canvas, function(nx,ny){
     s.x = nx; s.y = ny;
+  });
+  el.addEventListener('pointerdown', function(){
+    setSelectedElement(el);
   });
   el.querySelector('.shape-act-btn.del').addEventListener('click', function(ev){
     ev.stopPropagation();
@@ -592,7 +612,7 @@ function makeShapeResizable(handle, el, shape){
 function makeDraggable(el, canvas, onMove){
   var startX, startY, origX, origY;
   el.addEventListener('pointerdown', function(e){
-    if(e.target.closest('.tbl-act-btn') || e.target.closest('.del-btn')) return;
+    if(e.target.closest('.tbl-act-btn') || e.target.closest('.shape-act-btn') || e.target.closest('.shape-resize-handle') || e.target.closest('.del-btn')) return;
     e.preventDefault();
     startX = e.clientX; startY = e.clientY;
     origX = parseInt(el.style.left,10)||0;

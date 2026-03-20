@@ -1,6 +1,6 @@
 """Unit tests for restaurant floor plan editor assets and models."""
 
-from velox.api.routes.admin_panel_restaurant_assets import ADMIN_RESTAURANT_SCRIPT
+from velox.api.routes.admin_panel_restaurant_assets import ADMIN_RESTAURANT_SCRIPT, ADMIN_RESTAURANT_STYLE
 from velox.api.routes.admin_panel_ui import render_admin_panel_html
 from velox.models.restaurant import FloorPlanLayout
 
@@ -43,9 +43,13 @@ def test_restaurant_editor_exposes_new_floor_plan_tools() -> None:
     assert "Duvarlari uzatip kisaltabilir" in html
 
 
-def test_restaurant_assets_support_shape_rotation_and_resize() -> None:
+def test_restaurant_assets_support_shape_rotation_resize_and_non_drag_actions() -> None:
     assert "CURVED_WALL" in ADMIN_RESTAURANT_SCRIPT
     assert "shape-resize-handle" in ADMIN_RESTAURANT_SCRIPT
     assert "makeShapeResizable" in ADMIN_RESTAURANT_SCRIPT
     assert "TREE" in ADMIN_RESTAURANT_SCRIPT
     assert "BUSH" in ADMIN_RESTAURANT_SCRIPT
+    assert "setSelectedElement" in ADMIN_RESTAURANT_SCRIPT
+    assert "e.target.closest('.shape-act-btn')" in ADMIN_RESTAURANT_SCRIPT
+    assert "e.target.closest('.shape-resize-handle')" in ADMIN_RESTAURANT_SCRIPT
+    assert ".canvas-shape .shape-actions{top:-30px;right:0}" in ADMIN_RESTAURANT_STYLE
