@@ -13,16 +13,35 @@ import orjson
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+import structlog
+
+from velox.adapters.elektraweb import endpoints as elektraweb
 from velox.api.middleware.auth import TokenData, check_permission, get_current_user
-from velox.config.constants import HoldStatus, Role
+from velox.config.constants import HoldStatus, RestaurantReservationStatus, Role, resolve_table_type
+from velox.core.hotel_profile_loader import get_profile
 from velox.db.database import fetch, fetchrow, fetchval
 from velox.db.repositories.reservation import ReservationRepository
 from velox.db.repositories.restaurant import RestaurantRepository
+from velox.db.repositories.restaurant_floor_plan import (
+    FloorPlanRepository,
+    RestaurantSettingsRepository,
+    RestaurantStatusManager,
+)
 from velox.db.repositories.transfer import TransferRepository
 from velox.models.reservation import StayDraft, StayHold
-from velox.models.restaurant import RestaurantHold
+from velox.models.restaurant import (
+    FloorPlanCreate,
+    FloorPlanUpdate,
+    RestaurantHold,
+    RestaurantHoldStatusChange,
+    RestaurantHoldUpdateRequest,
+    RestaurantSettings,
+    RestaurantSettingsUpdate,
+)
 from velox.models.transfer import TransferHold
 from velox.utils.json import decode_json_object
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin-holds"])
 
@@ -150,6 +169,8 @@ class StayHoldCreateRequest(BaseModel):
     hotel_id: int
     guest_name: str
     phone: str
+    email: str = ""
+    nationality: str = "TR"
     checkin_date: date
     checkout_date: date
     adults: int = 1
@@ -159,8 +180,11 @@ class StayHoldCreateRequest(BaseModel):
     board_type_id: int = 0
     rate_type_id: int = 0
     rate_code_id: int = 0
+    price_agency_id: int | None = None
     cancel_policy_type: str = "FREE_CANCEL"
     notes: str = ""
+    room_type_name: str = ""
+    board_type_name: str = ""
 
 
 @router.post("/holds/stay/create")
@@ -176,6 +200,8 @@ async def create_stay_hold_from_panel(
     draft = {
         "guest_name": body.guest_name,
         "phone": body.phone,
+        "email": body.email,
+        "nationality": body.nationality,
         "checkin_date": str(body.checkin_date),
         "checkout_date": str(body.checkout_date),
         "adults": body.adults,
@@ -185,7 +211,10 @@ async def create_stay_hold_from_panel(
         "board_type_id": body.board_type_id,
         "rate_type_id": body.rate_type_id,
         "rate_code_id": body.rate_code_id,
+        "price_agency_id": body.price_agency_id,
         "cancel_policy_type": body.cancel_policy_type,
+        "room_type_name": body.room_type_name,
+        "board_type_name": body.board_type_name,
         "notes": body.notes,
     }
     hold = StayHold(
@@ -202,6 +231,95 @@ async def create_stay_hold_from_panel(
         "hold_id": created.hold_id,
         "reservation_no": created.reservation_no,
     }
+
+
+# ---------------------------------------------------------------------------
+# Elektraweb proxy endpoints (availability, quote, room types)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/elektraweb/room-types")
+async def get_room_types(
+    user: Annotated[TokenData, Depends(get_current_user)],
+    hotel_id: int = Query(...),
+) -> dict[str, Any]:
+    """Return room types from hotel profile for the wizard room selector."""
+    check_permission(user, "holds:read")
+    if user.role != Role.ADMIN and hotel_id != user.hotel_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    profile = get_profile(hotel_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Hotel profili bulunamadi.")
+    room_types = [rt.model_dump() for rt in profile.room_types]
+    return {"room_types": room_types}
+
+
+@router.get("/elektraweb/availability")
+async def check_availability(
+    user: Annotated[TokenData, Depends(get_current_user)],
+    hotel_id: int = Query(...),
+    checkin: date = Query(...),
+    checkout: date = Query(...),
+    adults: int = Query(1, ge=1),
+    chd_ages: str = Query(""),
+) -> dict[str, Any]:
+    """Proxy Elektraweb availability check for the admin wizard."""
+    check_permission(user, "holds:read")
+    if user.role != Role.ADMIN and hotel_id != user.hotel_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if checkout <= checkin:
+        raise HTTPException(status_code=400, detail="Cikis tarihi giris tarihinden sonra olmali.")
+
+    parsed_ages = [int(a.strip()) for a in chd_ages.split(",") if a.strip().isdigit()] if chd_ages.strip() else []
+    chd_count = len(parsed_ages)
+    try:
+        result = await elektraweb.availability(
+            hotel_id=hotel_id,
+            checkin=checkin,
+            checkout=checkout,
+            adults=adults,
+            chd_count=chd_count,
+            chd_ages=parsed_ages or None,
+        )
+        return result.model_dump(mode="json")
+    except Exception as exc:
+        logger.error("admin_availability_error", hotel_id=hotel_id, error=str(exc))
+        raise HTTPException(status_code=502, detail="Elektraweb musaitlik sorgusu basarisiz.") from exc
+
+
+@router.get("/elektraweb/quote")
+async def get_quote(
+    user: Annotated[TokenData, Depends(get_current_user)],
+    hotel_id: int = Query(...),
+    checkin: date = Query(...),
+    checkout: date = Query(...),
+    adults: int = Query(1, ge=1),
+    chd_ages: str = Query(""),
+    nationality: str = Query("TR"),
+) -> dict[str, Any]:
+    """Proxy Elektraweb quote for the admin wizard."""
+    check_permission(user, "holds:read")
+    if user.role != Role.ADMIN and hotel_id != user.hotel_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if checkout <= checkin:
+        raise HTTPException(status_code=400, detail="Cikis tarihi giris tarihinden sonra olmali.")
+
+    parsed_ages = [int(a.strip()) for a in chd_ages.split(",") if a.strip().isdigit()] if chd_ages.strip() else []
+    chd_count = len(parsed_ages)
+    try:
+        result = await elektraweb.quote(
+            hotel_id=hotel_id,
+            checkin=checkin,
+            checkout=checkout,
+            adults=adults,
+            chd_count=chd_count,
+            chd_ages=parsed_ages or None,
+            nationality=nationality,
+        )
+        return result.model_dump(mode="json")
+    except Exception as exc:
+        logger.error("admin_quote_error", hotel_id=hotel_id, error=str(exc))
+        raise HTTPException(status_code=502, detail="Elektraweb fiyat sorgusu basarisiz.") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +386,17 @@ async def create_restaurant_hold_from_panel(
     if user.role != Role.ADMIN and body.hotel_id != user.hotel_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
+    # Daily capacity check
+    settings_repo = RestaurantSettingsRepository()
+    slot_data = await RestaurantRepository().get_slot_by_id(hotel_id=body.hotel_id, slot_id=body.slot_id)
+    if slot_data:
+        cap = await settings_repo.check_daily_capacity(body.hotel_id, slot_data["date"])
+        if cap["enabled"] and not cap["allowed"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Bu tarih icin gunluk rezervasyon kapasitesi dolmustur ({cap['count']}/{cap['max']}).",
+            )
+
     hold = RestaurantHold(
         hold_id="",
         hotel_id=body.hotel_id,
@@ -278,11 +407,11 @@ async def create_restaurant_hold_from_panel(
         phone=body.phone,
         area=body.area,
         notes=body.notes,
-        status=HoldStatus.PENDING_APPROVAL,
+        status=RestaurantReservationStatus.BEKLEMEDE,
     )
     repo = RestaurantRepository()
     created = await repo.create_hold(hold)
-    return {"status": "created", "hold_id": created.hold_id}
+    return {"status": "created", "hold_id": created.hold_id, "table_type": created.table_type, "table_id": created.table_id}
 
 
 # ---------------------------------------------------------------------------
@@ -375,3 +504,236 @@ async def create_transfer_hold_from_panel(
     repo = TransferRepository()
     created = await repo.create_hold(hold)
     return {"status": "created", "hold_id": created.hold_id}
+
+
+# ---------------------------------------------------------------------------
+# Restaurant floor plan endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/hotels/{hotel_id}/restaurant/floor-plans")
+async def get_active_floor_plan(
+    hotel_id: int,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Get the active floor plan for a hotel."""
+    check_permission(user, "holds:read")
+    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    repo = FloorPlanRepository()
+    plan = await repo.get_active_plan(hotel_id)
+    if plan is None:
+        return {"plan": None}
+    return {"plan": plan.model_dump(mode="json")}
+
+
+@router.post("/hotels/{hotel_id}/restaurant/floor-plans")
+async def create_floor_plan(
+    hotel_id: int,
+    body: FloorPlanCreate,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Create a new floor plan (deactivates existing)."""
+    check_permission(user, "holds:approve")
+    if user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
+
+    from velox.models.restaurant import FloorPlan as FloorPlanModel
+
+    plan = FloorPlanModel(
+        hotel_id=hotel_id,
+        name=body.name,
+        layout_data=body.layout_data,
+        created_by=user.username,
+    )
+    repo = FloorPlanRepository()
+    created = await repo.create_plan(hotel_id, plan)
+    return {"status": "created", "plan": created.model_dump(mode="json")}
+
+
+@router.put("/hotels/{hotel_id}/restaurant/floor-plans/{plan_id}")
+async def update_floor_plan(
+    hotel_id: int,
+    plan_id: UUID,
+    body: FloorPlanUpdate,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Update an existing floor plan layout or name."""
+    check_permission(user, "holds:approve")
+    if user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
+
+    repo = FloorPlanRepository()
+    updated = await repo.update_plan(hotel_id, plan_id, body.name, body.layout_data)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Plan bulunamadi")
+    return {"status": "updated", "plan": updated.model_dump(mode="json")}
+
+
+@router.post("/hotels/{hotel_id}/restaurant/floor-plans/{plan_id}/activate")
+async def activate_floor_plan(
+    hotel_id: int,
+    plan_id: UUID,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Set a specific floor plan as the active one."""
+    check_permission(user, "holds:approve")
+    if user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
+
+    repo = FloorPlanRepository()
+    ok = await repo.activate_plan(hotel_id, plan_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Plan bulunamadi")
+    return {"status": "activated"}
+
+
+# ---------------------------------------------------------------------------
+# Restaurant daily view
+# ---------------------------------------------------------------------------
+
+
+@router.get("/hotels/{hotel_id}/restaurant/tables/daily-view")
+async def get_daily_table_view(
+    hotel_id: int,
+    target_date: date,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Get all tables with assigned reservations for a day."""
+    check_permission(user, "holds:read")
+    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    repo = FloorPlanRepository()
+    items = await repo.get_daily_view(hotel_id, target_date)
+    return {"items": [item.model_dump(mode="json") for item in items], "total": len(items)}
+
+
+# ---------------------------------------------------------------------------
+# Restaurant settings (daily capacity)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/hotels/{hotel_id}/restaurant/settings")
+async def get_restaurant_settings(
+    hotel_id: int,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Get restaurant settings (daily capacity toggle)."""
+    check_permission(user, "holds:read")
+    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    repo = RestaurantSettingsRepository()
+    s = await repo.get(hotel_id)
+    return {"settings": s.model_dump(mode="json")}
+
+
+@router.put("/hotels/{hotel_id}/restaurant/settings")
+async def update_restaurant_settings(
+    hotel_id: int,
+    body: RestaurantSettingsUpdate,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Update restaurant settings (daily capacity toggle)."""
+    check_permission(user, "holds:approve")
+    if user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
+
+    repo = RestaurantSettingsRepository()
+    current = await repo.get(hotel_id)
+    if body.daily_max_reservations_enabled is not None:
+        current.daily_max_reservations_enabled = body.daily_max_reservations_enabled
+    if body.daily_max_reservations_count is not None:
+        current.daily_max_reservations_count = body.daily_max_reservations_count
+    if body.chef_phone is not None:
+        chef_phone = body.chef_phone.strip()
+        current.chef_phone = chef_phone or None
+
+    updated = await repo.upsert(hotel_id, current)
+    return {"status": "updated", "settings": updated.model_dump(mode="json")}
+
+
+# ---------------------------------------------------------------------------
+# Restaurant hold: update, status change, extend
+# ---------------------------------------------------------------------------
+
+
+@router.put("/holds/restaurant/{hold_id}")
+async def update_restaurant_hold(
+    hold_id: str,
+    body: RestaurantHoldUpdateRequest,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Update editable fields on a restaurant hold (from table detail modal)."""
+    check_permission(user, "holds:approve")
+
+    update_fields = body.model_dump(exclude_none=True)
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="Guncellenecek alan bulunamadi")
+
+    # If party_size changed, recalculate table_type
+    table_type_update = None
+    if body.party_size is not None:
+        table_type_update = resolve_table_type(body.party_size)
+
+    await fetchrow(
+        """
+        UPDATE restaurant_holds
+        SET guest_name = COALESCE($2, guest_name),
+            party_size = COALESCE($3, party_size),
+            time = COALESCE($4, time),
+            area = COALESCE($5, area),
+            notes = COALESCE($6, notes),
+            table_type = COALESCE($7, table_type),
+            updated_at = now()
+        WHERE hold_id = $1
+        RETURNING hold_id
+        """,
+        hold_id,
+        body.guest_name,
+        body.party_size,
+        body.time,
+        body.area,
+        body.notes,
+        table_type_update,
+    )
+    return {"status": "updated", "hold_id": hold_id}
+
+
+@router.put("/holds/restaurant/{hold_id}/status")
+async def change_restaurant_hold_status(
+    hold_id: str,
+    body: RestaurantHoldStatusChange,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Change reservation status with transition validation."""
+    check_permission(user, "holds:approve")
+
+    manager = RestaurantStatusManager()
+    try:
+        result = await manager.change_status(
+            hold_id=hold_id,
+            new_status=body.status,
+            actor=user.username,
+            reason=body.reason,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return result
+
+
+@router.post("/holds/restaurant/{hold_id}/extend")
+async def extend_restaurant_hold(
+    hold_id: str,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Apply +15 minute extension to a restaurant reservation."""
+    check_permission(user, "holds:approve")
+
+    manager = RestaurantStatusManager()
+    try:
+        result = await manager.extend_time(hold_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return result

@@ -160,12 +160,14 @@ class RestaurantSettings(BaseModel):
     hotel_id: int
     daily_max_reservations_enabled: bool = False
     daily_max_reservations_count: int = Field(default=50, ge=1)
+    chef_phone: str | None = Field(default=None, max_length=32)
     updated_at: datetime | None = None
 
 
 class RestaurantSettingsUpdate(BaseModel):
     daily_max_reservations_enabled: bool | None = None
     daily_max_reservations_count: int | None = Field(default=None, ge=1)
+    chef_phone: str | None = Field(default=None, max_length=32)
 
 
 # ---------------------------------------------------------------------------

@@ -423,6 +423,10 @@ Input:
 Output:
 {"restaurant_hold_id":"R_HOLD_...", "status":"PENDING_APPROVAL", "summary":"..."}
 
+Gunluk rezervasyon limiti dolmussa tool yeni hold acmaya zorlamaz. Bunun yerine toplanmis bilgileri koruyup handoff sinyali doner:
+{"available": false, "reason": "DAILY_CAPACITY_FULL", "suggestion": "handoff", "handoff_required": true, "collected_reservation_context": {"date":"YYYY-MM-DD", "time":"HH:MM:SS", "party_size":4, "guest_name":"...", "phone":"+90..."}}
+Kural: Bu durumda misafirden ayni bilgileri tekrar isteme; mevcut bilgileri ticket/notify icine koy ve tek final handoff mesaji gonder.
+
 #### TOOL: restaurant.confirm / restaurant.modify / restaurant.cancel
 Input/Output: benzeri
 

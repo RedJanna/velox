@@ -501,7 +501,7 @@ def render_admin_panel_html() -> str:
 
           <article class="module-card" id="restaurantSettingsCard">
             <div class="module-header">
-              <div><h3>Kapasite Ayarlari</h3><p>Gunluk maksimum rezervasyon sayisini sinirlayin.</p></div>
+              <div><h3>Kapasite Ayarlari</h3><p>Gunluk maksimum rezervasyon sayisini sinirlayin ve chef numarasini yonetin.</p></div>
             </div>
             <form id="restaurantSettingsForm" class="dense-form">
               <div class="field">
@@ -512,7 +512,48 @@ def render_admin_panel_html() -> str:
                 <label>Maks. gunluk rezervasyon</label>
                 <input name="daily_max_reservations_count" type="number" min="1" value="50" id="dailyCapCount" aria-label="Gunluk maksimum rezervasyon sayisi">
               </div>
+              <div class="field">
+                <label>Restoran chef numarasi</label>
+                <input name="chef_phone" type="tel" id="restaurantChefPhone" placeholder="+905XXXXXXXXX" aria-label="Restoran chef numarasi">
+              </div>
               <div class="field full"><button class="inline-button primary" type="submit">Kaydet</button></div>
+            </form>
+          </article>
+
+          <div class="split">
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Restoran Talepleri</h3><p>Restoran rezervasyon onay, red ve manuel olusturma islemleri.</p></div>
+                <button class="inline-button primary" data-restaurant-toggle-create aria-label="Yeni restoran rezervasyonu olustur">Yeni Rezervasyon</button>
+              </div>
+              <form id="restaurantHoldFilters" class="toolbar">
+                <div class="filter-chips" id="restaurantStatusChips"></div>
+                <button class="primary" type="submit">Filtrele</button>
+              </form>
+              <div class="table-shell">
+                <table class="holds-table"><thead><tr>
+                  <th>Ac</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Tarih/Saat</th><th>Kisi</th>
+                </tr></thead><tbody id="restaurantHoldTableBody"></tbody></table>
+              </div>
+            </article>
+            <article id="restaurantHoldDetail" class="module-card">
+              <div class="empty-state"><p>Detay icin listeden bir kayit secin.</p></div>
+            </article>
+          </div>
+          <article id="restaurantHoldCreatePanel" class="module-card" hidden>
+            <div class="module-header">
+              <div><h3>Restoran Rezervasyonu Olustur</h3><p>Bilgileri girin.</p></div>
+              <button class="inline-button secondary" data-restaurant-toggle-create>Kapat</button>
+            </div>
+            <form id="restaurantCreateForm" class="field-grid">
+              <div class="field"><label for="rc-date">Tarih</label><input id="rc-date" name="date" type="date" required></div>
+              <div class="field"><label for="rc-time">Saat</label><input id="rc-time" name="time" type="time" required></div>
+              <div class="field"><label for="rc-guest">Misafir Adi</label><input id="rc-guest" name="guest_name" required></div>
+              <div class="field"><label for="rc-pax">Kisi Sayisi</label><input id="rc-pax" name="pax" type="number" min="1" required></div>
+              <div class="field"><label for="rc-phone">Telefon</label><input id="rc-phone" name="phone" placeholder="+905XXXXXXXXX" required></div>
+              <div class="field"><label for="rc-area">Alan</label><select id="rc-area" name="area"><option value="outdoor">Dis Mekan</option><option value="indoor">Ic Mekan</option></select></div>
+              <div class="field full"><label for="rc-notes">Notlar</label><textarea id="rc-notes" name="notes" style="min-height:80px"></textarea></div>
+              <div class="field full"><button class="inline-button primary" type="submit">Restoran Rezervasyonu Olustur</button></div>
             </form>
           </article>
 

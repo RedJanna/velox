@@ -1009,12 +1009,18 @@ function initRestaurantSettings(){
 
     var enabled = document.getElementById('dailyCapToggle').checked;
     var count = parseInt(document.getElementById('dailyCapCount').value,10);
+    var chefPhoneEl = document.getElementById('restaurantChefPhone');
+    var chefPhone = chefPhoneEl ? chefPhoneEl.value.trim() : '';
     if(isNaN(count) || count < 1){ notify('Gecerli bir sayi girin','error'); return; }
 
     try{
       await apiFetch('/hotels/' + hid + '/restaurant/settings', {
         method:'PUT',
-        body:({daily_max_reservations_enabled:enabled,daily_max_reservations_count:count})
+        body:({
+          daily_max_reservations_enabled:enabled,
+          daily_max_reservations_count:count,
+          chef_phone:chefPhone
+        })
       });
       notify('Kapasite ayarlari kaydedildi','success');
     }catch(e){
@@ -1054,6 +1060,7 @@ function _onRestaurantView(){
   loadFloorPlan();
   loadDailyView();
   loadRestaurantSettings();
+  if(typeof loadRestaurantHolds === 'function') loadRestaurantHolds();
 }
 
 window.addEventListener('hashchange', function(){
