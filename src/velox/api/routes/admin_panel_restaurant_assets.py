@@ -45,26 +45,32 @@ ADMIN_RESTAURANT_STYLE = """
 .canvas-table .table-label{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-size:.65rem;font-weight:600;color:var(--fg);white-space:nowrap;pointer-events:none;text-shadow:0 1px 2px rgba(255,255,255,.8)}
 
 /* Canvas table action buttons */
-.canvas-table .table-actions{position:absolute;top:-10px;right:-10px;display:none;gap:2px;z-index:5}
-.canvas-table:hover .table-actions{display:flex}
-.table-actions .tbl-act-btn{width:20px;height:20px;border-radius:50%;border:none;font-size:.6rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:transform .1s}
+.canvas-table .table-actions,.canvas-shape .shape-actions{position:absolute;top:-8px;right:-8px;display:none;gap:2px;z-index:5}
+.canvas-table:hover .table-actions,.canvas-shape:hover .shape-actions{display:flex}
+.table-actions .tbl-act-btn,.shape-actions .shape-act-btn{width:18px;height:18px;border-radius:50%;border:none;font-size:.55rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:transform .1s}
 .table-actions .tbl-act-btn:hover{transform:scale(1.15)}
 .tbl-act-btn.del{background:var(--danger,#ef4444);color:#fff}
 .tbl-act-btn.dup{background:#3b82f6;color:#fff}
 .tbl-act-btn.rot{background:#8b5cf6;color:#fff}
 
 /* Canvas shapes */
-.canvas-shape{position:absolute;background:var(--muted);z-index:1;cursor:move;border-radius:2px}
-.canvas-shape[data-shape="HORIZONTAL_DIVIDER"]{height:3px;width:120px}
-.canvas-shape[data-shape="VERTICAL_DIVIDER"]{width:3px;height:120px}
-.canvas-shape[data-shape="WALL"]{background:#64748b;border-radius:0}
-.canvas-shape .del-btn{position:absolute;top:-8px;right:-8px;width:18px;height:18px;border-radius:50%;background:var(--danger,#ef4444);color:#fff;border:none;font-size:.65rem;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1;z-index:3}
-.canvas-shape:hover .del-btn{display:flex}
+.canvas-shape{position:absolute;z-index:1;cursor:move;border-radius:2px;transform-origin:center center}
+.canvas-shape .shape-body{position:absolute;inset:0}
+.canvas-shape[data-shape="HORIZONTAL_DIVIDER"] .shape-body{background:var(--muted);height:3px;width:100%;top:50%;transform:translateY(-50%)}
+.canvas-shape[data-shape="VERTICAL_DIVIDER"] .shape-body{background:var(--muted);width:3px;height:100%;left:50%;transform:translateX(-50%)}
+.canvas-shape[data-shape="WALL"] .shape-body{background:#64748b;border-radius:2px}
+.canvas-shape[data-shape="CURVED_WALL"] .shape-body{border:8px solid #64748b;border-right-color:transparent;border-bottom-color:transparent;border-radius:999px;background:transparent;box-sizing:border-box}
+.canvas-shape[data-shape="TREE"] .shape-body{background:radial-gradient(circle at 35% 35%,#86efac 0 28%,#22c55e 28% 72%,#15803d 72% 100%);border-radius:50%;box-shadow:inset 0 -10px 0 rgba(21,128,61,.15)}
+.canvas-shape[data-shape="TREE"]::after{content:'';position:absolute;left:50%;bottom:-8px;width:10px;height:16px;background:#92400e;border-radius:999px;transform:translateX(-50%)}
+.canvas-shape[data-shape="BUSH"] .shape-body{background:radial-gradient(circle at 30% 30%,#bbf7d0 0 24%,#4ade80 24% 68%,#15803d 68% 100%);border-radius:999px}
+.shape-actions .shape-act-btn:hover,.table-actions .tbl-act-btn:hover{transform:scale(1.15)}
+.shape-act-btn.del{background:var(--danger,#ef4444);color:#fff}
+.shape-act-btn.rot{background:#8b5cf6;color:#fff}
+.shape-resize-handle{position:absolute;right:-5px;bottom:-5px;width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid var(--accent);cursor:nwse-resize;display:none;z-index:4}
+.canvas-shape:hover .shape-resize-handle{display:block}
 
 /* Rotation transforms */
-.canvas-table[data-rot="90"]{transform:rotate(90deg)}
-.canvas-table[data-rot="180"]{transform:rotate(180deg)}
-.canvas-table[data-rot="270"]{transform:rotate(270deg)}
+.canvas-table,.canvas-shape{transform:rotate(var(--rot,0deg))}
 
 /* ── Daily view ───────────────────────────────────── */
 .daily-view-canvas{min-height:400px}
@@ -269,6 +275,20 @@ function miniSvg10(){
 
 function snap(v){ return Math.round(v/GRID)*GRID; }
 function nextId(prefix){ fpState.counter++; return prefix + fpState.counter; }
+function getRotation(item){ return parseInt(item.rotation || 0, 10) || 0; }
+function clampSize(value, min, max){ return Math.max(min, Math.min(max, snap(value))); }
+function isWallShape(type){ return type === 'WALL' || type === 'CURVED_WALL'; }
+function getShapeDefaults(type){
+  switch(type){
+    case 'HORIZONTAL_DIVIDER': return {width:120,height:12};
+    case 'VERTICAL_DIVIDER': return {width:12,height:120};
+    case 'WALL': return {width:160,height:12};
+    case 'CURVED_WALL': return {width:120,height:120};
+    case 'TREE': return {width:56,height:56};
+    case 'BUSH': return {width:72,height:44};
+    default: return {width:40,height:40};
+  }
+}
 
 function pushUndo(){
   undoStack.push(JSON.stringify({tables:fpState.tables,shapes:fpState.shapes}));
@@ -431,9 +451,8 @@ function placeItem(data, x, y){
     renderCanvasTable(canvas,t);
   } else if(data.action === 'add_shape'){
     var shapeId = nextId('S-');
-    var sw = data.type==='HORIZONTAL_DIVIDER'?120:data.type==='WALL'?160:3;
-    var sh = data.type==='VERTICAL_DIVIDER'?120:data.type==='WALL'?8:3;
-    var s = {shape_id:shapeId,type:data.type,x:x,y:y,width:sw,height:sh};
+    var dims = getShapeDefaults(data.type);
+    var s = {shape_id:shapeId,type:data.type,x:x,y:y,width:dims.width,height:dims.height,rotation:0};
     fpState.shapes.push(s);
     renderCanvasShape(canvas,s);
   }
@@ -445,7 +464,8 @@ function renderCanvasTable(canvas, t){
   el.className = 'canvas-table';
   el.dataset.type = t.type;
   el.dataset.tableId = t.table_id;
-  el.dataset.rot = t.rotation || 0;
+  el.dataset.rot = getRotation(t);
+  el.style.setProperty('--rot', getRotation(t) + 'deg');
   el.style.left = t.x + 'px';
   el.style.top = t.y + 'px';
   el.style.width = svgData.w + 'px';
@@ -486,15 +506,17 @@ function renderCanvasTable(canvas, t){
   el.querySelector('.tbl-act-btn.rot').addEventListener('click', function(ev){
     ev.stopPropagation();
     pushUndo();
-    var r = (parseInt(t.rotation||0,10) + 90) % 360;
+    var r = (getRotation(t) + 90) % 360;
     t.rotation = r;
     el.dataset.rot = r;
+    el.style.setProperty('--rot', r + 'deg');
   });
 
   canvas.appendChild(el);
 }
 
 function renderCanvasShape(canvas, s){
+  if(typeof s.rotation === 'undefined') s.rotation = 0;
   var el = document.createElement('div');
   el.className = 'canvas-shape';
   el.dataset.shape = s.type;
@@ -503,17 +525,68 @@ function renderCanvasShape(canvas, s){
   el.style.top = s.y + 'px';
   el.style.width = s.width + 'px';
   el.style.height = s.height + 'px';
-  el.innerHTML = '<button class="del-btn" aria-label="Sil">&times;</button>';
+  el.style.setProperty('--rot', getRotation(s) + 'deg');
+  el.innerHTML = '<div class="shape-body" aria-hidden="true"></div><div class="shape-actions"><button class="shape-act-btn rot" title="Dondur" aria-label="Dondur">&#x21BB;</button><button class="shape-act-btn del" title="Sil" aria-label="Sil">&times;</button></div>' + (isWallShape(s.type) ? '<button class="shape-resize-handle" type="button" aria-label="Boyutlandir"></button>' : '');
   makeDraggable(el, canvas, function(nx,ny){
     s.x = nx; s.y = ny;
   });
-  el.querySelector('.del-btn').addEventListener('click', function(ev){
+  el.querySelector('.shape-act-btn.del').addEventListener('click', function(ev){
     ev.stopPropagation();
     pushUndo();
     fpState.shapes = fpState.shapes.filter(function(ss){return ss.shape_id !== s.shape_id;});
     el.remove();
   });
+  el.querySelector('.shape-act-btn.rot').addEventListener('click', function(ev){
+    ev.stopPropagation();
+    pushUndo();
+    var r = (getRotation(s) + 90) % 360;
+    s.rotation = r;
+    el.style.setProperty('--rot', r + 'deg');
+  });
+  var resizeHandle = el.querySelector('.shape-resize-handle');
+  if(resizeHandle){
+    makeShapeResizable(resizeHandle, el, s);
+  }
   canvas.appendChild(el);
+}
+
+function makeShapeResizable(handle, el, shape){
+  handle.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    pushUndo();
+    var startX = e.clientX;
+    var startY = e.clientY;
+    var startWidth = shape.width || parseInt(el.style.width,10) || 0;
+    var startHeight = shape.height || parseInt(el.style.height,10) || 0;
+    handle.setPointerCapture(e.pointerId);
+
+    function onPointerMove(ev){
+      var nextWidth = clampSize(startWidth + (ev.clientX - startX), 40, 480);
+      var nextHeight = clampSize(startHeight + (ev.clientY - startY), 12, 480);
+      if(shape.type === 'WALL'){
+        nextHeight = clampSize(startHeight, 12, 32);
+      }
+      if(shape.type === 'CURVED_WALL'){
+        var size = clampSize(Math.max(nextWidth, nextHeight), 60, 320);
+        nextWidth = size;
+        nextHeight = size;
+      }
+      shape.width = nextWidth;
+      shape.height = nextHeight;
+      el.style.width = nextWidth + 'px';
+      el.style.height = nextHeight + 'px';
+    }
+
+    function onPointerUp(ev){
+      handle.releasePointerCapture(ev.pointerId);
+      handle.removeEventListener('pointermove', onPointerMove);
+      handle.removeEventListener('pointerup', onPointerUp);
+    }
+
+    handle.addEventListener('pointermove', onPointerMove);
+    handle.addEventListener('pointerup', onPointerUp);
+  });
 }
 
 function makeDraggable(el, canvas, onMove){
@@ -637,6 +710,7 @@ async function loadDailyView(){
       el.style.top = item.y + 'px';
       el.style.width = svgData.w + 'px';
       el.style.height = svgData.h + 'px';
+      el.style.setProperty('--rot', getRotation(item) + 'deg');
 
       var html = svgData.svg;
       html += '<span class="table-label">' + escapeHtml(item.table_id) + '</span>';

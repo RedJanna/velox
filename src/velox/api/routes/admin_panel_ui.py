@@ -518,7 +518,7 @@ def render_admin_panel_html() -> str:
 
           <article class="module-card" id="floorPlanEditorCard">
             <div class="module-header">
-              <div><h3>Restoran Plan Cizimi</h3><p>Masalari surukle-birak veya tiklayarak yerlestirin. Her masanin uzerinde dondurme, kopyalama ve silme butonlari vardir.</p></div>
+              <div><h3>Restoran Plan Cizimi</h3><p>Masalari ve sekilleri surukle-birak veya tiklayarak yerlestirin. Duvarlari uzatip kisaltabilir, tum araclari dondurebilir, kopyalayabilir ve silebilirsiniz.</p></div>
               <div>
                 <button class="inline-button primary" id="saveFloorPlanBtn" type="button" aria-label="Plani kaydet">Kaydet</button>
                 <button class="inline-button secondary" id="resetFloorPlanBtn" type="button" aria-label="Plani sifirla">Sifirla</button>
@@ -554,6 +554,9 @@ def render_admin_panel_html() -> str:
                 <div class="toolbox-item" draggable="true" data-shape-type="HORIZONTAL_DIVIDER" aria-label="Yatay ayirici ekle">━ Yatay Ayirici</div>
                 <div class="toolbox-item" draggable="true" data-shape-type="VERTICAL_DIVIDER" aria-label="Dikey ayirici ekle">┃ Dikey Ayirici</div>
                 <div class="toolbox-item" draggable="true" data-shape-type="WALL" aria-label="Duvar ekle">&#9632; Duvar</div>
+                <div class="toolbox-item" draggable="true" data-shape-type="CURVED_WALL" aria-label="Yuvarlak duvar ekle">&#9681; Yuvarlak Duvar</div>
+                <div class="toolbox-item" draggable="true" data-shape-type="TREE" aria-label="Agac ekle">&#127794; Agac</div>
+                <div class="toolbox-item" draggable="true" data-shape-type="BUSH" aria-label="Cali ekle">&#127807; Cali</div>
               </div>
               <div class="floor-plan-canvas show-grid" id="floorPlanCanvas" aria-label="Restoran plan cizim alani"></div>
             </div>
