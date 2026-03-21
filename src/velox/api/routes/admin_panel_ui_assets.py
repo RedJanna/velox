@@ -231,6 +231,7 @@ const state = {
   stayWizardStep: 1,
   stayWizardUseExisting: false,
   stayWizardReprocessHoldId: null,
+  stayProfileRoomTypes: [],
   tickets: [],
   faqs: [],
   faqDetail: null,
@@ -267,7 +268,7 @@ function bindRefs() {
     'ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor',
     'faqFilters','faqTableBody','faqDetail',
     'notifPhoneTableBody','addNotifPhoneForm',
-    'hotelProfileMeta','slotFilters','slotTableBody','slotCreateForm','systemChecks','systemMeta',
+    'hotelProfileMeta','slotFilters','slotDisplayInterval','slotTableBody','slotSummaryCards','slotCreateForm','systemChecks','systemMeta',
     'sessionSummary','sessionPreferencesForm','sessionRememberToggle','sessionPreferenceFields',
     'systemVerificationOptions','systemSessionOptions','sessionOtpField','trustedDevicePanel','forgetDeviceButton',
     'logoutButton','reloadButton','decisionDialog','decisionForm','decisionTitle','decisionLead','decisionReason',
@@ -287,6 +288,7 @@ function bindEvents() {
   refs.hotelSelect.addEventListener('change', onHotelScopeChange);
   refs.hotelProfileSelect.addEventListener('change', loadHotelProfileSection);
   refs.slotCreateForm.addEventListener('submit', onCreateSlot);
+  refs.slotDisplayInterval?.addEventListener('change', applySlotDisplayFilter);
   refs.sessionPreferencesForm.addEventListener('submit', onSessionPreferencesSave);
   refs.sessionRememberToggle.addEventListener('change', toggleSessionPreferenceState);
   refs.forgetDeviceButton.addEventListener('click', forgetTrustedDevice);
@@ -421,7 +423,7 @@ function bindDelegatedEvents() {
       approveButton.disabled = true;
       approveButton.textContent = 'Onaylaniyor...';
       try {
-        await apiFetch(`/holds/${target.dataset.approveHold}/approve`, {method: 'POST', body: {notes: ''}});
+        await apiFetch(`/holds/${target.dataset.approveHold}/approve?force=true`, {method: 'POST', body: {notes: ''}});
         notify('Hold onaylandi.', 'success');
         const tab = state.activeHoldsTab || 'stay';
         if (tab === 'stay') loadStayHolds();
@@ -789,7 +791,11 @@ function setView(view) {
   if (view === 'tickets') loadTickets();
   if (view === 'hotels') loadHotelProfileSection();
   if (view === 'faq') loadFaqs();
-  if (view === 'restaurant') loadRestaurantSlots();
+  if (view === 'restaurant') {
+    loadRestaurantSlots();
+    if (typeof loadRestaurantHolds === 'function') loadRestaurantHolds();
+    if (typeof loadRestaurantSettings === 'function') loadRestaurantSettings();
+  }
   if (view === 'notifications') loadNotifPhones();
   if (view === 'system') loadSystemOverview();
   if (view === 'chatlab') loadChatLab();
@@ -810,8 +816,13 @@ function scheduleLiveRefresh() {
     conversations: async () => loadConversations(),
     holds: async () => {
       const tab = state.activeHoldsTab || 'stay';
-      const loader = tab === 'stay' ? loadStayHolds : tab === 'restaurant' ? loadRestaurantHolds : loadTransferHolds;
+      const loader = tab === 'transfer' ? loadTransferHolds : loadStayHolds;
       await Promise.all([loader(), loadDashboard()]);
+    },
+    restaurant: async () => {
+      const tasks = [loadRestaurantSlots()];
+      if (typeof loadRestaurantHolds === 'function') tasks.push(loadRestaurantHolds());
+      await Promise.all(tasks);
     },
   };
   const refresh = refreshers[state.currentView];

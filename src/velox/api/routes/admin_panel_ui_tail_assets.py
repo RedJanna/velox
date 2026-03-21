@@ -196,6 +196,51 @@ async function saveHotelProfile() {
   }
 }
 
+function filterRestaurantSlotsByDisplay(items) {
+  const mode = refs.slotDisplayInterval?.value || '1d';
+  if (mode === 'hidden') return [];
+  if (mode === '1m') return items;
+
+  const sorted = [...items].sort((a, b) => {
+    const left = `${a.date}T${a.time}`;
+    const right = `${b.date}T${b.time}`;
+    return left.localeCompare(right);
+  });
+
+  const monthDiff = (a, b) => ((b.getUTCFullYear() - a.getUTCFullYear()) * 12) + (b.getUTCMonth() - a.getUTCMonth());
+  const shouldKeep = (prevDate, currentDate) => {
+    switch (mode) {
+      case '1h': return currentDate.getUTCHours() !== prevDate.getUTCHours() || currentDate.getUTCDate() !== prevDate.getUTCDate() || currentDate.getUTCMonth() !== prevDate.getUTCMonth() || currentDate.getUTCFullYear() !== prevDate.getUTCFullYear();
+      case '2h': return (currentDate - prevDate) >= 2 * 60 * 60 * 1000;
+      case '1d': return currentDate.toISOString().slice(0,10) !== prevDate.toISOString().slice(0,10);
+      case '3d': return (currentDate - prevDate) >= 3 * 24 * 60 * 60 * 1000;
+      case '1w': return (currentDate - prevDate) >= 7 * 24 * 60 * 60 * 1000;
+      case '15d': return (currentDate - prevDate) >= 15 * 24 * 60 * 60 * 1000;
+      case '30d': return (currentDate - prevDate) >= 30 * 24 * 60 * 60 * 1000;
+      case '2mo': return monthDiff(prevDate, currentDate) >= 2;
+      default: return true;
+    }
+  };
+
+  const result = [];
+  let prev = null;
+  sorted.forEach(item => {
+    const current = new Date(`${item.date}T${item.time}Z`);
+    if (!prev || shouldKeep(prev, current)) {
+      result.push(item);
+      prev = current;
+    }
+  });
+  return result;
+}
+
+function applySlotDisplayFilter() {
+  const filteredItems = filterRestaurantSlotsByDisplay(state.restaurantSlots || []);
+  refs.slotTableBody.innerHTML = renderSlotRows(filteredItems);
+  if (refs.slotSummaryCards) refs.slotSummaryCards.innerHTML = renderSlotSummaryCards(filteredItems);
+  bindSlotActions();
+}
+
 async function loadRestaurantSlots() {
   const hotelId = state.selectedHotelId;
   if (!hotelId) {
@@ -209,9 +254,7 @@ async function loadRestaurantSlots() {
   params.set('date_to', String(form.get('date_to') || defaultDate(7)));
   const response = await apiFetch(`/hotels/${hotelId}/restaurant/slots?${params.toString()}`);
   state.restaurantSlots = response.items || [];
-  refs.slotTableBody.innerHTML = renderSlotRows(state.restaurantSlots);
-  if (refs.slotSummaryCards) refs.slotSummaryCards.innerHTML = renderSlotSummaryCards(state.restaurantSlots);
-  bindSlotActions();
+  applySlotDisplayFilter();
 }
 
 function renderSlotSummaryCards(items) {
@@ -257,6 +300,9 @@ function renderSlotSummaryCards(items) {
 }
 
 function renderSlotRows(items) {
+  if ((refs.slotDisplayInterval?.value || '1d') === 'hidden') {
+    return `<tr><td colspan="7"><div class="empty-state"><p>Slot görünümü kapatıldı.</p></div></td></tr>`;
+  }
   if (!items.length) {
     return `<tr><td colspan="7"><div class="empty-state"><p>Seçili aralıkta slot yok.</p></div></td></tr>`;
   }

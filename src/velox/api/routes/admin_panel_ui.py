@@ -473,6 +473,18 @@ def render_admin_panel_html() -> str:
             <form id="slotFilters" class="toolbar">
               <input name="date_from" type="date" aria-label="Slot baslangic tarihi">
               <input name="date_to" type="date" aria-label="Slot bitis tarihi">
+              <select name="display_interval" id="slotDisplayInterval" aria-label="Slot gosterim araligi">
+                <option value="1m">Her 1 dakika</option>
+                <option value="1h">Her 1 saat</option>
+                <option value="2h">Her 2 saat</option>
+                <option value="1d" selected>Her gun</option>
+                <option value="3d">Her 3 gun</option>
+                <option value="1w">Her hafta</option>
+                <option value="15d">Her 15 gun</option>
+                <option value="30d">Her 30 gun</option>
+                <option value="2mo">Her 2 ay</option>
+                <option value="hidden">Slotlari kapat</option>
+              </select>
               <button id="loadSlotsButton" class="primary" type="button" aria-label="Slotlari getir">Slotlari Getir</button>
             </form>
             <div id="slotSummaryCards" class="split"></div>
