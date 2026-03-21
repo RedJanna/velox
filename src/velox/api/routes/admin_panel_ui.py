@@ -483,9 +483,9 @@ def render_admin_panel_html() -> str:
                 <option value="15d">Her 15 gun</option>
                 <option value="30d">Her 30 gun</option>
                 <option value="2mo">Her 2 ay</option>
-                <option value="hidden">Slotlari kapat</option>
               </select>
               <button id="loadSlotsButton" class="primary" type="button" aria-label="Slotlari getir">Slotlari Getir</button>
+              <button id="hideSlotsButton" class="secondary" type="button" aria-label="Slotlari kapat">Slotlari Kapat</button>
             </form>
             <div id="slotSummaryCards" class="split"></div>
             <div class="table-shell">

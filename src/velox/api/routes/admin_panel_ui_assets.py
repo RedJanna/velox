@@ -289,6 +289,7 @@ function bindEvents() {
   refs.hotelProfileSelect.addEventListener('change', loadHotelProfileSection);
   refs.slotCreateForm.addEventListener('submit', onCreateSlot);
   refs.slotDisplayInterval?.addEventListener('change', applySlotDisplayFilter);
+  refs.hideSlotsButton?.addEventListener('click', hideRestaurantSlotsView);
   refs.sessionPreferencesForm.addEventListener('submit', onSessionPreferencesSave);
   refs.sessionRememberToggle.addEventListener('change', toggleSessionPreferenceState);
   refs.forgetDeviceButton.addEventListener('click', forgetTrustedDevice);

@@ -300,9 +300,6 @@ function renderSlotSummaryCards(items) {
 }
 
 function renderSlotRows(items) {
-  if ((refs.slotDisplayInterval?.value || '1d') === 'hidden') {
-    return `<tr><td colspan="7"><div class="empty-state"><p>Slot görünümü kapatıldı.</p></div></td></tr>`;
-  }
   if (!items.length) {
     return `<tr><td colspan="7"><div class="empty-state"><p>Seçili aralıkta slot yok.</p></div></td></tr>`;
   }
