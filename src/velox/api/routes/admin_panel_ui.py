@@ -494,7 +494,9 @@ def render_admin_panel_html() -> str:
               <div class="field"><label>Baslangic saati</label><input name="start_time" type="time" required aria-label="Kapasite baslangic saati"></div>
               <div class="field"><label>Bitis saati</label><input name="end_time" type="time" required aria-label="Kapasite bitis saati"></div>
               <div class="field"><label>Alan</label><select name="area" aria-label="Yeni slot alani"><option value="outdoor">outdoor</option><option value="indoor">indoor</option></select></div>
-              <div class="field"><label>Toplam kapasite</label><input name="total_capacity" type="number" min="1" required aria-label="Yeni slot toplam kapasitesi"></div>
+              <div class="field"><label>Toplam rezervasyon sayisi</label><input name="reservation_limit" type="number" min="1" required aria-label="Pencere toplam rezervasyon limiti"></div>
+              <div class="field"><label>Min kisi sayisi</label><input name="min_party_size" type="number" min="1" value="1" required aria-label="Minimum kisi sayisi"></div>
+              <div class="field"><label>Max kisi sayisi</label><input name="max_party_size" type="number" min="1" value="8" required aria-label="Maksimum kisi sayisi"></div>
               <div class="field"><label>Misafire acik mi?</label><input name="is_active" type="checkbox" checked class="checkbox-field" aria-label="Slot aktif mi"></div>
               <div class="field full"><button class="inline-button primary" type="submit">Tarihler Arasi Kapasite Olustur</button></div>
             </form>
@@ -502,7 +504,7 @@ def render_admin_panel_html() -> str:
 
           <article class="module-card" id="restaurantSettingsCard">
             <div class="module-header">
-              <div><h3>Kapasite Ayarlari</h3><p>Gunluk maksimum rezervasyon sayisini sinirlayin ve chef numarasini yonetin.</p></div>
+              <div><h3>Kapasite Ayarlari</h3><p>Gunluk maksimum rezervasyon sayisini ve kabul edilen kisi araligini yonetin.</p></div>
             </div>
             <form id="restaurantSettingsForm" class="dense-form">
               <div class="field">
@@ -512,6 +514,14 @@ def render_admin_panel_html() -> str:
               <div class="field">
                 <label>Maks. gunluk rezervasyon</label>
                 <input name="daily_max_reservations_count" type="number" min="1" value="50" id="dailyCapCount" aria-label="Gunluk maksimum rezervasyon sayisi">
+              </div>
+              <div class="field">
+                <label>Min kisi sayisi</label>
+                <input name="min_party_size" type="number" min="1" value="1" id="restaurantMinPartySize" aria-label="Genel minimum kisi sayisi">
+              </div>
+              <div class="field">
+                <label>Max kisi sayisi</label>
+                <input name="max_party_size" type="number" min="1" value="8" id="restaurantMaxPartySize" aria-label="Genel maksimum kisi sayisi">
               </div>
               <div class="field">
                 <label>Restoran chef numarasi</label>

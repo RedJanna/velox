@@ -126,6 +126,17 @@ ADMIN_RESTAURANT_STYLE = """
 .toggle-switch input:checked+.toggle-slider{background:var(--accent)}
 .toggle-switch input:checked+.toggle-slider::before{transform:translateX(20px)}
 
+/* ── Slot summary / capacity graph ───────────────── */
+#slotSummaryCards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.75rem;margin:.75rem 0 1rem}
+.slot-summary-card{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:.85rem}
+.slot-summary-card h4{margin:0 0 .35rem;font-size:.85rem}
+.slot-summary-value{font-size:1.35rem;font-weight:700;margin-bottom:.3rem}
+.slot-summary-meta{font-size:.75rem;color:var(--muted)}
+.slot-progress{height:10px;background:rgba(148,163,184,.18);border-radius:999px;overflow:hidden;margin:.55rem 0 .4rem}
+.slot-progress-bar{height:100%;border-radius:999px;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444)}
+.slot-chip-row{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.45rem}
+.slot-chip{display:inline-flex;align-items:center;gap:.25rem;border-radius:999px;padding:.18rem .5rem;font-size:.72rem;background:var(--bg-1);border:1px solid var(--border)}
+
 @media(max-width:980px){
   .floor-plan-workspace{flex-direction:column}
   .floor-plan-toolbox{width:100%;flex-direction:row;flex-wrap:wrap;min-height:auto;max-height:none}
@@ -1009,9 +1020,12 @@ function initRestaurantSettings(){
 
     var enabled = document.getElementById('dailyCapToggle').checked;
     var count = parseInt(document.getElementById('dailyCapCount').value,10);
+    var minParty = parseInt(document.getElementById('restaurantMinPartySize').value,10);
+    var maxParty = parseInt(document.getElementById('restaurantMaxPartySize').value,10);
     var chefPhoneEl = document.getElementById('restaurantChefPhone');
     var chefPhone = chefPhoneEl ? chefPhoneEl.value.trim() : '';
-    if(isNaN(count) || count < 1){ notify('Gecerli bir sayi girin','error'); return; }
+    if(isNaN(count) || count < 1){ notify('Gecerli bir gunluk rezervasyon sayisi girin','error'); return; }
+    if(isNaN(minParty) || minParty < 1 || isNaN(maxParty) || maxParty < minParty){ notify('Gecerli bir kisi araligi girin','error'); return; }
 
     try{
       await apiFetch('/hotels/' + hid + '/restaurant/settings', {
@@ -1019,6 +1033,8 @@ function initRestaurantSettings(){
         body:({
           daily_max_reservations_enabled:enabled,
           daily_max_reservations_count:count,
+          min_party_size:minParty,
+          max_party_size:maxParty,
           chef_phone:chefPhone
         })
       });
@@ -1038,8 +1054,12 @@ async function loadRestaurantSettings(){
     if(data.settings){
       var toggle = document.getElementById('dailyCapToggle');
       var count = document.getElementById('dailyCapCount');
+      var minParty = document.getElementById('restaurantMinPartySize');
+      var maxParty = document.getElementById('restaurantMaxPartySize');
       if(toggle) toggle.checked = !!data.settings.daily_max_reservations_enabled;
       if(count) count.value = data.settings.daily_max_reservations_count || 50;
+      if(minParty) minParty.value = data.settings.min_party_size || 1;
+      if(maxParty) maxParty.value = data.settings.max_party_size || 8;
     }
   }catch(e){ /* defaults */ }
 }

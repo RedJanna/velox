@@ -371,6 +371,8 @@ class RestaurantSettingsRepository:
             hotel_id=row["hotel_id"],
             daily_max_reservations_enabled=row["daily_max_reservations_enabled"],
             daily_max_reservations_count=row["daily_max_reservations_count"],
+            min_party_size=row.get("min_party_size") or 1,
+            max_party_size=row.get("max_party_size") or 8,
             chef_phone=row.get("chef_phone"),
             updated_at=row["updated_at"],
         )
@@ -383,26 +385,34 @@ class RestaurantSettingsRepository:
                 hotel_id,
                 daily_max_reservations_enabled,
                 daily_max_reservations_count,
+                min_party_size,
+                max_party_size,
                 chef_phone
             )
-            VALUES ($1, $2, $3, $4)
+            VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (hotel_id)
             DO UPDATE SET
                 daily_max_reservations_enabled = $2,
                 daily_max_reservations_count = $3,
-                chef_phone = $4,
+                min_party_size = $4,
+                max_party_size = $5,
+                chef_phone = $6,
                 updated_at = now()
             RETURNING *
             """,
             hotel_id,
             settings.daily_max_reservations_enabled,
             settings.daily_max_reservations_count,
+            settings.min_party_size,
+            settings.max_party_size,
             settings.chef_phone,
         )
         return RestaurantSettings(
             hotel_id=row["hotel_id"],
             daily_max_reservations_enabled=row["daily_max_reservations_enabled"],
             daily_max_reservations_count=row["daily_max_reservations_count"],
+            min_party_size=row.get("min_party_size") or 1,
+            max_party_size=row.get("max_party_size") or 8,
             chef_phone=row.get("chef_phone"),
             updated_at=row["updated_at"],
         )
@@ -588,12 +598,24 @@ class RestaurantStatusManager:
             hold_id,
         )
         if row and row["slot_id"]:
+            slot = await fetchrow(
+                "SELECT capacity_window_id FROM restaurant_slots WHERE id = $1",
+                int(row["slot_id"]),
+            )
             await execute(
                 """
                 UPDATE restaurant_slots
-                SET booked_count = GREATEST(0, booked_count - $2)
+                SET booked_count = GREATEST(0, booked_count - 1)
                 WHERE id = $1
                 """,
                 int(row["slot_id"]),
-                int(row["party_size"] or 0),
             )
+            if slot and slot["capacity_window_id"]:
+                await execute(
+                    """
+                    UPDATE restaurant_capacity_windows
+                    SET booked_reservations = GREATEST(0, booked_reservations - 1)
+                    WHERE id = $1
+                    """,
+                    int(slot["capacity_window_id"]),
+                )

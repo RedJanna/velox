@@ -30,45 +30,68 @@ class RestaurantRepository:
         party_size: int,
         area: str | None = None,
     ) -> list[RestaurantSlot]:
-        """Query active slots within +/-1 hour and with enough capacity."""
-        start_time = (datetime.combine(target_date, target_time) - timedelta(hours=1)).time()
-        end_time = (datetime.combine(target_date, target_time) + timedelta(hours=1)).time()
-
+        """Query active slots matching the requested minute and window constraints."""
         if area:
             rows = await fetch(
                 """
-                SELECT id AS slot_id, time, (total_capacity - booked_count) AS capacity_left
-                FROM restaurant_slots
-                WHERE hotel_id = $1 AND date = $2 AND is_active = true
-                  AND time BETWEEN $3 AND $4
-                  AND (total_capacity - booked_count) >= $5
-                  AND area = $6
-                ORDER BY ABS(EXTRACT(EPOCH FROM (time - $7))) ASC, time ASC
+                SELECT
+                    rs.id AS slot_id,
+                    rs.time,
+                    GREATEST(0, rcw.reservation_limit - rcw.booked_reservations) AS capacity_left
+                FROM restaurant_slots rs
+                LEFT JOIN restaurant_capacity_windows rcw ON rcw.id = rs.capacity_window_id
+                WHERE rs.hotel_id = $1
+                  AND rs.date = $2
+                  AND rs.time = $3
+                  AND rs.is_active = true
+                  AND rs.area = $4
+                  AND (
+                        rcw.id IS NULL
+                        OR (
+                            rcw.is_active = true
+                            AND rs.date BETWEEN rcw.date_from AND rcw.date_to
+                            AND rs.time BETWEEN rcw.start_time AND rcw.end_time
+                            AND $5 BETWEEN rcw.min_party_size AND rcw.max_party_size
+                            AND rcw.booked_reservations < rcw.reservation_limit
+                        )
+                  )
+                ORDER BY rs.time ASC
                 """,
                 hotel_id,
                 target_date,
-                start_time,
-                end_time,
-                party_size,
-                area,
                 target_time,
+                area,
+                party_size,
             )
         else:
             rows = await fetch(
                 """
-                SELECT id AS slot_id, time, (total_capacity - booked_count) AS capacity_left
-                FROM restaurant_slots
-                WHERE hotel_id = $1 AND date = $2 AND is_active = true
-                  AND time BETWEEN $3 AND $4
-                  AND (total_capacity - booked_count) >= $5
-                ORDER BY ABS(EXTRACT(EPOCH FROM (time - $6))) ASC, time ASC
+                SELECT
+                    rs.id AS slot_id,
+                    rs.time,
+                    GREATEST(0, rcw.reservation_limit - rcw.booked_reservations) AS capacity_left
+                FROM restaurant_slots rs
+                LEFT JOIN restaurant_capacity_windows rcw ON rcw.id = rs.capacity_window_id
+                WHERE rs.hotel_id = $1
+                  AND rs.date = $2
+                  AND rs.time = $3
+                  AND rs.is_active = true
+                  AND (
+                        rcw.id IS NULL
+                        OR (
+                            rcw.is_active = true
+                            AND rs.date BETWEEN rcw.date_from AND rcw.date_to
+                            AND rs.time BETWEEN rcw.start_time AND rcw.end_time
+                            AND $4 BETWEEN rcw.min_party_size AND rcw.max_party_size
+                            AND rcw.booked_reservations < rcw.reservation_limit
+                        )
+                  )
+                ORDER BY rs.time ASC
                 """,
                 hotel_id,
                 target_date,
-                start_time,
-                end_time,
-                party_size,
                 target_time,
+                party_size,
             )
         return [
             RestaurantSlot(
@@ -98,9 +121,16 @@ class RestaurantRepository:
         async with pool.acquire() as conn, conn.transaction():
             slot = await conn.fetchrow(
                 """
-                    SELECT id, date, time, area, total_capacity, booked_count
-                    FROM restaurant_slots
-                    WHERE id = $1 AND hotel_id = $2 AND is_active = true
+                    SELECT rs.id, rs.date, rs.time, rs.area, rs.total_capacity, rs.booked_count,
+                           rs.capacity_window_id,
+                           rcw.reservation_limit,
+                           rcw.booked_reservations,
+                           rcw.min_party_size,
+                           rcw.max_party_size,
+                           rcw.is_active AS window_is_active
+                    FROM restaurant_slots rs
+                    LEFT JOIN restaurant_capacity_windows rcw ON rcw.id = rs.capacity_window_id
+                    WHERE rs.id = $1 AND rs.hotel_id = $2 AND rs.is_active = true
                     FOR UPDATE
                     """,
                 slot_id,
@@ -110,9 +140,20 @@ class RestaurantRepository:
             if slot is None:
                 raise ValueError("slot_not_found")
 
-            capacity_left = int(slot["total_capacity"]) - int(slot["booked_count"])
-            if capacity_left < hold.party_size:
-                raise ValueError("slot_capacity_not_enough")
+            if slot["capacity_window_id"] is not None:
+                if not bool(slot["window_is_active"]):
+                    raise ValueError("slot_not_found")
+                min_party_size = int(slot["min_party_size"] or 1)
+                max_party_size = int(slot["max_party_size"] or 8)
+                if hold.party_size < min_party_size or hold.party_size > max_party_size:
+                    raise ValueError("party_size_out_of_range")
+                reservation_left = int(slot["reservation_limit"] or 0) - int(slot["booked_reservations"] or 0)
+                if reservation_left < 1:
+                    raise ValueError("window_capacity_not_enough")
+            else:
+                capacity_left = int(slot["total_capacity"]) - int(slot["booked_count"])
+                if capacity_left < hold.party_size:
+                    raise ValueError("slot_capacity_not_enough")
 
             # Try to assign a physical table from the active floor plan
             table_row = await conn.fetchrow(
@@ -173,13 +214,22 @@ class RestaurantRepository:
             await conn.execute(
                 """
                     UPDATE restaurant_slots
-                    SET booked_count = booked_count + $2
+                    SET booked_count = booked_count + 1
                     WHERE id = $1
                     """,
                 slot_id,
-                hold.party_size,
                 timeout=DB_TIMEOUT_SECONDS,
             )
+            if slot["capacity_window_id"] is not None:
+                await conn.execute(
+                    """
+                        UPDATE restaurant_capacity_windows
+                        SET booked_reservations = booked_reservations + 1
+                        WHERE id = $1
+                        """,
+                    int(slot["capacity_window_id"]),
+                    timeout=DB_TIMEOUT_SECONDS,
+                )
 
         hold.id = row["id"]
         hold.created_at = row["created_at"]
@@ -243,16 +293,30 @@ class RestaurantRepository:
 
             slot_id = row["slot_id"]
             if slot_id and str(row["status"]) != HoldStatus.CANCELLED.value:
+                slot_row = await conn.fetchrow(
+                    "SELECT capacity_window_id FROM restaurant_slots WHERE id = $1",
+                    int(slot_id),
+                    timeout=DB_TIMEOUT_SECONDS,
+                )
                 await conn.execute(
                     """
                         UPDATE restaurant_slots
-                        SET booked_count = GREATEST(0, booked_count - $2)
+                        SET booked_count = GREATEST(0, booked_count - 1)
                         WHERE id = $1
                         """,
                     int(slot_id),
-                    int(row["party_size"] or 0),
                     timeout=DB_TIMEOUT_SECONDS,
                 )
+                if slot_row and slot_row["capacity_window_id"]:
+                    await conn.execute(
+                        """
+                            UPDATE restaurant_capacity_windows
+                            SET booked_reservations = GREATEST(0, booked_reservations - 1)
+                            WHERE id = $1
+                            """,
+                        int(slot_row["capacity_window_id"]),
+                        timeout=DB_TIMEOUT_SECONDS,
+                    )
 
     async def get_hold(self, hold_id: str) -> RestaurantHold | None:
         """Fetch hold by ID."""
@@ -297,6 +361,34 @@ class RestaurantRepository:
                 if end_time < start_time:
                     raise ValueError("invalid_time_range")
 
+                if slot.max_party_size < slot.min_party_size:
+                    raise ValueError("invalid_party_size_range")
+
+                reservation_limit = int(slot.reservation_limit or slot.total_capacity)
+                window_row = await conn.fetchrow(
+                    """
+                    INSERT INTO restaurant_capacity_windows
+                        (hotel_id, date_from, date_to, start_time, end_time, area,
+                         reservation_limit, min_party_size, max_party_size, is_active)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    RETURNING id
+                    """,
+                    hotel_id,
+                    slot.date_from,
+                    slot.date_to,
+                    start_time,
+                    end_time,
+                    slot.area,
+                    reservation_limit,
+                    slot.min_party_size,
+                    slot.max_party_size,
+                    slot.is_active,
+                    timeout=DB_TIMEOUT_SECONDS,
+                )
+                if window_row is None:
+                    raise RuntimeError("restaurant_capacity_window_create_failed")
+                capacity_window_id = int(window_row["id"])
+
                 start_dt = datetime.combine(slot.date_from, start_time)
                 end_dt = datetime.combine(slot.date_from, end_time)
                 step = timedelta(minutes=1 if slot.start_time is not None and slot.end_time is not None else int(slot.interval_minutes or 60))
@@ -312,19 +404,21 @@ class RestaurantRepository:
                         await conn.execute(
                             """
                                 INSERT INTO restaurant_slots
-                                    (hotel_id, date, time, area, total_capacity, is_active)
-                                VALUES ($1, $2, $3, $4, $5, $6)
+                                    (hotel_id, date, time, area, total_capacity, is_active, capacity_window_id)
+                                VALUES ($1, $2, $3, $4, $5, $6, $7)
                                 ON CONFLICT (hotel_id, date, time, area)
                                 DO UPDATE SET
                                     total_capacity = GREATEST(EXCLUDED.total_capacity, restaurant_slots.booked_count),
-                                    is_active = EXCLUDED.is_active
+                                    is_active = EXCLUDED.is_active,
+                                    capacity_window_id = EXCLUDED.capacity_window_id
                                 """,
                             hotel_id,
                             current_date,
                             slot_time,
                             slot.area,
-                            slot.total_capacity,
+                            reservation_limit,
                             slot.is_active,
+                            capacity_window_id,
                             timeout=DB_TIMEOUT_SECONDS,
                         )
                         inserted += 1
@@ -335,12 +429,25 @@ class RestaurantRepository:
         """Fetch one slot by id for validation and hold creation."""
         row = await fetchrow(
             """
-            SELECT id AS slot_id, hotel_id, date, time, area,
-                   total_capacity, booked_count,
-                   (total_capacity - booked_count) AS capacity_left,
-                   is_active
-            FROM restaurant_slots
-            WHERE hotel_id = $1 AND id = $2
+            SELECT rs.id AS slot_id, rs.hotel_id, rs.date, rs.time, rs.area,
+                   rs.total_capacity, rs.booked_count,
+                   CASE
+                     WHEN rcw.id IS NOT NULL THEN GREATEST(0, rcw.reservation_limit - rcw.booked_reservations)
+                     ELSE (rs.total_capacity - rs.booked_count)
+                   END AS capacity_left,
+                   rs.is_active,
+                   rcw.reservation_limit,
+                   rcw.booked_reservations AS window_booked_reservations,
+                   rcw.min_party_size,
+                   rcw.max_party_size,
+                   rcw.date_from AS window_date_from,
+                   rcw.date_to AS window_date_to,
+                   rcw.start_time AS window_start_time,
+                   rcw.end_time AS window_end_time,
+                   rs.capacity_window_id
+            FROM restaurant_slots rs
+            LEFT JOIN restaurant_capacity_windows rcw ON rcw.id = rs.capacity_window_id
+            WHERE rs.hotel_id = $1 AND rs.id = $2
             """,
             hotel_id,
             slot_id,
@@ -357,18 +464,30 @@ class RestaurantRepository:
         rows = await fetch(
             """
             SELECT
-                id AS slot_id,
-                hotel_id,
-                date,
-                time,
-                area,
-                total_capacity,
-                booked_count,
-                (total_capacity - booked_count) AS capacity_left,
-                is_active
-            FROM restaurant_slots
-            WHERE hotel_id = $1 AND date BETWEEN $2 AND $3
-            ORDER BY date ASC, time ASC
+                rs.id AS slot_id,
+                rs.hotel_id,
+                rs.date,
+                rs.time,
+                rs.area,
+                rs.total_capacity,
+                rs.booked_count,
+                CASE
+                  WHEN rcw.id IS NOT NULL THEN GREATEST(0, rcw.reservation_limit - rcw.booked_reservations)
+                  ELSE (rs.total_capacity - rs.booked_count)
+                END AS capacity_left,
+                rs.is_active,
+                rcw.reservation_limit,
+                rcw.booked_reservations AS window_booked_reservations,
+                rcw.min_party_size,
+                rcw.max_party_size,
+                rcw.date_from AS window_date_from,
+                rcw.date_to AS window_date_to,
+                rcw.start_time AS window_start_time,
+                rcw.end_time AS window_end_time
+            FROM restaurant_slots rs
+            LEFT JOIN restaurant_capacity_windows rcw ON rcw.id = rs.capacity_window_id
+            WHERE rs.hotel_id = $1 AND rs.date BETWEEN $2 AND $3
+            ORDER BY rs.date ASC, rs.time ASC
             """,
             hotel_id,
             date_from,
@@ -377,17 +496,46 @@ class RestaurantRepository:
         return [RestaurantSlotView.model_validate(dict(row)) for row in rows]
 
     async def update_slot(self, hotel_id: int, slot_id: int, update: RestaurantSlotUpdate) -> dict[str, Any] | None:
-        """Update slot capacity or active status and return row summary."""
-        if update.total_capacity is not None:
-            current = await fetchrow(
-                "SELECT booked_count FROM restaurant_slots WHERE hotel_id = $1 AND id = $2",
-                hotel_id,
-                slot_id,
+        """Update slot/window capacity or active status and return row summary."""
+        current = await fetchrow(
+            "SELECT booked_count, capacity_window_id FROM restaurant_slots WHERE hotel_id = $1 AND id = $2",
+            hotel_id,
+            slot_id,
+        )
+        if current is None:
+            return None
+        if update.max_party_size is not None and update.min_party_size is not None and update.max_party_size < update.min_party_size:
+            raise ValueError("invalid_party_size_range")
+        if update.total_capacity is not None and int(update.total_capacity) < int(current["booked_count"]):
+            raise ValueError("total_capacity_below_booked_count")
+
+        if current["capacity_window_id"] is not None:
+            window = await fetchrow(
+                "SELECT booked_reservations, min_party_size, max_party_size FROM restaurant_capacity_windows WHERE id = $1",
+                int(current["capacity_window_id"]),
             )
-            if current is None:
-                return None
-            if int(update.total_capacity) < int(current["booked_count"]):
-                raise ValueError("total_capacity_below_booked_count")
+            if window is not None:
+                next_min = update.min_party_size if update.min_party_size is not None else int(window["min_party_size"] or 1)
+                next_max = update.max_party_size if update.max_party_size is not None else int(window["max_party_size"] or 8)
+                if next_max < next_min:
+                    raise ValueError("invalid_party_size_range")
+                if update.reservation_limit is not None and int(update.reservation_limit) < int(window["booked_reservations"] or 0):
+                    raise ValueError("reservation_limit_below_booked_count")
+                await execute(
+                    """
+                    UPDATE restaurant_capacity_windows
+                    SET reservation_limit = COALESCE($2, reservation_limit),
+                        min_party_size = COALESCE($3, min_party_size),
+                        max_party_size = COALESCE($4, max_party_size),
+                        is_active = COALESCE($5, is_active)
+                    WHERE id = $1
+                    """,
+                    int(current["capacity_window_id"]),
+                    update.reservation_limit if update.reservation_limit is not None else update.total_capacity,
+                    update.min_party_size,
+                    update.max_party_size,
+                    update.is_active,
+                )
 
         row = await fetchrow(
             """
@@ -402,7 +550,7 @@ class RestaurantRepository:
             """,
             hotel_id,
             slot_id,
-            update.total_capacity,
+            update.total_capacity if update.total_capacity is not None else update.reservation_limit,
             update.is_active,
         )
         return dict(row) if row else None

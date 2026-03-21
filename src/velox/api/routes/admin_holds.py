@@ -646,6 +646,12 @@ async def update_restaurant_settings(
         current.daily_max_reservations_enabled = body.daily_max_reservations_enabled
     if body.daily_max_reservations_count is not None:
         current.daily_max_reservations_count = body.daily_max_reservations_count
+    if body.min_party_size is not None:
+        current.min_party_size = body.min_party_size
+    if body.max_party_size is not None:
+        current.max_party_size = body.max_party_size
+    if current.max_party_size < current.min_party_size:
+        raise HTTPException(status_code=400, detail="max_party_size must be >= min_party_size")
     if body.chef_phone is not None:
         chef_phone = body.chef_phone.strip()
         current.chef_phone = chef_phone or None

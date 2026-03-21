@@ -218,11 +218,17 @@ function renderSlotSummaryCards(items) {
   if (!items.length) {
     return '<div class="module-card"><div class="empty-state"><p>Grafik için önce slot oluşturun veya filtreyle yükleyin.</p></div></div>';
   }
-  const totalCapacity = items.reduce((sum, item) => sum + Number(item.total_capacity || 0), 0);
-  const totalBooked = items.reduce((sum, item) => sum + Number(item.booked_count || 0), 0);
-  const totalLeft = items.reduce((sum, item) => sum + Number(item.capacity_left || 0), 0);
-  const activeCount = items.filter(item => item.is_active).length;
-  const passiveCount = items.length - activeCount;
+  const uniqueWindows = new Map();
+  items.forEach(item => {
+    const key = [item.area, item.window_date_from || item.date, item.window_date_to || item.date, item.window_start_time || item.time, item.window_end_time || item.time].join('|');
+    if (!uniqueWindows.has(key)) uniqueWindows.set(key, item);
+  });
+  const summaryItems = Array.from(uniqueWindows.values());
+  const totalCapacity = summaryItems.reduce((sum, item) => sum + Number(item.reservation_limit || item.total_capacity || 0), 0);
+  const totalBooked = summaryItems.reduce((sum, item) => sum + Number(item.window_booked_reservations || item.booked_count || 0), 0);
+  const totalLeft = summaryItems.reduce((sum, item) => sum + Number(item.capacity_left || 0), 0);
+  const activeCount = summaryItems.filter(item => item.is_active).length;
+  const passiveCount = summaryItems.length - activeCount;
   const firstTime = items.map(item => String(item.time || '')).sort()[0] || '-';
   const lastTime = items.map(item => String(item.time || '')).sort().slice(-1)[0] || '-';
   const usagePct = totalCapacity > 0 ? Math.min(100, Math.round((totalBooked / totalCapacity) * 100)) : 0;
@@ -258,11 +264,13 @@ function renderSlotRows(items) {
       <td>${escapeHtml(item.date)}</td>
       <td>${escapeHtml(item.time)}</td>
       <td>${escapeHtml(item.area)}</td>
-      <td><strong>${escapeHtml(item.capacity_left)}</strong> kaldı<br><small>${escapeHtml(item.booked_count)} dolu / ${escapeHtml(item.total_capacity)} toplam</small></td>
+      <td><strong>${escapeHtml(item.capacity_left)}</strong> kaldı<br><small>${escapeHtml(item.window_booked_reservations ?? item.booked_count)} dolu / ${escapeHtml(item.reservation_limit ?? item.total_capacity)} toplam rezervasyon</small><br><small>Kişi: ${escapeHtml(item.min_party_size ?? 1)}-${escapeHtml(item.max_party_size ?? 8)}</small></td>
       <td>${item.is_active ? '<span class="pill open">MİSAFİRE AÇIK</span>' : '<span class="pill closed">PASİF</span>'}</td>
       <td>
         <div class="stack">
-          <input type="number" min="1" value="${escapeHtml(item.total_capacity)}" data-slot-capacity="${escapeHtml(item.slot_id)}" aria-label="${escapeHtml(item.slot_id + ' toplam kapasite')}">
+          <input type="number" min="1" value="${escapeHtml(item.reservation_limit ?? item.total_capacity)}" data-slot-capacity="${escapeHtml(item.slot_id)}" aria-label="${escapeHtml(item.slot_id + ' toplam rezervasyon limiti')}">
+          <input type="number" min="1" value="${escapeHtml(item.min_party_size ?? 1)}" data-slot-min-party="${escapeHtml(item.slot_id)}" aria-label="${escapeHtml(item.slot_id + ' min kisi')}">
+          <input type="number" min="1" value="${escapeHtml(item.max_party_size ?? 8)}" data-slot-max-party="${escapeHtml(item.slot_id)}" aria-label="${escapeHtml(item.slot_id + ' max kisi')}">
           <select data-slot-active="${escapeHtml(item.slot_id)}" aria-label="${escapeHtml(item.slot_id + ' aktiflik durumu')}">
             <option value="true" ${item.is_active ? 'selected' : ''}>Misafire açık</option>
             <option value="false" ${!item.is_active ? 'selected' : ''}>Pasif</option>
@@ -279,11 +287,19 @@ function bindSlotActions() {
     button.addEventListener('click', async () => {
       const slotId = button.dataset.saveSlot;
       const capacity = document.querySelector(`[data-slot-capacity="${slotId}"]`).value;
+      const minParty = document.querySelector(`[data-slot-min-party="${slotId}"]`).value;
+      const maxParty = document.querySelector(`[data-slot-max-party="${slotId}"]`).value;
       const isActive = document.querySelector(`[data-slot-active="${slotId}"]`).value === 'true';
       try {
         await apiFetch(`/hotels/${state.selectedHotelId}/restaurant/slots/${slotId}`, {
           method: 'PUT',
-          body: {total_capacity: Number(capacity), is_active: isActive},
+          body: {
+            total_capacity: Number(capacity),
+            reservation_limit: Number(capacity),
+            min_party_size: Number(minParty),
+            max_party_size: Number(maxParty),
+            is_active: isActive,
+          },
         });
         notify('Slot güncellendi.', 'success');
         loadRestaurantSlots();
@@ -306,13 +322,28 @@ async function onCreateSlot(event) {
     return;
   }
 
+  const reservationLimit = Number(formPayload.reservation_limit);
+  const minPartySize = Number(formPayload.min_party_size || 1);
+  const maxPartySize = Number(formPayload.max_party_size || 8);
+  if (!Number.isFinite(reservationLimit) || reservationLimit < 1) {
+    notify('Toplam rezervasyon sayısı zorunlu.', 'warn');
+    return;
+  }
+  if (!Number.isFinite(minPartySize) || minPartySize < 1 || !Number.isFinite(maxPartySize) || maxPartySize < minPartySize) {
+    notify('Geçerli bir kişi aralığı girin.', 'warn');
+    return;
+  }
+
   const payload = {
     date_from: formPayload.date_from,
     date_to: formPayload.date_to,
     start_time: formPayload.start_time,
     end_time: formPayload.end_time,
     area: formPayload.area,
-    total_capacity: Number(formPayload.total_capacity),
+    total_capacity: reservationLimit,
+    reservation_limit: reservationLimit,
+    min_party_size: minPartySize,
+    max_party_size: maxPartySize,
     is_active: formPayload.is_active === 'on',
   };
 

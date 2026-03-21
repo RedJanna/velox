@@ -9,11 +9,17 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from velox.config.constants import HoldStatus, RiskFlag
+from velox.config.constants import (
+    HoldStatus,
+    RestaurantReservationStatus,
+    RiskFlag,
+    resolve_table_type,
+)
 from velox.core.hotel_profile_loader import get_profile
 from velox.db.database import execute
 from velox.db.repositories.hotel import ApprovalRequestRepository, NotificationRepository
 from velox.db.repositories.restaurant import RestaurantRepository
+from velox.db.repositories.restaurant_floor_plan import RestaurantSettingsRepository
 from velox.models.restaurant import RestaurantAvailabilityRequest, RestaurantHold
 from velox.tools.approval import ApprovalRequestTool
 from velox.tools.base import BaseTool
@@ -58,6 +64,19 @@ class RestaurantAvailabilityTool(BaseTool):
                 "suggestion": "handoff",
             }
 
+        settings_repo = RestaurantSettingsRepository()
+        settings = await settings_repo.get(request.hotel_id)
+        if request.party_size < settings.min_party_size or request.party_size > settings.max_party_size:
+            return {
+                "available": False,
+                "reason": "PARTY_SIZE_OUT_OF_RANGE",
+                "suggestion": "request_valid_party_size",
+                "accepted_party_size_range": {
+                    "min": settings.min_party_size,
+                    "max": settings.max_party_size,
+                },
+            }
+
         if not _is_within_restaurant_hours(profile, request.time):
             return {
                 "available": False,
@@ -91,6 +110,7 @@ class RestaurantCreateHoldTool(BaseTool):
         self._restaurant_repository = restaurant_repository
         self._approval_tool = ApprovalRequestTool(approval_repository, notification_repository)
         self._notify_tool = NotifySendTool(notification_repository)
+        self._settings_repository = RestaurantSettingsRepository()
 
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         """Create hold with race-safe capacity checks and approval flow."""
@@ -109,8 +129,42 @@ class RestaurantCreateHoldTool(BaseTool):
                 "suggestion": "handoff",
             }
 
+        settings = await self._settings_repository.get(hotel_id)
+        if party_size < settings.min_party_size or party_size > settings.max_party_size:
+            return {
+                "available": False,
+                "reason": "PARTY_SIZE_OUT_OF_RANGE",
+                "suggestion": "request_valid_party_size",
+                "accepted_party_size_range": {
+                    "min": settings.min_party_size,
+                    "max": settings.max_party_size,
+                },
+            }
+
+        # Daily capacity check
         slot_id = int(kwargs["slot_id"])
         slot_data = await self._restaurant_repository.get_slot_by_id(hotel_id=hotel_id, slot_id=slot_id)
+        if slot_data:
+            cap = await self._settings_repository.check_daily_capacity(hotel_id, slot_data["date"])
+            if cap["enabled"] and not cap["allowed"]:
+                return {
+                    "available": False,
+                    "reason": "DAILY_CAPACITY_FULL",
+                    "suggestion": "handoff",
+                    "handoff_required": True,
+                    "count": cap["count"],
+                    "max": cap["max"],
+                    "collected_reservation_context": {
+                        "date": str(slot_data["date"]),
+                        "time": slot_data["time"].isoformat(),
+                        "party_size": party_size,
+                        "guest_name": str(kwargs["guest_name"]),
+                        "phone": str(kwargs["phone"]),
+                        "area": str(kwargs["area"]) if kwargs.get("area") else slot_data.get("area"),
+                        "notes": str(kwargs["notes"]) if kwargs.get("notes") else None,
+                    },
+                }
+
         if slot_data is None or not bool(slot_data["is_active"]):
             return {
                 "available": False,
@@ -158,7 +212,7 @@ class RestaurantCreateHoldTool(BaseTool):
             phone=str(kwargs["phone"]),
             area=str(kwargs["area"]) if kwargs.get("area") else None,
             notes=str(kwargs["notes"]) if kwargs.get("notes") else None,
-            status=HoldStatus.PENDING_APPROVAL,
+            status=RestaurantReservationStatus.BEKLEMEDE,
         )
         created = await self._restaurant_repository.create_hold(hold)
 
@@ -190,7 +244,7 @@ class RestaurantCreateHoldTool(BaseTool):
 
         return {
             "restaurant_hold_id": created.hold_id,
-            "status": created.status.value,
+            "status": created.status,
             "summary": f"{created.date} {created.time} for {created.party_size} guests",
             "approval_request_id": approval_result.get("approval_request_id"),
             "risk_flags": risk_flags,
@@ -210,9 +264,9 @@ class RestaurantConfirmTool(BaseTool):
         hold_id = str(kwargs["restaurant_hold_id"])
         await self._restaurant_repository.update_hold_status(
             hold_id=hold_id,
-            status=HoldStatus.CONFIRMED.value,
+            status=RestaurantReservationStatus.ONAYLANDI,
         )
-        return {"restaurant_hold_id": hold_id, "status": HoldStatus.CONFIRMED.value}
+        return {"restaurant_hold_id": hold_id, "status": RestaurantReservationStatus.ONAYLANDI}
 
 
 class RestaurantModifyTool(BaseTool):
@@ -225,6 +279,9 @@ class RestaurantModifyTool(BaseTool):
         if updates.model_dump(exclude_none=True) == {}:
             raise ValueError("no_valid_update_field")
 
+        # Recalculate table_type if party_size changed
+        new_table_type = resolve_table_type(updates.party_size) if updates.party_size else None
+
         await execute(
             """
             UPDATE restaurant_holds
@@ -236,6 +293,7 @@ class RestaurantModifyTool(BaseTool):
                 area = COALESCE($8, area),
                 notes = COALESCE($9, notes),
                 slot_id = COALESCE($10, slot_id),
+                table_type = COALESCE($11, table_type),
                 updated_at = now()
             WHERE hotel_id = $1 AND hold_id = $2
             """,
@@ -249,6 +307,7 @@ class RestaurantModifyTool(BaseTool):
             updates.area,
             updates.notes,
             updates.slot_id,
+            new_table_type,
         )
         return {"restaurant_hold_id": str(kwargs["restaurant_hold_id"]), "status": "UPDATED"}
 
@@ -268,7 +327,7 @@ class RestaurantCancelTool(BaseTool):
             hold_id=hold_id,
             reason=str(kwargs.get("reason", "Cancelled by request")),
         )
-        return {"restaurant_hold_id": hold_id, "status": HoldStatus.CANCELLED.value}
+        return {"restaurant_hold_id": hold_id, "status": RestaurantReservationStatus.IPTAL}
 
 
 def _is_within_restaurant_hours(profile: Any, target_time: time) -> bool:

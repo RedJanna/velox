@@ -30,14 +30,23 @@ class RestaurantSlot(BaseModel):
 class RestaurantSlotCreate(BaseModel):
     date_from: date
     date_to: date
-    time: time
+    time: Optional[time] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    interval_minutes: int = Field(default=60, ge=15, le=240)
     total_capacity: int = Field(ge=1)
+    reservation_limit: int | None = Field(default=None, ge=1)
+    min_party_size: int = Field(default=1, ge=1)
+    max_party_size: int = Field(default=8, ge=1)
     area: str = "outdoor"
     is_active: bool = True
 
 
 class RestaurantSlotUpdate(BaseModel):
     total_capacity: int | None = Field(default=None, ge=1)
+    reservation_limit: int | None = Field(default=None, ge=1)
+    min_party_size: int | None = Field(default=None, ge=1)
+    max_party_size: int | None = Field(default=None, ge=1)
     is_active: bool | None = None
 
 
@@ -51,6 +60,14 @@ class RestaurantSlotView(BaseModel):
     booked_count: int
     capacity_left: int
     is_active: bool
+    reservation_limit: int | None = None
+    window_booked_reservations: int | None = None
+    min_party_size: int | None = None
+    max_party_size: int | None = None
+    window_date_from: date | None = None
+    window_date_to: date | None = None
+    window_start_time: time | None = None
+    window_end_time: time | None = None
 
 
 class RestaurantHold(BaseModel):
@@ -160,6 +177,8 @@ class RestaurantSettings(BaseModel):
     hotel_id: int
     daily_max_reservations_enabled: bool = False
     daily_max_reservations_count: int = Field(default=50, ge=1)
+    min_party_size: int = Field(default=1, ge=1)
+    max_party_size: int = Field(default=8, ge=1)
     chef_phone: str | None = Field(default=None, max_length=32)
     updated_at: datetime | None = None
 
@@ -167,6 +186,8 @@ class RestaurantSettings(BaseModel):
 class RestaurantSettingsUpdate(BaseModel):
     daily_max_reservations_enabled: bool | None = None
     daily_max_reservations_count: int | None = Field(default=None, ge=1)
+    min_party_size: int | None = Field(default=None, ge=1)
+    max_party_size: int | None = Field(default=None, ge=1)
     chef_phone: str | None = Field(default=None, max_length=32)
 
 
