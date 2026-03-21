@@ -5,7 +5,7 @@ from typing import Any
 
 import asyncpg
 
-from velox.config.constants import HoldStatus
+from velox.config.constants import HoldStatus, RestaurantReservationStatus, resolve_table_type
 from velox.db.database import execute, fetch, fetchrow, get_pool
 from velox.models.restaurant import (
     RestaurantHold,
@@ -80,12 +80,19 @@ class RestaurantRepository:
         ]
 
     async def create_hold(self, hold: RestaurantHold) -> RestaurantHold:
-        """Insert restaurant hold and decrement slot capacity atomically."""
+        """Insert restaurant hold and decrement slot capacity atomically.
+
+        Automatically assigns table_type based on party_size and attempts
+        to assign a physical table_id from the active floor plan.
+        """
         if hold.slot_id is None:
             raise ValueError("slot_id_required")
 
         hold.hold_id = await next_sequential_id("R_HOLD_", "restaurant_holds", "hold_id")
         slot_id = int(hold.slot_id)
+
+        # Resolve table type from party size
+        hold.table_type = resolve_table_type(hold.party_size)
 
         pool = get_pool()
         async with pool.acquire() as conn, conn.transaction():
@@ -107,12 +114,41 @@ class RestaurantRepository:
             if capacity_left < hold.party_size:
                 raise ValueError("slot_capacity_not_enough")
 
+            # Try to assign a physical table from the active floor plan
+            table_row = await conn.fetchrow(
+                """
+                SELECT rt.table_id
+                FROM restaurant_tables rt
+                JOIN restaurant_floor_plans fp ON fp.id = rt.floor_plan_id
+                WHERE rt.hotel_id = $1
+                  AND fp.is_active = true
+                  AND rt.table_type = $2
+                  AND rt.is_active = true
+                  AND rt.table_id NOT IN (
+                      SELECT rh.table_id FROM restaurant_holds rh
+                      WHERE rh.hotel_id = $1
+                        AND rh.date = $3
+                        AND rh.table_id IS NOT NULL
+                        AND rh.status NOT IN ('IPTAL', 'GELMEDI')
+                  )
+                ORDER BY rt.table_id
+                LIMIT 1
+                """,
+                hold.hotel_id,
+                hold.table_type,
+                slot["date"],
+                timeout=DB_TIMEOUT_SECONDS,
+            )
+            hold.table_id = table_row["table_id"] if table_row else None
+
+            status_value = hold.status if isinstance(hold.status, str) else hold.status.value
+
             row = await conn.fetchrow(
                 """
                     INSERT INTO restaurant_holds
                         (hold_id, hotel_id, conversation_id, slot_id, date, time, party_size,
-                         guest_name, phone, area, notes, status)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                         guest_name, phone, area, notes, status, table_type, table_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                     RETURNING id, created_at
                     """,
                 hold.hold_id,
@@ -126,7 +162,9 @@ class RestaurantRepository:
                 hold.phone,
                 hold.area or slot["area"],
                 hold.notes,
-                hold.status.value,
+                status_value,
+                hold.table_type,
+                hold.table_id,
                 timeout=DB_TIMEOUT_SECONDS,
             )
             if row is None:
@@ -241,7 +279,7 @@ class RestaurantRepository:
         return [self._row_to_hold(row) for row in rows]
 
     async def create_slots(self, hotel_id: int, slots: list[RestaurantSlotCreate]) -> int:
-        """Create or upsert restaurant slots for date ranges."""
+        """Create or upsert restaurant slots for date ranges and optional time ranges."""
         if not slots:
             return 0
 
@@ -251,27 +289,45 @@ class RestaurantRepository:
             for slot in slots:
                 if slot.date_to < slot.date_from:
                     raise ValueError("invalid_date_range")
+
+                start_time = slot.start_time or slot.time
+                end_time = slot.end_time or slot.time or slot.start_time
+                if start_time is None or end_time is None:
+                    raise ValueError("slot_time_required")
+                if end_time < start_time:
+                    raise ValueError("invalid_time_range")
+
+                start_dt = datetime.combine(slot.date_from, start_time)
+                end_dt = datetime.combine(slot.date_from, end_time)
+                step = timedelta(minutes=1 if slot.start_time is not None and slot.end_time is not None else int(slot.interval_minutes or 60))
+                slot_times: list[time] = []
+                current_dt = start_dt
+                while current_dt <= end_dt:
+                    slot_times.append(current_dt.time())
+                    current_dt += step
+
                 current_date = slot.date_from
                 while current_date <= slot.date_to:
-                    await conn.execute(
-                        """
-                            INSERT INTO restaurant_slots
-                                (hotel_id, date, time, area, total_capacity, is_active)
-                            VALUES ($1, $2, $3, $4, $5, $6)
-                            ON CONFLICT (hotel_id, date, time, area)
-                            DO UPDATE SET
-                                total_capacity = GREATEST(EXCLUDED.total_capacity, restaurant_slots.booked_count),
-                                is_active = EXCLUDED.is_active
-                            """,
-                        hotel_id,
-                        current_date,
-                        slot.time,
-                        slot.area,
-                        slot.total_capacity,
-                        slot.is_active,
-                        timeout=DB_TIMEOUT_SECONDS,
-                    )
-                    inserted += 1
+                    for slot_time in slot_times:
+                        await conn.execute(
+                            """
+                                INSERT INTO restaurant_slots
+                                    (hotel_id, date, time, area, total_capacity, is_active)
+                                VALUES ($1, $2, $3, $4, $5, $6)
+                                ON CONFLICT (hotel_id, date, time, area)
+                                DO UPDATE SET
+                                    total_capacity = GREATEST(EXCLUDED.total_capacity, restaurant_slots.booked_count),
+                                    is_active = EXCLUDED.is_active
+                                """,
+                            hotel_id,
+                            current_date,
+                            slot_time,
+                            slot.area,
+                            slot.total_capacity,
+                            slot.is_active,
+                            timeout=DB_TIMEOUT_SECONDS,
+                        )
+                        inserted += 1
                     current_date += timedelta(days=1)
         return inserted
 
@@ -381,5 +437,10 @@ class RestaurantRepository:
             approved_by=row["approved_by"],
             approved_at=row["approved_at"],
             rejected_reason=row["rejected_reason"],
+            table_id=row.get("table_id"),
+            table_type=row.get("table_type"),
+            arrived_at=row.get("arrived_at"),
+            no_show_at=row.get("no_show_at"),
+            extended_minutes=int(row.get("extended_minutes") or 0),
             created_at=row["created_at"],
         )

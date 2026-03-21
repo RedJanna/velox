@@ -311,7 +311,6 @@ async function onCreateSlot(event) {
     date_to: formPayload.date_to,
     start_time: formPayload.start_time,
     end_time: formPayload.end_time,
-    interval_minutes: Number(formPayload.interval_minutes || 60),
     area: formPayload.area,
     total_capacity: Number(formPayload.total_capacity),
     is_active: formPayload.is_active === 'on',
