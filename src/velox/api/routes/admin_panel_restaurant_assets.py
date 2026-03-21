@@ -1020,11 +1020,14 @@ function initRestaurantSettings(){
 
     var enabled = document.getElementById('dailyCapToggle').checked;
     var count = parseInt(document.getElementById('dailyCapCount').value,10);
+    var dailyPartyEnabled = document.getElementById('dailyPartyCapToggle').checked;
+    var dailyPartyCount = parseInt(document.getElementById('dailyPartyCapCount').value,10);
     var minParty = parseInt(document.getElementById('restaurantMinPartySize').value,10);
     var maxParty = parseInt(document.getElementById('restaurantMaxPartySize').value,10);
     var chefPhoneEl = document.getElementById('restaurantChefPhone');
     var chefPhone = chefPhoneEl ? chefPhoneEl.value.trim() : '';
     if(isNaN(count) || count < 1){ notify('Gecerli bir gunluk rezervasyon sayisi girin','error'); return; }
+    if(isNaN(dailyPartyCount) || dailyPartyCount < 1){ notify('Gecerli bir gunluk toplam kisi sayisi girin','error'); return; }
     if(isNaN(minParty) || minParty < 1 || isNaN(maxParty) || maxParty < minParty){ notify('Gecerli bir kisi araligi girin','error'); return; }
 
     try{
@@ -1033,6 +1036,8 @@ function initRestaurantSettings(){
         body:({
           daily_max_reservations_enabled:enabled,
           daily_max_reservations_count:count,
+          daily_max_party_size_enabled:dailyPartyEnabled,
+          daily_max_party_size_count:dailyPartyCount,
           min_party_size:minParty,
           max_party_size:maxParty,
           chef_phone:chefPhone
@@ -1054,10 +1059,14 @@ async function loadRestaurantSettings(){
     if(data.settings){
       var toggle = document.getElementById('dailyCapToggle');
       var count = document.getElementById('dailyCapCount');
+      var dailyPartyToggle = document.getElementById('dailyPartyCapToggle');
+      var dailyPartyCount = document.getElementById('dailyPartyCapCount');
       var minParty = document.getElementById('restaurantMinPartySize');
       var maxParty = document.getElementById('restaurantMaxPartySize');
       if(toggle) toggle.checked = !!data.settings.daily_max_reservations_enabled;
       if(count) count.value = data.settings.daily_max_reservations_count || 50;
+      if(dailyPartyToggle) dailyPartyToggle.checked = !!data.settings.daily_max_party_size_enabled;
+      if(dailyPartyCount) dailyPartyCount.value = data.settings.daily_max_party_size_count || 200;
       if(minParty) minParty.value = data.settings.min_party_size || 1;
       if(maxParty) maxParty.value = data.settings.max_party_size || 8;
     }

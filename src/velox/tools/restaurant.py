@@ -145,8 +145,8 @@ class RestaurantCreateHoldTool(BaseTool):
         slot_id = int(kwargs["slot_id"])
         slot_data = await self._restaurant_repository.get_slot_by_id(hotel_id=hotel_id, slot_id=slot_id)
         if slot_data:
-            cap = await self._settings_repository.check_daily_capacity(hotel_id, slot_data["date"])
-            if cap["enabled"] and not cap["allowed"]:
+            cap = await self._settings_repository.check_daily_capacity(hotel_id, slot_data["date"], party_size)
+            if not cap["allowed"]:
                 return {
                     "available": False,
                     "reason": "DAILY_CAPACITY_FULL",
@@ -154,6 +154,8 @@ class RestaurantCreateHoldTool(BaseTool):
                     "handoff_required": True,
                     "count": cap["count"],
                     "max": cap["max"],
+                    "party_size_total": cap.get("party_size_total"),
+                    "party_size_max": cap.get("party_size_max"),
                     "collected_reservation_context": {
                         "date": str(slot_data["date"]),
                         "time": slot_data["time"].isoformat(),

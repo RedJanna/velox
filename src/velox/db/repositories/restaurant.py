@@ -37,7 +37,7 @@ class RestaurantRepository:
                 SELECT
                     rs.id AS slot_id,
                     rs.time,
-                    GREATEST(0, rcw.reservation_limit - rcw.booked_reservations) AS capacity_left
+                    GREATEST(0, LEAST(rcw.reservation_limit - rcw.booked_reservations, COALESCE(rcw.total_party_size_limit - rcw.booked_party_size, rcw.reservation_limit - rcw.booked_reservations))) AS capacity_left
                 FROM restaurant_slots rs
                 LEFT JOIN restaurant_capacity_windows rcw ON rcw.id = rs.capacity_window_id
                 WHERE rs.hotel_id = $1
@@ -53,6 +53,7 @@ class RestaurantRepository:
                             AND rs.time BETWEEN rcw.start_time AND rcw.end_time
                             AND $5 BETWEEN rcw.min_party_size AND rcw.max_party_size
                             AND rcw.booked_reservations < rcw.reservation_limit
+                            AND COALESCE(rcw.booked_party_size, 0) + $5 <= COALESCE(rcw.total_party_size_limit, 2147483647)
                         )
                   )
                 ORDER BY rs.time ASC
@@ -69,7 +70,7 @@ class RestaurantRepository:
                 SELECT
                     rs.id AS slot_id,
                     rs.time,
-                    GREATEST(0, rcw.reservation_limit - rcw.booked_reservations) AS capacity_left
+                    GREATEST(0, LEAST(rcw.reservation_limit - rcw.booked_reservations, COALESCE(rcw.total_party_size_limit - rcw.booked_party_size, rcw.reservation_limit - rcw.booked_reservations))) AS capacity_left
                 FROM restaurant_slots rs
                 LEFT JOIN restaurant_capacity_windows rcw ON rcw.id = rs.capacity_window_id
                 WHERE rs.hotel_id = $1
@@ -84,6 +85,7 @@ class RestaurantRepository:
                             AND rs.time BETWEEN rcw.start_time AND rcw.end_time
                             AND $4 BETWEEN rcw.min_party_size AND rcw.max_party_size
                             AND rcw.booked_reservations < rcw.reservation_limit
+                            AND COALESCE(rcw.booked_party_size, 0) + $4 <= COALESCE(rcw.total_party_size_limit, 2147483647)
                         )
                   )
                 ORDER BY rs.time ASC
@@ -125,6 +127,8 @@ class RestaurantRepository:
                            rs.capacity_window_id,
                            rcw.reservation_limit,
                            rcw.booked_reservations,
+                           rcw.total_party_size_limit,
+                           rcw.booked_party_size,
                            rcw.min_party_size,
                            rcw.max_party_size,
                            rcw.is_active AS window_is_active
@@ -150,6 +154,11 @@ class RestaurantRepository:
                 reservation_left = int(slot["reservation_limit"] or 0) - int(slot["booked_reservations"] or 0)
                 if reservation_left < 1:
                     raise ValueError("window_capacity_not_enough")
+                total_party_limit = slot["total_party_size_limit"]
+                if total_party_limit is not None:
+                    party_left = int(total_party_limit) - int(slot["booked_party_size"] or 0)
+                    if party_left < hold.party_size:
+                        raise ValueError("window_party_size_limit_not_enough")
             else:
                 capacity_left = int(slot["total_capacity"]) - int(slot["booked_count"])
                 if capacity_left < hold.party_size:
@@ -224,10 +233,12 @@ class RestaurantRepository:
                 await conn.execute(
                     """
                         UPDATE restaurant_capacity_windows
-                        SET booked_reservations = booked_reservations + 1
+                        SET booked_reservations = booked_reservations + 1,
+                            booked_party_size = booked_party_size + $2
                         WHERE id = $1
                         """,
                     int(slot["capacity_window_id"]),
+                    hold.party_size,
                     timeout=DB_TIMEOUT_SECONDS,
                 )
 
@@ -311,10 +322,12 @@ class RestaurantRepository:
                     await conn.execute(
                         """
                             UPDATE restaurant_capacity_windows
-                            SET booked_reservations = GREATEST(0, booked_reservations - 1)
+                            SET booked_reservations = GREATEST(0, booked_reservations - 1),
+                                booked_party_size = GREATEST(0, booked_party_size - $2)
                             WHERE id = $1
                             """,
                         int(slot_row["capacity_window_id"]),
+                        int(row["party_size"] or 0),
                         timeout=DB_TIMEOUT_SECONDS,
                     )
 
@@ -369,8 +382,8 @@ class RestaurantRepository:
                     """
                     INSERT INTO restaurant_capacity_windows
                         (hotel_id, date_from, date_to, start_time, end_time, area,
-                         reservation_limit, min_party_size, max_party_size, is_active)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                         reservation_limit, total_party_size_limit, min_party_size, max_party_size, is_active)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                     RETURNING id
                     """,
                     hotel_id,
@@ -380,6 +393,7 @@ class RestaurantRepository:
                     end_time,
                     slot.area,
                     reservation_limit,
+                    slot.total_party_size_limit,
                     slot.min_party_size,
                     slot.max_party_size,
                     slot.is_active,
@@ -438,6 +452,8 @@ class RestaurantRepository:
                    rs.is_active,
                    rcw.reservation_limit,
                    rcw.booked_reservations AS window_booked_reservations,
+                   rcw.total_party_size_limit,
+                   rcw.booked_party_size AS window_booked_party_size,
                    rcw.min_party_size,
                    rcw.max_party_size,
                    rcw.date_from AS window_date_from,
@@ -472,12 +488,14 @@ class RestaurantRepository:
                 rs.total_capacity,
                 rs.booked_count,
                 CASE
-                  WHEN rcw.id IS NOT NULL THEN GREATEST(0, rcw.reservation_limit - rcw.booked_reservations)
+                  WHEN rcw.id IS NOT NULL THEN GREATEST(0, LEAST(rcw.reservation_limit - rcw.booked_reservations, COALESCE(rcw.total_party_size_limit - rcw.booked_party_size, rcw.reservation_limit - rcw.booked_reservations)))
                   ELSE (rs.total_capacity - rs.booked_count)
                 END AS capacity_left,
                 rs.is_active,
                 rcw.reservation_limit,
                 rcw.booked_reservations AS window_booked_reservations,
+                rcw.total_party_size_limit,
+                rcw.booked_party_size AS window_booked_party_size,
                 rcw.min_party_size,
                 rcw.max_party_size,
                 rcw.date_from AS window_date_from,
@@ -521,17 +539,23 @@ class RestaurantRepository:
                     raise ValueError("invalid_party_size_range")
                 if update.reservation_limit is not None and int(update.reservation_limit) < int(window["booked_reservations"] or 0):
                     raise ValueError("reservation_limit_below_booked_count")
+                if update.total_party_size_limit is not None:
+                    booked_party_size = int((await fetchrow("SELECT booked_party_size FROM restaurant_capacity_windows WHERE id = $1", int(current["capacity_window_id"]))) ["booked_party_size"] or 0)
+                    if int(update.total_party_size_limit) < booked_party_size:
+                        raise ValueError("party_size_limit_below_booked_total")
                 await execute(
                     """
                     UPDATE restaurant_capacity_windows
                     SET reservation_limit = COALESCE($2, reservation_limit),
-                        min_party_size = COALESCE($3, min_party_size),
-                        max_party_size = COALESCE($4, max_party_size),
-                        is_active = COALESCE($5, is_active)
+                        total_party_size_limit = COALESCE($3, total_party_size_limit),
+                        min_party_size = COALESCE($4, min_party_size),
+                        max_party_size = COALESCE($5, max_party_size),
+                        is_active = COALESCE($6, is_active)
                     WHERE id = $1
                     """,
                     int(current["capacity_window_id"]),
                     update.reservation_limit if update.reservation_limit is not None else update.total_capacity,
+                    update.total_party_size_limit,
                     update.min_party_size,
                     update.max_party_size,
                     update.is_active,

@@ -495,6 +495,7 @@ def render_admin_panel_html() -> str:
               <div class="field"><label>Bitis saati</label><input name="end_time" type="time" required aria-label="Kapasite bitis saati"></div>
               <div class="field"><label>Alan</label><select name="area" aria-label="Yeni slot alani"><option value="outdoor">outdoor</option><option value="indoor">indoor</option></select></div>
               <div class="field"><label>Toplam rezervasyon sayisi</label><input name="reservation_limit" type="number" min="1" required aria-label="Pencere toplam rezervasyon limiti"></div>
+              <div class="field"><label>Toplam kisi sayisi limiti</label><input name="total_party_size_limit" type="number" min="1" required aria-label="Pencere toplam kisi sayisi limiti"></div>
               <div class="field"><label>Min kisi sayisi</label><input name="min_party_size" type="number" min="1" value="1" required aria-label="Minimum kisi sayisi"></div>
               <div class="field"><label>Max kisi sayisi</label><input name="max_party_size" type="number" min="1" value="8" required aria-label="Maksimum kisi sayisi"></div>
               <div class="field"><label>Misafire acik mi?</label><input name="is_active" type="checkbox" checked class="checkbox-field" aria-label="Slot aktif mi"></div>
@@ -514,6 +515,14 @@ def render_admin_panel_html() -> str:
               <div class="field">
                 <label>Maks. gunluk rezervasyon</label>
                 <input name="daily_max_reservations_count" type="number" min="1" value="50" id="dailyCapCount" aria-label="Gunluk maksimum rezervasyon sayisi">
+              </div>
+              <div class="field">
+                <label>Gunluk kisi limiti aktif</label>
+                <label class="toggle-switch"><input type="checkbox" id="dailyPartyCapToggle" name="daily_max_party_size_enabled" aria-label="Gunluk kisi limiti"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="field">
+                <label>Maks. gunluk toplam kisi</label>
+                <input name="daily_max_party_size_count" type="number" min="1" value="200" id="dailyPartyCapCount" aria-label="Gunluk maksimum toplam kisi sayisi">
               </div>
               <div class="field">
                 <label>Min kisi sayisi</label>

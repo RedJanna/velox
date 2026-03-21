@@ -371,6 +371,8 @@ class RestaurantSettingsRepository:
             hotel_id=row["hotel_id"],
             daily_max_reservations_enabled=row["daily_max_reservations_enabled"],
             daily_max_reservations_count=row["daily_max_reservations_count"],
+            daily_max_party_size_enabled=row.get("daily_max_party_size_enabled") or False,
+            daily_max_party_size_count=row.get("daily_max_party_size_count") or 200,
             min_party_size=row.get("min_party_size") or 1,
             max_party_size=row.get("max_party_size") or 8,
             chef_phone=row.get("chef_phone"),
@@ -385,24 +387,30 @@ class RestaurantSettingsRepository:
                 hotel_id,
                 daily_max_reservations_enabled,
                 daily_max_reservations_count,
+                daily_max_party_size_enabled,
+                daily_max_party_size_count,
                 min_party_size,
                 max_party_size,
                 chef_phone
             )
-            VALUES ($1, $2, $3, $4, $5, $6)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (hotel_id)
             DO UPDATE SET
                 daily_max_reservations_enabled = $2,
                 daily_max_reservations_count = $3,
-                min_party_size = $4,
-                max_party_size = $5,
-                chef_phone = $6,
+                daily_max_party_size_enabled = $4,
+                daily_max_party_size_count = $5,
+                min_party_size = $6,
+                max_party_size = $7,
+                chef_phone = $8,
                 updated_at = now()
             RETURNING *
             """,
             hotel_id,
             settings.daily_max_reservations_enabled,
             settings.daily_max_reservations_count,
+            settings.daily_max_party_size_enabled,
+            settings.daily_max_party_size_count,
             settings.min_party_size,
             settings.max_party_size,
             settings.chef_phone,
@@ -411,17 +419,17 @@ class RestaurantSettingsRepository:
             hotel_id=row["hotel_id"],
             daily_max_reservations_enabled=row["daily_max_reservations_enabled"],
             daily_max_reservations_count=row["daily_max_reservations_count"],
+            daily_max_party_size_enabled=row.get("daily_max_party_size_enabled") or False,
+            daily_max_party_size_count=row.get("daily_max_party_size_count") or 200,
             min_party_size=row.get("min_party_size") or 1,
             max_party_size=row.get("max_party_size") or 8,
             chef_phone=row.get("chef_phone"),
             updated_at=row["updated_at"],
         )
 
-    async def check_daily_capacity(self, hotel_id: int, target_date: date) -> dict[str, Any]:
-        """Check if daily capacity allows a new reservation."""
+    async def check_daily_capacity(self, hotel_id: int, target_date: date, new_party_size: int = 0) -> dict[str, Any]:
+        """Check if daily reservation-count and total-party-size limits allow a new reservation."""
         settings = await self.get(hotel_id)
-        if not settings.daily_max_reservations_enabled:
-            return {"allowed": True, "count": 0, "max": 0, "enabled": False}
 
         count = int(
             await fetchval(
@@ -435,11 +443,30 @@ class RestaurantSettingsRepository:
             )
             or 0
         )
+        total_party_size = int(
+            await fetchval(
+                """
+                SELECT COALESCE(SUM(party_size), 0) FROM restaurant_holds
+                WHERE hotel_id = $1 AND date = $2
+                  AND status NOT IN ('IPTAL', 'GELMEDI')
+                """,
+                hotel_id,
+                target_date,
+            )
+            or 0
+        )
+        reservation_allowed = (not settings.daily_max_reservations_enabled) or (count < settings.daily_max_reservations_count)
+        party_allowed = (not settings.daily_max_party_size_enabled) or ((total_party_size + max(0, new_party_size)) <= settings.daily_max_party_size_count)
         return {
-            "allowed": count < settings.daily_max_reservations_count,
+            "allowed": reservation_allowed and party_allowed,
+            "reservation_allowed": reservation_allowed,
+            "party_allowed": party_allowed,
             "count": count,
             "max": settings.daily_max_reservations_count,
-            "enabled": True,
+            "enabled": settings.daily_max_reservations_enabled,
+            "party_size_total": total_party_size,
+            "party_size_max": settings.daily_max_party_size_count,
+            "party_size_enabled": settings.daily_max_party_size_enabled,
         }
 
 

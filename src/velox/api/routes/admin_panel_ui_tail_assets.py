@@ -227,6 +227,8 @@ function renderSlotSummaryCards(items) {
   const totalCapacity = summaryItems.reduce((sum, item) => sum + Number(item.reservation_limit || item.total_capacity || 0), 0);
   const totalBooked = summaryItems.reduce((sum, item) => sum + Number(item.window_booked_reservations || item.booked_count || 0), 0);
   const totalLeft = summaryItems.reduce((sum, item) => sum + Number(item.capacity_left || 0), 0);
+  const totalPartyLimit = summaryItems.reduce((sum, item) => sum + Number(item.total_party_size_limit || 0), 0);
+  const totalPartyBooked = summaryItems.reduce((sum, item) => sum + Number(item.window_booked_party_size || 0), 0);
   const activeCount = summaryItems.filter(item => item.is_active).length;
   const passiveCount = summaryItems.length - activeCount;
   const firstTime = items.map(item => String(item.time || '')).sort()[0] || '-';
@@ -238,7 +240,7 @@ function renderSlotSummaryCards(items) {
       <h4>Kapasite Grafiği</h4>
       <div class="slot-summary-value">${escapeHtml(String(totalLeft))} boş / ${escapeHtml(String(totalCapacity))}</div>
       <div class="slot-progress" aria-label="Kapasite kullanım grafiği"><div class="slot-progress-bar" style="width:${escapeHtml(String(usagePct))}%"></div></div>
-      <div class="slot-summary-meta">Dolu: ${escapeHtml(String(totalBooked))} • Boş yüzdesi: ${escapeHtml(String(freePct))}%</div>
+      <div class="slot-summary-meta">Dolu: ${escapeHtml(String(totalBooked))} • Kişi: ${escapeHtml(String(totalPartyBooked))}/${escapeHtml(String(totalPartyLimit))} • Boş yüzdesi: ${escapeHtml(String(freePct))}%</div>
     </article>
     <article class="slot-summary-card">
       <h4>Ne kadar slot kaldı?</h4>
@@ -264,7 +266,7 @@ function renderSlotRows(items) {
       <td>${escapeHtml(item.date)}</td>
       <td>${escapeHtml(item.time)}</td>
       <td>${escapeHtml(item.area)}</td>
-      <td><strong>${escapeHtml(item.capacity_left)}</strong> kaldı<br><small>${escapeHtml(item.window_booked_reservations ?? item.booked_count)} dolu / ${escapeHtml(item.reservation_limit ?? item.total_capacity)} toplam rezervasyon</small><br><small>Kişi: ${escapeHtml(item.min_party_size ?? 1)}-${escapeHtml(item.max_party_size ?? 8)}</small></td>
+      <td><strong>${escapeHtml(item.capacity_left)}</strong> kaldı<br><small>${escapeHtml(item.window_booked_reservations ?? item.booked_count)} dolu / ${escapeHtml(item.reservation_limit ?? item.total_capacity)} toplam rezervasyon</small><br><small>Toplam kişi: ${escapeHtml(item.window_booked_party_size ?? 0)} / ${escapeHtml(item.total_party_size_limit ?? '-')}</small><br><small>Kişi: ${escapeHtml(item.min_party_size ?? 1)}-${escapeHtml(item.max_party_size ?? 8)}</small></td>
       <td>${item.is_active ? '<span class="pill open">MİSAFİRE AÇIK</span>' : '<span class="pill closed">PASİF</span>'}</td>
       <td>
         <div class="stack">
@@ -323,10 +325,15 @@ async function onCreateSlot(event) {
   }
 
   const reservationLimit = Number(formPayload.reservation_limit);
+  const totalPartySizeLimit = Number(formPayload.total_party_size_limit);
   const minPartySize = Number(formPayload.min_party_size || 1);
   const maxPartySize = Number(formPayload.max_party_size || 8);
   if (!Number.isFinite(reservationLimit) || reservationLimit < 1) {
     notify('Toplam rezervasyon sayısı zorunlu.', 'warn');
+    return;
+  }
+  if (!Number.isFinite(totalPartySizeLimit) || totalPartySizeLimit < 1) {
+    notify('Toplam kişi sayısı limiti zorunlu.', 'warn');
     return;
   }
   if (!Number.isFinite(minPartySize) || minPartySize < 1 || !Number.isFinite(maxPartySize) || maxPartySize < minPartySize) {
@@ -342,6 +349,7 @@ async function onCreateSlot(event) {
     area: formPayload.area,
     total_capacity: reservationLimit,
     reservation_limit: reservationLimit,
+    total_party_size_limit: totalPartySizeLimit,
     min_party_size: minPartySize,
     max_party_size: maxPartySize,
     is_active: formPayload.is_active === 'on',

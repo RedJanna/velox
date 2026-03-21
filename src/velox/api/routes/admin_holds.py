@@ -646,6 +646,10 @@ async def update_restaurant_settings(
         current.daily_max_reservations_enabled = body.daily_max_reservations_enabled
     if body.daily_max_reservations_count is not None:
         current.daily_max_reservations_count = body.daily_max_reservations_count
+    if body.daily_max_party_size_enabled is not None:
+        current.daily_max_party_size_enabled = body.daily_max_party_size_enabled
+    if body.daily_max_party_size_count is not None:
+        current.daily_max_party_size_count = body.daily_max_party_size_count
     if body.min_party_size is not None:
         current.min_party_size = body.min_party_size
     if body.max_party_size is not None:
