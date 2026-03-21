@@ -170,7 +170,6 @@ def get_tool_definitions() -> list[dict[str, Any]]:
                     "date": {"type": "string", "format": "date"},
                     "time": {"type": "string"},
                     "party_size": {"type": "integer"},
-                    "area": {"type": "string", "enum": ["indoor", "outdoor"]},
                     "notes": {"type": "string"},
                 },
                 "required": ["hotel_id", "date", "time", "party_size"],

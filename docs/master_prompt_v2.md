@@ -413,7 +413,7 @@ Input/Output: reservation-id (ve update alanlari/reason) uzerinden
 
 #### TOOL: restaurant.availability
 Input:
-{"hotel_id":21966, "date":"YYYY-MM-DD", "time":"HH:MM", "party_size":4, "area?":"indoor|outdoor", "notes?":"..."}
+{"hotel_id":21966, "date":"YYYY-MM-DD", "time":"HH:MM", "party_size":4, "notes?":"..."}
 Output:
 {"available": true, "options":[{"slot_id":"SLOT_1","time":"20:00","capacity_left":2}], "notes?":"..."}
 

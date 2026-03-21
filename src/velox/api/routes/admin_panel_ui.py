@@ -507,7 +507,6 @@ def render_admin_panel_html() -> str:
               <div class="field"><label>Tarih bitis</label><input name="date_to" type="date" required aria-label="Silme bitis tarihi"></div>
               <div class="field"><label>Baslangic saati</label><input name="start_time" type="time" required aria-label="Silme baslangic saati"></div>
               <div class="field"><label>Bitis saati</label><input name="end_time" type="time" required aria-label="Silme bitis saati"></div>
-              <div class="field"><label>Alan</label><select name="area" aria-label="Silinecek slot alani"><option value="">Tum alanlar</option><option value="outdoor">outdoor</option><option value="indoor">indoor</option></select></div>
               <div class="field full">
                 <label>Haftanin gunleri</label>
                 <div class="checkbox-group" id="slotDeleteWeekdays">
@@ -534,8 +533,7 @@ def render_admin_panel_html() -> str:
               <div class="field"><label>Tarih bitis</label><input name="date_to" type="date" required aria-label="Kapasite bitis tarihi"></div>
               <div class="field"><label>Baslangic saati</label><input name="start_time" type="time" required aria-label="Kapasite baslangic saati"></div>
               <div class="field"><label>Bitis saati</label><input name="end_time" type="time" required aria-label="Kapasite bitis saati"></div>
-              <div class="field"><label>Alan</label><select name="area" aria-label="Yeni slot alani"><option value="outdoor">outdoor</option><option value="indoor">indoor</option></select></div>
-              <div class="field"><label>Toplam rezervasyon sayisi</label><input name="reservation_limit" type="number" min="1" required aria-label="Pencere toplam rezervasyon limiti"></div>
+                            <div class="field"><label>Toplam rezervasyon sayisi</label><input name="reservation_limit" type="number" min="1" required aria-label="Pencere toplam rezervasyon limiti"></div>
               <div class="field"><label>Toplam kisi sayisi limiti</label><input name="total_party_size_limit" type="number" min="1" required aria-label="Pencere toplam kisi sayisi limiti"></div>
               <div class="field"><label>Min kisi sayisi</label><input name="min_party_size" type="number" min="1" value="1" required aria-label="Minimum kisi sayisi"></div>
               <div class="field"><label>Max kisi sayisi</label><input name="max_party_size" type="number" min="1" value="8" required aria-label="Maksimum kisi sayisi"></div>
@@ -703,7 +701,6 @@ def render_admin_panel_html() -> str:
                 <div class="field"><label>Telefon</label><span id="tdPhone" class="readonly-field"></span></div>
                 <div class="field"><label>Kisi Sayisi</label><input id="tdPartySize" name="party_size" type="number" min="1" aria-label="Kisi sayisi"></div>
                 <div class="field"><label>Saat</label><input id="tdTime" name="time" type="time" aria-label="Rezervasyon saati"></div>
-                <div class="field"><label>Alan</label><select id="tdArea" name="area" aria-label="Alan"><option value="outdoor">Acik Hava</option><option value="indoor">Kapali Alan</option></select></div>
                 <div class="field full"><label>Notlar</label><textarea id="tdNotes" name="notes" maxlength="500" rows="2" aria-label="Notlar"></textarea></div>
                 <div class="readonly-info">
                   <p>Hold ID: <span id="tdHoldId"></span></p>

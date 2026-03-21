@@ -939,12 +939,10 @@ function initTableDetailDialog(){
     var gn = document.getElementById('tdGuestName').value.trim();
     var ps = parseInt(document.getElementById('tdPartySize').value,10);
     var tm = document.getElementById('tdTime').value;
-    var ar = document.getElementById('tdArea').value;
     var nt = document.getElementById('tdNotes').value.trim();
     if(gn) updateBody.guest_name = gn;
     if(ps > 0) updateBody.party_size = ps;
     if(tm) updateBody.time = tm;
-    if(ar) updateBody.area = ar;
     if(nt !== undefined) updateBody.notes = nt;
 
     try{

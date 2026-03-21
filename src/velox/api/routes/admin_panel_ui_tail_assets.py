@@ -390,7 +390,6 @@ async function onDeleteSlots(event) {
     end_time: endTime,
   };
   if (weekdays.length) payload.weekdays = weekdays;
-  if (area) payload.area = area;
 
   try {
     const response = await apiFetch(`/hotels/${state.selectedHotelId}/restaurant/slots`, {

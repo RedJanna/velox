@@ -25,6 +25,21 @@ ADMIN_HOLDS_STYLE = """\
 .creation-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
 .toggle-mode{display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--surface-2);margin-bottom:14px}
 .toggle-mode label{font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:8px}
+.wizard-loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:40px 20px;color:var(--muted);font-size:14px;font-weight:600}
+.wizard-loading::before{content:'';width:20px;height:20px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:wizSpin .7s linear infinite}
+@keyframes wizSpin{to{transform:rotate(360deg)}}
+.wizard-error{padding:18px;border-radius:var(--radius-sm);background:rgba(180,35,24,.06);border:1px solid rgba(180,35,24,.18);color:var(--danger);font-size:13px;font-weight:600}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.summary-card{border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px;background:var(--surface)}
+.summary-card h4{font-size:13px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;margin:0 0 10px 0}
+.summary-card .row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px}
+.summary-card .row:last-child{border-bottom:none}
+.summary-card .row .label{color:var(--muted);font-weight:600}
+.summary-card .row .value{font-weight:700;color:var(--ink)}
+.summary-total{margin-top:14px;padding:14px 18px;border-radius:var(--radius-sm);background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;display:flex;justify-content:space-between;align-items:center}
+.summary-total .total-label{font-size:14px;font-weight:700}
+.summary-total .total-value{font-family:var(--mono);font-size:22px;font-weight:900}
+@media(max-width:980px){.summary-grid{grid-template-columns:1fr}.room-card-grid{grid-template-columns:1fr}}
 """
 
 ADMIN_HOLDS_SCRIPT = """\
@@ -188,16 +203,15 @@ function formatHoldSummary(item) {
 // Tab Management
 // ---------------------------------------------------------------------------
 function switchHoldsTab(tab) {
-  state.activeHoldsTab = tab;
+  state.activeHoldsTab = tab === 'restaurant' ? 'stay' : tab;
   document.querySelectorAll('[data-holds-tab]').forEach(function(btn) {
-    btn.classList.toggle('is-active', btn.dataset.holdsTab === tab);
+    btn.classList.toggle('is-active', btn.dataset.holdsTab === state.activeHoldsTab);
   });
   document.querySelectorAll('[data-holds-panel]').forEach(function(panel) {
-    panel.hidden = panel.dataset.holdsPanel !== tab;
+    panel.hidden = panel.dataset.holdsPanel !== state.activeHoldsTab;
   });
-  if (tab === 'stay') loadStayHolds();
-  if (tab === 'restaurant') loadRestaurantHolds();
-  if (tab === 'transfer') loadTransferHolds();
+  if (state.activeHoldsTab === 'stay') loadStayHolds();
+  if (state.activeHoldsTab === 'transfer') loadTransferHolds();
 }
 
 // ---------------------------------------------------------------------------
@@ -280,7 +294,9 @@ function renderStayHoldDetail(item) {
     + '</div>';
 }
 
-// Stay creation wizard
+// Stay creation wizard — 3-step direct flow (no availability query)
+var STAY_WIZARD_LABELS = ['Misafir', 'Detay', 'Ozet'];
+
 function toggleStayCreatePanel() {
   var panel = document.getElementById('stayHoldCreatePanel');
   if (!panel) return;
@@ -288,7 +304,27 @@ function toggleStayCreatePanel() {
   if (!panel.hidden) {
     state.stayWizardStep = 1;
     state.stayWizardUseExisting = false;
+    state.stayDraft = {};
+    state.stayProfileRoomTypes = [];
+    state.stayWizardReprocessHoldId = null;
+    loadStayProfileRoomTypes();
     renderStayWizardStep();
+  }
+}
+
+// Load room types from hotel profile (cached per hotel)
+async function loadStayProfileRoomTypes() {
+  try {
+    var resp = await apiFetch('/elektraweb/room-types?hotel_id=' + encodeURIComponent(state.selectedHotelId));
+    state.stayProfileRoomTypes = (resp.room_types || []).map(function(r) {
+      return {
+        pms_room_type_id: r.pms_room_type_id,
+        name: (r.name && r.name.tr) || r.name || 'Oda',
+        max_pax: r.max_pax || 0,
+      };
+    });
+  } catch (e) {
+    state.stayProfileRoomTypes = [];
   }
 }
 
@@ -297,41 +333,102 @@ function renderStayWizardStep() {
   var bodyEl = document.getElementById('stayWizardBody');
   if (!stepsEl || !bodyEl) return;
   var step = state.stayWizardStep || 1;
-  var labels = ['Misafir', 'Detay', 'Fiyat'];
-  stepsEl.innerHTML = labels.map(function(l, i) {
+  stepsEl.innerHTML = STAY_WIZARD_LABELS.map(function(l, i) {
     var cls = (i + 1) === step ? 'is-active' : ((i + 1) < step ? 'is-done' : '');
     return '<div class="wizard-step ' + cls + '" data-stay-wizard-step="' + (i + 1) + '">' + escapeHtml((i + 1) + '. ' + l) + '</div>';
   }).join('');
 
-  if (step === 1) {
-    bodyEl.innerHTML = '<div class="toggle-mode"><label><input type="checkbox" id="stayUseExisting" ' + (state.stayWizardUseExisting ? 'checked' : '') + '> Mevcut rezervasyonu kullan</label></div>'
-      + '<div class="field-grid">'
-      + (state.stayWizardUseExisting
-        ? '<div class="field full"><label>Rezervasyon Numarasi</label><input id="stayLookupResNo" placeholder="VLX-..." aria-label="Mevcut rezervasyon numarasi"></div>'
-        : '<div class="field"><label>Misafir Adi</label><input id="stayGuestName" value="' + escapeHtml(state.stayDraft?.guest_name || '') + '" aria-label="Misafir adi"></div>'
-          + '<div class="field"><label>Telefon</label><input id="stayPhone" value="' + escapeHtml(state.stayDraft?.phone || '') + '" placeholder="+905..." aria-label="Telefon"></div>')
-      + '</div>'
-      + '<div class="wizard-nav">'
-      + (state.stayWizardUseExisting
-        ? '<button class="inline-button primary" type="button" data-stay-lookup-action aria-label="Rezervasyon ara">Rezervasyonu Ara</button>'
-        : '<span></span><button class="inline-button primary" type="button" data-stay-wizard-next aria-label="Sonraki adim">Sonraki</button>')
-      + '</div>';
-  } else if (step === 2) {
-    bodyEl.innerHTML = '<div class="field-grid">'
-      + '<div class="field"><label>Giris Tarihi</label><input id="stayCheckin" type="date" value="' + escapeHtml(state.stayDraft?.checkin_date || '') + '" aria-label="Giris tarihi"></div>'
-      + '<div class="field"><label>Cikis Tarihi</label><input id="stayCheckout" type="date" value="' + escapeHtml(state.stayDraft?.checkout_date || '') + '" aria-label="Cikis tarihi"></div>'
-      + '<div class="field"><label>Yetiskin</label><input id="stayAdults" type="number" min="1" value="' + escapeHtml(String(state.stayDraft?.adults || 1)) + '" aria-label="Yetiskin sayisi"></div>'
-      + '<div class="field"><label>Cocuk Yaslari (virgul ile)</label><input id="stayChdAges" value="' + escapeHtml((state.stayDraft?.chd_ages || []).join(',')) + '" placeholder="4,8" aria-label="Cocuk yaslari"></div>'
-      + '</div>'
-      + '<div class="wizard-nav"><button class="inline-button secondary" type="button" data-stay-wizard-prev aria-label="Onceki adim">Geri</button><button class="inline-button primary" type="button" data-stay-wizard-next aria-label="Sonraki adim">Sonraki</button></div>';
-  } else if (step === 3) {
-    bodyEl.innerHTML = '<div class="field-grid">'
-      + '<div class="field"><label>Toplam Fiyat (EUR)</label><input id="stayPrice" type="number" step="0.01" min="0" value="' + escapeHtml(String(state.stayDraft?.total_price_eur || '')) + '" aria-label="Toplam fiyat"></div>'
-      + '<div class="field"><label>Iptal Politikasi</label><select id="stayCancelPolicy" aria-label="Iptal politikasi"><option value="FREE_CANCEL" ' + (state.stayDraft?.cancel_policy_type === 'FREE_CANCEL' ? 'selected' : '') + '>Ucretsiz Iptal</option><option value="NON_REFUNDABLE" ' + (state.stayDraft?.cancel_policy_type === 'NON_REFUNDABLE' ? 'selected' : '') + '>Iade Edilmez</option></select></div>'
-      + '<div class="field full"><label>Notlar</label><textarea id="stayNotes" rows="2" aria-label="Notlar">' + escapeHtml(state.stayDraft?.notes || '') + '</textarea></div>'
-      + '</div>'
-      + '<div class="wizard-nav"><button class="inline-button secondary" type="button" data-stay-wizard-prev aria-label="Onceki adim">Geri</button><button class="inline-button primary" type="button" data-stay-submit-action aria-label="Rezervasyon olustur">' + (state.stayWizardUseExisting ? 'Yeniden Islem Baslat' : 'Rezervasyon Olustur') + '</button></div>';
+  if (step === 1) renderStayWizardGuest(bodyEl);
+  else if (step === 2) renderStayWizardDetails(bodyEl);
+  else if (step === 3) renderStayWizardSummary(bodyEl);
+}
+
+// Step 1 — Misafir bilgileri
+function renderStayWizardGuest(bodyEl) {
+  var d = state.stayDraft || {};
+  bodyEl.innerHTML = '<div class="toggle-mode"><label><input type="checkbox" id="stayUseExisting" ' + (state.stayWizardUseExisting ? 'checked' : '') + '> Mevcut rezervasyonu kullan</label></div>'
+    + '<div class="field-grid">'
+    + (state.stayWizardUseExisting
+      ? '<div class="field full"><label>Rezervasyon Numarasi</label><input id="stayLookupResNo" placeholder="VLX-21966-..." aria-label="Mevcut rezervasyon numarasi"></div>'
+      : '<div class="field"><label>Misafir Adi *</label><input id="stayGuestName" value="' + escapeHtml(d.guest_name || '') + '" aria-label="Misafir adi"></div>'
+        + '<div class="field"><label>Telefon *</label><input id="stayPhone" value="' + escapeHtml(d.phone || '') + '" placeholder="+905..." aria-label="Telefon"></div>'
+        + '<div class="field"><label>E-posta</label><input id="stayEmail" type="email" value="' + escapeHtml(d.email || '') + '" placeholder="misafir@ornek.com" aria-label="E-posta"></div>'
+        + '<div class="field"><label>Uyruk</label><select id="stayNationality" aria-label="Uyruk"><option value="TR"' + ((d.nationality || 'TR') === 'TR' ? ' selected' : '') + '>TR - Turkiye</option><option value="GB"' + (d.nationality === 'GB' ? ' selected' : '') + '>GB - Ingiltere</option><option value="DE"' + (d.nationality === 'DE' ? ' selected' : '') + '>DE - Almanya</option><option value="RU"' + (d.nationality === 'RU' ? ' selected' : '') + '>RU - Rusya</option><option value="NL"' + (d.nationality === 'NL' ? ' selected' : '') + '>NL - Hollanda</option><option value="US"' + (d.nationality === 'US' ? ' selected' : '') + '>US - ABD</option><option value="OTHER"' + (d.nationality === 'OTHER' ? ' selected' : '') + '>Diger</option></select></div>')
+    + '</div>'
+    + '<div class="wizard-nav">'
+    + (state.stayWizardUseExisting
+      ? '<button class="inline-button primary" type="button" data-stay-lookup-action aria-label="Rezervasyon ara">Rezervasyonu Ara</button>'
+      : '<span></span><button class="inline-button primary" type="button" data-stay-wizard-next aria-label="Sonraki adim">Sonraki</button>')
+    + '</div>';
+}
+
+// Step 2 — Detay: tarih, kisi, oda tipi, pansiyon, fiyat, iptal politikasi
+function renderStayWizardDetails(bodyEl) {
+  var d = state.stayDraft || {};
+  var today = new Date().toISOString().split('T')[0];
+  var rooms = state.stayProfileRoomTypes || [];
+  var roomOpts = '<option value="">-- Oda tipi secin --</option>' + rooms.map(function(r) {
+    var sel = String(d.room_type_id) === String(r.pms_room_type_id) ? ' selected' : '';
+    return '<option value="' + escapeHtml(String(r.pms_room_type_id)) + '"' + sel + '>' + escapeHtml(r.name) + ' (max ' + escapeHtml(String(r.max_pax)) + ')</option>';
+  }).join('');
+  var boardOpts = '<option value="BB"' + ((d.board_type || 'BB') === 'BB' ? ' selected' : '') + '>Oda Kahvalti (BB)</option>'
+    + '<option value="HB"' + (d.board_type === 'HB' ? ' selected' : '') + '>Yarim Pansiyon (HB)</option>'
+    + '<option value="FB"' + (d.board_type === 'FB' ? ' selected' : '') + '>Tam Pansiyon (FB)</option>'
+    + '<option value="AI"' + (d.board_type === 'AI' ? ' selected' : '') + '>Her Sey Dahil (AI)</option>'
+    + '<option value="RO"' + (d.board_type === 'RO' ? ' selected' : '') + '>Sadece Oda (RO)</option>';
+  var cancelOpts = '<option value="FREE_CANCEL"' + ((d.cancel_policy_type || 'FREE_CANCEL') === 'FREE_CANCEL' ? ' selected' : '') + '>Ucretsiz Iptal</option>'
+    + '<option value="NON_REFUNDABLE"' + (d.cancel_policy_type === 'NON_REFUNDABLE' ? ' selected' : '') + '>Iade Edilmez</option>';
+  bodyEl.innerHTML = '<div class="field-grid">'
+    + '<div class="field"><label>Giris Tarihi *</label><input id="stayCheckin" type="date" min="' + escapeHtml(today) + '" value="' + escapeHtml(d.checkin_date || '') + '" aria-label="Giris tarihi"></div>'
+    + '<div class="field"><label>Cikis Tarihi *</label><input id="stayCheckout" type="date" min="' + escapeHtml(today) + '" value="' + escapeHtml(d.checkout_date || '') + '" aria-label="Cikis tarihi"></div>'
+    + '<div class="field"><label>Yetiskin *</label><input id="stayAdults" type="number" min="1" max="6" value="' + escapeHtml(String(d.adults || 1)) + '" aria-label="Yetiskin sayisi"></div>'
+    + '<div class="field"><label>Cocuk Yaslari (virgul ile)</label><input id="stayChdAges" value="' + escapeHtml((d.chd_ages || []).join(',')) + '" placeholder="4,8" aria-label="Cocuk yaslari"></div>'
+    + '<div class="field"><label>Oda Tipi *</label><select id="stayRoomType" aria-label="Oda tipi">' + roomOpts + '</select></div>'
+    + '<div class="field"><label>Pansiyon Tipi</label><select id="stayBoardType" aria-label="Pansiyon tipi">' + boardOpts + '</select></div>'
+    + '<div class="field"><label>Iptal Politikasi</label><select id="stayCancelPolicy" aria-label="Iptal politikasi">' + cancelOpts + '</select></div>'
+    + '<div class="field"><label>Toplam Fiyat (EUR) *</label><input id="stayTotalPrice" type="number" min="0" step="0.01" value="' + escapeHtml(String(d.total_price_eur || '')) + '" placeholder="0.00" aria-label="Toplam fiyat EUR"></div>'
+    + '</div>'
+    + '<div class="wizard-nav"><button class="inline-button secondary" type="button" data-stay-wizard-prev aria-label="Onceki adim">Geri</button><button class="inline-button primary" type="button" data-stay-wizard-next aria-label="Ozete git">Ozet</button></div>';
+}
+
+// Step 3 — Ozet & olustur
+function renderStayWizardSummary(bodyEl) {
+  var d = state.stayDraft || {};
+  var rooms = state.stayProfileRoomTypes || [];
+  var selectedRoom = rooms.find(function(r) { return String(r.pms_room_type_id) === String(d.room_type_id); });
+  var roomName = selectedRoom ? selectedRoom.name : '-';
+  var boardLabels = {BB: 'Oda Kahvalti', HB: 'Yarim Pansiyon', FB: 'Tam Pansiyon', AI: 'Her Sey Dahil', RO: 'Sadece Oda'};
+  var cancelLabels = {FREE_CANCEL: 'Ucretsiz Iptal', NON_REFUNDABLE: 'Iade Edilmez'};
+
+  function sRow(label, value) {
+    return '<div class="row"><span class="label">' + escapeHtml(label) + '</span><span class="value">' + escapeHtml(String(value || '-')) + '</span></div>';
   }
+
+  bodyEl.innerHTML = '<div class="summary-grid">'
+    + '<div class="summary-card"><h4>Misafir</h4>'
+    + sRow('Ad Soyad', d.guest_name)
+    + sRow('Telefon', d.phone)
+    + sRow('E-posta', d.email || '-')
+    + sRow('Uyruk', d.nationality || 'TR')
+    + '</div>'
+    + '<div class="summary-card"><h4>Konaklama</h4>'
+    + sRow('Giris', d.checkin_date)
+    + sRow('Cikis', d.checkout_date)
+    + sRow('Yetiskin', d.adults || 1)
+    + sRow('Cocuk', d.chd_ages && d.chd_ages.length ? d.chd_ages.join(', ') + ' yas' : 'Yok')
+    + '</div>'
+    + '<div class="summary-card"><h4>Oda</h4>'
+    + sRow('Oda Tipi', roomName)
+    + sRow('Pansiyon', boardLabels[d.board_type] || d.board_type || '-')
+    + sRow('Iptal Politikasi', cancelLabels[d.cancel_policy_type] || d.cancel_policy_type || '-')
+    + '</div>'
+    + '<div class="summary-card"><h4>Notlar</h4>'
+    + '<div class="field full" style="margin-top:4px"><textarea id="stayNotes" rows="3" aria-label="Notlar" style="width:100%;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:8px">' + escapeHtml(d.notes || '') + '</textarea></div>'
+    + '</div>'
+    + '</div>'
+    + '<div class="summary-total"><span class="total-label">Toplam Tutar</span><span class="total-value">' + escapeHtml(String(d.total_price_eur || 0)) + ' EUR</span></div>'
+    + '<div class="wizard-nav"><button class="inline-button secondary" type="button" data-stay-wizard-prev>Geri</button>'
+    + '<button class="inline-button primary" type="button" data-stay-submit-action>' + (state.stayWizardUseExisting ? 'Yeniden Islem Baslat' : 'Rezervasyon Olustur') + '</button></div>';
 }
 
 function collectStayDraftFromStep(step) {
@@ -339,23 +436,35 @@ function collectStayDraftFromStep(step) {
   if (step === 1 && !state.stayWizardUseExisting) {
     var nameEl = document.getElementById('stayGuestName');
     var phoneEl = document.getElementById('stayPhone');
+    var emailEl = document.getElementById('stayEmail');
+    var natEl = document.getElementById('stayNationality');
     if (nameEl) state.stayDraft.guest_name = nameEl.value.trim();
     if (phoneEl) state.stayDraft.phone = phoneEl.value.trim();
+    if (emailEl) state.stayDraft.email = emailEl.value.trim();
+    if (natEl) state.stayDraft.nationality = natEl.value;
   } else if (step === 2) {
     var ciEl = document.getElementById('stayCheckin');
     var coEl = document.getElementById('stayCheckout');
     var adEl = document.getElementById('stayAdults');
     var chEl = document.getElementById('stayChdAges');
+    var rtEl = document.getElementById('stayRoomType');
+    var btEl = document.getElementById('stayBoardType');
+    var cpEl = document.getElementById('stayCancelPolicy');
+    var prEl = document.getElementById('stayTotalPrice');
     if (ciEl) state.stayDraft.checkin_date = ciEl.value;
     if (coEl) state.stayDraft.checkout_date = coEl.value;
     if (adEl) state.stayDraft.adults = Number(adEl.value) || 1;
     if (chEl) state.stayDraft.chd_ages = chEl.value.split(',').map(function(v) { return parseInt(v.trim(), 10); }).filter(function(v) { return !isNaN(v); });
+    if (rtEl) state.stayDraft.room_type_id = rtEl.value;
+    if (btEl) state.stayDraft.board_type = btEl.value;
+    if (cpEl) state.stayDraft.cancel_policy_type = cpEl.value;
+    if (prEl) state.stayDraft.total_price_eur = Number(prEl.value) || 0;
+    // Resolve room type name for payload
+    var rooms = state.stayProfileRoomTypes || [];
+    var matchedRoom = rooms.find(function(r) { return String(r.pms_room_type_id) === String(state.stayDraft.room_type_id); });
+    state.stayDraft.room_type_name = matchedRoom ? matchedRoom.name : '';
   } else if (step === 3) {
-    var priceEl = document.getElementById('stayPrice');
-    var policyEl = document.getElementById('stayCancelPolicy');
     var notesEl = document.getElementById('stayNotes');
-    if (priceEl) state.stayDraft.total_price_eur = Number(priceEl.value) || 0;
-    if (policyEl) state.stayDraft.cancel_policy_type = policyEl.value;
     if (notesEl) state.stayDraft.notes = notesEl.value.trim();
   }
 }
@@ -385,11 +494,10 @@ async function submitStayHold() {
   var draft = state.stayDraft || {};
   if (!draft.guest_name) { notify('Misafir adi zorunlu.', 'warn'); return; }
   if (!draft.checkin_date || !draft.checkout_date) { notify('Tarih alanlari zorunlu.', 'warn'); return; }
-  if (!draft.total_price_eur || draft.total_price_eur <= 0) { notify('Gecerli bir fiyat girin.', 'warn'); return; }
 
   if (state.stayWizardUseExisting && state.stayWizardReprocessHoldId) {
     try {
-      await apiFetch('/holds/' + encodeURIComponent(state.stayWizardReprocessHoldId) + '/approve', {method: 'POST', body: {notes: ''}});
+      await apiFetch('/holds/' + encodeURIComponent(state.stayWizardReprocessHoldId) + '/approve?force=true', {method: 'POST', body: {notes: ''}});
       notify('Hold yeniden isleme alindi.', 'success');
       toggleStayCreatePanel();
       loadStayHolds();
@@ -400,17 +508,34 @@ async function submitStayHold() {
     return;
   }
 
+  var totalPrice = Number(draft.total_price_eur || 0);
+  if (!totalPrice || totalPrice <= 0) { notify('Gecerli bir fiyat girin.', 'warn'); return; }
+  if (!draft.room_type_id) { notify('Oda tipi secin.', 'warn'); return; }
+
+  // Resolve rate mapping from cancel policy
+  var rateMapping = {FREE_CANCEL: {rate_type_id: 24178, rate_code_id: 183666}, NON_REFUNDABLE: {rate_type_id: 24171, rate_code_id: 183659}};
+  var selectedRate = rateMapping[draft.cancel_policy_type] || rateMapping.FREE_CANCEL;
+
   try {
     var payload = {
       hotel_id: Number(state.selectedHotelId),
       guest_name: draft.guest_name,
       phone: draft.phone || '',
+      email: draft.email || '',
+      nationality: draft.nationality || 'TR',
       checkin_date: draft.checkin_date,
       checkout_date: draft.checkout_date,
       adults: draft.adults || 1,
       chd_ages: draft.chd_ages || [],
-      total_price_eur: draft.total_price_eur,
+      total_price_eur: totalPrice,
+      room_type_id: Number(draft.room_type_id) || 0,
+      board_type_id: 2,
+      rate_type_id: selectedRate.rate_type_id,
+      rate_code_id: selectedRate.rate_code_id,
+      price_agency_id: null,
       cancel_policy_type: draft.cancel_policy_type || 'FREE_CANCEL',
+      room_type_name: draft.room_type_name || '',
+      board_type_name: draft.board_type || 'BB',
       notes: draft.notes || '',
     };
     var result = await apiFetch('/holds/stay/create', {method: 'POST', body: payload});
@@ -503,7 +628,6 @@ async function submitRestaurantHold(event) {
     party_size: Number(form.party_size.value) || 1,
     guest_name: form.guest_name.value.trim(),
     phone: form.phone.value.trim(),
-    area: form.area ? form.area.value : '',
     notes: form.notes ? form.notes.value.trim() : '',
   };
   if (!payload.guest_name) { notify('Misafir adi zorunlu.', 'warn'); return; }
@@ -648,8 +772,20 @@ function handleHoldsModuleClick(target) {
     return true;
   }
   if (target.hasAttribute('data-stay-wizard-next')) {
-    collectStayDraftFromStep(state.stayWizardStep || 1);
-    state.stayWizardStep = (state.stayWizardStep || 1) + 1;
+    var curStep = state.stayWizardStep || 1;
+    collectStayDraftFromStep(curStep);
+    var d = state.stayDraft || {};
+    if (curStep === 1 && !state.stayWizardUseExisting) {
+      if (!d.guest_name) { notify('Misafir adi zorunlu.', 'warn'); return true; }
+      if (!d.phone) { notify('Telefon numarasi zorunlu.', 'warn'); return true; }
+    }
+    if (curStep === 2) {
+      if (!d.checkin_date || !d.checkout_date) { notify('Giris ve cikis tarihlerini girin.', 'warn'); return true; }
+      if (d.checkout_date <= d.checkin_date) { notify('Cikis tarihi giris tarihinden sonra olmali.', 'warn'); return true; }
+      if (!d.room_type_id) { notify('Oda tipi secin.', 'warn'); return true; }
+      if (!d.total_price_eur || d.total_price_eur <= 0) { notify('Gecerli bir fiyat girin.', 'warn'); return true; }
+    }
+    state.stayWizardStep = curStep + 1;
     renderStayWizardStep();
     return true;
   }

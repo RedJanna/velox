@@ -30,71 +30,41 @@ class RestaurantRepository:
         party_size: int,
         area: str | None = None,
     ) -> list[RestaurantSlot]:
-        """Query active slots matching the requested minute and window constraints."""
-        if area:
-            rows = await fetch(
-                """
-                SELECT
-                    rs.id AS slot_id,
-                    rs.time,
-                    GREATEST(0, LEAST(rcw.reservation_limit - rcw.booked_reservations, COALESCE(rcw.total_party_size_limit - rcw.booked_party_size, rcw.reservation_limit - rcw.booked_reservations))) AS capacity_left
-                FROM restaurant_slots rs
-                LEFT JOIN restaurant_capacity_windows rcw ON rcw.id = rs.capacity_window_id
-                WHERE rs.hotel_id = $1
-                  AND rs.date = $2
-                  AND rs.time = $3
-                  AND rs.is_active = true
-                  AND rs.area = $4
-                  AND (
-                        rcw.id IS NULL
-                        OR (
-                            rcw.is_active = true
-                            AND rs.date BETWEEN rcw.date_from AND rcw.date_to
-                            AND rs.time BETWEEN rcw.start_time AND rcw.end_time
-                            AND $5 BETWEEN rcw.min_party_size AND rcw.max_party_size
-                            AND rcw.booked_reservations < rcw.reservation_limit
-                            AND COALESCE(rcw.booked_party_size, 0) + $5 <= COALESCE(rcw.total_party_size_limit, 2147483647)
-                        )
-                  )
-                ORDER BY rs.time ASC
-                """,
-                hotel_id,
-                target_date,
-                target_time,
-                area,
-                party_size,
-            )
-        else:
-            rows = await fetch(
-                """
-                SELECT
-                    rs.id AS slot_id,
-                    rs.time,
-                    GREATEST(0, LEAST(rcw.reservation_limit - rcw.booked_reservations, COALESCE(rcw.total_party_size_limit - rcw.booked_party_size, rcw.reservation_limit - rcw.booked_reservations))) AS capacity_left
-                FROM restaurant_slots rs
-                LEFT JOIN restaurant_capacity_windows rcw ON rcw.id = rs.capacity_window_id
-                WHERE rs.hotel_id = $1
-                  AND rs.date = $2
-                  AND rs.time = $3
-                  AND rs.is_active = true
-                  AND (
-                        rcw.id IS NULL
-                        OR (
-                            rcw.is_active = true
-                            AND rs.date BETWEEN rcw.date_from AND rcw.date_to
-                            AND rs.time BETWEEN rcw.start_time AND rcw.end_time
-                            AND $4 BETWEEN rcw.min_party_size AND rcw.max_party_size
-                            AND rcw.booked_reservations < rcw.reservation_limit
-                            AND COALESCE(rcw.booked_party_size, 0) + $4 <= COALESCE(rcw.total_party_size_limit, 2147483647)
-                        )
-                  )
-                ORDER BY rs.time ASC
-                """,
-                hotel_id,
-                target_date,
-                target_time,
-                party_size,
-            )
+        """Query active slots matching the requested minute and window constraints.
+
+        Area is intentionally ignored so restaurant capacity is treated as a single pool.
+        """
+        _ = area
+        rows = await fetch(
+            """
+            SELECT
+                rs.id AS slot_id,
+                rs.time,
+                GREATEST(0, LEAST(rcw.reservation_limit - rcw.booked_reservations, COALESCE(rcw.total_party_size_limit - rcw.booked_party_size, rcw.reservation_limit - rcw.booked_reservations))) AS capacity_left
+            FROM restaurant_slots rs
+            LEFT JOIN restaurant_capacity_windows rcw ON rcw.id = rs.capacity_window_id
+            WHERE rs.hotel_id = $1
+              AND rs.date = $2
+              AND rs.time = $3
+              AND rs.is_active = true
+              AND (
+                    rcw.id IS NULL
+                    OR (
+                        rcw.is_active = true
+                        AND rs.date BETWEEN rcw.date_from AND rcw.date_to
+                        AND rs.time BETWEEN rcw.start_time AND rcw.end_time
+                        AND $4 BETWEEN rcw.min_party_size AND rcw.max_party_size
+                        AND rcw.booked_reservations < rcw.reservation_limit
+                        AND COALESCE(rcw.booked_party_size, 0) + $4 <= COALESCE(rcw.total_party_size_limit, 2147483647)
+                    )
+              )
+            ORDER BY rs.time ASC, rs.id ASC
+            """,
+            hotel_id,
+            target_date,
+            target_time,
+            party_size,
+        )
         return [
             RestaurantSlot(
                 slot_id=str(row["slot_id"]),
