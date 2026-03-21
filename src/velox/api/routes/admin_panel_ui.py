@@ -485,8 +485,10 @@ def render_admin_panel_html() -> str:
                 <option value="2mo">Her 2 ay</option>
               </select>
               <button id="loadSlotsButton" class="primary" type="button" aria-label="Slotlari getir">Slotlari Getir</button>
-              <button id="hideSlotsButton" class="secondary" type="button" aria-label="Slotlari kapat">Slotlari Kapat</button>
             </form>
+            <div class="toolbar" style="margin-top:-4px">
+              <button id="hideSlotsButton" class="inline-button secondary" type="button" aria-label="Slotlari kapat">Slotlari Kapat</button>
+            </div>
             <div id="slotSummaryCards" class="split"></div>
             <div class="table-shell">
               <table>
