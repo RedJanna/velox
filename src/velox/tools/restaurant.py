@@ -17,7 +17,7 @@ from velox.config.constants import (
     resolve_table_type,
 )
 from velox.core.hotel_profile_loader import get_profile
-from velox.db.database import execute
+from velox.db.database import execute, fetchrow
 from velox.db.repositories.hotel import ApprovalRequestRepository, NotificationRepository
 from velox.db.repositories.restaurant import RestaurantRepository
 from velox.db.repositories.restaurant_floor_plan import RestaurantSettingsRepository
@@ -202,21 +202,33 @@ class RestaurantCreateHoldTool(BaseTool):
                 "suggestion": "request_valid_time",
             }
 
-        hold = RestaurantHold(
-            hold_id="",
+        existing = await _find_recent_duplicate_hold(
             hotel_id=hotel_id,
             conversation_id=kwargs.get("conversation_id"),
-            slot_id=selected_slot_id,
-            date=slot_data["date"],
-            time=slot_data["time"],
+            hold_date=slot_data["date"],
+            hold_time=slot_data["time"],
             party_size=party_size,
             guest_name=str(kwargs["guest_name"]),
             phone=str(kwargs["phone"]),
-            area=str(kwargs["area"]) if kwargs.get("area") else None,
-            notes=str(kwargs["notes"]) if kwargs.get("notes") else None,
-            status=RestaurantReservationStatus.BEKLEMEDE,
         )
-        created = await self._restaurant_repository.create_hold(hold)
+        if existing is not None:
+            created = existing
+        else:
+            hold = RestaurantHold(
+                hold_id="",
+                hotel_id=hotel_id,
+                conversation_id=kwargs.get("conversation_id"),
+                slot_id=selected_slot_id,
+                date=slot_data["date"],
+                time=slot_data["time"],
+                party_size=party_size,
+                guest_name=str(kwargs["guest_name"]),
+                phone=str(kwargs["phone"]),
+                area=str(kwargs["area"]) if kwargs.get("area") else None,
+                notes=str(kwargs["notes"]) if kwargs.get("notes") else None,
+                status=RestaurantReservationStatus.BEKLEMEDE,
+            )
+            created = await self._restaurant_repository.create_hold(hold)
 
         # Approval flow / auto-confirm mode
         approval_request_id: str | None = None
@@ -369,6 +381,68 @@ def _is_within_restaurant_hours(profile: Any, target_time: time) -> bool:
         if start <= target_time <= end:
             return True
     return False
+
+
+async def _find_recent_duplicate_hold(
+    *,
+    hotel_id: int,
+    conversation_id: Any,
+    hold_date: _dt.date,
+    hold_time: _dt.time,
+    party_size: int,
+    guest_name: str,
+    phone: str,
+) -> RestaurantHold | None:
+    """Return a recent duplicate hold to make create_hold idempotent across retries."""
+    if conversation_id is None:
+        return None
+    row = await fetchrow(
+        """
+        SELECT *
+        FROM restaurant_holds
+        WHERE hotel_id = $1
+          AND conversation_id = $2
+          AND date = $3
+          AND time = $4
+          AND party_size = $5
+          AND guest_name = $6
+          AND phone = $7
+          AND created_at >= now() - interval '10 minutes'
+          AND status IN ('BEKLEMEDE', 'ONAYLANDI', 'DEGISIKLIK_UYGULA', 'PENDING_APPROVAL')
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        hotel_id,
+        conversation_id,
+        hold_date,
+        hold_time,
+        party_size,
+        guest_name,
+        phone,
+    )
+    if row is None:
+        return None
+    return RestaurantHold(
+        id=row.get("id"),
+        hold_id=row["hold_id"],
+        hotel_id=row["hotel_id"],
+        conversation_id=row.get("conversation_id"),
+        slot_id=str(row["slot_id"]),
+        date=row["date"],
+        time=row["time"],
+        party_size=row["party_size"],
+        guest_name=row["guest_name"],
+        phone=row["phone"],
+        area=row.get("area"),
+        notes=row.get("notes"),
+        status=row["status"],
+        table_type=row.get("table_type"),
+        table_id=row.get("table_id"),
+        approved_by=row.get("approved_by"),
+        approved_at=row.get("approved_at"),
+        rejected_reason=row.get("rejected_reason"),
+        created_at=row.get("created_at"),
+    )
 
 
 def _contains_allergy_notes(notes: str | None) -> bool:
