@@ -11,6 +11,7 @@ import structlog
 
 from velox.config.constants import (
     RESTAURANT_STATUS_TRANSITIONS,
+    RestaurantReservationMode,
     RestaurantReservationStatus,
     resolve_table_type,
 )
@@ -369,6 +370,7 @@ class RestaurantSettingsRepository:
             return RestaurantSettings(hotel_id=hotel_id)
         return RestaurantSettings(
             hotel_id=row["hotel_id"],
+            reservation_mode=RestaurantReservationMode(row.get("reservation_mode") or RestaurantReservationMode.AI_RESTAURAN.value),
             daily_max_reservations_enabled=row["daily_max_reservations_enabled"],
             daily_max_reservations_count=row["daily_max_reservations_count"],
             daily_max_party_size_enabled=row.get("daily_max_party_size_enabled") or False,
@@ -385,6 +387,7 @@ class RestaurantSettingsRepository:
             """
             INSERT INTO restaurant_settings (
                 hotel_id,
+                reservation_mode,
                 daily_max_reservations_enabled,
                 daily_max_reservations_count,
                 daily_max_party_size_enabled,
@@ -393,20 +396,22 @@ class RestaurantSettingsRepository:
                 max_party_size,
                 chef_phone
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             ON CONFLICT (hotel_id)
             DO UPDATE SET
-                daily_max_reservations_enabled = $2,
-                daily_max_reservations_count = $3,
-                daily_max_party_size_enabled = $4,
-                daily_max_party_size_count = $5,
-                min_party_size = $6,
-                max_party_size = $7,
-                chef_phone = $8,
+                reservation_mode = $2,
+                daily_max_reservations_enabled = $3,
+                daily_max_reservations_count = $4,
+                daily_max_party_size_enabled = $5,
+                daily_max_party_size_count = $6,
+                min_party_size = $7,
+                max_party_size = $8,
+                chef_phone = $9,
                 updated_at = now()
             RETURNING *
             """,
             hotel_id,
+            settings.reservation_mode.value,
             settings.daily_max_reservations_enabled,
             settings.daily_max_reservations_count,
             settings.daily_max_party_size_enabled,
@@ -417,6 +422,7 @@ class RestaurantSettingsRepository:
         )
         return RestaurantSettings(
             hotel_id=row["hotel_id"],
+            reservation_mode=RestaurantReservationMode(row.get("reservation_mode") or RestaurantReservationMode.AI_RESTAURAN.value),
             daily_max_reservations_enabled=row["daily_max_reservations_enabled"],
             daily_max_reservations_count=row["daily_max_reservations_count"],
             daily_max_party_size_enabled=row.get("daily_max_party_size_enabled") or False,

@@ -13,6 +13,7 @@ from velox.db.repositories.hotel import (
     NotificationPhoneRepository,
     NotificationRepository,
 )
+from velox.db.repositories.restaurant_floor_plan import RestaurantSettingsRepository
 from velox.tools.base import BaseTool
 from velox.tools.notification import NotifySendTool
 
@@ -95,12 +96,22 @@ class ApprovalRequestTool(BaseTool):
         reference_id: str,
         details_summary: str,
     ) -> None:
-        """Send WhatsApp notification to all active admin phones."""
+        """Send WhatsApp notification to admin phones and chef_phone (for RESTAURANT)."""
         try:
             phones = await self._phone_repo.get_active_phones(hotel_id)
         except Exception:
             logger.warning("approval_whatsapp_phone_list_failed", hotel_id=hotel_id)
             phones = [NotificationPhoneRepository.DEFAULT_PHONE]
+
+        # For RESTAURANT approvals, also notify the chef via WhatsApp
+        if approval_type == "RESTAURANT":
+            try:
+                restaurant_settings = await RestaurantSettingsRepository().get(hotel_id)
+                chef_phone = restaurant_settings.chef_phone
+                if chef_phone and chef_phone.strip() and chef_phone not in phones:
+                    phones.append(chef_phone)
+            except Exception:
+                logger.warning("approval_chef_phone_lookup_failed", hotel_id=hotel_id)
 
         message = (
             f"Yeni onay talebi ({approval_type})\n"
@@ -125,7 +136,7 @@ class ApprovalRequestTool(BaseTool):
     async def _send_alert_with_fallback(self, whatsapp: Any, *, phone: str, message: str) -> None:
         """Send admin alert; reopen chat window with template when required by Meta policy."""
         try:
-            await whatsapp.send_text_message(to=phone, body=message)
+            await whatsapp.send_text_message(to=phone, body=message, force=True)
             return
         except httpx.HTTPStatusError as error:
             if not self._is_session_reopen_error(error):
@@ -137,8 +148,9 @@ class ApprovalRequestTool(BaseTool):
             template_name=_SESSION_REOPEN_TEMPLATE_NAME,
             language=_SESSION_REOPEN_TEMPLATE_LANGUAGE,
             components=[],
+            force=True,
         )
-        await whatsapp.send_text_message(to=phone, body=message)
+        await whatsapp.send_text_message(to=phone, body=message, force=True)
 
     @staticmethod
     def _is_session_reopen_error(error: httpx.HTTPStatusError) -> bool:

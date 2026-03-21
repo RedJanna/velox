@@ -1007,9 +1007,37 @@ function initTableDetailDialog(){
 
 /* ── Restaurant Settings ──────────────────── */
 
+function applyRestaurantModeUI(mode){
+  var normalized = String(mode || 'AI_RESTAURAN').toUpperCase();
+  var aiBtn = document.getElementById('restaurantModeAi');
+  var manualBtn = document.getElementById('restaurantModeManual');
+  if(aiBtn) aiBtn.classList.toggle('is-active', normalized === 'AI_RESTAURAN');
+  if(manualBtn) manualBtn.classList.toggle('is-active', normalized === 'MANUEL');
+  state.restaurantMode = normalized;
+
+  var panel = document.getElementById('restaurantHoldCreatePanel');
+  var createBtn = document.querySelector('[data-action="toggle-restaurant-create"]');
+  if(panel){
+    panel.hidden = normalized === 'MANUEL' ? true : panel.hidden;
+  }
+  if(createBtn){
+    createBtn.disabled = normalized === 'MANUEL';
+    createBtn.title = normalized === 'MANUEL' ? 'Manuel modda panelden rezervasyon olusturma kapali.' : '';
+  }
+}
+
 function initRestaurantSettings(){
   var form = document.getElementById('restaurantSettingsForm');
   if(!form) return;
+
+  var aiBtn = document.getElementById('restaurantModeAi');
+  var manualBtn = document.getElementById('restaurantModeManual');
+  if(aiBtn){
+    aiBtn.addEventListener('click', function(){ applyRestaurantModeUI('AI_RESTAURAN'); });
+  }
+  if(manualBtn){
+    manualBtn.addEventListener('click', function(){ applyRestaurantModeUI('MANUEL'); });
+  }
 
   form.addEventListener('submit', async function(e){
     e.preventDefault();
@@ -1036,6 +1064,7 @@ function initRestaurantSettings(){
           daily_max_reservations_count:count,
           daily_max_party_size_enabled:dailyPartyEnabled,
           daily_max_party_size_count:dailyPartyCount,
+          reservation_mode: state.restaurantMode || 'AI_RESTAURAN',
           min_party_size:minParty,
           max_party_size:maxParty,
           chef_phone:chefPhone
@@ -1061,12 +1090,15 @@ async function loadRestaurantSettings(){
       var dailyPartyCount = document.getElementById('dailyPartyCapCount');
       var minParty = document.getElementById('restaurantMinPartySize');
       var maxParty = document.getElementById('restaurantMaxPartySize');
+      var chefPhone = document.getElementById('restaurantChefPhone');
+      applyRestaurantModeUI(data.settings.reservation_mode || 'AI_RESTAURAN');
       if(toggle) toggle.checked = !!data.settings.daily_max_reservations_enabled;
       if(count) count.value = data.settings.daily_max_reservations_count || 50;
       if(dailyPartyToggle) dailyPartyToggle.checked = !!data.settings.daily_max_party_size_enabled;
       if(dailyPartyCount) dailyPartyCount.value = data.settings.daily_max_party_size_count || 200;
       if(minParty) minParty.value = data.settings.min_party_size || 1;
       if(maxParty) maxParty.value = data.settings.max_party_size || 8;
+      if(chefPhone) chefPhone.value = data.settings.chef_phone || '';
     }
   }catch(e){ /* defaults */ }
 }
@@ -1078,6 +1110,7 @@ function initRestaurantModule(){
   initDailyView();
   initTableDetailDialog();
   initRestaurantSettings();
+  applyRestaurantModeUI('AI_RESTAURAN');
 }
 
 // Hook into navigation

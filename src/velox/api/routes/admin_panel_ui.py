@@ -313,7 +313,13 @@ def render_admin_panel_html() -> str:
               <article class="module-card">
                 <div class="module-header">
                   <div><h3>Restoran Talepleri</h3><p>Restoran rezervasyon onay ve red islemleri.</p></div>
-                  <button class="inline-button primary" data-restaurant-toggle-create aria-label="Yeni restoran rezervasyonu olustur">Yeni Rezervasyon</button>
+                  <div class="stack" style="align-items:flex-end;gap:8px;">
+                    <div class="filter-chips" aria-label="Restoran mod secimi">
+                      <button class="filter-chip is-active" id="restaurantModeAi" type="button">AI Restoran</button>
+                      <button class="filter-chip" id="restaurantModeManual" type="button">Manuel</button>
+                    </div>
+                    <button class="inline-button primary" data-action="toggle-restaurant-create" data-restaurant-toggle-create aria-label="Yeni restoran rezervasyonu olustur">Yeni Rezervasyon</button>
+                  </div>
                 </div>
                 <form id="restaurantHoldFilters" class="toolbar">
                   <div class="filter-chips" id="restaurantStatusChips"></div>
@@ -583,7 +589,13 @@ def render_admin_panel_html() -> str:
             <article class="module-card">
               <div class="module-header">
                 <div><h3>Restoran Talepleri</h3><p>Restoran rezervasyon onay, red ve manuel olusturma islemleri.</p></div>
-                <button class="inline-button primary" data-restaurant-toggle-create aria-label="Yeni restoran rezervasyonu olustur">Yeni Rezervasyon</button>
+                <div class="stack" style="align-items:flex-end;gap:8px;">
+                  <div class="filter-chips" aria-label="Restoran mod secimi">
+                    <button class="filter-chip is-active" id="restaurantModeAi" type="button">AI Restoran</button>
+                    <button class="filter-chip" id="restaurantModeManual" type="button">Manuel</button>
+                  </div>
+                  <button class="inline-button primary" data-action="toggle-restaurant-create" data-restaurant-toggle-create aria-label="Yeni restoran rezervasyonu olustur">Yeni Rezervasyon</button>
+                </div>
               </div>
               <form id="restaurantHoldFilters" class="toolbar">
                 <div class="filter-chips" id="restaurantStatusChips"></div>

@@ -58,9 +58,16 @@ const STATUS_LABELS_TR = {
   'APPROVED': 'Onaylandi',
   'CONFIRMED': 'Tamamlandi',
   'REJECTED': 'Reddedildi',
+  'BEKLEMEDE': 'Onay Bekliyor',
+  'ONAYLANDI': 'Onaylandi',
+  'GELDI': 'Geldi',
+  'GELMEDI': 'Gelmedi',
+  'IPTAL': 'Iptal',
+  'DEGISIKLIK_UYGULA': 'Degisiklik Uygula',
 };
 const STAY_STATUS_KEYS = ['', 'PENDING_APPROVAL', 'PMS_PENDING', 'PMS_CREATED', 'PAYMENT_PENDING', 'PAYMENT_EXPIRED', 'MANUAL_REVIEW', 'PMS_FAILED', 'APPROVED', 'CONFIRMED', 'REJECTED'];
 const SIMPLE_STATUS_KEYS = ['', 'PENDING_APPROVAL', 'APPROVED', 'CONFIRMED', 'REJECTED'];
+const RESTAURANT_STATUS_KEYS = ['', 'BEKLEMEDE', 'ONAYLANDI', 'GELDI', 'GELMEDI', 'IPTAL', 'DEGISIKLIK_UYGULA'];
 
 function holdStatusLabel(status) {
   return STATUS_LABELS_TR[String(status || '').toUpperCase()] || String(status || '-');
@@ -71,9 +78,9 @@ function holdStatusLabel(status) {
 // ---------------------------------------------------------------------------
 function holdStatusClass(status) {
   const n = String(status || '').toUpperCase();
-  if (['PMS_FAILED', 'MANUAL_REVIEW', 'REJECTED'].includes(n)) return 'danger';
-  if (['PENDING_APPROVAL', 'PMS_PENDING', 'PAYMENT_PENDING'].includes(n)) return 'warn';
-  if (['PMS_CREATED', 'CONFIRMED'].includes(n)) return 'success';
+  if (['PMS_FAILED', 'MANUAL_REVIEW', 'REJECTED', 'IPTAL', 'GELMEDI'].includes(n)) return 'danger';
+  if (['PENDING_APPROVAL', 'PMS_PENDING', 'PAYMENT_PENDING', 'BEKLEMEDE', 'DEGISIKLIK_UYGULA'].includes(n)) return 'warn';
+  if (['PMS_CREATED', 'CONFIRMED', 'ONAYLANDI', 'GELDI'].includes(n)) return 'success';
   if (['PAYMENT_EXPIRED', 'APPROVED'].includes(n)) return 'info';
   return 'pending';
 }
@@ -562,7 +569,7 @@ async function loadRestaurantHolds() {
   var selectedExists = state.restaurantHolds.some(function(i) { return String(i.hold_id) === String(state.selectedRestaurantHoldId); });
   if (!selectedExists) state.selectedRestaurantHoldId = state.restaurantHolds.length ? String(state.restaurantHolds[0].hold_id) : '';
   state.selectedRestaurantHold = state.restaurantHolds.find(function(i) { return String(i.hold_id) === String(state.selectedRestaurantHoldId); }) || null;
-  renderStatusChips('restaurantStatusChips', SIMPLE_STATUS_KEYS, state.restaurantStatusFilter, 'restaurant');
+  renderStatusChips('restaurantStatusChips', RESTAURANT_STATUS_KEYS, state.restaurantStatusFilter, 'restaurant');
   refs.restaurantHoldTableBody.innerHTML = renderRestaurantHoldRows(state.restaurantHolds);
   renderRestaurantHoldDetail(state.selectedRestaurantHold);
 }
@@ -597,7 +604,7 @@ function renderRestaurantHoldDetail(item) {
   refs.restaurantHoldDetail.innerHTML = '<div class="module-header"><div>'
     + '<h3>' + escapeHtml(String(item.hold_id || 'Hold')) + '</h3>'
     + '<p class="muted">RESTORAN · Hotel ' + escapeHtml(String(item.hotel_id || '-')) + '</p>'
-    + '</div><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span></div>'
+    + '</div><div class="stack" style="align-items:flex-end"><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span>' + (String(item.approved_by || '').toUpperCase() === 'AI_RESTAURAN' ? '<span class="pill info">AI Restoran</span>' : '') + '</div></div>'
     + '<div class="hold-summary-grid mb-md">'
     + formatHoldSummaryDetailCell('Misafir', item.guest_name || '-')
     + formatHoldSummaryDetailCell('Tarih', (item.date || '-') + ' ' + (item.time || ''))
@@ -607,7 +614,7 @@ function renderRestaurantHoldDetail(item) {
     + formatHoldSummaryDetailCell('Notlar', item.notes || '-')
     + '</div>'
     + '<div class="dialog-actions hold-detail-actions mt-lg">'
-    + '<button class="action-button primary" data-approve-hold="' + escapeHtml(item.hold_id) + '" ' + (String(item.status).toUpperCase() === 'PENDING_APPROVAL' ? '' : 'disabled') + '>Onayla</button>'
+    + '<button class="action-button primary" data-approve-hold="' + escapeHtml(item.hold_id) + '" ' + (String(item.status).toUpperCase() === 'BEKLEMEDE' ? '' : 'disabled') + '>Onayla</button>'
     + '<button class="action-button danger" data-reject-hold="' + escapeHtml(item.hold_id) + '">Reddet</button>'
     + '</div>';
 }

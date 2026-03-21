@@ -130,6 +130,55 @@ class CancelPolicyType(StrEnum):
     NON_REFUNDABLE = "NON_REFUNDABLE"
 
 
+class TableType(StrEnum):
+    TABLE_2 = "TABLE_2"
+    TABLE_4 = "TABLE_4"
+    TABLE_6 = "TABLE_6"
+    TABLE_8 = "TABLE_8"
+    TABLE_10 = "TABLE_10"
+
+
+class RestaurantReservationStatus(StrEnum):
+    BEKLEMEDE = "BEKLEMEDE"
+    ONAYLANDI = "ONAYLANDI"
+    GELDI = "GELDI"
+    GELMEDI = "GELMEDI"
+    IPTAL = "IPTAL"
+    DEGISIKLIK_UYGULA = "DEGISIKLIK_UYGULA"
+
+
+class RestaurantReservationMode(StrEnum):
+    AI_RESTAURAN = "AI_RESTAURAN"
+    MANUEL = "MANUEL"
+
+
+# Allowed status transitions for restaurant reservations
+RESTAURANT_STATUS_TRANSITIONS: dict[str, list[str]] = {
+    "BEKLEMEDE": ["ONAYLANDI", "IPTAL", "DEGISIKLIK_UYGULA"],
+    "ONAYLANDI": ["GELDI", "GELMEDI", "IPTAL", "DEGISIKLIK_UYGULA"],
+    "DEGISIKLIK_UYGULA": ["BEKLEMEDE", "ONAYLANDI", "IPTAL"],
+    "GELDI": [],
+    "GELMEDI": [],
+    "IPTAL": [],
+}
+
+# Table type mapping: party_size -> TableType
+TABLE_TYPE_MAP: dict[int, str] = {
+    1: TableType.TABLE_2,
+    2: TableType.TABLE_2,
+    3: TableType.TABLE_4,
+    4: TableType.TABLE_4,
+    5: TableType.TABLE_6,
+    6: TableType.TABLE_6,
+    7: TableType.TABLE_8,
+    8: TableType.TABLE_8,
+}
+
+# Max extension applications for +15 min
+RESTAURANT_MAX_EXTEND_COUNT = 3
+RESTAURANT_EXTEND_MINUTES = 15
+
+
 class HoldStatus(StrEnum):
     PENDING_APPROVAL = "PENDING_APPROVAL"
     PMS_PENDING = "PMS_PENDING"
@@ -176,3 +225,14 @@ STARTUP_DEPENDENCY_TIMEOUT_SECONDS = 5.0
 # Restaurant
 MAX_AI_RESTAURANT_PARTY_SIZE = 8
 RESTAURANT_LATE_TOLERANCE_MINUTES = 15
+RESTAURANT_NOSHOW_CHECK_INTERVAL_SECONDS = 300  # 5 min
+
+
+def resolve_table_type(party_size: int) -> str:
+    """Map party_size to the appropriate TableType value."""
+    if party_size <= 0:
+        return TableType.TABLE_2
+    if party_size in TABLE_TYPE_MAP:
+        return TABLE_TYPE_MAP[party_size]
+    # 9+ guests -> TABLE_10
+    return TableType.TABLE_10

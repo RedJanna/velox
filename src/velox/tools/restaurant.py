@@ -7,6 +7,7 @@ import re
 from datetime import time
 from typing import Any
 
+import structlog
 from pydantic import BaseModel
 
 from velox.config.constants import (
@@ -24,6 +25,8 @@ from velox.models.restaurant import RestaurantAvailabilityRequest, RestaurantHol
 from velox.tools.approval import ApprovalRequestTool
 from velox.tools.base import BaseTool
 from velox.tools.notification import NotifySendTool
+
+logger = structlog.get_logger(__name__)
 
 ALLERGY_PATTERN = re.compile(
     r"(allerg|alergy|allergy|gluten|lactose|laktoz|peanut|nut|fistik|alerji|vegan|vegetarian)",
@@ -54,16 +57,6 @@ class RestaurantAvailabilityTool(BaseTool):
         self.validate_required(kwargs, ["hotel_id", "date", "time", "party_size"])
         request = RestaurantAvailabilityRequest.model_validate(kwargs)
         profile = get_profile(request.hotel_id)
-
-        max_ai_party_size = 8
-        if profile and profile.restaurant:
-            max_ai_party_size = profile.restaurant.max_ai_party_size
-        if request.party_size > max_ai_party_size:
-            return {
-                "available": False,
-                "reason": RiskFlag.GROUP_BOOKING.value,
-                "suggestion": "handoff",
-            }
 
         settings = await self._settings_repository.get(request.hotel_id)
         if request.party_size < settings.min_party_size or request.party_size > settings.max_party_size:
@@ -135,16 +128,6 @@ class RestaurantCreateHoldTool(BaseTool):
         hotel_id = int(kwargs["hotel_id"])
         party_size = int(kwargs["party_size"])
         profile = get_profile(hotel_id)
-
-        max_ai_party_size = 8
-        if profile and profile.restaurant:
-            max_ai_party_size = profile.restaurant.max_ai_party_size
-        if party_size > max_ai_party_size:
-            return {
-                "available": False,
-                "reason": RiskFlag.GROUP_BOOKING.value,
-                "suggestion": "handoff",
-            }
 
         settings = await self._settings_repository.get(hotel_id)
         if party_size < settings.min_party_size or party_size > settings.max_party_size:
@@ -235,37 +218,61 @@ class RestaurantCreateHoldTool(BaseTool):
         )
         created = await self._restaurant_repository.create_hold(hold)
 
-        approval_result = await self._approval_tool.execute(
-            hotel_id=hotel_id,
-            approval_type="RESTAURANT",
-            reference_id=created.hold_id,
-            details_summary=(
-                f"{created.date} {created.time}, {created.party_size} guests, "
-                f"{created.guest_name or 'Guest'}"
-            ),
-            required_roles=["ADMIN", "CHEF"],
-            any_of=True,
-        )
+        # Approval flow / auto-confirm mode
+        approval_request_id: str | None = None
+        if settings.reservation_mode.value == "AI_RESTAURAN":
+            await self._restaurant_repository.update_hold_status(
+                hold_id=created.hold_id,
+                status=RestaurantReservationStatus.ONAYLANDI,
+                approved_by="AI_RESTAURAN",
+            )
+            created.status = RestaurantReservationStatus.ONAYLANDI
+        else:
+            try:
+                approval_result = await self._approval_tool.execute(
+                    hotel_id=hotel_id,
+                    approval_type="RESTAURANT",
+                    reference_id=created.hold_id,
+                    details_summary=(
+                        f"{created.date} {created.time}, {created.party_size} guests, "
+                        f"{created.guest_name or 'Guest'}"
+                    ),
+                    required_roles=["ADMIN", "CHEF"],
+                    any_of=True,
+                )
+                approval_request_id = approval_result.get("approval_request_id")
+            except Exception:
+                logger.error(
+                    "restaurant_hold_approval_failed",
+                    hold_id=created.hold_id,
+                    hotel_id=hotel_id,
+                )
 
         risk_flags: list[str] = []
         if _contains_allergy_notes(created.notes):
             risk_flags.append(RiskFlag.ALLERGY_ALERT.value)
-            await self._notify_tool.execute(
-                hotel_id=hotel_id,
-                to_role="CHEF",
-                channel="panel",
-                message=f"Allergy/special diet note for restaurant hold {created.hold_id}.",
-                metadata={
-                    "restaurant_hold_id": created.hold_id,
-                    "risk_flag": RiskFlag.ALLERGY_ALERT.value,
-                },
-            )
+            try:
+                await self._notify_tool.execute(
+                    hotel_id=hotel_id,
+                    to_role="CHEF",
+                    channel="panel",
+                    message=f"Allergy/special diet note for restaurant hold {created.hold_id}.",
+                    metadata={
+                        "restaurant_hold_id": created.hold_id,
+                        "risk_flag": RiskFlag.ALLERGY_ALERT.value,
+                    },
+                )
+            except Exception:
+                logger.warning(
+                    "restaurant_hold_allergy_notify_failed",
+                    hold_id=created.hold_id,
+                )
 
         return {
             "restaurant_hold_id": created.hold_id,
             "status": created.status,
             "summary": f"{created.date} {created.time} for {created.party_size} guests",
-            "approval_request_id": approval_result.get("approval_request_id"),
+            "approval_request_id": approval_request_id,
             "risk_flags": risk_flags,
         }
 

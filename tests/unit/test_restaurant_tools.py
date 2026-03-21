@@ -38,10 +38,21 @@ class _DummyNotificationRepository:
 
 
 class _DailyCapacityFullSettingsRepository:
-    async def check_daily_capacity(self, hotel_id: int, target_date: date) -> dict[str, object]:
+    async def get(self, hotel_id: int) -> object:
+        assert hotel_id == 21966
+
+        class _Settings:
+            reservation_mode = type("_Mode", (), {"value": "AI_RESTAURAN"})()
+            min_party_size = 1
+            max_party_size = 12
+
+        return _Settings()
+
+    async def check_daily_capacity(self, hotel_id: int, target_date: date, new_party_size: int = 0) -> dict[str, object]:
         assert hotel_id == 21966
         assert target_date == date(2026, 8, 10)
-        return {"enabled": True, "allowed": False, "count": 15, "max": 15}
+        assert new_party_size == 4
+        return {"enabled": True, "allowed": False, "count": 15, "max": 15, "party_size_total": 45, "party_size_max": 45}
 
 
 @pytest.mark.asyncio

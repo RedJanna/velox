@@ -232,7 +232,7 @@ class RestaurantRepository:
             UPDATE restaurant_holds
             SET status = $2,
                 approved_by = COALESCE($3, approved_by),
-                approved_at = CASE WHEN $2 IN ('APPROVED', 'CONFIRMED') THEN now() ELSE approved_at END,
+                approved_at = CASE WHEN $2 IN ('APPROVED', 'CONFIRMED', 'ONAYLANDI') THEN now() ELSE approved_at END,
                 rejected_reason = COALESCE($4, rejected_reason),
                 updated_at = now()
             WHERE hold_id = $1

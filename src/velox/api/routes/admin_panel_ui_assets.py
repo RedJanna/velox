@@ -226,6 +226,7 @@ const state = {
   activeHoldsTab: 'stay',
   stayStatusFilter: '',
   restaurantStatusFilter: '',
+  restaurantMode: 'AI_RESTAURAN',
   transferStatusFilter: '',
   stayDraft: {},
   stayWizardStep: 1,

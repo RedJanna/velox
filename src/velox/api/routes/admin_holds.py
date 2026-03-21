@@ -17,7 +17,13 @@ import structlog
 
 from velox.adapters.elektraweb import endpoints as elektraweb
 from velox.api.middleware.auth import TokenData, check_permission, get_current_user
-from velox.config.constants import HoldStatus, RestaurantReservationStatus, Role, resolve_table_type
+from velox.config.constants import (
+    HoldStatus,
+    RestaurantReservationMode,
+    RestaurantReservationStatus,
+    Role,
+    resolve_table_type,
+)
 from velox.core.hotel_profile_loader import get_profile
 from velox.db.database import fetch, fetchrow, fetchval
 from velox.db.repositories.reservation import ReservationRepository
@@ -388,6 +394,13 @@ async def create_restaurant_hold_from_panel(
 
     # Daily capacity check
     settings_repo = RestaurantSettingsRepository()
+    settings = await settings_repo.get(body.hotel_id)
+    if settings.reservation_mode == RestaurantReservationMode.MANUEL:
+        raise HTTPException(
+            status_code=409,
+            detail="Manuel modda panelden rezervasyon olusturma kapali. Rezervasyonlar webhook/AI akisindan gelmelidir.",
+        )
+
     slot_data = await RestaurantRepository().get_slot_by_id(hotel_id=body.hotel_id, slot_id=body.slot_id)
     if slot_data:
         cap = await settings_repo.check_daily_capacity(body.hotel_id, slot_data["date"])
@@ -642,6 +655,8 @@ async def update_restaurant_settings(
 
     repo = RestaurantSettingsRepository()
     current = await repo.get(hotel_id)
+    if body.reservation_mode is not None:
+        current.reservation_mode = body.reservation_mode
     if body.daily_max_reservations_enabled is not None:
         current.daily_max_reservations_enabled = body.daily_max_reservations_enabled
     if body.daily_max_reservations_count is not None:

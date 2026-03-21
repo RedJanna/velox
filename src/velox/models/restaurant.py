@@ -9,7 +9,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from velox.config.constants import HoldStatus, RestaurantReservationStatus
+from velox.config.constants import HoldStatus, RestaurantReservationMode, RestaurantReservationStatus
 
 
 class RestaurantAvailabilityRequest(BaseModel):
@@ -188,6 +188,7 @@ class RestaurantTable(BaseModel):
 
 class RestaurantSettings(BaseModel):
     hotel_id: int
+    reservation_mode: RestaurantReservationMode = RestaurantReservationMode.AI_RESTAURAN
     daily_max_reservations_enabled: bool = False
     daily_max_reservations_count: int = Field(default=50, ge=1)
     daily_max_party_size_enabled: bool = False
@@ -199,6 +200,7 @@ class RestaurantSettings(BaseModel):
 
 
 class RestaurantSettingsUpdate(BaseModel):
+    reservation_mode: RestaurantReservationMode | None = None
     daily_max_reservations_enabled: bool | None = None
     daily_max_reservations_count: int | None = Field(default=None, ge=1)
     daily_max_party_size_enabled: bool | None = None
