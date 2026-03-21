@@ -105,7 +105,7 @@ class RestaurantRepository:
                     FROM restaurant_slots rs
                     LEFT JOIN restaurant_capacity_windows rcw ON rcw.id = rs.capacity_window_id
                     WHERE rs.id = $1 AND rs.hotel_id = $2 AND rs.is_active = true
-                    FOR UPDATE
+                    FOR UPDATE OF rs
                     """,
                 slot_id,
                 hold.hotel_id,
