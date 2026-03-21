@@ -486,16 +486,18 @@ def render_admin_panel_html() -> str:
 
           <article class="module-card">
             <div class="module-header">
-              <div><h3>Rezervasyon Saati</h3><p>Secilen tarih araliginda tekil rezervasyon saati tanimla. Saat araligi mantigi kullanilmaz.</p></div>
+              <div><h3>Tarihler Arasi Kapasite</h3><p>Secilen tarih araliginda baslangic ve bitis saatleri arasina rezervasyon kapasitesi olusturur.</p></div>
             </div>
             <form id="slotCreateForm" class="dense-form">
-              <div class="field"><label>Tarih baslangic</label><input name="date_from" type="date" required aria-label="Slot baslangic tarihi"></div>
-              <div class="field"><label>Tarih bitis</label><input name="date_to" type="date" required aria-label="Slot bitis tarihi"></div>
-              <div class="field"><label>Rezervasyon saati</label><input name="time" type="time" required aria-label="Rezervasyon saati"></div>
+              <div class="field"><label>Tarih baslangic</label><input name="date_from" type="date" required aria-label="Kapasite baslangic tarihi"></div>
+              <div class="field"><label>Tarih bitis</label><input name="date_to" type="date" required aria-label="Kapasite bitis tarihi"></div>
+              <div class="field"><label>Baslangic saati</label><input name="start_time" type="time" required aria-label="Kapasite baslangic saati"></div>
+              <div class="field"><label>Bitis saati</label><input name="end_time" type="time" required aria-label="Kapasite bitis saati"></div>
+              <div class="field"><label>Slot uretim araligi (dk)</label><select name="interval_minutes" aria-label="Slot uretim araligi"><option value="30">30 dk</option><option value="60" selected>60 dk</option><option value="120">120 dk</option></select></div>
               <div class="field"><label>Alan</label><select name="area" aria-label="Yeni slot alani"><option value="outdoor">outdoor</option><option value="indoor">indoor</option></select></div>
               <div class="field"><label>Toplam kapasite</label><input name="total_capacity" type="number" min="1" required aria-label="Yeni slot toplam kapasitesi"></div>
               <div class="field"><label>Misafire acik mi?</label><input name="is_active" type="checkbox" checked class="checkbox-field" aria-label="Slot aktif mi"></div>
-              <div class="field full"><button class="inline-button primary" type="submit">Rezervasyon Saati Olustur</button></div>
+              <div class="field full"><button class="inline-button primary" type="submit">Tarihler Arasi Kapasite Olustur</button></div>
             </form>
           </article>
 

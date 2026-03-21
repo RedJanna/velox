@@ -301,15 +301,17 @@ async function onCreateSlot(event) {
     return;
   }
   const formPayload = formToJson(refs.slotCreateForm);
-  if (!formPayload.time) {
-    notify('Rezervasyon saati zorunlu.', 'warn');
+  if (!formPayload.start_time || !formPayload.end_time) {
+    notify('Başlangıç ve bitiş saati zorunlu.', 'warn');
     return;
   }
 
   const payload = {
     date_from: formPayload.date_from,
     date_to: formPayload.date_to,
-    time: formPayload.time,
+    start_time: formPayload.start_time,
+    end_time: formPayload.end_time,
+    interval_minutes: Number(formPayload.interval_minutes || 60),
     area: formPayload.area,
     total_capacity: Number(formPayload.total_capacity),
     is_active: formPayload.is_active === 'on',
@@ -317,7 +319,7 @@ async function onCreateSlot(event) {
 
   try {
     await apiFetch(`/hotels/${state.selectedHotelId}/restaurant/slots`, {method: 'POST', body: [payload]});
-    notify('Rezervasyon saati oluşturuldu.', 'success');
+    notify('Tarihler arası kapasite oluşturuldu.', 'success');
     refs.slotCreateForm.reset();
     loadRestaurantSlots();
   } catch (error) {
