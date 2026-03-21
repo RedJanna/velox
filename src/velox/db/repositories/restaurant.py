@@ -227,18 +227,19 @@ class RestaurantRepository:
         rejected_reason: str | None = None,
     ) -> None:
         """Update hold status (CONFIRMED, CANCELLED, etc.)."""
+        status_value = status.value if hasattr(status, "value") else str(status)
         await execute(
             """
             UPDATE restaurant_holds
             SET status = $2,
                 approved_by = COALESCE($3, approved_by),
-                approved_at = CASE WHEN $2 IN ('APPROVED', 'CONFIRMED', 'ONAYLANDI') THEN now() ELSE approved_at END,
+                approved_at = CASE WHEN $2::text IN ('APPROVED', 'CONFIRMED', 'ONAYLANDI') THEN now() ELSE approved_at END,
                 rejected_reason = COALESCE($4, rejected_reason),
                 updated_at = now()
             WHERE hold_id = $1
             """,
             hold_id,
-            status,
+            status_value,
             approved_by,
             rejected_reason,
         )
