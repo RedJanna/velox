@@ -30,9 +30,9 @@ class RestaurantSlot(BaseModel):
 class RestaurantSlotCreate(BaseModel):
     date_from: date
     date_to: date
-    time: Optional[time] = None
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
+    time: Optional[_dt.time] = None
+    start_time: Optional[_dt.time] = None
+    end_time: Optional[_dt.time] = None
     interval_minutes: int = Field(default=60, ge=15, le=240)
     total_capacity: int = Field(ge=1)
     reservation_limit: int | None = Field(default=None, ge=1)
@@ -56,7 +56,7 @@ class RestaurantSlotView(BaseModel):
     slot_id: int
     hotel_id: int
     date: date
-    time: time
+    time: _dt.time
     area: str
     total_capacity: int
     booked_count: int
