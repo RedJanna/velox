@@ -200,6 +200,7 @@ async function loadRestaurantSlots() {
   const hotelId = state.selectedHotelId;
   if (!hotelId) {
     refs.slotTableBody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><p>Hotel seçin.</p></div></td></tr>';
+    if (refs.slotSummaryCards) refs.slotSummaryCards.innerHTML = '';
     return;
   }
   const form = new FormData(refs.slotFilters);
@@ -209,7 +210,42 @@ async function loadRestaurantSlots() {
   const response = await apiFetch(`/hotels/${hotelId}/restaurant/slots?${params.toString()}`);
   state.restaurantSlots = response.items || [];
   refs.slotTableBody.innerHTML = renderSlotRows(state.restaurantSlots);
+  if (refs.slotSummaryCards) refs.slotSummaryCards.innerHTML = renderSlotSummaryCards(state.restaurantSlots);
   bindSlotActions();
+}
+
+function renderSlotSummaryCards(items) {
+  if (!items.length) {
+    return '<div class="module-card"><div class="empty-state"><p>Grafik için önce slot oluşturun veya filtreyle yükleyin.</p></div></div>';
+  }
+  const totalCapacity = items.reduce((sum, item) => sum + Number(item.total_capacity || 0), 0);
+  const totalBooked = items.reduce((sum, item) => sum + Number(item.booked_count || 0), 0);
+  const totalLeft = items.reduce((sum, item) => sum + Number(item.capacity_left || 0), 0);
+  const activeCount = items.filter(item => item.is_active).length;
+  const passiveCount = items.length - activeCount;
+  const firstTime = items.map(item => String(item.time || '')).sort()[0] || '-';
+  const lastTime = items.map(item => String(item.time || '')).sort().slice(-1)[0] || '-';
+  const usagePct = totalCapacity > 0 ? Math.min(100, Math.round((totalBooked / totalCapacity) * 100)) : 0;
+  const freePct = totalCapacity > 0 ? Math.max(0, 100 - usagePct) : 0;
+  return `
+    <article class="slot-summary-card">
+      <h4>Kapasite Grafiği</h4>
+      <div class="slot-summary-value">${escapeHtml(String(totalLeft))} boş / ${escapeHtml(String(totalCapacity))}</div>
+      <div class="slot-progress" aria-label="Kapasite kullanım grafiği"><div class="slot-progress-bar" style="width:${escapeHtml(String(usagePct))}%"></div></div>
+      <div class="slot-summary-meta">Dolu: ${escapeHtml(String(totalBooked))} • Boş yüzdesi: ${escapeHtml(String(freePct))}%</div>
+    </article>
+    <article class="slot-summary-card">
+      <h4>Ne kadar slot kaldı?</h4>
+      <div class="slot-summary-value">${escapeHtml(String(totalLeft))}</div>
+      <div class="slot-summary-meta">Seçili tarih aralığındaki toplam kalan rezervasyon kapasitesi</div>
+      <div class="slot-chip-row"><span class="slot-chip">Toplam ${escapeHtml(String(items.length))} slot</span><span class="slot-chip">${escapeHtml(String(activeCount))} açık</span><span class="slot-chip">${escapeHtml(String(passiveCount))} pasif</span></div>
+    </article>
+    <article class="slot-summary-card">
+      <h4>Rezervasyon Saati</h4>
+      <div class="slot-summary-value">${escapeHtml(firstTime)} - ${escapeHtml(lastTime)}</div>
+      <div class="slot-summary-meta">Tanımlı kabul penceresi ve oluşturulan slot saatleri</div>
+    </article>
+  `;
 }
 
 function renderSlotRows(items) {
@@ -222,13 +258,13 @@ function renderSlotRows(items) {
       <td>${escapeHtml(item.date)}</td>
       <td>${escapeHtml(item.time)}</td>
       <td>${escapeHtml(item.area)}</td>
-      <td>${escapeHtml(item.capacity_left)} / ${escapeHtml(item.total_capacity)}</td>
-      <td>${item.is_active ? '<span class="pill open">AKTIF</span>' : '<span class="pill closed">PASIF</span>'}</td>
+      <td><strong>${escapeHtml(item.capacity_left)}</strong> kaldı<br><small>${escapeHtml(item.booked_count)} dolu / ${escapeHtml(item.total_capacity)} toplam</small></td>
+      <td>${item.is_active ? '<span class="pill open">MİSAFİRE AÇIK</span>' : '<span class="pill closed">PASİF</span>'}</td>
       <td>
         <div class="stack">
           <input type="number" min="1" value="${escapeHtml(item.total_capacity)}" data-slot-capacity="${escapeHtml(item.slot_id)}" aria-label="${escapeHtml(item.slot_id + ' toplam kapasite')}">
           <select data-slot-active="${escapeHtml(item.slot_id)}" aria-label="${escapeHtml(item.slot_id + ' aktiflik durumu')}">
-            <option value="true" ${item.is_active ? 'selected' : ''}>Aktif</option>
+            <option value="true" ${item.is_active ? 'selected' : ''}>Misafire açık</option>
             <option value="false" ${!item.is_active ? 'selected' : ''}>Pasif</option>
           </select>
           <button class="action-button primary" data-save-slot="${escapeHtml(item.slot_id)}" aria-label="${escapeHtml(item.slot_id + ' slotunu guncelle')}">Güncelle</button>
@@ -264,12 +300,24 @@ async function onCreateSlot(event) {
     notify('Hotel seçin.', 'warn');
     return;
   }
-  const payload = formToJson(refs.slotCreateForm);
-  payload.total_capacity = Number(payload.total_capacity);
-  payload.is_active = payload.is_active === 'on';
+  const formPayload = formToJson(refs.slotCreateForm);
+  if (!formPayload.time) {
+    notify('Rezervasyon saati zorunlu.', 'warn');
+    return;
+  }
+
+  const payload = {
+    date_from: formPayload.date_from,
+    date_to: formPayload.date_to,
+    time: formPayload.time,
+    area: formPayload.area,
+    total_capacity: Number(formPayload.total_capacity),
+    is_active: formPayload.is_active === 'on',
+  };
+
   try {
     await apiFetch(`/hotels/${state.selectedHotelId}/restaurant/slots`, {method: 'POST', body: [payload]});
-    notify('Yeni slot aralığı oluşturuldu.', 'success');
+    notify('Rezervasyon saati oluşturuldu.', 'success');
     refs.slotCreateForm.reset();
     loadRestaurantSlots();
   } catch (error) {
@@ -502,6 +550,7 @@ function clearClientSession() {
   state.faqs = [];
   state.faqDetail = null;
   state.sessionPreferences = null;
+  state.stayProfileRoomTypes = [];
 }
 
 async function apiFetch(path, {method = 'GET', body = null, auth = true, allowRefresh = true, logoutOn401 = true} = {}) {

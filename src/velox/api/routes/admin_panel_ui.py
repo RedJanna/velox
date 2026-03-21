@@ -273,7 +273,6 @@ def render_admin_panel_html() -> str:
         <section data-view="holds" class="section-grid" hidden>
           <div class="holds-tabs">
             <button class="holds-tab is-active" data-holds-tab="stay">Konaklama</button>
-            <button class="holds-tab" data-holds-tab="restaurant">Restoran</button>
             <button class="holds-tab" data-holds-tab="transfer">Transfer</button>
           </div>
 
@@ -469,16 +468,17 @@ def render_admin_panel_html() -> str:
         <section data-view="restaurant" class="section-grid" hidden>
           <article class="module-card">
             <div class="module-header">
-              <div><h3>Slot Yonetimi</h3><p>Kapasiteyi tarih ve saat bazli tut, dar ekranda bile kritik kolonlari kaybetme.</p></div>
+              <div><h3>Slot Yonetimi</h3><p>Kapasiteyi tarih ve rezervasyon saati bazli takip et, kalan kapasiteyi gorsel olarak izle.</p></div>
             </div>
             <form id="slotFilters" class="toolbar">
               <input name="date_from" type="date" aria-label="Slot baslangic tarihi">
               <input name="date_to" type="date" aria-label="Slot bitis tarihi">
               <button id="loadSlotsButton" class="primary" type="button" aria-label="Slotlari getir">Slotlari Getir</button>
             </form>
+            <div id="slotSummaryCards" class="split"></div>
             <div class="table-shell">
               <table>
-                <thead><tr><th>ID</th><th>Tarih</th><th>Saat</th><th>Alan</th><th>Kapasite</th><th>Durum</th><th>Aksiyon</th></tr></thead>
+                <thead><tr><th>ID</th><th>Tarih</th><th>Rezervasyon Saati</th><th>Alan</th><th>Kalan Slot</th><th>Durum</th><th>Aksiyon</th></tr></thead>
                 <tbody id="slotTableBody"></tbody>
               </table>
             </div>
@@ -486,16 +486,16 @@ def render_admin_panel_html() -> str:
 
           <article class="module-card">
             <div class="module-header">
-              <div><h3>Yeni Slot Araligi</h3><p>Toplu kapasite acmak icin tarih araligini tek formdan olusturun.</p></div>
+              <div><h3>Rezervasyon Saati</h3><p>Secilen tarih araliginda tekil rezervasyon saati tanimla. Saat araligi mantigi kullanilmaz.</p></div>
             </div>
             <form id="slotCreateForm" class="dense-form">
-              <div class="field"><label>Tarih baslangic</label><input name="date_from" type="date" required aria-label="Yeni slot baslangic tarihi"></div>
-              <div class="field"><label>Tarih bitis</label><input name="date_to" type="date" required aria-label="Yeni slot bitis tarihi"></div>
-              <div class="field"><label>Saat</label><input name="time" type="time" required aria-label="Yeni slot saati"></div>
+              <div class="field"><label>Tarih baslangic</label><input name="date_from" type="date" required aria-label="Slot baslangic tarihi"></div>
+              <div class="field"><label>Tarih bitis</label><input name="date_to" type="date" required aria-label="Slot bitis tarihi"></div>
+              <div class="field"><label>Rezervasyon saati</label><input name="time" type="time" required aria-label="Rezervasyon saati"></div>
               <div class="field"><label>Alan</label><select name="area" aria-label="Yeni slot alani"><option value="outdoor">outdoor</option><option value="indoor">indoor</option></select></div>
               <div class="field"><label>Toplam kapasite</label><input name="total_capacity" type="number" min="1" required aria-label="Yeni slot toplam kapasitesi"></div>
-              <div class="field"><label>Aktif</label><input name="is_active" type="checkbox" checked class="checkbox-field" aria-label="Yeni slot aktif mi"></div>
-              <div class="field full"><button class="inline-button primary" type="submit">Slot Araligi Olustur</button></div>
+              <div class="field"><label>Misafire acik mi?</label><input name="is_active" type="checkbox" checked class="checkbox-field" aria-label="Slot aktif mi"></div>
+              <div class="field full"><button class="inline-button primary" type="submit">Rezervasyon Saati Olustur</button></div>
             </form>
           </article>
 
