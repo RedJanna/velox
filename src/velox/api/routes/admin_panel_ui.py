@@ -500,6 +500,33 @@ def render_admin_panel_html() -> str:
 
           <article class="module-card">
             <div class="module-header">
+              <div><h3>Toplu Slot Temizleme</h3><p>Secilen tarih ve saat araligindaki slot kayitlarini tek seferde sil. Baslangic ve bitis saatine denk gelen slotlar da dahildir.</p></div>
+            </div>
+            <form id="slotDeleteForm" class="dense-form">
+              <div class="field"><label>Tarih baslangic</label><input name="date_from" type="date" required aria-label="Silme baslangic tarihi"></div>
+              <div class="field"><label>Tarih bitis</label><input name="date_to" type="date" required aria-label="Silme bitis tarihi"></div>
+              <div class="field"><label>Baslangic saati</label><input name="start_time" type="time" required aria-label="Silme baslangic saati"></div>
+              <div class="field"><label>Bitis saati</label><input name="end_time" type="time" required aria-label="Silme bitis saati"></div>
+              <div class="field"><label>Alan</label><select name="area" aria-label="Silinecek slot alani"><option value="">Tum alanlar</option><option value="outdoor">outdoor</option><option value="indoor">indoor</option></select></div>
+              <div class="field full">
+                <label>Haftanin gunleri</label>
+                <div class="checkbox-group" id="slotDeleteWeekdays">
+                  <label><input type="checkbox" name="weekdays" value="0"> Pzt</label>
+                  <label><input type="checkbox" name="weekdays" value="1"> Sal</label>
+                  <label><input type="checkbox" name="weekdays" value="2"> Car</label>
+                  <label><input type="checkbox" name="weekdays" value="3"> Per</label>
+                  <label><input type="checkbox" name="weekdays" value="4"> Cum</label>
+                  <label><input type="checkbox" name="weekdays" value="5"> Cmt</label>
+                  <label><input type="checkbox" name="weekdays" value="6"> Paz</label>
+                </div>
+                <small>Secmezsen tum gunlerde uygular.</small>
+              </div>
+              <div class="field full"><button class="inline-button danger" type="submit">Secili Araliktaki Slotlari Temizle</button></div>
+            </form>
+          </article>
+
+          <article class="module-card">
+            <div class="module-header">
               <div><h3>Tarihler Arasi Kapasite</h3><p>Secilen tarih araliginda baslangic ve bitis saatleri arasindaki tum dakikalara rezervasyon kapasitesi olusturur.</p></div>
             </div>
             <form id="slotCreateForm" class="dense-form">

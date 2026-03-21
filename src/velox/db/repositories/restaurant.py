@@ -513,6 +513,68 @@ class RestaurantRepository:
         )
         return [RestaurantSlotView.model_validate(dict(row)) for row in rows]
 
+    async def delete_slots_in_range(
+        self,
+        hotel_id: int,
+        *,
+        date_from: date,
+        date_to: date,
+        start_time: time,
+        end_time: time,
+        weekdays: list[int] | None = None,
+        area: str | None = None,
+    ) -> dict[str, int]:
+        """Delete slots in an inclusive date/time range, optionally filtered by weekday and area."""
+        if date_to < date_from:
+            raise ValueError("invalid_date_range")
+        if end_time < start_time:
+            raise ValueError("invalid_time_range")
+        if weekdays is not None:
+            invalid_days = [day for day in weekdays if day < 0 or day > 6]
+            if invalid_days:
+                raise ValueError("invalid_weekdays")
+
+        params: list[Any] = [hotel_id, date_from, date_to, start_time, end_time]
+        where_parts = [
+            "hotel_id = $1",
+            "date BETWEEN $2 AND $3",
+            "time BETWEEN $4 AND $5",
+        ]
+        if weekdays:
+            weekday_placeholders: list[str] = []
+            for day in weekdays:
+                params.append(int(day))
+                weekday_placeholders.append(f"${len(params)}")
+            where_parts.append(f"EXTRACT(ISODOW FROM date)::int - 1 IN ({', '.join(weekday_placeholders)})")
+        if area:
+            params.append(area)
+            where_parts.append(f"area = ${len(params)}")
+
+        where_sql = " AND ".join(where_parts)
+        pool = get_pool()
+        async with pool.acquire() as conn, conn.transaction():
+            deleted_rows = await conn.fetch(
+                f"DELETE FROM restaurant_slots WHERE {where_sql} RETURNING capacity_window_id",
+                *params,
+                timeout=DB_TIMEOUT_SECONDS,
+            )
+            deleted_count = len(deleted_rows)
+            if deleted_count:
+                window_ids = sorted({int(row["capacity_window_id"]) for row in deleted_rows if row["capacity_window_id"] is not None})
+                if window_ids:
+                    await conn.execute(
+                        """
+                        DELETE FROM restaurant_capacity_windows rcw
+                        WHERE rcw.id = ANY($1::int[])
+                          AND NOT EXISTS (
+                              SELECT 1 FROM restaurant_slots rs WHERE rs.capacity_window_id = rcw.id
+                          )
+                        """,
+                        window_ids,
+                        timeout=DB_TIMEOUT_SECONDS,
+                    )
+            return {"deleted_count": deleted_count}
+
     async def update_slot(self, hotel_id: int, slot_id: int, update: RestaurantSlotUpdate) -> dict[str, Any] | None:
         """Update slot/window capacity or active status and return row summary."""
         current = await fetchrow(

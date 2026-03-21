@@ -268,7 +268,7 @@ function bindRefs() {
     'ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor',
     'faqFilters','faqTableBody','faqDetail',
     'notifPhoneTableBody','addNotifPhoneForm',
-    'hotelProfileMeta','slotFilters','slotDisplayInterval','slotTableBody','slotSummaryCards','slotCreateForm','systemChecks','systemMeta',
+    'hotelProfileMeta','slotFilters','slotDisplayInterval','slotTableBody','slotSummaryCards','slotCreateForm','slotDeleteForm','systemChecks','systemMeta',
     'sessionSummary','sessionPreferencesForm','sessionRememberToggle','sessionPreferenceFields',
     'systemVerificationOptions','systemSessionOptions','sessionOtpField','trustedDevicePanel','forgetDeviceButton',
     'logoutButton','reloadButton','decisionDialog','decisionForm','decisionTitle','decisionLead','decisionReason',
@@ -288,6 +288,7 @@ function bindEvents() {
   refs.hotelSelect.addEventListener('change', onHotelScopeChange);
   refs.hotelProfileSelect.addEventListener('change', loadHotelProfileSection);
   refs.slotCreateForm.addEventListener('submit', onCreateSlot);
+  refs.slotDeleteForm?.addEventListener('submit', onDeleteSlots);
   refs.slotDisplayInterval?.addEventListener('change', applySlotDisplayFilter);
   refs.hideSlotsButton?.addEventListener('click', hideRestaurantSlotsView);
   refs.sessionPreferencesForm.addEventListener('submit', onSessionPreferencesSave);

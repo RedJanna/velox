@@ -29,7 +29,7 @@ from velox.db.repositories.restaurant import RestaurantRepository
 from velox.db.repositories.transfer import TransferRepository
 from velox.escalation.matrix import reload_matrix
 from velox.models.hotel_profile import FAQEntry, FAQStatus, HotelProfile
-from velox.models.restaurant import RestaurantSlotCreate, RestaurantSlotUpdate
+from velox.models.restaurant import RestaurantSlotBulkDeleteRequest, RestaurantSlotCreate, RestaurantSlotUpdate
 from velox.models.webhook_events import ApprovalEvent
 from velox.utils.admin_security import (
     DEFAULT_SESSION_PRESET,
@@ -734,6 +734,30 @@ async def update_restaurant_slot(
     return {"status": "updated", "slot": row}
 
 
+@router.request("DELETE", "/hotels/{hotel_id}/restaurant/slots")
+async def delete_restaurant_slots(
+    hotel_id: int,
+    body: RestaurantSlotBulkDeleteRequest,
+    user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
+) -> dict[str, Any]:
+    """Delete restaurant slots in an inclusive date/time range with optional weekday and area filters."""
+    _ = user
+    repository = RestaurantRepository()
+    try:
+        result = await repository.delete_slots_in_range(
+            hotel_id=hotel_id,
+            date_from=body.date_from,
+            date_to=body.date_to,
+            start_time=body.start_time,
+            end_time=body.end_time,
+            weekdays=body.weekdays,
+            area=body.area,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"status": "deleted", **result}
+
+
 @router.get("/hotels/{hotel_id}/transfers/holds")
 async def list_transfer_holds(
     hotel_id: int,
@@ -1040,6 +1064,18 @@ async def reset_conversation(
 
     repository = ConversationRepository()
     await repository.close(conversation_id)
+    redis_client = getattr(request.app.state, "redis", None)
+    if redis_client is not None:
+        async with db.acquire() as conn:
+            phone_hash_row = await conn.fetchrow(
+                "SELECT phone_hash FROM conversations WHERE id = $1",
+                conversation_id,
+            )
+        if phone_hash_row is not None:
+            try:
+                await redis_client.delete(f"velox:human_override:{phone_hash_row['phone_hash']}")
+            except Exception:
+                pass
     return {"status": "reset", "conversation_id": str(conversation_id)}
 
 
@@ -1232,6 +1268,13 @@ async def reset_conversation_by_phone(
     for row in rows:
         await repository.close(row["id"])
         closed_ids.append(str(row["id"]))
+
+    redis_client = getattr(request.app.state, "redis", None)
+    if redis_client is not None:
+        try:
+            await redis_client.delete(f"velox:human_override:{phone_hash}")
+        except Exception:
+            pass
 
     return {
         "status": "reset",
@@ -1511,8 +1554,13 @@ async def approve_hold(
     body: ApproveRequest,
     request: Request,
     user: Annotated[TokenData, Depends(get_current_user)],
+    force: bool = Query(False),
 ) -> dict[str, Any]:
-    """Approve hold and trigger approval/retry webhook flow inside backend."""
+    """Approve hold and trigger approval/retry webhook flow inside backend.
+
+    When *force=true* is passed by an ADMIN user, the uncertain-PMS-state
+    guard is bypassed so that the hold can be retried from the admin panel.
+    """
     _ = body
     check_permission(user, "holds:approve")
     _table, hold_type = _resolve_hold_target(hold_id)
@@ -1544,16 +1592,18 @@ async def approve_hold(
                 ),
             )
         if hold_type == "stay" and current_status == HoldStatus.MANUAL_REVIEW.value:
-            manual_review_reason = str(row.get("manual_review_reason") or "")
-            create_was_uncertain = manual_review_reason in {
-                "create_missing_identifiers",
-                "create_unverified_after_readback",
-            }
-            if row.get("pms_reservation_id") or row.get("voucher_no") or create_was_uncertain:
-                raise HTTPException(
-                    status_code=409,
-                    detail="Stay hold already reached an uncertain PMS create state; manual review is required instead of retry.",
-                )
+            # Admin force-retry bypasses the uncertain PMS state guard
+            if not (force and user.role == Role.ADMIN):
+                manual_review_reason = str(row.get("manual_review_reason") or "")
+                create_was_uncertain = manual_review_reason in {
+                    "create_missing_identifiers",
+                    "create_unverified_after_readback",
+                }
+                if row.get("pms_reservation_id") or row.get("voucher_no") or create_was_uncertain:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Stay hold already reached an uncertain PMS create state; manual review is required instead of retry.",
+                    )
         if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
             raise HTTPException(status_code=403, detail="Access denied")
         effective_hotel_id = int(row["hotel_id"])

@@ -52,6 +52,15 @@ class RestaurantSlotUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class RestaurantSlotBulkDeleteRequest(BaseModel):
+    date_from: date
+    date_to: date
+    start_time: _dt.time
+    end_time: _dt.time
+    weekdays: list[int] | None = None
+    area: str | None = None
+
+
 class RestaurantSlotView(BaseModel):
     slot_id: int
     hotel_id: int

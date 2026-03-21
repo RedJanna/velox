@@ -355,6 +355,55 @@ function bindSlotActions() {
   });
 }
 
+async function onDeleteSlots(event) {
+  event.preventDefault();
+  if (!state.selectedHotelId) {
+    notify('Hotel seçin.', 'warn');
+    return;
+  }
+
+  const form = refs.slotDeleteForm;
+  const dateFrom = form.querySelector('[name="date_from"]').value;
+  const dateTo = form.querySelector('[name="date_to"]').value;
+  const startTime = form.querySelector('[name="start_time"]').value;
+  const endTime = form.querySelector('[name="end_time"]').value;
+  const area = form.querySelector('[name="area"]').value;
+  const weekdays = Array.from(form.querySelectorAll('[name="weekdays"]:checked')).map(input => Number(input.value));
+
+  if (!dateFrom || !dateTo || !startTime || !endTime) {
+    notify('Tarih ve saat aralığı zorunlu.', 'warn');
+    return;
+  }
+
+  const dayLabelMap = ['Pzt', 'Sal', 'Car', 'Per', 'Cum', 'Cmt', 'Paz'];
+  const weekdayText = weekdays.length ? weekdays.map(day => dayLabelMap[day] || '?').join(', ') : 'tum gunler';
+  const areaText = area || 'tum alanlar';
+  const confirmed = window.confirm(
+    `Bu işlem ${dateFrom} - ${dateTo} arasında ${startTime} - ${endTime} saatleri icindeki ${areaText} slotlarını silecek. Gun filtresi: ${weekdayText}. Devam edilsin mi?`
+  );
+  if (!confirmed) return;
+
+  const payload = {
+    date_from: dateFrom,
+    date_to: dateTo,
+    start_time: startTime,
+    end_time: endTime,
+  };
+  if (weekdays.length) payload.weekdays = weekdays;
+  if (area) payload.area = area;
+
+  try {
+    const response = await apiFetch(`/hotels/${state.selectedHotelId}/restaurant/slots`, {
+      method: 'DELETE',
+      body: payload,
+    });
+    notify(`${response.deleted_count || 0} slot silindi.`, 'success');
+    loadRestaurantSlots();
+  } catch (error) {
+    notify(error.message, 'error');
+  }
+}
+
 async function onCreateSlot(event) {
   event.preventDefault();
   if (!state.selectedHotelId) {
