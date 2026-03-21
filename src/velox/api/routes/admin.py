@@ -734,7 +734,7 @@ async def update_restaurant_slot(
     return {"status": "updated", "slot": row}
 
 
-@router.request("DELETE", "/hotels/{hotel_id}/restaurant/slots")
+@router.api_route("/hotels/{hotel_id}/restaurant/slots", methods=["DELETE"])
 async def delete_restaurant_slots(
     hotel_id: int,
     body: RestaurantSlotBulkDeleteRequest,
