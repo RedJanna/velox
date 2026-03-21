@@ -47,6 +47,7 @@ class RestaurantAvailabilityTool(BaseTool):
 
     def __init__(self, restaurant_repository: RestaurantRepository) -> None:
         self._restaurant_repository = restaurant_repository
+        self._settings_repository = RestaurantSettingsRepository()
 
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         """Run availability query with profile-based business checks."""
@@ -64,8 +65,7 @@ class RestaurantAvailabilityTool(BaseTool):
                 "suggestion": "handoff",
             }
 
-        settings_repo = RestaurantSettingsRepository()
-        settings = await settings_repo.get(request.hotel_id)
+        settings = await self._settings_repository.get(request.hotel_id)
         if request.party_size < settings.min_party_size or request.party_size > settings.max_party_size:
             return {
                 "available": False,
@@ -82,6 +82,23 @@ class RestaurantAvailabilityTool(BaseTool):
                 "available": False,
                 "reason": "OUTSIDE_RESTAURANT_HOURS",
                 "suggestion": "request_valid_time",
+            }
+
+        # Daily capacity check — must match create_hold to prevent
+        # availability/create discrepancy
+        cap = await self._settings_repository.check_daily_capacity(
+            request.hotel_id, request.date, request.party_size,
+        )
+        if not cap["allowed"]:
+            return {
+                "available": False,
+                "reason": "DAILY_CAPACITY_FULL",
+                "suggestion": "handoff",
+                "handoff_required": True,
+                "count": cap["count"],
+                "max": cap["max"],
+                "party_size_total": cap.get("party_size_total"),
+                "party_size_max": cap.get("party_size_max"),
             }
 
         slots = await self._restaurant_repository.get_available_slots(

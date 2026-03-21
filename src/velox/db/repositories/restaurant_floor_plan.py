@@ -641,8 +641,10 @@ class RestaurantStatusManager:
                 await execute(
                     """
                     UPDATE restaurant_capacity_windows
-                    SET booked_reservations = GREATEST(0, booked_reservations - 1)
+                    SET booked_reservations = GREATEST(0, booked_reservations - 1),
+                        booked_party_size = GREATEST(0, booked_party_size - $2)
                     WHERE id = $1
                     """,
                     int(slot["capacity_window_id"]),
+                    int(row["party_size"] or 0),
                 )
