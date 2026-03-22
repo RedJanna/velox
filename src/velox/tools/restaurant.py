@@ -185,7 +185,18 @@ class RestaurantCreateHoldTool(BaseTool):
             return {
                 "available": False,
                 "reason": "NO_CAPACITY",
-                "suggestion": "alternative_slot",
+                "suggestion": "handoff",
+                "handoff_required": True,
+                "guest_message": "Sizleri canlı müşteri temsilcisine bağlıyorum.",
+                "collected_reservation_context": {
+                    "date": str(slot_data["date"]),
+                    "time": slot_data["time"].isoformat(),
+                    "party_size": party_size,
+                    "guest_name": str(kwargs["guest_name"]),
+                    "phone": str(kwargs["phone"]),
+                    "area": str(kwargs["area"]) if kwargs.get("area") else slot_data.get("area"),
+                    "notes": str(kwargs["notes"]) if kwargs.get("notes") else None,
+                },
             }
 
         selected_slot_id = str(slot_id)
@@ -193,7 +204,18 @@ class RestaurantCreateHoldTool(BaseTool):
             return {
                 "available": False,
                 "reason": "SLOT_NOT_AVAILABLE",
-                "suggestion": "alternative_slot",
+                "suggestion": "handoff",
+                "handoff_required": True,
+                "guest_message": "Sizleri canlı müşteri temsilcisine bağlıyorum.",
+                "collected_reservation_context": {
+                    "date": str(slot_data["date"]),
+                    "time": slot_data["time"].isoformat(),
+                    "party_size": party_size,
+                    "guest_name": str(kwargs["guest_name"]),
+                    "phone": str(kwargs["phone"]),
+                    "area": str(kwargs["area"]) if kwargs.get("area") else slot_data.get("area"),
+                    "notes": str(kwargs["notes"]) if kwargs.get("notes") else None,
+                },
             }
         if not _is_within_restaurant_hours(profile, slot_data["time"]):
             return {

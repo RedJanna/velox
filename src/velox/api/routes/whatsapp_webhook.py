@@ -31,6 +31,7 @@ from velox.llm.prompt_builder import get_prompt_builder
 from velox.llm.response_parser import ResponseParser
 from velox.models.conversation import Conversation, InternalJSON, LLMResponse, Message
 from velox.models.escalation import EscalationResult
+from velox.tools.notification import NotifySendTool, send_admin_whatsapp_alerts
 from velox.utils.privacy import hash_phone
 
 logger = structlog.get_logger(__name__)
@@ -963,6 +964,58 @@ def _build_child_quote_handoff_response(
             entities=entities,
             handoff={"needed": True, "reason": "child_quote_manual_verification"},
             next_step="manual_child_quote_verification",
+        ),
+    )
+
+
+def _extract_restaurant_capacity_handoff_context(executed_calls: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return collected restaurant reservation context when restaurant create flow requires handoff."""
+    handoff_reasons = {"DAILY_CAPACITY_FULL", "NO_CAPACITY", "SLOT_NOT_AVAILABLE"}
+    for call in reversed(executed_calls):
+        if str(call.get("name") or "") != "restaurant_create_hold":
+            continue
+        result = _loads_tool_payload(call.get("result"))
+        if str(result.get("reason") or "") not in handoff_reasons:
+            continue
+        if not bool(result.get("handoff_required")):
+            continue
+        context = result.get("collected_reservation_context")
+        if isinstance(context, dict):
+            context_copy = dict(context)
+            if result.get("guest_message"):
+                context_copy["guest_message"] = str(result.get("guest_message"))
+            return context_copy
+    return {}
+
+
+def _build_restaurant_capacity_handoff_response(
+    conversation: Conversation,
+    executed_calls: list[dict[str, Any]],
+    language: str,
+) -> LLMResponse | None:
+    """Create deterministic handoff when restaurant create flow cannot complete automatically."""
+    context = _extract_restaurant_capacity_handoff_context(executed_calls)
+    if not context:
+        return None
+
+    entities = _merge_entities_with_context(conversation.entities_json, context)
+    if language == "en":
+        user_message = str(context.get("guest_message") or "I am connecting you to a live customer representative now.")
+    else:
+        user_message = str(context.get("guest_message") or "Sizleri canlı müşteri temsilcisine bağlıyorum.")
+
+    return LLMResponse(
+        user_message=user_message,
+        internal_json=InternalJSON(
+            language=language,
+            intent="restaurant_booking_create",
+            state="HANDOFF",
+            entities=entities,
+            required_questions=[],
+            handoff={"needed": True, "reason": "restaurant_capacity_or_slot_unavailable"},
+            risk_flags=["RESTAURANT_CAPACITY_HANDOFF"],
+            escalation={"level": "L2", "route_to_role": "ADMIN", "sla_hint": "high"},
+            next_step="handoff_to_restaurant_team",
         ),
     )
 
@@ -2122,6 +2175,14 @@ async def _run_message_pipeline(
             logger.warning("stay_quote_child_occupancy_manual_verification")
             return _build_child_quote_handoff_response(conversation.hotel_id, executed_calls)
 
+        restaurant_capacity_handoff = _build_restaurant_capacity_handoff_response(
+            conversation,
+            executed_calls,
+            target_language,
+        )
+        if restaurant_capacity_handoff is not None:
+            return restaurant_capacity_handoff
+
         parsed = ResponseParser.parse(content)
         intent = str(parsed.internal_json.intent or "").lower()
         language = (
@@ -2499,23 +2560,33 @@ async def _is_human_override_active(
     redis_client: Any = None,
 ) -> bool:
     """Check if human override is active — Redis first, then DB fallback."""
-    # Try Redis (fast path)
+    db_override = False
+    if conversation_id is not None:
+        try:
+            repo = ConversationRepository()
+            db_override = await repo.get_human_override(conversation_id)
+        except Exception:
+            db_override = False
+
+    # Try Redis (fast path), but self-heal stale phone-level locks.
     if redis_client is not None:
         try:
             val = await redis_client.get(f"velox:human_override:{phone_hash}")
             if val is not None:
-                return val == "1" or val == b"1"
+                redis_override = val == "1" or val == b"1"
+                if redis_override and not db_override and conversation_id is not None:
+                    await redis_client.delete(f"velox:human_override:{phone_hash}")
+                    logger.info(
+                        "stale_human_override_cache_cleared",
+                        conversation_id=str(conversation_id),
+                        phone_hash=phone_hash[:8] + "***",
+                    )
+                    return False
+                return redis_override or db_override
         except Exception:
             pass
 
-    # DB fallback
-    if conversation_id is not None:
-        try:
-            repo = ConversationRepository()
-            return await repo.get_human_override(conversation_id)
-        except Exception:
-            pass
-    return False
+    return db_override
 
 
 def _should_activate_handoff_lock(next_state: str, handoff: dict[str, Any] | None) -> bool:
@@ -2773,27 +2844,37 @@ async def _finalize_handoff_transition(
         or f"Hotel #{conversation.hotel_id}"
     )
     try:
+        notify_metadata = {
+            "format_standard": "A11.8",
+            "level": level,
+            "intent": str(llm_response.internal_json.intent or "human_handoff"),
+            "hotel_name": hotel_name,
+            "guest_name": "Unknown",
+            "phone": phone,
+            "transcript_summary": transcript_summary,
+            "requested_action": requested_action,
+            "reference_id": ticket_id or str(conversation.id),
+            "risk_flags": list(llm_response.internal_json.risk_flags or []),
+            "priority": priority,
+            "handoff_transition": True,
+            "handoff_ticket_ensured": ticket_ensured,
+            "handoff_assigned_role": assigned_role,
+        }
         await notify_tool.send(
             hotel_id=conversation.hotel_id,
             to_role="ADMIN",
             channel="panel",
             message="Immediate handoff notification",
-            metadata={
-                "format_standard": "A11.8",
-                "level": level,
-                "intent": str(llm_response.internal_json.intent or "human_handoff"),
-                "hotel_name": hotel_name,
-                "guest_name": "Unknown",
-                "phone": phone,
-                "transcript_summary": transcript_summary,
-                "requested_action": requested_action,
-                "reference_id": ticket_id or str(conversation.id),
-                "risk_flags": list(llm_response.internal_json.risk_flags or []),
-                "priority": priority,
-                "handoff_transition": True,
-                "handoff_ticket_ensured": ticket_ensured,
-                "handoff_assigned_role": assigned_role,
-            },
+            metadata=notify_metadata,
+        )
+        await send_admin_whatsapp_alerts(
+            hotel_id=conversation.hotel_id,
+            message=NotifySendTool._format_message_for_delivery(
+                hotel_id=conversation.hotel_id,
+                to_role="ADMIN",
+                message="Immediate handoff notification",
+                metadata=notify_metadata,
+            ),
         )
     except Exception:
         logger.exception(
