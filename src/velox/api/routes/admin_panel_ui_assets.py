@@ -49,6 +49,8 @@ button,input,select,textarea{font:inherit}
 .sidebar-button.primary,.toolbar button.primary,.inline-button.primary,.action-button.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff}
 .sidebar-button.warn,.action-button.warn{background:#fff4db;color:#7c4b06}
 .sidebar-button.danger,.action-button.danger{background:#fde7e5;color:var(--danger)}
+.action-button.secondary{background:#eef2f7;color:#334155;border:1px solid var(--line)}
+.action-button:disabled{opacity:.55;cursor:not-allowed}
 .workspace{display:flex;flex-direction:column;gap:18px;min-width:0}
 .topbar{background:rgba(255,253,248,.9);border-radius:30px;padding:22px 26px;box-shadow:var(--shadow);display:flex;align-items:flex-start;justify-content:space-between;gap:18px;backdrop-filter:blur(18px)}
 .topbar h2{margin:0;font-family:var(--serif);font-size:30px;line-height:1}

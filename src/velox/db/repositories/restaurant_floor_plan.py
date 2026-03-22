@@ -507,17 +507,22 @@ class RestaurantStatusManager:
 
         if new_status == RestaurantReservationStatus.GELDI:
             update_parts.append(f"arrived_at = now()")
+            update_parts.append("rejected_reason = NULL")
         elif new_status == RestaurantReservationStatus.GELMEDI:
             update_parts.append(f"no_show_at = now()")
             update_parts.append(f"table_id = NULL")
+            update_parts.append("rejected_reason = NULL")
         elif new_status == RestaurantReservationStatus.IPTAL:
             update_parts.append(f"table_id = NULL")
             if reason:
                 update_parts.append(f"rejected_reason = ${len(params) + 1}")
                 params.append(reason)
+            else:
+                update_parts.append("rejected_reason = NULL")
         elif new_status == RestaurantReservationStatus.ONAYLANDI:
             update_parts.append(f"approved_by = ${len(params) + 1}")
             update_parts.append(f"approved_at = now()")
+            update_parts.append("rejected_reason = NULL")
             params.append(actor)
 
         set_clause = ", ".join(update_parts)
