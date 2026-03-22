@@ -823,7 +823,7 @@ def render_admin_panel_html() -> str:
         <input id="decisionHoldId" type="hidden">
         <input id="decisionMode" type="hidden">
         <label for="decisionReason">Gerekce</label>
-        <textarea id="decisionReason" required class="dialog-textarea" aria-label="Red gerekcesi"></textarea>
+        <textarea id="decisionReason" class="dialog-textarea" aria-label="Red gerekcesi"></textarea>
         <div class="dialog-actions">
           <button id="closeDecision" class="inline-button secondary" type="button">Vazgec</button>
           <button class="inline-button danger" type="submit">Reddi Uygula</button>

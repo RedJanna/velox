@@ -114,6 +114,8 @@ button,input,select,textarea{font:inherit}
 .pill-closed{display:inline-block;padding:4px 10px;border-radius:10px;font-size:12px;background:#6b7280;color:#fff}
 .table-shell{border:1px solid var(--line);border-radius:22px;overflow:hidden;background:var(--surface)}
 table{width:100%;border-collapse:collapse}
+.holds-table tbody tr.has-special-request td{background:#fff7e6}
+.holds-table tbody tr.has-special-request:hover td{background:#ffefc7}
 thead th{padding:14px 16px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;background:#f7f2e9;color:#536173;text-align:left;border-bottom:1px solid var(--line)}
 tbody td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:top;font-size:14px;line-height:1.45}
 tbody tr:last-child td{border-bottom:none}
@@ -451,9 +453,38 @@ function bindDelegatedEvents() {
       refs.decisionMode.value = 'reject';
       refs.decisionHoldId.value = target.dataset.rejectHold;
       refs.decisionTitle.textContent = 'Hold reddet';
-      refs.decisionLead.textContent = 'Bu islem misafir akisina olumsuz yansir. Nedeni acik yazin.';
+      refs.decisionLead.textContent = 'Isterseniz gerekce yazin; bos birakarak da reddedebilirsiniz.';
       refs.decisionReason.value = '';
       refs.decisionDialog.showModal();
+      return;
+    }
+
+    if (target.dataset.restaurantStatus) {
+      const holdId = target.dataset.restaurantHold || '';
+      const nextStatus = target.dataset.restaurantStatus || '';
+      if (!holdId || !nextStatus) return;
+      try {
+        await apiFetch(`/holds/restaurant/${encodeURIComponent(holdId)}/status`, {method: 'PUT', body: {status: nextStatus}});
+        notify('Restoran rezervasyonu guncellendi.', 'success');
+        await loadRestaurantHolds();
+        loadDashboard();
+      } catch (error) {
+        notify(error.message || 'Durum guncellenemedi.', 'error');
+      }
+      return;
+    }
+
+    if (target.dataset.restaurantExtend) {
+      const holdId = target.dataset.restaurantExtend || '';
+      if (!holdId) return;
+      try {
+        const result = await apiFetch(`/holds/restaurant/${encodeURIComponent(holdId)}/extend`, {method: 'POST'});
+        notify(`Rezervasyon saati ${result.new_time || ''} olarak +15 dk guncellendi.`, 'success');
+        await loadRestaurantHolds();
+        loadDashboard();
+      } catch (error) {
+        notify(error.message || 'Uzatma basarisiz.', 'error');
+      }
       return;
     }
 
@@ -1052,12 +1083,12 @@ async function onDecisionSubmit(event) {
   event.preventDefault();
   const holdId = refs.decisionHoldId.value;
   const reason = refs.decisionReason.value.trim();
-  if (!reason) {
-    notify('Red gerekçesi zorunlu.', 'warn');
-    return;
-  }
   try {
-    await apiFetch(`/holds/${holdId}/reject`, {method: 'POST', body: {reason}});
+    if (String(holdId || '').startsWith('R_HOLD_')) {
+      await apiFetch(`/holds/restaurant/${encodeURIComponent(holdId)}/status`, {method: 'PUT', body: {status: 'IPTAL', reason: reason || null}});
+    } else {
+      await apiFetch(`/holds/${holdId}/reject`, {method: 'POST', body: {reason}});
+    }
     refs.decisionDialog.close();
     notify('Hold reddedildi.', 'success');
     const tab = state.activeHoldsTab || 'stay';
