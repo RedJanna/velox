@@ -663,6 +663,25 @@ def _merge_entities_with_context(
     return merged
 
 
+def _sanitize_entities_for_intent(intent: str | None, entities: dict[str, Any] | None) -> dict[str, Any]:
+    """Keep only intent-safe entity fields to avoid cross-flow contamination."""
+    source = dict(entities or {})
+    normalized_intent = str(intent or '').strip().lower()
+    if normalized_intent == 'restaurant_booking_create':
+        allowed = {
+            'hotel_id', 'date', 'time', 'party_size', 'guest_name', 'phone', 'notes', 'area',
+            'restaurant_hold_id', 'slot_id', 'language', 'confirmation', 'source'
+        }
+        return {key: value for key, value in source.items() if key in allowed}
+    if normalized_intent.startswith('restaurant_'):
+        allowed = {
+            'hotel_id', 'date', 'time', 'party_size', 'guest_name', 'phone', 'notes', 'area',
+            'restaurant_hold_id', 'slot_id', 'language', 'confirmation', 'source'
+        }
+        return {key: value for key, value in source.items() if key in allowed}
+    return source
+
+
 def _extract_quote_offers(executed_calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Return normalized booking quote offers from the latest executed tool result."""
     for call in reversed(executed_calls):
@@ -2480,6 +2499,7 @@ async def _process_incoming_message(
             conversation.entities_json,
             llm_response.internal_json.entities if isinstance(llm_response.internal_json.entities, dict) else {},
         )
+        merged_entities = _sanitize_entities_for_intent(next_intent, merged_entities)
         llm_response.internal_json.entities = merged_entities
         conversation.entities_json = merged_entities
         next_entities = merged_entities or None
@@ -3033,6 +3053,7 @@ async def _process_burst_aggregated(
             conversation.entities_json,
             llm_response.internal_json.entities if isinstance(llm_response.internal_json.entities, dict) else {},
         )
+        merged_entities = _sanitize_entities_for_intent(next_intent, merged_entities)
         llm_response.internal_json.entities = merged_entities
         conversation.entities_json = merged_entities
         next_entities = merged_entities or None
