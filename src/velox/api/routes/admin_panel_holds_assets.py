@@ -630,6 +630,28 @@ function hasMeaningfulSpecialRequest(value) {
   return !noRequestPatterns.some(function(pattern) { return pattern.test(normalized); });
 }
 
+function detectSpecialRequestTags(value) {
+  var normalized = normalizeSpecialRequestText(value);
+  if (!hasMeaningfulSpecialRequest(normalized)) return [];
+
+  var tagRules = [
+    { label: 'Alerji', patterns: [/alerji/, /allerg/, /allergie/, /allergia/, /حساسي/, /过敏/, /アレルギ/, /알레르기/] },
+    { label: 'Vegan/Vejetaryen', patterns: [/vegan/, /vegetarian/, /vejetaryen/, /glutensiz/, /gluten free/, /helal/, /halal/, /kosher/] },
+    { label: 'Çocuk', patterns: [/cocuk/, /çocuk/, /bebek/, /baby/, /high chair/, /mama sandalyesi/, /kids?/, /stroller/] },
+    { label: 'Pencere Kenarı', patterns: [/pencere/, /window/, /cam kenari/, /window side/, /vista/, /view/] },
+    { label: 'Dış/İç Alan', patterns: [/outdoor/, /indoor/, /teras/, /terrace/, /bahce/, /garden/, /patio/, /dis mekan/, /ic mekan/] },
+    { label: 'Doğum Günü/Kutlama', patterns: [/dogum gunu/, /doğum günü/, /birthday/, /anniversary/, /honeymoon/, /balayi/, /balayı/, /celebrat/, /romantic/, /romantik/] },
+    { label: 'Erişilebilirlik', patterns: [/wheelchair/, /tekerlekli sandalye/, /accessible/, /disabled/, /engelli/, /accessibility/] },
+    { label: 'Geç Saat', patterns: [/late/, /gec/, /geç/, /delay/, /delayed/, /gecik/, /late arrival/] },
+    { label: 'Masa Tercihi', patterns: [/masa/, /table/, /corner/, /kose/, /köşe/, /quiet/, /sessiz/, /near music/, /uzak/] }
+  ];
+
+  return tagRules
+    .filter(function(rule) { return rule.patterns.some(function(pattern) { return pattern.test(normalized); }); })
+    .map(function(rule) { return rule.label; })
+    .slice(0, 3);
+}
+
 async function loadRestaurantHolds() {
   var hotelId = state.selectedHotelId;
   var params = new URLSearchParams();
@@ -654,9 +676,11 @@ function renderRestaurantHoldRows(items) {
   return items.map(function(item) {
     var isSelected = String(item.hold_id) === String(state.selectedRestaurantHoldId);
     var hasSpecialRequest = hasMeaningfulSpecialRequest(item.notes);
+    var requestTags = detectSpecialRequestTags(item.notes);
+    var requestTagHtml = requestTags.length ? '<div class="inline-flex-center" style="flex-wrap:wrap">' + requestTags.map(function(tag){ return '<span class="pill info">' + escapeHtml(tag) + '</span>'; }).join('') + '</div>' : '';
     return '<tr class="' + (isSelected ? 'is-selected ' : '') + (hasSpecialRequest ? 'has-special-request' : '') + '" data-open-hold="' + escapeHtml(item.hold_id) + '">'
       + '<td><button class="inline-button secondary" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayini ac') + '">Detay</button></td>'
-      + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Hotel ' + escapeHtml(String(item.hotel_id)) + '</span>' + (hasSpecialRequest ? '<span class="pill warn">Ozel Istek Var</span>' : '') + '</div></td>'
+      + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Hotel ' + escapeHtml(String(item.hotel_id)) + '</span>' + (hasSpecialRequest ? '<span class="pill warn">Ozel Istek Var</span>' : '') + requestTagHtml + '</div></td>'
       + '<td><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span></td>'
       + '<td>' + escapeHtml(item.guest_name || '-') + '</td>'
       + '<td><span class="muted">' + escapeHtml(item.date || '-') + ' ' + escapeHtml(item.time || '') + '</span></td>'
@@ -683,10 +707,12 @@ function renderRestaurantHoldDetail(item) {
   var canMarkNoShow = status === 'ONAYLANDI';
   var canExtend = status === 'ONAYLANDI';
   var hasSpecialRequest = hasMeaningfulSpecialRequest(item.notes);
+  var requestTags = detectSpecialRequestTags(item.notes);
+  var requestTagHtml = requestTags.length ? '<div class="inline-flex-center" style="flex-wrap:wrap;justify-content:flex-end">' + requestTags.map(function(tag){ return '<span class="pill info">' + escapeHtml(tag) + '</span>'; }).join('') + '</div>' : '';
   refs.restaurantHoldDetail.innerHTML = '<div class="module-header"><div>'
     + '<h3>' + escapeHtml(String(item.hold_id || 'Hold')) + '</h3>'
     + '<p class="muted">RESTORAN · Hotel ' + escapeHtml(String(item.hotel_id || '-')) + '</p>'
-    + '</div><div class="stack" style="align-items:flex-end"><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span>' + (String(item.approved_by || '').toUpperCase() === 'AI_RESTAURAN' ? '<span class="pill info">AI Restoran</span>' : '') + (hasSpecialRequest ? '<span class="pill warn">Ozel Istek</span>' : '') + '</div></div>'
+    + '</div><div class="stack" style="align-items:flex-end"><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span>' + (String(item.approved_by || '').toUpperCase() === 'AI_RESTAURAN' ? '<span class="pill info">AI Restoran</span>' : '') + (hasSpecialRequest ? '<span class="pill warn">Ozel Istek</span>' : '') + requestTagHtml + '</div></div>'
     + '<div class="hold-summary-grid mb-md">'
     + formatHoldSummaryDetailCell('Misafir', item.guest_name || '-')
     + formatHoldSummaryDetailCell('Tarih', (item.date || '-') + ' ' + (item.time || ''))
