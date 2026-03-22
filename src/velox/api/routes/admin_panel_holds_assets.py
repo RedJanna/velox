@@ -562,18 +562,72 @@ async function submitStayHold() {
 function normalizeSpecialRequestText(value) {
   return String(value || '')
     .toLocaleLowerCase('tr-TR')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[\\s\\.,!?:;\\-_/\\\\"'`~()\\[\\]{}]+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
 function hasMeaningfulSpecialRequest(value) {
   var normalized = normalizeSpecialRequestText(value);
   if (!normalized) return false;
-  var noRequestValues = new Set([
-    'yok', 'yoktur', 'yoktu', 'hayir', 'hayır', 'istemiyor', 'istek yok', 'ozel istek yok', 'özel istek yok',
-    'none', 'no', 'nope', 'n a', 'na', 'nil', 'null', 'yok hocam'
+
+  var exactNoRequestValues = new Set([
+    'yok', 'yoktur', 'yoktu', 'hayir', 'hayirdir', 'istemiyor', 'istek yok', 'ozel istek yok', 'ozel talep yok', 'herhangi bir istek yok', 'ozel bir istek yok',
+    'none', 'no', 'nope', 'n a', 'na', 'nil', 'null', 'nothing', 'nothing special', 'no special request', 'no special requests', 'no request', 'no requests', 'no preference', 'no preferences', 'not applicable', 'nothing to add',
+    'aucun', 'aucune', 'aucune demande', 'aucune demande speciale', 'pas de demande', 'pas de demande speciale',
+    'ninguno', 'ninguna', 'sin solicitud', 'sin solicitudes', 'sin peticiones', 'sin peticion especial', 'ninguna solicitud especial',
+    'keine', 'keiner', 'keine anfrage', 'keine anfragen', 'keine besonderen wunsche', 'kein besonderer wunsch',
+    'nessuno', 'nessuna', 'nessuna richiesta', 'nessuna richiesta speciale',
+    'nenhum', 'nenhuma', 'sem pedido', 'sem pedidos', 'sem solicitacao especial', 'nenhuma solicitacao especial',
+    'niks', 'geen', 'geen verzoek', 'geen speciale verzoeken',
+    'net', 'nic', 'brak', 'brak prosby', 'brak specjalnych zyczen',
+    'nyet', 'niet', 'bez prosby', 'bez osobych pozhelaniy',
+    'لا يوجد', 'لا', 'لا طلب', 'لا توجد طلبات', 'لا يوجد طلب خاص',
+    '无', '没有', '没有要求', '没有特殊要求', '无特殊要求',
+    'なし', 'ありません', '特になし', '特別な要望なし',
+    '없음', '없어요', '특이사항 없음', '특별 요청 없음',
+    'nahi', 'koi nahi', 'koi request nahi', 'koi khas darkhast nahi',
+    'yok hocam', 'ozel istek bulunmuyor', 'misafirin ozel istegi yok'
   ]);
-  return !noRequestValues.has(normalized);
+  if (exactNoRequestValues.has(normalized)) return false;
+
+  var noRequestPatterns = [
+    /\bozel( bir)? istek yok\b/,
+    /\bozel talep yok\b/,
+    /\bherhangi bir istek yok\b/,
+    /\bherhangi bir ozel istek yok\b/,
+    /\bmisafirin ozel istegi yok\b/,
+    /\bistek bulunmuyor\b/,
+    /\bno special request(s)?\b/,
+    /\bno request(s)?\b/,
+    /\bno preference(s)?\b/,
+    /\bnothing special\b/,
+    /\bnothing to add\b/,
+    /\bwithout special request(s)?\b/,
+    /\baucune? demande( speciale)?\b/,
+    /\bpas de demande( speciale)?\b/,
+    /\bsin (solicitud|solicitudes|peticion|peticiones)( especial(es)?)?\b/,
+    /\bninguna solicitud especial\b/,
+    /\bkein(e|er)? besondere(n)? wunsch(e)?\b/,
+    /\bkeine anfrage(n)?\b/,
+    /\bnessuna richiesta( speciale)?\b/,
+    /\bsem (pedido|pedidos|solicitacao especial)\b/,
+    /\bnenhuma solicitacao especial\b/,
+    /\bgeen speciale verzoek(en)?\b/,
+    /\bbrak specjalnych zyczen\b/,
+    /\bbez osobych pozhelaniy\b/,
+    /لا يوجد طلب( خاص)?/,
+    /没有(特殊)?要求/,
+    /特に?なし/,
+    /特別な要望なし/,
+    /특별 요청 없음/,
+    /특이사항 없음/,
+    /koi (request|khas darkhast) nahi/
+  ];
+
+  return !noRequestPatterns.some(function(pattern) { return pattern.test(normalized); });
 }
 
 async function loadRestaurantHolds() {
