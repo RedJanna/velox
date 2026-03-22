@@ -969,23 +969,48 @@ def _build_child_quote_handoff_response(
 
 
 def _extract_restaurant_capacity_handoff_context(executed_calls: list[dict[str, Any]]) -> dict[str, Any]:
-    """Return collected restaurant reservation context when restaurant create flow requires handoff."""
-    handoff_reasons = {"DAILY_CAPACITY_FULL", "NO_CAPACITY", "SLOT_NOT_AVAILABLE"}
+    """Return collected restaurant reservation context when restaurant flow requires handoff."""
+    create_handoff_reasons = {"DAILY_CAPACITY_FULL", "NO_CAPACITY", "SLOT_NOT_AVAILABLE"}
+    availability_handoff_reasons = {"NO_CAPACITY", "SLOT_NOT_AVAILABLE", "DAILY_CAPACITY_FULL"}
+    availability_snapshot: dict[str, Any] = {}
+
     for call in reversed(executed_calls):
-        if str(call.get("name") or "") != "restaurant_create_hold":
-            continue
+        tool_name = str(call.get("name") or "")
         result = _loads_tool_payload(call.get("result"))
-        if str(result.get("reason") or "") not in handoff_reasons:
-            continue
-        if not bool(result.get("handoff_required")):
-            continue
-        context = result.get("collected_reservation_context")
-        if isinstance(context, dict):
-            context_copy = dict(context)
-            if result.get("guest_message"):
-                context_copy["guest_message"] = str(result.get("guest_message"))
-            return context_copy
-    return {}
+
+        if tool_name == "restaurant_create_hold":
+            if str(result.get("reason") or "") not in create_handoff_reasons:
+                continue
+            if not bool(result.get("handoff_required")):
+                continue
+            context = result.get("collected_reservation_context")
+            if isinstance(context, dict):
+                context_copy = dict(context)
+                if result.get("guest_message"):
+                    context_copy["guest_message"] = str(result.get("guest_message"))
+                return context_copy
+
+        if tool_name == "restaurant_availability":
+            if bool(result.get("available")):
+                continue
+            reason = str(result.get("reason") or "")
+            if reason not in availability_handoff_reasons and reason:
+                continue
+            snapshot = result.get("collected_reservation_context")
+            if isinstance(snapshot, dict):
+                availability_snapshot = dict(snapshot)
+            elif isinstance(call.get("args"), dict):
+                args = dict(call.get("args") or {})
+                availability_snapshot = {
+                    "date": args.get("date"),
+                    "time": args.get("time"),
+                    "party_size": args.get("party_size"),
+                    "area": args.get("area"),
+                    "notes": args.get("notes"),
+                }
+            availability_snapshot["guest_message"] = "Sizleri canlı müşteri temsilcisine bağlıyorum."
+
+    return availability_snapshot
 
 
 def _build_restaurant_capacity_handoff_response(
