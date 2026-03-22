@@ -349,7 +349,7 @@ function bindEvents() {
   document.getElementById('saveHotelProfile').addEventListener('click', saveHotelProfile);
   document.getElementById('loadSlotsButton').addEventListener('click', event => {
     event.preventDefault();
-    loadRestaurantSlots();
+    loadRestaurantSlots({syncRestaurantFilters: true});
   });
   document.getElementById('closeDecision').addEventListener('click', () => refs.decisionDialog.close());
   window.addEventListener('message', async event => {
