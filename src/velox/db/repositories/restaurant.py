@@ -231,10 +231,10 @@ class RestaurantRepository:
         await execute(
             """
             UPDATE restaurant_holds
-            SET status = $2,
-                approved_by = COALESCE($3, approved_by),
-                approved_at = CASE WHEN $2::text IN ('APPROVED', 'CONFIRMED', 'ONAYLANDI') THEN now() ELSE approved_at END,
-                rejected_reason = COALESCE($4, rejected_reason),
+            SET status = $2::varchar,
+                approved_by = COALESCE($3::varchar, approved_by),
+                approved_at = CASE WHEN $2::varchar IN ('APPROVED', 'CONFIRMED', 'ONAYLANDI') THEN now() ELSE approved_at END,
+                rejected_reason = COALESCE($4::text, rejected_reason),
                 updated_at = now()
             WHERE hold_id = $1
             """,
