@@ -562,7 +562,7 @@ async function submitStayHold() {
 function normalizeSpecialRequestText(value) {
   return String(value || '')
     .toLocaleLowerCase('tr-TR')
-    .replace(/[\s\.,!?:;\-_/\\"'`~()\[\]{}]+/g, ' ')
+    .replace(/[\\s\\.,!?:;\\-_/\\\\"'`~()\\[\\]{}]+/g, ' ')
     .trim();
 }
 
