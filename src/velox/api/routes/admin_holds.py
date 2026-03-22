@@ -338,6 +338,8 @@ async def list_restaurant_holds(
     user: Annotated[TokenData, Depends(get_current_user)],
     hotel_id: int | None = Query(None),
     status: str | None = Query(None),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(30, ge=1, le=100),
 ) -> dict[str, Any]:
@@ -345,22 +347,30 @@ async def list_restaurant_holds(
     check_permission(user, "holds:read")
     effective = _effective_hotel(user, hotel_id)
     offset = (page - 1) * per_page
+    if date_from and date_to and date_to < date_from:
+        raise HTTPException(status_code=400, detail="date_to must be >= date_from")
 
     items_query = """
         SELECT hold_id, hotel_id, conversation_id, slot_id, date, time,
                party_size, guest_name, phone, area, notes, status,
                approved_by, approved_at, rejected_reason, created_at
         FROM restaurant_holds
-        WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
-        ORDER BY created_at DESC
-        LIMIT $3 OFFSET $4
+        WHERE ($1::int IS NULL OR hotel_id = $1)
+          AND ($2::text IS NULL OR status = $2)
+          AND ($3::date IS NULL OR date >= $3)
+          AND ($4::date IS NULL OR date <= $4)
+        ORDER BY date ASC, time ASC, created_at DESC
+        LIMIT $5 OFFSET $6
     """
     count_query = """
         SELECT COUNT(*) FROM restaurant_holds
-        WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
+        WHERE ($1::int IS NULL OR hotel_id = $1)
+          AND ($2::text IS NULL OR status = $2)
+          AND ($3::date IS NULL OR date >= $3)
+          AND ($4::date IS NULL OR date <= $4)
     """
-    rows = await fetch(items_query, effective, status, per_page, offset)
-    total = int(await fetchval(count_query, effective, status) or 0)
+    rows = await fetch(items_query, effective, status, date_from, date_to, per_page, offset)
+    total = int(await fetchval(count_query, effective, status, date_from, date_to) or 0)
     items = []
     for r in rows:
         d = dict(r)

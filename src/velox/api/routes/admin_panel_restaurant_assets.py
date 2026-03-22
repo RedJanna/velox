@@ -1016,14 +1016,14 @@ function applyRestaurantModeUI(mode){
   state.restaurantMode = normalized;
 
   var panel = document.getElementById('restaurantHoldCreatePanel');
-  var createBtn = document.querySelector('[data-action="toggle-restaurant-create"]');
+  var createButtons = Array.from(document.querySelectorAll('[data-action="toggle-restaurant-create"]'));
   if(panel){
     panel.hidden = normalized === 'MANUEL' ? true : panel.hidden;
   }
-  if(createBtn){
+  createButtons.forEach(function(createBtn){
     createBtn.disabled = normalized === 'MANUEL';
     createBtn.title = normalized === 'MANUEL' ? 'Manuel modda panelden rezervasyon olusturma kapali.' : '';
-  }
+  });
 }
 
 function initRestaurantSettings(){

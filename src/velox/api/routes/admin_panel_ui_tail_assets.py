@@ -252,9 +252,16 @@ async function loadRestaurantSlots() {
   const params = new URLSearchParams();
   params.set('date_from', String(form.get('date_from') || defaultDate()));
   params.set('date_to', String(form.get('date_to') || defaultDate(7)));
+  state.restaurantDateFrom = params.get('date_from') || '';
+  state.restaurantDateTo = params.get('date_to') || '';
+  if (refs.restaurantDateFrom) refs.restaurantDateFrom.value = state.restaurantDateFrom;
+  if (refs.restaurantDateTo) refs.restaurantDateTo.value = state.restaurantDateTo;
   const response = await apiFetch(`/hotels/${hotelId}/restaurant/slots?${params.toString()}`);
   state.restaurantSlots = response.items || [];
   applySlotDisplayFilter();
+  if (typeof loadRestaurantHolds === 'function') {
+    await loadRestaurantHolds();
+  }
 }
 
 function renderSlotSummaryCards(items) {

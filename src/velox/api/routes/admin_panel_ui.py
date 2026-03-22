@@ -315,32 +315,32 @@ def render_admin_panel_html() -> str:
                   <div><h3>Restoran Talepleri</h3><p>Restoran rezervasyon onay ve red islemleri.</p></div>
                   <div class="stack" style="align-items:flex-end;gap:8px;">
                     <div class="filter-chips" aria-label="Restoran mod secimi">
-                      <button class="filter-chip is-active" id="restaurantModeAi" type="button">AI Restoran</button>
-                      <button class="filter-chip" id="restaurantModeManual" type="button">Manuel</button>
+                      <button class="filter-chip is-active" id="restaurantModeAiLegacy" type="button">AI Restoran</button>
+                      <button class="filter-chip" id="restaurantModeManualLegacy" type="button">Manuel</button>
                     </div>
                     <button class="inline-button primary" data-action="toggle-restaurant-create" data-restaurant-toggle-create aria-label="Yeni restoran rezervasyonu olustur">Yeni Rezervasyon</button>
                   </div>
                 </div>
-                <form id="restaurantHoldFilters" class="toolbar">
-                  <div class="filter-chips" id="restaurantStatusChips"></div>
+                <form id="restaurantHoldFiltersLegacy" class="toolbar">
+                  <div class="filter-chips" id="restaurantStatusChipsLegacy"></div>
                   <button class="primary" type="submit">Filtrele</button>
                 </form>
                 <div class="table-shell">
                   <table class="holds-table"><thead><tr>
                     <th>Ac</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Tarih/Saat</th><th>Kisi</th>
-                  </tr></thead><tbody id="restaurantHoldTableBody"></tbody></table>
+                  </tr></thead><tbody id="restaurantHoldTableBodyLegacy"></tbody></table>
                 </div>
               </article>
-              <article id="restaurantHoldDetail" class="module-card">
+              <article id="restaurantHoldDetailLegacy" class="module-card">
                 <div class="empty-state"><p>Detay icin listeden bir kayit secin.</p></div>
               </article>
             </div>
-            <article id="restaurantHoldCreatePanel" class="module-card" hidden>
+            <article id="restaurantHoldCreatePanelLegacy" class="module-card" hidden>
               <div class="module-header">
                 <div><h3>Restoran Rezervasyonu Olustur</h3><p>Bilgileri girin.</p></div>
                 <button class="inline-button secondary" data-restaurant-toggle-create>Kapat</button>
               </div>
-              <form id="restaurantCreateForm" class="field-grid">
+              <form id="restaurantCreateFormLegacy" class="field-grid">
                 <div class="field"><label for="rc-date">Tarih</label><input id="rc-date" name="date" type="date" required></div>
                 <div class="field"><label for="rc-time">Saat</label><input id="rc-time" name="time" type="time" required></div>
                 <div class="field"><label for="rc-guest">Misafir Adi</label><input id="rc-guest" name="guest_name" required></div>
@@ -599,6 +599,8 @@ def render_admin_panel_html() -> str:
               </div>
               <form id="restaurantHoldFilters" class="toolbar">
                 <div class="filter-chips" id="restaurantStatusChips"></div>
+                <input id="restaurantDateFrom" name="date_from" type="date" aria-label="Restoran talebi baslangic tarihi">
+                <input id="restaurantDateTo" name="date_to" type="date" aria-label="Restoran talebi bitis tarihi">
                 <button class="primary" type="submit">Filtrele</button>
               </form>
               <div class="table-shell">

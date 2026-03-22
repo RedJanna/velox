@@ -564,6 +564,10 @@ async function loadRestaurantHolds() {
   var params = new URLSearchParams();
   if (state.me?.role === 'ADMIN' && hotelId) params.set('hotel_id', hotelId);
   if (state.restaurantStatusFilter) params.set('status', state.restaurantStatusFilter);
+  if (state.restaurantDateFrom) params.set('date_from', state.restaurantDateFrom);
+  if (state.restaurantDateTo) params.set('date_to', state.restaurantDateTo);
+  if (refs.restaurantDateFrom) refs.restaurantDateFrom.value = state.restaurantDateFrom || '';
+  if (refs.restaurantDateTo) refs.restaurantDateTo.value = state.restaurantDateTo || '';
   var response = await apiFetch('/holds/restaurant?' + params.toString());
   state.restaurantHolds = response.items || [];
   var selectedExists = state.restaurantHolds.some(function(i) { return String(i.hold_id) === String(state.selectedRestaurantHoldId); });

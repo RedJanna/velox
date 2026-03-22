@@ -221,6 +221,8 @@ const state = {
   selectedStayHoldId: '',
   restaurantHolds: [],
   selectedRestaurantHoldId: '',
+  restaurantDateFrom: '',
+  restaurantDateTo: '',
   transferHolds: [],
   selectedTransferHoldId: '',
   activeHoldsTab: 'stay',
@@ -264,7 +266,7 @@ function bindRefs() {
     'otpSetup','otpSecret','otpUri','otpQrImage','otpVerifyForm','otpVerifyHint','currentUser','currentRole','hotelScope','hotelSelect','nav','pageTitle','pageLead',
     'dashboardCards','dashboardQueues','conversationFilters','conversationTableBody','conversationDetail',
     'stayHoldFilters','stayHoldTableBody','stayHoldDetail','stayHoldCreatePanel','stayWizardSteps','stayWizardBody','stayStatusChips',
-    'restaurantHoldFilters','restaurantHoldTableBody','restaurantHoldDetail','restaurantHoldCreatePanel','restaurantCreateForm','restaurantStatusChips',
+    'restaurantHoldFilters','restaurantHoldTableBody','restaurantHoldDetail','restaurantHoldCreatePanel','restaurantCreateForm','restaurantStatusChips','restaurantDateFrom','restaurantDateTo',
     'transferHoldFilters','transferHoldTableBody','transferHoldDetail','transferHoldCreatePanel','transferCreateForm','transferStatusChips',
     'ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor',
     'faqFilters','faqTableBody','faqDetail',
@@ -309,6 +311,9 @@ function bindEvents() {
   });
   refs.restaurantHoldFilters.addEventListener('submit', event => {
     event.preventDefault();
+    const formData = new FormData(refs.restaurantHoldFilters);
+    state.restaurantDateFrom = String(formData.get('date_from') || '').trim();
+    state.restaurantDateTo = String(formData.get('date_to') || '').trim();
     loadRestaurantHolds();
   });
   refs.transferHoldFilters.addEventListener('submit', event => {
