@@ -559,6 +559,23 @@ async function submitStayHold() {
 // ---------------------------------------------------------------------------
 // RESTORAN MODULE
 // ---------------------------------------------------------------------------
+function normalizeSpecialRequestText(value) {
+  return String(value || '')
+    .toLocaleLowerCase('tr-TR')
+    .replace(/[\s\.,!?:;\-_/\\"'`~()\[\]{}]+/g, ' ')
+    .trim();
+}
+
+function hasMeaningfulSpecialRequest(value) {
+  var normalized = normalizeSpecialRequestText(value);
+  if (!normalized) return false;
+  var noRequestValues = new Set([
+    'yok', 'yoktur', 'yoktu', 'hayir', 'hayır', 'istemiyor', 'istek yok', 'ozel istek yok', 'özel istek yok',
+    'none', 'no', 'nope', 'n a', 'na', 'nil', 'null', 'yok hocam'
+  ]);
+  return !noRequestValues.has(normalized);
+}
+
 async function loadRestaurantHolds() {
   var hotelId = state.selectedHotelId;
   var params = new URLSearchParams();
@@ -582,14 +599,14 @@ function renderRestaurantHoldRows(items) {
   if (!items.length) return '<tr><td colspan="6"><div class="empty-state"><p>Restoran kaydı bulunamadı.</p></div></td></tr>';
   return items.map(function(item) {
     var isSelected = String(item.hold_id) === String(state.selectedRestaurantHoldId);
-    var hasSpecialRequest = Boolean(String(item.notes || '').trim());
+    var hasSpecialRequest = hasMeaningfulSpecialRequest(item.notes);
     return '<tr class="' + (isSelected ? 'is-selected ' : '') + (hasSpecialRequest ? 'has-special-request' : '') + '" data-open-hold="' + escapeHtml(item.hold_id) + '">'
       + '<td><button class="inline-button secondary" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayini ac') + '">Detay</button></td>'
       + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Hotel ' + escapeHtml(String(item.hotel_id)) + '</span>' + (hasSpecialRequest ? '<span class="pill warn">Ozel Istek Var</span>' : '') + '</div></td>'
       + '<td><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span></td>'
       + '<td>' + escapeHtml(item.guest_name || '-') + '</td>'
       + '<td><span class="muted">' + escapeHtml(item.date || '-') + ' ' + escapeHtml(item.time || '') + '</span></td>'
-      + '<td>' + escapeHtml(String(item.party_size || '-')) + ' kisi' + (hasSpecialRequest ? '<br><small style="color:#92400e;font-weight:700">' + escapeHtml((item.notes || '').slice(0, 60)) + '</small>' : '') + '</td>'
+      + '<td>' + escapeHtml(String(item.party_size || '-')) + ' kisi' + (hasSpecialRequest ? '<br><small style="color:#92400e;font-weight:700">' + escapeHtml((item.notes || '').trim().slice(0, 60)) + '</small>' : '') + '</td>'
       + '</tr>';
   }).join('');
 }
@@ -611,7 +628,7 @@ function renderRestaurantHoldDetail(item) {
   var canMarkArrived = status === 'ONAYLANDI';
   var canMarkNoShow = status === 'ONAYLANDI';
   var canExtend = status === 'ONAYLANDI';
-  var hasSpecialRequest = Boolean(String(item.notes || '').trim());
+  var hasSpecialRequest = hasMeaningfulSpecialRequest(item.notes);
   refs.restaurantHoldDetail.innerHTML = '<div class="module-header"><div>'
     + '<h3>' + escapeHtml(String(item.hold_id || 'Hold')) + '</h3>'
     + '<p class="muted">RESTORAN · Hotel ' + escapeHtml(String(item.hotel_id || '-')) + '</p>'
@@ -622,7 +639,7 @@ function renderRestaurantHoldDetail(item) {
     + formatHoldSummaryDetailCell('Kisi Sayisi', String(item.party_size || '-'))
     + formatHoldSummaryDetailCell('Alan', item.area || '-')
     + formatHoldSummaryDetailCell('Telefon', item.phone || '-')
-    + formatHoldSummaryDetailCell('Notlar', item.notes || '-')
+    + formatHoldSummaryDetailCell('Notlar', hasSpecialRequest ? (item.notes || '-') : '-')
     + '</div>'
     + '<div class="dialog-actions hold-detail-actions mt-lg">'
     + '<button class="action-button primary" data-restaurant-hold="' + escapeHtml(item.hold_id) + '" data-restaurant-status="ONAYLANDI" ' + (canApprove ? '' : 'disabled') + '>Onayla</button>'
