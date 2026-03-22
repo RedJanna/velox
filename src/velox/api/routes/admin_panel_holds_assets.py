@@ -565,7 +565,7 @@ function normalizeSpecialRequestText(value) {
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[\\s\\.,!?:;\\-_/\\\\"'`~()\\[\\]{}]+/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/\\s+/g, ' ')
     .trim();
 }
 
