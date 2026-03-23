@@ -18,7 +18,7 @@ services:
       retries: 3
     restart: unless-stopped
     deploy:
-      replicas: 2
+      replicas: 1
       restart_policy:
         condition: on-failure
     logging:
