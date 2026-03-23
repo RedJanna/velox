@@ -1631,24 +1631,28 @@ async function saveServiceModePlanPrefs(){
 
 function bindServiceModeEvents(){
   var openBtn = document.getElementById('openServiceModeBtn');
-  if(openBtn){
+  if(openBtn && openBtn.dataset.serviceModeBound !== '1'){
     openBtn.addEventListener('click', openServiceMode);
     openBtn.dataset.serviceModeBound = '1';
   }
   var closeBtn = document.getElementById('serviceModeCloseBtn');
-  if(closeBtn) closeBtn.addEventListener('click', closeServiceMode);
+  if(closeBtn && closeBtn.dataset.serviceModeBound !== '1'){
+    closeBtn.addEventListener('click', closeServiceMode);
+    closeBtn.dataset.serviceModeBound = '1';
+  }
 
   var dateInput = document.getElementById('serviceModeDate');
-  if(dateInput){
+  if(dateInput && dateInput.dataset.serviceModeBound !== '1'){
     dateInput.addEventListener('change', async function(){
       serviceState.date = dateInput.value || getOperationalTodayIso();
       await loadServiceModeHolds();
       renderServiceMode();
     });
+    dateInput.dataset.serviceModeBound = '1';
   }
 
   var prevDay = document.getElementById('serviceModePrevDay');
-  if(prevDay){
+  if(prevDay && prevDay.dataset.serviceModeBound !== '1'){
     prevDay.addEventListener('click', async function(){
       var d = new Date(serviceState.date + 'T00:00:00');
       d.setDate(d.getDate() - 1);
@@ -1657,9 +1661,10 @@ function bindServiceModeEvents(){
       await loadServiceModeHolds();
       renderServiceMode();
     });
+    prevDay.dataset.serviceModeBound = '1';
   }
   var nextDay = document.getElementById('serviceModeNextDay');
-  if(nextDay){
+  if(nextDay && nextDay.dataset.serviceModeBound !== '1'){
     nextDay.addEventListener('click', async function(){
       var d = new Date(serviceState.date + 'T00:00:00');
       d.setDate(d.getDate() + 1);
@@ -1668,12 +1673,16 @@ function bindServiceModeEvents(){
       await loadServiceModeHolds();
       renderServiceMode();
     });
+    nextDay.dataset.serviceModeBound = '1';
   }
 
   document.querySelectorAll('#serviceModeMealChips [data-service-meal]').forEach(function(btn){
+    if(btn.dataset.serviceModeBound === '1') return;
     btn.addEventListener('click', function(){ serviceState.meal = btn.dataset.serviceMeal; renderServiceMode(); });
+    btn.dataset.serviceModeBound = '1';
   });
   document.querySelectorAll('#serviceModeAreaChips [data-service-area]').forEach(function(btn){
+    if(btn.dataset.serviceModeBound === '1') return;
     btn.addEventListener('click', async function(){
       if(serviceState.dirty){
         var shouldSave = window.confirm('Plan secimi degisti. Alan degistirmeden once kaydedilsin mi?');
@@ -1684,25 +1693,30 @@ function bindServiceModeEvents(){
       serviceState.area = btn.dataset.serviceArea;
       renderServiceMode();
     });
+    btn.dataset.serviceModeBound = '1';
   });
 
   var planSelect = document.getElementById('serviceModePlanSelect');
-  if(planSelect){
+  if(planSelect && planSelect.dataset.serviceModeBound !== '1'){
     planSelect.addEventListener('change', async function(){
       serviceState.selectedPlanByArea[serviceState.area] = planSelect.value;
       serviceState.dirty = true;
       await saveServiceModePlanPrefs();
       renderServiceMode();
     });
+    planSelect.dataset.serviceModeBound = '1';
   }
 
-  document.addEventListener('dragstart', function(ev){
-    var card = ev.target.closest('[data-service-hold-id]');
-    if(!card || card.getAttribute('draggable') !== 'true') return;
-    ev.dataTransfer.setData('text/plain', card.dataset.serviceHoldId || '');
-  });
+  if(!window.__veloxServiceModeDocBound){
+    window.__veloxServiceModeDocBound = true;
 
-  document.addEventListener('keydown', async function(ev){
+    document.addEventListener('dragstart', function(ev){
+      var card = ev.target.closest('[data-service-hold-id]');
+      if(!card || card.getAttribute('draggable') !== 'true') return;
+      ev.dataTransfer.setData('text/plain', card.dataset.serviceHoldId || '');
+    });
+
+    document.addEventListener('keydown', async function(ev){
     if(!serviceState.open) return;
     if(ev.key === '1'){ serviceState.meal = 'breakfast'; renderServiceMode(); }
     if(ev.key === '2'){ serviceState.meal = 'lunch'; renderServiceMode(); }
@@ -1727,7 +1741,8 @@ function bindServiceModeEvents(){
       await loadServiceModeHolds();
       renderServiceMode();
     }
-  });
+    });
+  }
 }
 
 /* ── Init ─────────────────────────────────── */
