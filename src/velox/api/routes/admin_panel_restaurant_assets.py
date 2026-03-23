@@ -1636,44 +1636,40 @@ function bindServiceModeEvents(){
     openBtn.dataset.serviceModeBound = '1';
   }
   var closeBtn = document.getElementById('serviceModeCloseBtn');
-  if(closeBtn && closeBtn.dataset.serviceModeBound !== '1'){
-    closeBtn.addEventListener('click', closeServiceMode);
-    closeBtn.dataset.serviceModeBound = '1';
+  if(closeBtn){
+    closeBtn.onclick = closeServiceMode;
   }
 
   var dateInput = document.getElementById('serviceModeDate');
-  if(dateInput && dateInput.dataset.serviceModeBound !== '1'){
-    dateInput.addEventListener('change', async function(){
+  if(dateInput){
+    dateInput.onchange = async function(){
       serviceState.date = dateInput.value || getOperationalTodayIso();
       await loadServiceModeHolds();
       renderServiceMode();
-    });
-    dateInput.dataset.serviceModeBound = '1';
+    };
   }
 
   var prevDay = document.getElementById('serviceModePrevDay');
-  if(prevDay && prevDay.dataset.serviceModeBound !== '1'){
-    prevDay.addEventListener('click', async function(){
+  if(prevDay){
+    prevDay.onclick = async function(){
       var d = new Date(serviceState.date + 'T00:00:00');
       d.setDate(d.getDate() - 1);
       serviceState.date = d.toISOString().slice(0,10);
       if(dateInput) dateInput.value = serviceState.date;
       await loadServiceModeHolds();
       renderServiceMode();
-    });
-    prevDay.dataset.serviceModeBound = '1';
+    };
   }
   var nextDay = document.getElementById('serviceModeNextDay');
-  if(nextDay && nextDay.dataset.serviceModeBound !== '1'){
-    nextDay.addEventListener('click', async function(){
+  if(nextDay){
+    nextDay.onclick = async function(){
       var d = new Date(serviceState.date + 'T00:00:00');
       d.setDate(d.getDate() + 1);
       serviceState.date = d.toISOString().slice(0,10);
       if(dateInput) dateInput.value = serviceState.date;
       await loadServiceModeHolds();
       renderServiceMode();
-    });
-    nextDay.dataset.serviceModeBound = '1';
+    };
   }
 
   document.querySelectorAll('#serviceModeMealChips [data-service-meal]').forEach(function(btn){
