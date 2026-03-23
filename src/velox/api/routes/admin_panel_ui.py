@@ -808,53 +808,6 @@ def render_admin_panel_html() -> str:
             </article>
           </div>
 
-          <dialog id="serviceModeDialog" class="service-mode-dialog" aria-label="Servis Modu">
-            <div class="service-mode-shell">
-              <header class="service-mode-header">
-                <div>
-                  <h3>Servis Modu</h3>
-                  <p>Gunluk ve ogun bazli masa planlama ekrani</p>
-                </div>
-                <div class="service-mode-actions">
-                  <button type="button" id="serviceModePrevDay" class="inline-button secondary" title="Onceki gun (Alt+Sol)">←</button>
-                  <input type="date" id="serviceModeDate" aria-label="Servis modu tarihi">
-                  <button type="button" id="serviceModeNextDay" class="inline-button secondary" title="Sonraki gun (Alt+Sag)">→</button>
-                  <button type="button" id="serviceModeCloseBtn" class="inline-button" aria-label="Servis modunu kapat">Kapat</button>
-                </div>
-              </header>
-              <div class="service-mode-toolbar">
-                <div class="filter-chips" id="serviceModeMealChips" aria-label="Ogun secimi">
-                  <button type="button" class="filter-chip" data-service-meal="breakfast" title="Kahvalti (1)">Kahvalti</button>
-                  <button type="button" class="filter-chip" data-service-meal="lunch" title="Ogle (2)">Ogle</button>
-                  <button type="button" class="filter-chip is-active" data-service-meal="dinner" title="Aksam (3)">Aksam</button>
-                </div>
-                <div class="filter-chips" id="serviceModeAreaChips" aria-label="Alan secimi">
-                  <button type="button" class="filter-chip is-active" data-service-area="main">Ana Mekan</button>
-                  <button type="button" class="filter-chip" data-service-area="pool">Havuz</button>
-                </div>
-                <div class="stack" style="gap:8px;align-items:center;">
-                  <label style="font-size:.78rem;color:var(--muted);">Plan:</label>
-                  <select id="serviceModePlanSelect" aria-label="Servis modu plan secimi"></select>
-                </div>
-              </div>
-              <div class="service-mode-shortcuts" aria-label="Servis modu kisayollari">
-                <span class="service-shortcut-chip">1: Kahvalti</span>
-                <span class="service-shortcut-chip">2: Ogle</span>
-                <span class="service-shortcut-chip">3: Aksam</span>
-                <span class="service-shortcut-chip">Alt+← / Alt+→: Gun degistir</span>
-              </div>
-              <div class="service-mode-body">
-                <div class="service-mode-canvas-wrap">
-                  <div id="serviceModeCanvas" class="floor-plan-canvas service-mode-canvas" aria-label="Servis modu masa plani"></div>
-                </div>
-                <aside class="service-mode-side">
-                  <article class="module-card"><h4>Onaylanan</h4><div id="serviceModeApprovedList" class="service-list"></div></article>
-                  <article class="module-card"><h4>Onay Bekleyen</h4><div id="serviceModePendingList" class="service-list"></div></article>
-                  <article class="module-card"><h4>Diger Durumlar</h4><div id="serviceModeOtherList" class="service-list"></div></article>
-                </aside>
-              </div>
-            </div>
-          </dialog>
         </section>
 
         <section data-view="chatlab" class="section-grid" hidden>
@@ -863,6 +816,54 @@ def render_admin_panel_html() -> str:
       </section>
     </main>
   </div>
+
+  <dialog id="serviceModeDialog" class="service-mode-dialog" aria-label="Servis Modu">
+    <div class="service-mode-shell">
+      <header class="service-mode-header">
+        <div>
+          <h3>Servis Modu</h3>
+          <p>Gunluk ve ogun bazli masa planlama ekrani</p>
+        </div>
+        <div class="service-mode-actions">
+          <button type="button" id="serviceModePrevDay" class="inline-button secondary" title="Onceki gun (Alt+Sol)">←</button>
+          <input type="date" id="serviceModeDate" aria-label="Servis modu tarihi">
+          <button type="button" id="serviceModeNextDay" class="inline-button secondary" title="Sonraki gun (Alt+Sag)">→</button>
+          <button type="button" id="serviceModeCloseBtn" class="inline-button" aria-label="Servis modunu kapat">Kapat</button>
+        </div>
+      </header>
+      <div class="service-mode-toolbar">
+        <div class="filter-chips" id="serviceModeMealChips" aria-label="Ogun secimi">
+          <button type="button" class="filter-chip" data-service-meal="breakfast" title="Kahvalti (1)">Kahvalti</button>
+          <button type="button" class="filter-chip" data-service-meal="lunch" title="Ogle (2)">Ogle</button>
+          <button type="button" class="filter-chip is-active" data-service-meal="dinner" title="Aksam (3)">Aksam</button>
+        </div>
+        <div class="filter-chips" id="serviceModeAreaChips" aria-label="Alan secimi">
+          <button type="button" class="filter-chip is-active" data-service-area="main">Ana Mekan</button>
+          <button type="button" class="filter-chip" data-service-area="pool">Havuz</button>
+        </div>
+        <div class="stack" style="gap:8px;align-items:center;">
+          <label style="font-size:.78rem;color:var(--muted);">Plan:</label>
+          <select id="serviceModePlanSelect" aria-label="Servis modu plan secimi"></select>
+        </div>
+      </div>
+      <div class="service-mode-shortcuts" aria-label="Servis modu kisayollari">
+        <span class="service-shortcut-chip">1: Kahvalti</span>
+        <span class="service-shortcut-chip">2: Ogle</span>
+        <span class="service-shortcut-chip">3: Aksam</span>
+        <span class="service-shortcut-chip">Alt+← / Alt+→: Gun degistir</span>
+      </div>
+      <div class="service-mode-body">
+        <div class="service-mode-canvas-wrap">
+          <div id="serviceModeCanvas" class="floor-plan-canvas service-mode-canvas" aria-label="Servis modu masa plani"></div>
+        </div>
+        <aside class="service-mode-side">
+          <article class="module-card"><h4>Onaylanan</h4><div id="serviceModeApprovedList" class="service-list"></div></article>
+          <article class="module-card"><h4>Onay Bekleyen</h4><div id="serviceModePendingList" class="service-list"></div></article>
+          <article class="module-card"><h4>Diger Durumlar</h4><div id="serviceModeOtherList" class="service-list"></div></article>
+        </aside>
+      </div>
+    </div>
+  </dialog>
 
   <dialog id="decisionDialog" class="dialog">
     <div class="dialog-card">
