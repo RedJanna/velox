@@ -57,6 +57,19 @@ class FloorPlanRepository:
             return None
         return self._row_to_plan(row)
 
+    async def list_plans(self, hotel_id: int) -> list[FloorPlan]:
+        """List all floor plans for a hotel (active first, newest first)."""
+        rows = await fetch(
+            """
+            SELECT *
+            FROM restaurant_floor_plans
+            WHERE hotel_id = $1
+            ORDER BY is_active DESC, updated_at DESC
+            """,
+            hotel_id,
+        )
+        return [self._row_to_plan(row) for row in rows]
+
     async def create_plan(self, hotel_id: int, plan: FloorPlan) -> FloorPlan:
         """Create a new floor plan and sync tables. Deactivates existing active plan."""
         pool = get_pool()

@@ -137,10 +137,31 @@ ADMIN_RESTAURANT_STYLE = """
 .slot-chip-row{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.45rem}
 .slot-chip{display:inline-flex;align-items:center;gap:.25rem;border-radius:999px;padding:.18rem .5rem;font-size:.72rem;background:var(--bg-1);border:1px solid var(--border)}
 
+/* ── Service mode ───────────────────────────────────── */
+.service-mode-dialog{border:none;width:100vw;height:100vh;max-width:none;max-height:none;padding:0;background:var(--bg-0,#0f172a);color:var(--fg,#f8fafc)}
+.service-mode-dialog::backdrop{background:rgba(2,6,23,.72)}
+.service-mode-shell{height:100vh;display:flex;flex-direction:column;padding:12px;gap:10px}
+.service-mode-header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.service-mode-header h3{margin:0;font-size:1.1rem}
+.service-mode-header p{margin:.2rem 0 0;font-size:.8rem;color:var(--muted)}
+.service-mode-actions{display:flex;gap:8px;align-items:center}
+.service-mode-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.service-mode-body{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px;min-height:0;flex:1}
+.service-mode-canvas-wrap{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:8px;min-height:0}
+.service-mode-canvas{height:100%;min-height:560px;overflow:auto}
+.service-mode-side{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto}
+.service-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}
+.service-reservation-card{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:.5rem;cursor:grab}
+.service-reservation-card small{display:block;color:var(--muted)}
+.service-table-drop{outline:2px dashed var(--accent);outline-offset:6px}
+
 @media(max-width:980px){
   .floor-plan-workspace{flex-direction:column}
   .floor-plan-toolbox{width:100%;flex-direction:row;flex-wrap:wrap;min-height:auto;max-height:none}
   .fp-toolbar{justify-content:center}
+  .service-mode-shell{padding:8px}
+  .service-mode-body{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}
+  .service-mode-side{max-height:45vh}
 }
 """
 
@@ -309,6 +330,33 @@ function miniSvg10(){
 
 function snap(v){ return Math.round(v/GRID)*GRID; }
 function nextId(prefix){ fpState.counter++; return prefix + fpState.counter; }
+function normalizeTableId(raw){ return String(raw || '').trim().toUpperCase(); }
+function hasTableId(tableId, excludeId){
+  var wanted = normalizeTableId(tableId);
+  return fpState.tables.some(function(item){
+    if(excludeId && item.table_id === excludeId) return false;
+    return normalizeTableId(item.table_id) === wanted;
+  });
+}
+function askTableId(defaultValue, excludeId){
+  var fallback = normalizeTableId(defaultValue || '');
+  while(true){
+    var input = window.prompt('Masa numarasi zorunlu. Ornek: A1, 12, H-07', fallback);
+    if(input === null) return null;
+    var candidate = normalizeTableId(input);
+    if(!candidate){
+      notify('Masa numarasi bos birakilamaz.', 'warn');
+      fallback = candidate;
+      continue;
+    }
+    if(hasTableId(candidate, excludeId)){
+      notify('Bu masa numarasi zaten kullaniliyor.', 'warn');
+      fallback = candidate;
+      continue;
+    }
+    return candidate;
+  }
+}
 function getRotation(item){ return parseInt(item.rotation || 0, 10) || 0; }
 function getNormalizedRotation(item){
   var raw = getRotation(item) % 360;
@@ -546,8 +594,10 @@ function placeItem(data, x, y){
     // Center on click point
     x = snap(Math.max(0, x - dims.w/2));
     y = snap(Math.max(0, y - dims.h/2));
-    var id = nextId('T' + data.capacity + '-');
-    var t = {table_id:id,type:data.type,capacity:data.capacity,x:x,y:y,rotation:0,label:id};
+    var suggestedId = nextId('T' + data.capacity + '-');
+    var tableId = askTableId(suggestedId);
+    if(!tableId) return;
+    var t = {table_id:tableId,type:data.type,capacity:data.capacity,x:x,y:y,rotation:0,label:tableId};
     fpState.tables.push(t);
     renderCanvasTable(canvas,t);
   } else if(data.action === 'add_shape'){
@@ -599,8 +649,10 @@ function renderCanvasTable(canvas, t){
   // Duplicate
   el.querySelector('.tbl-act-btn.dup').addEventListener('click', function(ev){
     ev.stopPropagation();
+    var suggestedId = nextId('T' + t.capacity + '-');
+    var newId = askTableId(suggestedId);
+    if(!newId) return;
     pushUndo();
-    var newId = nextId('T' + t.capacity + '-');
     var nt = {table_id:newId,type:t.type,capacity:t.capacity,x:t.x+GRID*2,y:t.y+GRID*2,rotation:t.rotation||0,label:newId};
     fpState.tables.push(nt);
     renderCanvasTable(canvas,nt);
@@ -1103,6 +1155,309 @@ async function loadRestaurantSettings(){
   }catch(e){ /* defaults */ }
 }
 
+/* ── Service Mode ─────────────────────────── */
+
+const SERVICE_MEALS = {
+  breakfast: {label:'Kahvalti', start:'08:00', end:'10:30'},
+  lunch: {label:'Ogle', start:'12:00', end:'17:00'},
+  dinner: {label:'Aksam', start:'18:00', end:'22:00'}
+};
+
+let serviceState = {
+  open:false,
+  date:'',
+  meal:'dinner',
+  area:'main',
+  plans:[],
+  selectedPlanByArea:{main:null,pool:null},
+  holds:[],
+  pollTimer:null,
+  dirty:false
+};
+
+function getOperationalTodayIso(){
+  var now = new Date();
+  var shifted = new Date(now.getTime() - (5 * 60 * 60 * 1000));
+  return shifted.toISOString().slice(0,10);
+}
+
+function resolveMealHours(){
+  var mealHours = state.hotelProfile && state.hotelProfile.restaurant && state.hotelProfile.restaurant.meal_hours;
+  if(!mealHours) return SERVICE_MEALS;
+  function parseWindow(raw, fallback){
+    var text = String(raw || fallback || '').trim();
+    var parts = text.split('-');
+    if(parts.length !== 2) return fallback;
+    return {label:fallback.label,start:parts[0],end:parts[1]};
+  }
+  return {
+    breakfast: parseWindow(mealHours.breakfast, SERVICE_MEALS.breakfast),
+    lunch: parseWindow(mealHours.lunch, SERVICE_MEALS.lunch),
+    dinner: parseWindow(mealHours.dinner, SERVICE_MEALS.dinner)
+  };
+}
+
+function parseTimeMinutes(value){
+  var txt = String(value || '00:00');
+  var p = txt.split(':');
+  return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0);
+}
+
+function isHoldInMeal(hold, mealKey){
+  var meal = resolveMealHours()[mealKey] || SERVICE_MEALS.dinner;
+  var holdMins = parseTimeMinutes(hold.time);
+  var start = parseTimeMinutes(meal.start);
+  var end = parseTimeMinutes(meal.end);
+  return holdMins >= start && holdMins <= end;
+}
+
+async function openServiceMode(){
+  var dialog = document.getElementById('serviceModeDialog');
+  if(!dialog) return;
+  if(!state.selectedHotelId){ notify('Hotel secin.', 'warn'); return; }
+  serviceState.open = true;
+  serviceState.date = getOperationalTodayIso();
+  serviceState.meal = 'dinner';
+  serviceState.area = 'main';
+  serviceState.dirty = false;
+  var dateInput = document.getElementById('serviceModeDate');
+  if(dateInput) dateInput.value = serviceState.date;
+  await loadServiceModePlans();
+  await loadServiceModeHolds();
+  renderServiceMode();
+  if(typeof dialog.showModal === 'function') dialog.showModal();
+  startServiceModePolling();
+}
+
+function closeServiceMode(){
+  var dialog = document.getElementById('serviceModeDialog');
+  stopServiceModePolling();
+  serviceState.open = false;
+  if(dialog && dialog.open) dialog.close();
+}
+
+function startServiceModePolling(){
+  stopServiceModePolling();
+  serviceState.pollTimer = window.setInterval(async function(){
+    if(!serviceState.open) return;
+    await loadServiceModeHolds();
+    renderServiceReservationLists();
+  }, 10000);
+}
+
+function stopServiceModePolling(){
+  if(serviceState.pollTimer){
+    window.clearInterval(serviceState.pollTimer);
+    serviceState.pollTimer = null;
+  }
+}
+
+async function loadServiceModePlans(){
+  var hid = state.selectedHotelId;
+  var res = await apiFetch('/hotels/' + hid + '/restaurant/floor-plans?include_all=true');
+  serviceState.plans = res.plans || (res.plan ? [res.plan] : []);
+  if(!serviceState.selectedPlanByArea.main && res.plan){
+    serviceState.selectedPlanByArea.main = String(res.plan.id || '');
+  }
+  if(!serviceState.selectedPlanByArea.pool){
+    serviceState.selectedPlanByArea.pool = serviceState.selectedPlanByArea.main;
+  }
+  renderServicePlanSelect();
+}
+
+async function loadServiceModeHolds(){
+  var hid = state.selectedHotelId;
+  var params = new URLSearchParams();
+  params.set('hotel_id', String(hid));
+  params.set('date_from', serviceState.date);
+  params.set('date_to', serviceState.date);
+  params.set('per_page', '500');
+  var response = await apiFetch('/holds/restaurant?' + params.toString());
+  serviceState.holds = response.items || [];
+}
+
+function getServiceActivePlan(){
+  var planId = serviceState.selectedPlanByArea[serviceState.area];
+  return serviceState.plans.find(function(item){ return String(item.id) === String(planId); }) || null;
+}
+
+function renderServicePlanSelect(){
+  var select = document.getElementById('serviceModePlanSelect');
+  if(!select) return;
+  var selected = serviceState.selectedPlanByArea[serviceState.area];
+  select.innerHTML = serviceState.plans.map(function(plan){
+    var sid = String(plan.id || '');
+    var isSel = String(selected) === sid ? 'selected' : '';
+    return '<option value="' + escapeHtml(sid) + '" ' + isSel + '>' + escapeHtml(plan.name || ('Plan ' + sid.slice(0,8))) + '</option>';
+  }).join('');
+}
+
+function renderServiceMode(){
+  renderServicePlanSelect();
+  renderServiceCanvas();
+  renderServiceReservationLists();
+  renderServiceChipStates();
+}
+
+function renderServiceChipStates(){
+  document.querySelectorAll('#serviceModeMealChips [data-service-meal]').forEach(function(btn){
+    btn.classList.toggle('is-active', btn.dataset.serviceMeal === serviceState.meal);
+  });
+  document.querySelectorAll('#serviceModeAreaChips [data-service-area]').forEach(function(btn){
+    btn.classList.toggle('is-active', btn.dataset.serviceArea === serviceState.area);
+  });
+}
+
+function renderServiceCanvas(){
+  var canvas = document.getElementById('serviceModeCanvas');
+  if(!canvas) return;
+  canvas.innerHTML = '';
+  var plan = getServiceActivePlan();
+  if(!plan || !plan.layout_data){
+    canvas.innerHTML = '<div class="empty-state"><p>Bu alan icin plan secilmedi. Lutfen plan secin.</p></div>';
+    return;
+  }
+  applyFloorTheme((plan.layout_data && plan.layout_data.floor_theme) || DEFAULT_FLOOR_THEME);
+  var tables = (plan.layout_data.tables || []);
+  var occupiedByTable = {};
+  serviceState.holds.filter(function(h){
+    return !!h.table_id && isHoldInMeal(h, serviceState.meal) && String(h.date) === serviceState.date;
+  }).forEach(function(h){ occupiedByTable[String(h.table_id)] = h; });
+
+  tables.forEach(function(t){
+    var svgData = getTableSvg(t.type);
+    var el = document.createElement('div');
+    el.className = 'canvas-table';
+    el.dataset.tableId = t.table_id;
+    el.style.left = (t.x || 0) + 'px';
+    el.style.top = (t.y || 0) + 'px';
+    el.style.width = svgData.w + 'px';
+    el.style.height = svgData.h + 'px';
+    el.style.setProperty('--rot', getRotation(t) + 'deg');
+    var hold = occupiedByTable[String(t.table_id)];
+    if(hold) el.classList.add('st-' + hold.status);
+    var html = svgData.svg + '<span class="table-label">' + escapeHtml(t.table_id) + '</span>';
+    if(hold){
+      html += '<div class="guest-overlay"><div>' + escapeHtml(hold.guest_name || '-') + '</div><div class="guest-time">' + escapeHtml(hold.time || '') + '</div></div>';
+      el.title = 'Dolu: ' + (hold.guest_name || '-') + ' | ' + (hold.party_size || '-') + ' kisi';
+    } else {
+      el.title = 'Bos masa: ' + t.table_id;
+    }
+    el.innerHTML = html;
+    el.addEventListener('dragover', function(ev){ ev.preventDefault(); el.classList.add('service-table-drop'); });
+    el.addEventListener('dragleave', function(){ el.classList.remove('service-table-drop'); });
+    el.addEventListener('drop', async function(ev){
+      ev.preventDefault();
+      el.classList.remove('service-table-drop');
+      var holdId = ev.dataTransfer.getData('text/plain');
+      if(!holdId) return;
+      await assignHoldToServiceTable(holdId, t);
+    });
+    canvas.appendChild(el);
+  });
+}
+
+function renderServiceReservationLists(){
+  var approved = document.getElementById('serviceModeApprovedList');
+  var pending = document.getElementById('serviceModePendingList');
+  var other = document.getElementById('serviceModeOtherList');
+  if(!approved || !pending || !other) return;
+  var rows = (serviceState.holds || []).filter(function(item){
+    return String(item.date) === serviceState.date && isHoldInMeal(item, serviceState.meal);
+  });
+  var approvedRows = rows.filter(function(item){ return item.status === 'ONAYLANDI'; });
+  var pendingRows = rows.filter(function(item){ return item.status === 'BEKLEMEDE' || item.status === 'PENDING_APPROVAL'; });
+  var otherRows = rows.filter(function(item){ return item.status !== 'ONAYLANDI' && item.status !== 'BEKLEMEDE' && item.status !== 'PENDING_APPROVAL'; });
+  approved.innerHTML = renderServiceHoldCards(approvedRows, true);
+  pending.innerHTML = renderServiceHoldCards(pendingRows, true);
+  other.innerHTML = renderServiceHoldCards(otherRows, false);
+}
+
+function renderServiceHoldCards(items, draggable){
+  if(!items.length) return '<div class="empty-state"><p>Kayit yok.</p></div>';
+  return items.map(function(item){
+    return '<article class="service-reservation-card" draggable="' + (draggable ? 'true' : 'false') + '" data-service-hold-id="' + escapeHtml(item.hold_id) + '">'
+      + '<strong>' + escapeHtml(item.guest_name || item.hold_id) + '</strong>'
+      + '<small>' + escapeHtml(item.time || '-') + ' · ' + escapeHtml(item.party_size || '-') + ' kisi</small>'
+      + '<small>Durum: ' + escapeHtml(item.status || '-') + '</small>'
+      + '</article>';
+  }).join('');
+}
+
+async function assignHoldToServiceTable(holdId, table){
+  try{
+    await apiFetch('/holds/restaurant/' + encodeURIComponent(holdId), {
+      method:'PUT',
+      body:({table_id:String(table.table_id || ''), table_type:String(table.type || '')})
+    });
+    notify('Rezervasyon masaya atandi.', 'success');
+    await loadServiceModeHolds();
+    renderServiceMode();
+  }catch(error){
+    notify(error.message || 'Masa atamasi basarisiz.', 'error');
+  }
+}
+
+function bindServiceModeEvents(){
+  var openBtn = document.getElementById('openServiceModeBtn');
+  if(openBtn) openBtn.addEventListener('click', openServiceMode);
+  var closeBtn = document.getElementById('serviceModeCloseBtn');
+  if(closeBtn) closeBtn.addEventListener('click', closeServiceMode);
+
+  var dateInput = document.getElementById('serviceModeDate');
+  if(dateInput){
+    dateInput.addEventListener('change', async function(){
+      serviceState.date = dateInput.value || getOperationalTodayIso();
+      await loadServiceModeHolds();
+      renderServiceMode();
+    });
+  }
+
+  var prevDay = document.getElementById('serviceModePrevDay');
+  if(prevDay){
+    prevDay.addEventListener('click', async function(){
+      var d = new Date(serviceState.date + 'T00:00:00');
+      d.setDate(d.getDate() - 1);
+      serviceState.date = d.toISOString().slice(0,10);
+      if(dateInput) dateInput.value = serviceState.date;
+      await loadServiceModeHolds();
+      renderServiceMode();
+    });
+  }
+  var nextDay = document.getElementById('serviceModeNextDay');
+  if(nextDay){
+    nextDay.addEventListener('click', async function(){
+      var d = new Date(serviceState.date + 'T00:00:00');
+      d.setDate(d.getDate() + 1);
+      serviceState.date = d.toISOString().slice(0,10);
+      if(dateInput) dateInput.value = serviceState.date;
+      await loadServiceModeHolds();
+      renderServiceMode();
+    });
+  }
+
+  document.querySelectorAll('#serviceModeMealChips [data-service-meal]').forEach(function(btn){
+    btn.addEventListener('click', function(){ serviceState.meal = btn.dataset.serviceMeal; renderServiceMode(); });
+  });
+  document.querySelectorAll('#serviceModeAreaChips [data-service-area]').forEach(function(btn){
+    btn.addEventListener('click', function(){ serviceState.area = btn.dataset.serviceArea; renderServiceMode(); });
+  });
+
+  var planSelect = document.getElementById('serviceModePlanSelect');
+  if(planSelect){
+    planSelect.addEventListener('change', function(){
+      serviceState.selectedPlanByArea[serviceState.area] = planSelect.value;
+      renderServiceMode();
+    });
+  }
+
+  document.addEventListener('dragstart', function(ev){
+    var card = ev.target.closest('[data-service-hold-id]');
+    if(!card || card.getAttribute('draggable') !== 'true') return;
+    ev.dataTransfer.setData('text/plain', card.dataset.serviceHoldId || '');
+  });
+}
+
 /* ── Init ─────────────────────────────────── */
 
 function initRestaurantModule(){
@@ -1110,6 +1465,7 @@ function initRestaurantModule(){
   initDailyView();
   initTableDetailDialog();
   initRestaurantSettings();
+  bindServiceModeEvents();
   applyRestaurantModeUI('AI_RESTAURAN');
 }
 

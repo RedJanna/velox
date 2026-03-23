@@ -236,12 +236,14 @@ class DailyTableView(BaseModel):
 
 
 class RestaurantHoldUpdateRequest(BaseModel):
-    """Fields editable from the table detail modal."""
+    """Fields editable from the table detail modal and service mode."""
     guest_name: str | None = None
     party_size: int | None = Field(default=None, ge=1)
     time: Optional[_dt.time] = None
     area: str | None = None
     notes: str | None = Field(default=None, max_length=500)
+    table_id: str | None = Field(default=None, max_length=64)
+    table_type: str | None = Field(default=None, max_length=32)
 
 
 class RestaurantHoldStatusChange(BaseModel):

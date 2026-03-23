@@ -538,16 +538,19 @@ async def create_transfer_hold_from_panel(
 async def get_active_floor_plan(
     hotel_id: int,
     user: Annotated[TokenData, Depends(get_current_user)],
+    include_all: bool = False,
 ) -> dict[str, Any]:
-    """Get the active floor plan for a hotel."""
+    """Get active floor plan and optionally list all saved plans for a hotel."""
     check_permission(user, "holds:read")
     if user.role != Role.ADMIN and user.hotel_id != hotel_id:
         raise HTTPException(status_code=403, detail="Access denied")
     repo = FloorPlanRepository()
     plan = await repo.get_active_plan(hotel_id)
-    if plan is None:
-        return {"plan": None}
-    return {"plan": plan.model_dump(mode="json")}
+    payload: dict[str, Any] = {"plan": plan.model_dump(mode="json") if plan else None}
+    if include_all:
+        plans = await repo.list_plans(hotel_id)
+        payload["plans"] = [item.model_dump(mode="json") for item in plans]
+    return payload
 
 
 @router.post("/hotels/{hotel_id}/restaurant/floor-plans")
@@ -707,10 +710,52 @@ async def update_restaurant_hold(
     if not update_fields:
         raise HTTPException(status_code=400, detail="Guncellenecek alan bulunamadi")
 
-    # If party_size changed, recalculate table_type
-    table_type_update = None
-    if body.party_size is not None:
+    current_hold = await fetchrow(
+        "SELECT hold_id, hotel_id, date, time, table_id, table_type FROM restaurant_holds WHERE hold_id = $1",
+        hold_id,
+    )
+    if current_hold is None:
+        raise HTTPException(status_code=404, detail="Rezervasyon bulunamadi")
+
+    # If party_size changed, recalculate table_type unless request explicitly sets it.
+    table_type_update = body.table_type
+    if body.party_size is not None and not table_type_update:
         table_type_update = resolve_table_type(body.party_size)
+
+    # Allow explicit clear of table assignment by sending empty string.
+    clear_table_assignment = body.table_id is not None and not body.table_id.strip()
+    table_id_update: str | None = body.table_id
+    if table_id_update is not None:
+        table_id_update = table_id_update.strip() or None
+
+    target_time = body.time if body.time is not None else current_hold["time"]
+    target_table_id = (
+        None
+        if clear_table_assignment
+        else (table_id_update if body.table_id is not None else current_hold["table_id"])
+    )
+
+    if target_table_id:
+        conflict = await fetchrow(
+            """
+            SELECT hold_id
+            FROM restaurant_holds
+            WHERE hotel_id = $1
+              AND date = $2
+              AND time = $3
+              AND table_id = $4
+              AND hold_id != $5
+              AND status NOT IN ('IPTAL', 'GELMEDI')
+            LIMIT 1
+            """,
+            current_hold["hotel_id"],
+            current_hold["date"],
+            target_time,
+            target_table_id,
+            hold_id,
+        )
+        if conflict is not None:
+            raise HTTPException(status_code=409, detail="Ayni masa/saat icin baska rezervasyon var")
 
     await fetchrow(
         """
@@ -721,6 +766,11 @@ async def update_restaurant_hold(
             area = COALESCE($5, area),
             notes = COALESCE($6, notes),
             table_type = COALESCE($7, table_type),
+            table_id = CASE
+                WHEN $9::boolean THEN NULL
+                WHEN $8::text IS NULL THEN table_id
+                ELSE $8::text
+            END,
             updated_at = now()
         WHERE hold_id = $1
         RETURNING hold_id
@@ -732,6 +782,8 @@ async def update_restaurant_hold(
         body.area,
         body.notes,
         table_type_update,
+        table_id_update,
+        clear_table_assignment,
     )
     return {"status": "updated", "hold_id": hold_id}
 
