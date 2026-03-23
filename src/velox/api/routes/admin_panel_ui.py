@@ -476,7 +476,7 @@ def render_admin_panel_html() -> str:
             <div class="module-header">
               <div><h3>Slot Yonetimi</h3><p>Kapasiteyi tarih ve rezervasyon saati bazli takip et, kalan kapasiteyi gorsel olarak izle.</p></div>
               <div class="stack" style="align-items:flex-end;gap:8px;">
-                <button id="openServiceModeBtn" class="inline-button primary" type="button" aria-label="Servis modunu ac">Servis Modu</button>
+                <button id="openServiceModeBtn" class="inline-button primary" type="button" aria-label="Servis modunu ac" onclick="window.__veloxOpenServiceMode && window.__veloxOpenServiceMode()">Servis Modu</button>
               </div>
             </div>
             <form id="slotFilters" class="toolbar">
