@@ -377,7 +377,8 @@ async function onDeleteSlots(event) {
   const dateTo = form.querySelector('[name="date_to"]').value;
   const startTime = form.querySelector('[name="start_time"]').value;
   const endTime = form.querySelector('[name="end_time"]').value;
-  const area = form.querySelector('[name="area"]').value;
+  const areaField = form.querySelector('[name="area"]');
+  const area = areaField ? String(areaField.value || '').trim() : '';
   const weekdays = Array.from(form.querySelectorAll('[name="weekdays"]:checked')).map(input => Number(input.value));
 
   if (!dateFrom || !dateTo || !startTime || !endTime) {
@@ -400,6 +401,7 @@ async function onDeleteSlots(event) {
     end_time: endTime,
   };
   if (weekdays.length) payload.weekdays = weekdays;
+  if (area) payload.area = area;
 
   try {
     const response = await apiFetch(`/hotels/${state.selectedHotelId}/restaurant/slots`, {
