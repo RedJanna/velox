@@ -1227,6 +1227,13 @@ function parseTimeMinutes(value){
   return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0);
 }
 
+function formatLocalDateISO(d){
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
 function isHoldInMeal(hold, mealKey){
   var meal = resolveMealHours()[mealKey] || SERVICE_MEALS.dinner;
   var holdMins = parseTimeMinutes(hold.time);
@@ -1654,7 +1661,7 @@ function bindServiceModeEvents(){
     prevDay.onclick = async function(){
       var d = new Date(serviceState.date + 'T00:00:00');
       d.setDate(d.getDate() - 1);
-      serviceState.date = d.toISOString().slice(0,10);
+      serviceState.date = formatLocalDateISO(d);
       if(dateInput) dateInput.value = serviceState.date;
       await loadServiceModeHolds();
       renderServiceMode();
@@ -1665,7 +1672,7 @@ function bindServiceModeEvents(){
     nextDay.onclick = async function(){
       var d = new Date(serviceState.date + 'T00:00:00');
       d.setDate(d.getDate() + 1);
-      serviceState.date = d.toISOString().slice(0,10);
+      serviceState.date = formatLocalDateISO(d);
       if(dateInput) dateInput.value = serviceState.date;
       await loadServiceModeHolds();
       renderServiceMode();
@@ -1721,7 +1728,7 @@ function bindServiceModeEvents(){
       ev.preventDefault();
       var d1 = new Date(serviceState.date + 'T00:00:00');
       d1.setDate(d1.getDate() - 1);
-      serviceState.date = d1.toISOString().slice(0,10);
+      serviceState.date = formatLocalDateISO(d1);
       var di1 = document.getElementById('serviceModeDate');
       if(di1) di1.value = serviceState.date;
       await loadServiceModeHolds();
@@ -1731,7 +1738,7 @@ function bindServiceModeEvents(){
       ev.preventDefault();
       var d2 = new Date(serviceState.date + 'T00:00:00');
       d2.setDate(d2.getDate() + 1);
-      serviceState.date = d2.toISOString().slice(0,10);
+      serviceState.date = formatLocalDateISO(d2);
       var di2 = document.getElementById('serviceModeDate');
       if(di2) di2.value = serviceState.date;
       await loadServiceModeHolds();
