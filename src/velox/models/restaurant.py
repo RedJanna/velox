@@ -196,6 +196,8 @@ class RestaurantSettings(BaseModel):
     min_party_size: int = Field(default=1, ge=1)
     max_party_size: int = Field(default=8, ge=1)
     chef_phone: str | None = Field(default=None, max_length=32)
+    service_mode_main_plan_id: UUID | None = None
+    service_mode_pool_plan_id: UUID | None = None
     updated_at: datetime | None = None
 
 
@@ -208,6 +210,8 @@ class RestaurantSettingsUpdate(BaseModel):
     min_party_size: int | None = Field(default=None, ge=1)
     max_party_size: int | None = Field(default=None, ge=1)
     chef_phone: str | None = Field(default=None, max_length=32)
+    service_mode_main_plan_id: UUID | None = None
+    service_mode_pool_plan_id: UUID | None = None
 
 
 # ---------------------------------------------------------------------------

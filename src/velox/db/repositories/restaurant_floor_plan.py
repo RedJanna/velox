@@ -391,6 +391,8 @@ class RestaurantSettingsRepository:
             min_party_size=row.get("min_party_size") or 1,
             max_party_size=row.get("max_party_size") or 8,
             chef_phone=row.get("chef_phone"),
+            service_mode_main_plan_id=row.get("service_mode_main_plan_id"),
+            service_mode_pool_plan_id=row.get("service_mode_pool_plan_id"),
             updated_at=row["updated_at"],
         )
 
@@ -407,9 +409,11 @@ class RestaurantSettingsRepository:
                 daily_max_party_size_count,
                 min_party_size,
                 max_party_size,
-                chef_phone
+                chef_phone,
+                service_mode_main_plan_id,
+                service_mode_pool_plan_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             ON CONFLICT (hotel_id)
             DO UPDATE SET
                 reservation_mode = $2,
@@ -420,6 +424,8 @@ class RestaurantSettingsRepository:
                 min_party_size = $7,
                 max_party_size = $8,
                 chef_phone = $9,
+                service_mode_main_plan_id = $10,
+                service_mode_pool_plan_id = $11,
                 updated_at = now()
             RETURNING *
             """,
@@ -432,6 +438,8 @@ class RestaurantSettingsRepository:
             settings.min_party_size,
             settings.max_party_size,
             settings.chef_phone,
+            settings.service_mode_main_plan_id,
+            settings.service_mode_pool_plan_id,
         )
         return RestaurantSettings(
             hotel_id=row["hotel_id"],
@@ -443,6 +451,8 @@ class RestaurantSettingsRepository:
             min_party_size=row.get("min_party_size") or 1,
             max_party_size=row.get("max_party_size") or 8,
             chef_phone=row.get("chef_phone"),
+            service_mode_main_plan_id=row.get("service_mode_main_plan_id"),
+            service_mode_pool_plan_id=row.get("service_mode_pool_plan_id"),
             updated_at=row["updated_at"],
         )
 

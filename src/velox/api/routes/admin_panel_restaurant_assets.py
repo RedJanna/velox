@@ -1254,8 +1254,19 @@ function stopServiceModePolling(){
 
 async function loadServiceModePlans(){
   var hid = state.selectedHotelId;
-  var res = await apiFetch('/hotels/' + hid + '/restaurant/floor-plans?include_all=true');
+  var pair = await Promise.all([
+    apiFetch('/hotels/' + hid + '/restaurant/floor-plans?include_all=true'),
+    apiFetch('/hotels/' + hid + '/restaurant/settings')
+  ]);
+  var res = pair[0];
+  var settings = (pair[1] && pair[1].settings) ? pair[1].settings : {};
   serviceState.plans = res.plans || (res.plan ? [res.plan] : []);
+  if(settings.service_mode_main_plan_id){
+    serviceState.selectedPlanByArea.main = String(settings.service_mode_main_plan_id);
+  }
+  if(settings.service_mode_pool_plan_id){
+    serviceState.selectedPlanByArea.pool = String(settings.service_mode_pool_plan_id);
+  }
   if(!serviceState.selectedPlanByArea.main && res.plan){
     serviceState.selectedPlanByArea.main = String(res.plan.id || '');
   }
@@ -1344,6 +1355,9 @@ function renderServiceCanvas(){
       el.title = 'Bos masa: ' + t.table_id;
     }
     el.innerHTML = html;
+    if(hold){
+      el.addEventListener('click', function(){ openServiceHoldActions(hold, t); });
+    }
     el.addEventListener('dragover', function(ev){ ev.preventDefault(); el.classList.add('service-table-drop'); });
     el.addEventListener('dragleave', function(){ el.classList.remove('service-table-drop'); });
     el.addEventListener('drop', async function(ev){
@@ -1386,6 +1400,13 @@ function renderServiceHoldCards(items, draggable){
 
 async function assignHoldToServiceTable(holdId, table){
   try{
+    var hold = (serviceState.holds || []).find(function(item){ return item.hold_id === holdId; });
+    if(hold && (hold.status === 'BEKLEMEDE' || hold.status === 'PENDING_APPROVAL')){
+      await apiFetch('/holds/restaurant/' + encodeURIComponent(holdId) + '/status', {
+        method:'PUT',
+        body:({status:'ONAYLANDI', reason:'Servis Modu onay + masa atama'})
+      });
+    }
     await apiFetch('/holds/restaurant/' + encodeURIComponent(holdId), {
       method:'PUT',
       body:({table_id:String(table.table_id || ''), table_type:String(table.type || '')})
@@ -1395,6 +1416,66 @@ async function assignHoldToServiceTable(holdId, table){
     renderServiceMode();
   }catch(error){
     notify(error.message || 'Masa atamasi basarisiz.', 'error');
+  }
+}
+
+async function openServiceHoldActions(hold, table){
+  var action = window.prompt('Aksiyon secin: DEGISTIR / KALDIR / GUNCELLE / IPTAL', 'GUNCELLE');
+  if(!action) return;
+  var normalized = String(action || '').trim().toUpperCase();
+  try{
+    if(normalized === 'DEGISTIR'){
+      var nextTable = window.prompt('Yeni masa numarasi girin', String(table.table_id || hold.table_id || ''));
+      if(!nextTable) return;
+      await apiFetch('/holds/restaurant/' + encodeURIComponent(hold.hold_id), {
+        method:'PUT',
+        body:({table_id:String(nextTable).trim(), table_type:hold.table_type || table.type || null})
+      });
+      notify('Masa degistirildi.', 'success');
+    } else if(normalized === 'KALDIR'){
+      await apiFetch('/holds/restaurant/' + encodeURIComponent(hold.hold_id), {
+        method:'PUT',
+        body:({table_id:''})
+      });
+      notify('Masa atamasi kaldirildi.', 'success');
+    } else if(normalized === 'IPTAL'){
+      await apiFetch('/holds/restaurant/' + encodeURIComponent(hold.hold_id) + '/status', {
+        method:'PUT',
+        body:({status:'IPTAL', reason:'Servis Modu iptal islemi'})
+      });
+      notify('Rezervasyon iptal edildi.', 'success');
+    } else {
+      var guestName = window.prompt('Misafir adi', hold.guest_name || '') || hold.guest_name;
+      var partySizeText = window.prompt('Kisi sayisi', String(hold.party_size || '')) || String(hold.party_size || '');
+      var timeText = window.prompt('Saat (HH:MM)', String(hold.time || '')) || String(hold.time || '');
+      var notesText = window.prompt('Notlar', hold.notes || '') || hold.notes || '';
+      await apiFetch('/holds/restaurant/' + encodeURIComponent(hold.hold_id), {
+        method:'PUT',
+        body:({guest_name:guestName, party_size:Number(partySizeText), time:timeText, notes:notesText})
+      });
+      notify('Rezervasyon guncellendi.', 'success');
+    }
+    await loadServiceModeHolds();
+    renderServiceMode();
+  }catch(error){
+    notify(error.message || 'Islem basarisiz.', 'error');
+  }
+}
+
+async function saveServiceModePlanPrefs(){
+  if(!state.selectedHotelId) return;
+  try{
+    await apiFetch('/hotels/' + state.selectedHotelId + '/restaurant/settings', {
+      method:'PUT',
+      body:({
+        service_mode_main_plan_id: serviceState.selectedPlanByArea.main || null,
+        service_mode_pool_plan_id: serviceState.selectedPlanByArea.pool || null
+      })
+    });
+    serviceState.dirty = false;
+    notify('Servis modu plan secimleri kaydedildi.', 'success');
+  }catch(error){
+    notify(error.message || 'Plan secimi kaydedilemedi.', 'error');
   }
 }
 
@@ -1440,13 +1521,24 @@ function bindServiceModeEvents(){
     btn.addEventListener('click', function(){ serviceState.meal = btn.dataset.serviceMeal; renderServiceMode(); });
   });
   document.querySelectorAll('#serviceModeAreaChips [data-service-area]').forEach(function(btn){
-    btn.addEventListener('click', function(){ serviceState.area = btn.dataset.serviceArea; renderServiceMode(); });
+    btn.addEventListener('click', async function(){
+      if(serviceState.dirty){
+        var shouldSave = window.confirm('Plan secimi degisti. Alan degistirmeden once kaydedilsin mi?');
+        if(shouldSave){
+          await saveServiceModePlanPrefs();
+        }
+      }
+      serviceState.area = btn.dataset.serviceArea;
+      renderServiceMode();
+    });
   });
 
   var planSelect = document.getElementById('serviceModePlanSelect');
   if(planSelect){
-    planSelect.addEventListener('change', function(){
+    planSelect.addEventListener('change', async function(){
       serviceState.selectedPlanByArea[serviceState.area] = planSelect.value;
+      serviceState.dirty = true;
+      await saveServiceModePlanPrefs();
       renderServiceMode();
     });
   }
@@ -1455,6 +1547,33 @@ function bindServiceModeEvents(){
     var card = ev.target.closest('[data-service-hold-id]');
     if(!card || card.getAttribute('draggable') !== 'true') return;
     ev.dataTransfer.setData('text/plain', card.dataset.serviceHoldId || '');
+  });
+
+  document.addEventListener('keydown', async function(ev){
+    if(!serviceState.open) return;
+    if(ev.key === '1'){ serviceState.meal = 'breakfast'; renderServiceMode(); }
+    if(ev.key === '2'){ serviceState.meal = 'lunch'; renderServiceMode(); }
+    if(ev.key === '3'){ serviceState.meal = 'dinner'; renderServiceMode(); }
+    if(ev.altKey && ev.key === 'ArrowLeft'){
+      ev.preventDefault();
+      var d1 = new Date(serviceState.date + 'T00:00:00');
+      d1.setDate(d1.getDate() - 1);
+      serviceState.date = d1.toISOString().slice(0,10);
+      var di1 = document.getElementById('serviceModeDate');
+      if(di1) di1.value = serviceState.date;
+      await loadServiceModeHolds();
+      renderServiceMode();
+    }
+    if(ev.altKey && ev.key === 'ArrowRight'){
+      ev.preventDefault();
+      var d2 = new Date(serviceState.date + 'T00:00:00');
+      d2.setDate(d2.getDate() + 1);
+      serviceState.date = d2.toISOString().slice(0,10);
+      var di2 = document.getElementById('serviceModeDate');
+      if(di2) di2.value = serviceState.date;
+      await loadServiceModeHolds();
+      renderServiceMode();
+    }
   });
 }
 

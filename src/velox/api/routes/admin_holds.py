@@ -687,6 +687,10 @@ async def update_restaurant_settings(
     if body.chef_phone is not None:
         chef_phone = body.chef_phone.strip()
         current.chef_phone = chef_phone or None
+    if body.service_mode_main_plan_id is not None:
+        current.service_mode_main_plan_id = body.service_mode_main_plan_id
+    if body.service_mode_pool_plan_id is not None:
+        current.service_mode_pool_plan_id = body.service_mode_pool_plan_id
 
     updated = await repo.upsert(hotel_id, current)
     return {"status": "updated", "settings": updated.model_dump(mode="json")}
