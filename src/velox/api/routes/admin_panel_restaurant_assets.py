@@ -4,8 +4,12 @@
 
 ADMIN_RESTAURANT_STYLE = """
 /* ── Floor plan workspace ───────────────────────────── */
-.floor-plan-workspace{display:flex;gap:1rem;min-height:560px}
-.floor-plan-toolbox{width:180px;flex-shrink:0;display:flex;flex-direction:column;gap:.35rem;padding:.75rem;background:var(--bg-2);border-radius:var(--radius);border:1px solid var(--border);max-height:620px;overflow-y:auto}
+.floor-plan-workspace{display:flex;gap:1rem;align-items:stretch;min-height:720px}
+.floor-plan-toolbox{width:180px;flex-shrink:0;display:flex;flex-direction:column;gap:.35rem;padding:.75rem;background:var(--bg-2);border-radius:var(--radius);border:1px solid var(--border);max-height:760px;overflow-y:auto}
+.floor-plan-controls{display:flex;align-items:flex-end;gap:.5rem;flex-wrap:wrap;justify-content:flex-end}
+.fp-plan-name-field{min-width:220px;max-width:320px;margin:0}
+.fp-plan-list-field{min-width:220px;max-width:300px;margin:0}
+.fp-plan-name-field span,.fp-plan-list-field span{display:block;font-size:.68rem;color:var(--muted);margin-bottom:.2rem}
 .toolbox-title{font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.6rem 0 .15rem;font-weight:700}
 .toolbox-item{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;border-radius:var(--radius);background:var(--bg-1);border:1px solid var(--border);cursor:grab;font-size:.78rem;transition:background .15s,border-color .15s}
 .toolbox-item:hover{background:var(--accent-bg);border-color:var(--accent)}
@@ -26,7 +30,7 @@ ADMIN_RESTAURANT_STYLE = """
 .fp-toolbar .fp-sep{width:1px;height:22px;background:var(--border);margin:0 .15rem;align-self:center}
 
 /* Canvas */
-.floor-plan-canvas{flex:1;position:relative;background:var(--floor-base,var(--bg-1));background-image:var(--floor-texture,none);background-size:var(--floor-size,auto);background-position:center;border:2px dashed var(--border);border-radius:var(--radius);min-height:560px;overflow:hidden}
+.floor-plan-canvas{flex:1;position:relative;background:var(--floor-base,var(--bg-1));background-image:var(--floor-texture,none);background-size:var(--floor-size,auto);background-position:center;border:2px dashed var(--border);border-radius:var(--radius);min-height:720px;aspect-ratio:1/1;max-height:78vh;overflow:hidden}
 .floor-plan-canvas.show-grid{background-image:var(--floor-texture,none),radial-gradient(circle,var(--border,#d1cdc4) 1px,transparent 1px);background-size:var(--floor-size,auto),20px 20px;background-position:center,0 0}
 .floor-plan-canvas.drag-over{border-color:var(--accent);background-color:var(--accent-bg)}
 .floor-plan-canvas.click-place-mode{cursor:crosshair}
@@ -176,8 +180,11 @@ ADMIN_RESTAURANT_STYLE = """
 }
 
 @media(max-width:980px){
-  .floor-plan-workspace{flex-direction:column}
+  .floor-plan-workspace{flex-direction:column;min-height:0}
+  .floor-plan-controls{justify-content:stretch}
+  .fp-plan-name-field,.fp-plan-list-field{min-width:100%;max-width:none}
   .floor-plan-toolbox{width:100%;flex-direction:row;flex-wrap:wrap;min-height:auto;max-height:none}
+  .floor-plan-canvas{min-height:460px;max-height:none}
   .fp-toolbar{justify-content:center}
   .service-mode-shell{padding:8px}
   .service-mode-actions .inline-button,.service-mode-toolbar .filter-chip{min-height:42px;padding:.45rem .8rem}
@@ -204,13 +211,16 @@ const FLOOR_THEMES = {
   CREAM_MARBLE_SOFT: 'floor-cream-marble-soft'
 };
 const DEFAULT_FLOOR_THEME = 'CREAM_MARBLE_CLASSIC';
-let fpState = {tables:[],shapes:[],planId:null,counter:0,floorTheme:DEFAULT_FLOOR_THEME};
+let fpState = {tables:[],shapes:[],planId:null,planName:'Ana Plan',counter:0,floorTheme:DEFAULT_FLOOR_THEME};
+let floorPlanCollection = [];
 let selectedEl = null;
 let activeShapeEditId = null;
 let undoStack = [];
 const MAX_UNDO = 30;
 let clickPlaceMode = null; // null or {type, capacity} or {shape}
 let showGrid = true;
+let floorPlanAutoSaveTimer = null;
+const FLOOR_PLAN_AUTOSAVE_DELAY_MS = 1500;
 
 /* ── SVG Table Generators ────────────────────── */
 
@@ -388,12 +398,18 @@ function getNormalizedRotation(item){
 }
 function clampSize(value, min, max){ return Math.max(min, Math.min(max, snap(value))); }
 function isWallShape(type){ return type === 'WALL' || type === 'CURVED_WALL'; }
-function applyFloorTheme(themeKey){
-  var canvas = document.getElementById('floorPlanCanvas');
+function applyThemeClassToCanvas(canvas, themeKey){
   if(!canvas) return;
   Object.keys(FLOOR_THEMES).forEach(function(key){ canvas.classList.remove(FLOOR_THEMES[key]); });
   var resolved = FLOOR_THEMES[themeKey] ? themeKey : DEFAULT_FLOOR_THEME;
   canvas.classList.add(FLOOR_THEMES[resolved]);
+}
+
+function applyFloorTheme(themeKey){
+  var canvas = document.getElementById('floorPlanCanvas');
+  if(!canvas) return;
+  var resolved = FLOOR_THEMES[themeKey] ? themeKey : DEFAULT_FLOOR_THEME;
+  applyThemeClassToCanvas(canvas, resolved);
   fpState.floorTheme = resolved;
   var select = document.getElementById('fpFloorTheme');
   if(select && select.value !== resolved) select.value = resolved;
@@ -410,6 +426,56 @@ function getShapeDefaults(type){
   }
 }
 
+function getFloorPlanNameInputValue(){
+  var input = document.getElementById('floorPlanNameInput');
+  var raw = input ? String(input.value || '').trim() : '';
+  if(!raw) raw = fpState.planName || 'Ana Plan';
+  return raw.slice(0, 80);
+}
+
+function syncFloorPlanHeaderFields(){
+  var input = document.getElementById('floorPlanNameInput');
+  if(input) input.value = fpState.planName || 'Ana Plan';
+  var select = document.getElementById('floorPlanSelect');
+  if(select && fpState.planId){
+    select.value = String(fpState.planId);
+  }
+}
+
+function renderFloorPlanSelect(){
+  var select = document.getElementById('floorPlanSelect');
+  if(!select) return;
+  if(!floorPlanCollection.length){
+    select.innerHTML = '<option value="">Kayitli plan yok</option>';
+    select.disabled = true;
+    return;
+  }
+  select.disabled = false;
+  select.innerHTML = floorPlanCollection.map(function(plan){
+    var pid = String(plan.id || '');
+    var activeTag = plan.is_active ? ' (Aktif)' : '';
+    return '<option value="' + escapeHtml(pid) + '">' + escapeHtml((plan.name || 'Adsiz Plan') + activeTag) + '</option>';
+  }).join('');
+  if(fpState.planId){
+    select.value = String(fpState.planId);
+  }
+}
+
+function scheduleFloorPlanAutoSave(){
+  if(floorPlanAutoSaveTimer){
+    window.clearTimeout(floorPlanAutoSaveTimer);
+  }
+  floorPlanAutoSaveTimer = window.setTimeout(function(){
+    saveFloorPlan({silent:true, fromAutoSave:true});
+  }, FLOOR_PLAN_AUTOSAVE_DELAY_MS);
+}
+
+function markFloorPlanChanged(){
+  fpState.planName = getFloorPlanNameInputValue();
+  syncFloorPlanHeaderFields();
+  scheduleFloorPlanAutoSave();
+}
+
 function pushUndo(){
   undoStack.push(JSON.stringify({tables:fpState.tables,shapes:fpState.shapes}));
   if(undoStack.length > MAX_UNDO) undoStack.shift();
@@ -421,6 +487,7 @@ function popUndo(){
   fpState.tables = snap.tables;
   fpState.shapes = snap.shapes;
   rerenderCanvas();
+  markFloorPlanChanged();
   return true;
 }
 
@@ -535,9 +602,43 @@ function initFloorPlanEditor(){
 
   // Save & Reset buttons
   var saveBtn = document.getElementById('saveFloorPlanBtn');
-  if(saveBtn) saveBtn.addEventListener('click', saveFloorPlan);
+  if(saveBtn) saveBtn.addEventListener('click', function(){ saveFloorPlan({silent:false}); });
   var resetBtn = document.getElementById('resetFloorPlanBtn');
   if(resetBtn) resetBtn.addEventListener('click', loadFloorPlan);
+
+  var planNameInput = document.getElementById('floorPlanNameInput');
+  if(planNameInput && planNameInput.dataset.bound !== '1'){
+    planNameInput.addEventListener('input', function(){
+      fpState.planName = getFloorPlanNameInputValue();
+      scheduleFloorPlanAutoSave();
+    });
+    planNameInput.dataset.bound = '1';
+  }
+
+  var planSelect = document.getElementById('floorPlanSelect');
+  if(planSelect && planSelect.dataset.bound !== '1'){
+    planSelect.addEventListener('change', function(){
+      var selectedPlanId = planSelect.value;
+      var selectedPlan = floorPlanCollection.find(function(item){ return String(item.id) === String(selectedPlanId); });
+      if(!selectedPlan || !selectedPlan.layout_data) return;
+      loadFloorPlanFromPayload(selectedPlan);
+    });
+    planSelect.dataset.bound = '1';
+  }
+
+  var newPlanBtn = document.getElementById('createNewFloorPlanBtn');
+  if(newPlanBtn && newPlanBtn.dataset.bound !== '1'){
+    newPlanBtn.addEventListener('click', function(){
+      fpState = {tables:[],shapes:[],planId:null,planName:'Yeni Plan',counter:0,floorTheme:DEFAULT_FLOOR_THEME};
+      activeShapeEditId = null;
+      undoStack = [];
+      applyFloorTheme(DEFAULT_FLOOR_THEME);
+      rerenderCanvas();
+      syncFloorPlanHeaderFields();
+      notify('Yeni plan taslagi olusturuldu. Plan adini verip kaydedin.', 'info');
+    });
+    newPlanBtn.dataset.bound = '1';
+  }
 
   // Toolbar buttons
   var undoBtn = document.getElementById('fpUndoBtn');
@@ -557,6 +658,7 @@ function initFloorPlanEditor(){
     fpState.tables = [];
     fpState.shapes = [];
     rerenderCanvas();
+    markFloorPlanChanged();
   });
 
   var floorThemeSelect = document.getElementById('fpFloorTheme');
@@ -565,6 +667,7 @@ function initFloorPlanEditor(){
     floorThemeSelect.addEventListener('change', function(){
       pushUndo();
       applyFloorTheme(floorThemeSelect.value || DEFAULT_FLOOR_THEME);
+      markFloorPlanChanged();
     });
   }
 
@@ -631,6 +734,7 @@ function placeItem(data, x, y){
     fpState.shapes.push(s);
     renderCanvasShape(canvas,s);
   }
+  markFloorPlanChanged();
 }
 
 function renderCanvasTable(canvas, t){
@@ -724,6 +828,7 @@ function renderCanvasShape(canvas, s){
     fpState.shapes = fpState.shapes.filter(function(ss){return ss.shape_id !== s.shape_id;});
     if(activeShapeEditId === s.shape_id) setActiveShapeEdit(null);
     el.remove();
+    markFloorPlanChanged();
   });
   el.querySelector('.shape-act-btn.rot').addEventListener('click', function(ev){
     ev.stopPropagation();
@@ -799,6 +904,7 @@ function makeShapeResizable(handle, el, shape){
       handle.removeEventListener('pointermove', onPointerMove);
       handle.removeEventListener('pointerup', onPointerUp);
       syncShapeEditState(el, shape);
+      markFloorPlanChanged();
     }
 
     handle.addEventListener('pointermove', onPointerMove);
@@ -830,6 +936,7 @@ function makeDraggable(el, canvas, onMove){
       var nx = parseInt(el.style.left,10)||0;
       var ny = parseInt(el.style.top,10)||0;
       if(onMove) onMove(nx,ny);
+      markFloorPlanChanged();
       if(el.classList.contains('canvas-shape')){
         var shapeId = el.dataset.shapeId;
         var shape = fpState.shapes.find(function(item){ return item.shape_id === shapeId; });
@@ -841,42 +948,63 @@ function makeDraggable(el, canvas, onMove){
   });
 }
 
-async function loadFloorPlan(){
+function loadFloorPlanFromPayload(plan){
   var canvas = document.getElementById('floorPlanCanvas');
   if(!canvas) return;
   canvas.querySelectorAll('.canvas-table,.canvas-shape').forEach(function(el){el.remove();});
-  fpState = {tables:[],shapes:[],planId:null,counter:0,floorTheme:DEFAULT_FLOOR_THEME};
+  fpState = {tables:[],shapes:[],planId:null,planName:'Ana Plan',counter:0,floorTheme:DEFAULT_FLOOR_THEME};
   activeShapeEditId = null;
   undoStack = [];
   applyFloorTheme(DEFAULT_FLOOR_THEME);
 
-  try{
-    var hid = state.hotelId || state.selectedHotelId;
-    if(!hid) return;
-    var res = await apiFetch('/hotels/' + hid + '/restaurant/floor-plans');
-    var data = res;
-    if(data.plan && data.plan.layout_data){
-      fpState.planId = data.plan.id;
-      var ld = data.plan.layout_data;
-      applyFloorTheme(ld.floor_theme || DEFAULT_FLOOR_THEME);
-      (ld.tables||[]).forEach(function(t){
-        fpState.tables.push(t);
-        fpState.counter = Math.max(fpState.counter, parseInt((t.table_id.match(/\\d+$/)||['0'])[0],10));
-        renderCanvasTable(canvas,t);
-      });
-      (ld.shapes||[]).forEach(function(s){
-        fpState.shapes.push(s);
-        fpState.counter = Math.max(fpState.counter, parseInt((s.shape_id.match(/\\d+$/)||['0'])[0],10));
-        renderCanvasShape(canvas,s);
-      });
-    }
-  }catch(e){ /* fresh canvas */ }
+  if(!plan || !plan.layout_data){
+    syncFloorPlanHeaderFields();
+    return;
+  }
+
+  fpState.planId = plan.id || null;
+  fpState.planName = String(plan.name || 'Ana Plan');
+  var ld = plan.layout_data;
+  applyFloorTheme(ld.floor_theme || DEFAULT_FLOOR_THEME);
+  (ld.tables||[]).forEach(function(t){
+    fpState.tables.push(t);
+    fpState.counter = Math.max(fpState.counter, parseInt((t.table_id.match(/\\d+$/)||['0'])[0],10));
+    renderCanvasTable(canvas,t);
+  });
+  (ld.shapes||[]).forEach(function(s){
+    fpState.shapes.push(s);
+    fpState.counter = Math.max(fpState.counter, parseInt((s.shape_id.match(/\\d+$/)||['0'])[0],10));
+    renderCanvasShape(canvas,s);
+  });
+  syncFloorPlanHeaderFields();
 }
 
-async function saveFloorPlan(){
+async function loadFloorPlan(){
   var hid = state.hotelId || state.selectedHotelId;
-  if(!hid){ notify('Otel secilmedi','error'); return; }
+  if(!hid) return;
 
+  try{
+    var res = await apiFetch('/hotels/' + hid + '/restaurant/floor-plans?include_all=true');
+    floorPlanCollection = res.plans || (res.plan ? [res.plan] : []);
+    renderFloorPlanSelect();
+    if(res.plan){
+      loadFloorPlanFromPayload(res.plan);
+    } else if(floorPlanCollection.length){
+      loadFloorPlanFromPayload(floorPlanCollection[0]);
+    } else {
+      loadFloorPlanFromPayload(null);
+    }
+  }catch(e){
+    loadFloorPlanFromPayload(null);
+  }
+}
+
+async function saveFloorPlan(options){
+  var opts = options || {};
+  var hid = state.hotelId || state.selectedHotelId;
+  if(!hid){ notify('Otel secilmedi','error'); return false; }
+
+  fpState.planName = getFloorPlanNameInputValue();
   var layout = {
     canvas_width: 1200,
     canvas_height: 800,
@@ -890,19 +1018,35 @@ async function saveFloorPlan(){
     if(fpState.planId){
       res = await apiFetch('/hotels/' + hid + '/restaurant/floor-plans/' + fpState.planId, {
         method:'PUT',
-        body:({layout_data:layout})
+        body:({name:fpState.planName,layout_data:layout})
       });
     } else {
       res = await apiFetch('/hotels/' + hid + '/restaurant/floor-plans', {
         method:'POST',
-        body:({name:'Ana Plan',layout_data:layout})
+        body:({name:fpState.planName || 'Ana Plan',layout_data:layout})
       });
     }
     var data = res;
-    if(data.plan) fpState.planId = data.plan.id;
-    notify('Plan kaydedildi','success');
+    if(data.plan){
+      fpState.planId = data.plan.id;
+      fpState.planName = data.plan.name || fpState.planName;
+    }
+    floorPlanAutoSaveTimer = null;
+    await loadFloorPlan();
+    if(serviceState.open){
+      await loadServiceModePlans();
+      renderServiceMode();
+    }
+    if(!opts.silent){
+      notify('Plan kaydedildi','success');
+    }
+    return true;
   }catch(e){
-    notify('Plan kaydedilemedi','error');
+    floorPlanAutoSaveTimer = null;
+    if(!opts.silent){
+      notify('Plan kaydedilemedi','error');
+    }
+    return false;
   }
 }
 
@@ -1470,7 +1614,7 @@ function renderServiceCanvas(){
     canvas.innerHTML = '<div class="empty-state"><p>Bu alan icin plan secilmedi. Lutfen plan secin.</p></div>';
     return;
   }
-  applyFloorTheme((plan.layout_data && plan.layout_data.floor_theme) || DEFAULT_FLOOR_THEME);
+  applyThemeClassToCanvas(canvas, (plan.layout_data && plan.layout_data.floor_theme) || DEFAULT_FLOOR_THEME);
   var tables = (plan.layout_data.tables || []);
   var shapes = (plan.layout_data.shapes || []);
   var occupiedByTable = {};

@@ -636,7 +636,16 @@ def render_admin_panel_html() -> str:
           <article class="module-card" id="floorPlanEditorCard">
             <div class="module-header">
               <div><h3>Restoran Plan Cizimi</h3><p>Masalari ve sekilleri surukle-birak veya tiklayarak yerlestirin. Duvarlari uzatip kisaltabilir, tum araclari dondurebilir, kopyalayabilir ve silebilirsiniz.</p></div>
-              <div>
+              <div class="floor-plan-controls">
+                <label class="field fp-plan-name-field" for="floorPlanNameInput">
+                  <span>Plan Adi</span>
+                  <input id="floorPlanNameInput" type="text" maxlength="80" placeholder="Orn. Ana Salon Aksam Duzeni" aria-label="Plan adi">
+                </label>
+                <label class="field fp-plan-list-field" for="floorPlanSelect">
+                  <span>Kayitli Planlar</span>
+                  <select id="floorPlanSelect" aria-label="Kayitli planlar"></select>
+                </label>
+                <button class="inline-button secondary" id="createNewFloorPlanBtn" type="button" aria-label="Yeni plan olustur">Yeni Plan</button>
                 <button class="inline-button primary" id="saveFloorPlanBtn" type="button" aria-label="Plani kaydet">Kaydet</button>
                 <button class="inline-button secondary" id="resetFloorPlanBtn" type="button" aria-label="Plani sifirla">Sifirla</button>
               </div>
