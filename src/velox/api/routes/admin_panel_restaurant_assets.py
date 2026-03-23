@@ -1215,8 +1215,54 @@ function isHoldInMeal(hold, mealKey){
   return holdMins >= start && holdMins <= end;
 }
 
-async function openServiceMode(){
+function ensureServiceModeDialogScaffold(){
   var dialog = document.getElementById('serviceModeDialog');
+  if(!dialog) return null;
+  if(dialog.querySelector('#serviceModeCanvas')) return dialog;
+
+  dialog.classList.add('service-mode-dialog');
+  dialog.innerHTML = ''
+    + '<div class="service-mode-shell">'
+    + '  <header class="service-mode-header">'
+    + '    <div><h3>Servis Modu</h3><p>Gunluk ve ogun bazli masa planlama ekrani</p></div>'
+    + '    <div class="service-mode-actions">'
+    + '      <button type="button" id="serviceModePrevDay" class="inline-button secondary" title="Onceki gun (Alt+Sol)">←</button>'
+    + '      <input type="date" id="serviceModeDate" aria-label="Servis modu tarihi">'
+    + '      <button type="button" id="serviceModeNextDay" class="inline-button secondary" title="Sonraki gun (Alt+Sag)">→</button>'
+    + '      <button type="button" id="serviceModeCloseBtn" class="inline-button" aria-label="Servis modunu kapat">Kapat</button>'
+    + '    </div>'
+    + '  </header>'
+    + '  <div class="service-mode-toolbar">'
+    + '    <div class="filter-chips" id="serviceModeMealChips" aria-label="Ogun secimi">'
+    + '      <button type="button" class="filter-chip" data-service-meal="breakfast" title="Kahvalti (1)">Kahvalti</button>'
+    + '      <button type="button" class="filter-chip" data-service-meal="lunch" title="Ogle (2)">Ogle</button>'
+    + '      <button type="button" class="filter-chip is-active" data-service-meal="dinner" title="Aksam (3)">Aksam</button>'
+    + '    </div>'
+    + '    <div class="filter-chips" id="serviceModeAreaChips" aria-label="Alan secimi">'
+    + '      <button type="button" class="filter-chip is-active" data-service-area="main">Ana Mekan</button>'
+    + '      <button type="button" class="filter-chip" data-service-area="pool">Havuz</button>'
+    + '    </div>'
+    + '    <div class="stack" style="gap:8px;align-items:center;">'
+    + '      <label style="font-size:.78rem;color:var(--muted);">Plan:</label>'
+    + '      <select id="serviceModePlanSelect" aria-label="Servis modu plan secimi"></select>'
+    + '    </div>'
+    + '  </div>'
+    + '  <div class="service-mode-body">'
+    + '    <div class="service-mode-canvas-wrap"><div id="serviceModeCanvas" class="floor-plan-canvas service-mode-canvas" aria-label="Servis modu masa plani"></div></div>'
+    + '    <aside class="service-mode-side">'
+    + '      <article class="module-card"><h4>Onaylanan</h4><div id="serviceModeApprovedList" class="service-list"></div></article>'
+    + '      <article class="module-card"><h4>Onay Bekleyen</h4><div id="serviceModePendingList" class="service-list"></div></article>'
+    + '      <article class="module-card"><h4>Diger Durumlar</h4><div id="serviceModeOtherList" class="service-list"></div></article>'
+    + '    </aside>'
+    + '  </div>'
+    + '</div>';
+
+  if(typeof bindServiceModeEvents === 'function') bindServiceModeEvents();
+  return dialog;
+}
+
+async function openServiceMode(){
+  var dialog = ensureServiceModeDialogScaffold();
   if(!dialog) return;
   var hid = state.selectedHotelId || state.hotelId;
   if(!hid){ notify('Hotel secin.', 'warn'); return; }
