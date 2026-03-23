@@ -1231,7 +1231,12 @@ async function openServiceMode(){
   if(dateInput) dateInput.value = serviceState.date;
 
   // Open modal immediately; load data in background so API hiccups do not block UI opening.
-  if(typeof dialog.showModal === 'function') dialog.showModal();
+  try{
+    if(typeof dialog.showModal === 'function') dialog.showModal();
+    else dialog.setAttribute('open', 'open');
+  }catch(_err){
+    dialog.setAttribute('open', 'open');
+  }
 
   try{
     await loadServiceModePlans();
@@ -1303,7 +1308,7 @@ async function loadServiceModeHolds(){
   params.set('hotel_id', String(hid));
   params.set('date_from', serviceState.date);
   params.set('date_to', serviceState.date);
-  params.set('per_page', '500');
+  params.set('per_page', '100');
   var response = await apiFetch('/holds/restaurant?' + params.toString());
   serviceState.holds = response.items || [];
 }
