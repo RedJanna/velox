@@ -138,7 +138,7 @@ ADMIN_RESTAURANT_STYLE = """
 .slot-chip{display:inline-flex;align-items:center;gap:.25rem;border-radius:999px;padding:.18rem .5rem;font-size:.72rem;background:var(--bg-1);border:1px solid var(--border)}
 
 /* ── Service mode ───────────────────────────────────── */
-.service-mode-dialog{border:none;width:100vw;height:100vh;max-width:none;max-height:none;padding:0;background:var(--bg-0,#0f172a);color:var(--fg,#f8fafc)}
+.service-mode-dialog{border:none;width:100vw;height:100vh;max-width:none;max-height:none;padding:0;background:var(--bg-0,#0f172a);color:var(--fg,#f8fafc);z-index:2147483000}
 .service-mode-dialog::backdrop{background:rgba(2,6,23,.72)}
 .service-mode-shell{height:100vh;display:flex;flex-direction:column;padding:12px;gap:10px}
 .service-mode-header{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -1522,7 +1522,10 @@ async function saveServiceModePlanPrefs(){
 
 function bindServiceModeEvents(){
   var openBtn = document.getElementById('openServiceModeBtn');
-  if(openBtn) openBtn.addEventListener('click', openServiceMode);
+  if(openBtn){
+    openBtn.addEventListener('click', openServiceMode);
+    openBtn.dataset.serviceModeBound = '1';
+  }
   var closeBtn = document.getElementById('serviceModeCloseBtn');
   if(closeBtn) closeBtn.addEventListener('click', closeServiceMode);
 
@@ -1658,6 +1661,15 @@ if(document.readyState === 'loading'){
 } else {
   _initOnReady();
 }
+
+// Global fallback: even if module init order changes, button click still opens service mode.
+document.addEventListener('click', function(e){
+  var btn = e.target && e.target.closest ? e.target.closest('#openServiceModeBtn') : null;
+  if(!btn) return;
+  e.preventDefault();
+  openServiceMode();
+});
+window.__veloxOpenServiceMode = openServiceMode;
 
 })();
 """
