@@ -1241,7 +1241,18 @@ async function openServiceMode(){
   dialog.setAttribute('open', 'open');
   dialog.style.display = 'block';
   dialog.style.position = 'fixed';
-  dialog.style.inset = '0';
+  dialog.style.left = '0';
+  dialog.style.top = '0';
+  dialog.style.right = '0';
+  dialog.style.bottom = '0';
+  dialog.style.width = '100vw';
+  dialog.style.height = '100vh';
+  dialog.style.maxWidth = 'none';
+  dialog.style.maxHeight = 'none';
+  dialog.style.margin = '0';
+  dialog.style.padding = '0';
+  dialog.style.border = 'none';
+  dialog.style.zIndex = '2147483647';
 
   try{
     await loadServiceModePlans();
@@ -1268,7 +1279,18 @@ async function closeServiceMode(){
     if(dialog.open) dialog.close();
     dialog.style.display = '';
     dialog.style.position = '';
-    dialog.style.inset = '';
+    dialog.style.left = '';
+    dialog.style.top = '';
+    dialog.style.right = '';
+    dialog.style.bottom = '';
+    dialog.style.width = '';
+    dialog.style.height = '';
+    dialog.style.maxWidth = '';
+    dialog.style.maxHeight = '';
+    dialog.style.margin = '';
+    dialog.style.padding = '';
+    dialog.style.border = '';
+    dialog.style.zIndex = '';
   }
 }
 
