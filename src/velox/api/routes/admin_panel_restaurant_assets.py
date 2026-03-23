@@ -1231,12 +1231,17 @@ async function openServiceMode(){
   if(dateInput) dateInput.value = serviceState.date;
 
   // Open modal immediately; load data in background so API hiccups do not block UI opening.
+  // Force a visible fallback for environments where <dialog> behaves inconsistently.
   try{
     if(typeof dialog.showModal === 'function') dialog.showModal();
     else dialog.setAttribute('open', 'open');
   }catch(_err){
     dialog.setAttribute('open', 'open');
   }
+  dialog.setAttribute('open', 'open');
+  dialog.style.display = 'block';
+  dialog.style.position = 'fixed';
+  dialog.style.inset = '0';
 
   try{
     await loadServiceModePlans();
@@ -1259,7 +1264,12 @@ async function closeServiceMode(){
   }
   stopServiceModePolling();
   serviceState.open = false;
-  if(dialog && dialog.open) dialog.close();
+  if(dialog){
+    if(dialog.open) dialog.close();
+    dialog.style.display = '';
+    dialog.style.position = '';
+    dialog.style.inset = '';
+  }
 }
 
 function startServiceModePolling(){
