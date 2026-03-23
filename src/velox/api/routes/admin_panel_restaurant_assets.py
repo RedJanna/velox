@@ -1218,19 +1218,30 @@ function isHoldInMeal(hold, mealKey){
 async function openServiceMode(){
   var dialog = document.getElementById('serviceModeDialog');
   if(!dialog) return;
-  if(!state.selectedHotelId){ notify('Hotel secin.', 'warn'); return; }
+  var hid = state.selectedHotelId || state.hotelId;
+  if(!hid){ notify('Hotel secin.', 'warn'); return; }
+
   serviceState.open = true;
   serviceState.date = getOperationalTodayIso();
   serviceState.meal = 'dinner';
   serviceState.area = 'main';
   serviceState.dirty = false;
+
   var dateInput = document.getElementById('serviceModeDate');
   if(dateInput) dateInput.value = serviceState.date;
-  await loadServiceModePlans();
-  await loadServiceModeHolds();
-  renderServiceMode();
+
+  // Open modal immediately; load data in background so API hiccups do not block UI opening.
   if(typeof dialog.showModal === 'function') dialog.showModal();
-  startServiceModePolling();
+
+  try{
+    await loadServiceModePlans();
+    await loadServiceModeHolds();
+    renderServiceMode();
+    startServiceModePolling();
+  }catch(error){
+    notify(error.message || 'Servis modu verileri yuklenemedi.', 'error');
+    renderServiceMode();
+  }
 }
 
 async function closeServiceMode(){
@@ -1263,7 +1274,7 @@ function stopServiceModePolling(){
 }
 
 async function loadServiceModePlans(){
-  var hid = state.selectedHotelId;
+  var hid = state.selectedHotelId || state.hotelId;
   var pair = await Promise.all([
     apiFetch('/hotels/' + hid + '/restaurant/floor-plans?include_all=true'),
     apiFetch('/hotels/' + hid + '/restaurant/settings')
@@ -1287,7 +1298,7 @@ async function loadServiceModePlans(){
 }
 
 async function loadServiceModeHolds(){
-  var hid = state.selectedHotelId;
+  var hid = state.selectedHotelId || state.hotelId;
   var params = new URLSearchParams();
   params.set('hotel_id', String(hid));
   params.set('date_from', serviceState.date);
@@ -1487,9 +1498,10 @@ async function openServiceHoldActions(hold, table){
 }
 
 async function saveServiceModePlanPrefs(){
-  if(!state.selectedHotelId) return;
+  var hid = state.selectedHotelId || state.hotelId;
+  if(!hid) return;
   try{
-    await apiFetch('/hotels/' + state.selectedHotelId + '/restaurant/settings', {
+    await apiFetch('/hotels/' + hid + '/restaurant/settings', {
       method:'PUT',
       body:({
         service_mode_main_plan_id: serviceState.selectedPlanByArea.main || null,
