@@ -837,6 +837,12 @@ def render_admin_panel_html() -> str:
                   <select id="serviceModePlanSelect" aria-label="Servis modu plan secimi"></select>
                 </div>
               </div>
+              <div class="service-mode-shortcuts" aria-label="Servis modu kisayollari">
+                <span class="service-shortcut-chip">1: Kahvalti</span>
+                <span class="service-shortcut-chip">2: Ogle</span>
+                <span class="service-shortcut-chip">3: Aksam</span>
+                <span class="service-shortcut-chip">Alt+← / Alt+→: Gun degistir</span>
+              </div>
               <div class="service-mode-body">
                 <div class="service-mode-canvas-wrap">
                   <div id="serviceModeCanvas" class="floor-plan-canvas service-mode-canvas" aria-label="Servis modu masa plani"></div>

@@ -146,20 +146,24 @@ ADMIN_RESTAURANT_STYLE = """
 .service-mode-header p{margin:.2rem 0 0;font-size:.8rem;color:var(--muted)}
 .service-mode-actions{display:flex;gap:8px;align-items:center}
 .service-mode-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.service-mode-shortcuts{display:flex;gap:8px;flex-wrap:wrap;font-size:.72rem;color:var(--muted)}
+.service-shortcut-chip{border:1px solid var(--border);border-radius:999px;padding:.12rem .5rem;background:var(--bg-2)}
 .service-mode-body{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px;min-height:0;flex:1}
 .service-mode-canvas-wrap{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:8px;min-height:0}
-.service-mode-canvas{height:100%;min-height:560px;overflow:auto}
+.service-mode-canvas{height:100%;min-height:560px;overflow:auto;touch-action:manipulation}
 .service-mode-side{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto}
 .service-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}
-.service-reservation-card{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:.5rem;cursor:grab}
+.service-reservation-card{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem;cursor:grab;touch-action:none}
 .service-reservation-card small{display:block;color:var(--muted)}
 .service-table-drop{outline:2px dashed var(--accent);outline-offset:6px}
+.service-shape-locked{pointer-events:none;opacity:.72;filter:saturate(.7)}
 
 @media(max-width:980px){
   .floor-plan-workspace{flex-direction:column}
   .floor-plan-toolbox{width:100%;flex-direction:row;flex-wrap:wrap;min-height:auto;max-height:none}
   .fp-toolbar{justify-content:center}
   .service-mode-shell{padding:8px}
+  .service-mode-actions .inline-button,.service-mode-toolbar .filter-chip{min-height:42px;padding:.45rem .8rem}
   .service-mode-body{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}
   .service-mode-side{max-height:45vh}
 }
@@ -1229,8 +1233,14 @@ async function openServiceMode(){
   startServiceModePolling();
 }
 
-function closeServiceMode(){
+async function closeServiceMode(){
   var dialog = document.getElementById('serviceModeDialog');
+  if(serviceState.dirty){
+    var shouldSave = window.confirm('Kaydedilmemis plan secimi var. Kapatmadan once kaydedilsin mi?');
+    if(shouldSave){
+      await saveServiceModePlanPrefs();
+    }
+  }
   stopServiceModePolling();
   serviceState.open = false;
   if(dialog && dialog.open) dialog.close();
@@ -1330,10 +1340,24 @@ function renderServiceCanvas(){
   }
   applyFloorTheme((plan.layout_data && plan.layout_data.floor_theme) || DEFAULT_FLOOR_THEME);
   var tables = (plan.layout_data.tables || []);
+  var shapes = (plan.layout_data.shapes || []);
   var occupiedByTable = {};
   serviceState.holds.filter(function(h){
     return !!h.table_id && isHoldInMeal(h, serviceState.meal) && String(h.date) === serviceState.date;
   }).forEach(function(h){ occupiedByTable[String(h.table_id)] = h; });
+
+  shapes.forEach(function(s){
+    var shape = document.createElement('div');
+    shape.className = 'canvas-shape service-shape-locked';
+    shape.dataset.shape = s.type;
+    shape.style.left = (s.x || 0) + 'px';
+    shape.style.top = (s.y || 0) + 'px';
+    shape.style.width = (s.width || 40) + 'px';
+    shape.style.height = (s.height || 40) + 'px';
+    shape.style.setProperty('--rot', getRotation(s) + 'deg');
+    shape.innerHTML = '<div class="shape-body" aria-hidden="true"></div>';
+    canvas.appendChild(shape);
+  });
 
   tables.forEach(function(t){
     var svgData = getTableSvg(t.type);
