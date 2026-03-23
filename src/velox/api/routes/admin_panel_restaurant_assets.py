@@ -158,6 +158,23 @@ ADMIN_RESTAURANT_STYLE = """
 .service-table-drop{outline:2px dashed var(--accent);outline-offset:6px}
 .service-shape-locked{pointer-events:none;opacity:.72;filter:saturate(.7)}
 
+/* Service Mode V2 layout */
+.service-mode-v2{padding:10px 12px}
+.service-mode-grid-v2{display:grid;grid-template-columns:320px minmax(0,1fr) 340px;gap:10px;min-height:0;flex:1}
+.service-col{min-height:0;display:flex;flex-direction:column;gap:10px}
+.service-panel{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:10px}
+.service-col-left .service-panel{flex:1;min-height:180px;overflow:auto}
+.service-col-center .service-canvas-panel{height:100%;min-height:620px}
+.service-col-right .service-panel{height:100%;overflow:auto}
+.service-meta-row{font-size:.85rem;color:var(--muted);margin:.3rem 0}
+.service-mode-bottom-v2{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:10px}
+.service-bottom-block{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:10px;min-height:120px}
+.service-bottom-block h5{margin:0 0 8px 0;font-size:.82rem;color:var(--muted)}
+
+@media(max-width:1400px){
+  .service-mode-grid-v2{grid-template-columns:280px minmax(0,1fr) 300px}
+}
+
 @media(max-width:980px){
   .floor-plan-workspace{flex-direction:column}
   .floor-plan-toolbox{width:100%;flex-direction:row;flex-wrap:wrap;min-height:auto;max-height:none}
@@ -166,6 +183,9 @@ ADMIN_RESTAURANT_STYLE = """
   .service-mode-actions .inline-button,.service-mode-toolbar .filter-chip{min-height:42px;padding:.45rem .8rem}
   .service-mode-body{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}
   .service-mode-side{max-height:45vh}
+  .service-mode-grid-v2{grid-template-columns:1fr}
+  .service-mode-bottom-v2{grid-template-columns:1fr}
+  .service-col-center .service-canvas-panel{min-height:420px}
 }
 """
 
@@ -1222,9 +1242,9 @@ function ensureServiceModeDialogScaffold(){
 
   dialog.classList.add('service-mode-dialog');
   dialog.innerHTML = ''
-    + '<div class="service-mode-shell">'
+    + '<div class="service-mode-shell service-mode-v2">'
     + '  <header class="service-mode-header">'
-    + '    <div><h3>Servis Modu</h3><p>Gunluk ve ogun bazli masa planlama ekrani</p></div>'
+    + '    <div><h3>Servis Modu</h3><p>Operasyon plani (V2 yerlesim)</p></div>'
     + '    <div class="service-mode-actions">'
     + '      <button type="button" id="serviceModePrevDay" class="inline-button secondary" title="Onceki gun (Alt+Sol)">←</button>'
     + '      <input type="date" id="serviceModeDate" aria-label="Servis modu tarihi">'
@@ -1232,28 +1252,33 @@ function ensureServiceModeDialogScaffold(){
     + '      <button type="button" id="serviceModeCloseBtn" class="inline-button" aria-label="Servis modunu kapat">Kapat</button>'
     + '    </div>'
     + '  </header>'
-    + '  <div class="service-mode-toolbar">'
-    + '    <div class="filter-chips" id="serviceModeMealChips" aria-label="Ogun secimi">'
-    + '      <button type="button" class="filter-chip" data-service-meal="breakfast" title="Kahvalti (1)">Kahvalti</button>'
-    + '      <button type="button" class="filter-chip" data-service-meal="lunch" title="Ogle (2)">Ogle</button>'
-    + '      <button type="button" class="filter-chip is-active" data-service-meal="dinner" title="Aksam (3)">Aksam</button>'
-    + '    </div>'
-    + '    <div class="filter-chips" id="serviceModeAreaChips" aria-label="Alan secimi">'
-    + '      <button type="button" class="filter-chip is-active" data-service-area="main">Ana Mekan</button>'
-    + '      <button type="button" class="filter-chip" data-service-area="pool">Havuz</button>'
-    + '    </div>'
-    + '    <div class="stack" style="gap:8px;align-items:center;">'
-    + '      <label style="font-size:.78rem;color:var(--muted);">Plan:</label>'
-    + '      <select id="serviceModePlanSelect" aria-label="Servis modu plan secimi"></select>'
-    + '    </div>'
-    + '  </div>'
-    + '  <div class="service-mode-body">'
-    + '    <div class="service-mode-canvas-wrap"><div id="serviceModeCanvas" class="floor-plan-canvas service-mode-canvas" aria-label="Servis modu masa plani"></div></div>'
-    + '    <aside class="service-mode-side">'
-    + '      <article class="module-card"><h4>Onaylanan</h4><div id="serviceModeApprovedList" class="service-list"></div></article>'
-    + '      <article class="module-card"><h4>Onay Bekleyen</h4><div id="serviceModePendingList" class="service-list"></div></article>'
-    + '      <article class="module-card"><h4>Diger Durumlar</h4><div id="serviceModeOtherList" class="service-list"></div></article>'
+    + '  <div class="service-mode-grid-v2">'
+    + '    <aside class="service-col service-col-left">'
+    + '      <article class="module-card service-panel"><h4>Onaylanan</h4><div id="serviceModeApprovedList" class="service-list"></div></article>'
+    + '      <article class="module-card service-panel"><h4>Onay Bekleyen</h4><div id="serviceModePendingList" class="service-list"></div></article>'
+    + '      <article class="module-card service-panel service-meta-panel"><h4>Guncel Bilgi</h4><div class="service-meta-row"><strong>Tarih:</strong> <span id="serviceMetaDate">-</span></div><div class="service-meta-row"><strong>Saat:</strong> <span id="serviceMetaTime">-</span></div><div class="service-meta-row"><strong>Chef:</strong> <span id="serviceMetaChef">-</span></div></article>'
     + '    </aside>'
+    + '    <section class="service-col service-col-center">'
+    + '      <div class="service-mode-canvas-wrap service-panel service-canvas-panel"><div id="serviceModeCanvas" class="floor-plan-canvas service-mode-canvas" aria-label="Servis modu masa plani"></div></div>'
+    + '    </section>'
+    + '    <aside class="service-col service-col-right">'
+    + '      <article class="module-card service-panel">'
+    + '        <h4>Yeni Rezervasyon Olustur</h4>'
+    + '        <form id="serviceModeQuickCreateForm" class="dense-form">'
+    + '          <div class="field full"><label>Misafir Adi</label><input type="text" placeholder="Ad Soyad"></div>'
+    + '          <div class="field"><label>Kisi</label><input type="number" min="1" placeholder="2"></div>'
+    + '          <div class="field"><label>Saat</label><input type="time"></div>'
+    + '          <div class="field full"><label>Telefon</label><input type="tel" placeholder="+90..."></div>'
+    + '          <div class="field full"><label>Not</label><textarea rows="3" placeholder="Opsiyonel not"></textarea></div>'
+    + '          <div class="field full"><button type="button" class="inline-button primary">Olustur (yakinda)</button></div>'
+    + '        </form>'
+    + '      </article>'
+    + '    </aside>'
+    + '  </div>'
+    + '  <div class="service-mode-bottom-v2">'
+    + '    <div class="service-bottom-block"><h5>Ogun Secimi</h5><div class="filter-chips" id="serviceModeMealChips" aria-label="Ogun secimi"><button type="button" class="filter-chip" data-service-meal="breakfast" title="Kahvalti (1)">Kahvalti</button><button type="button" class="filter-chip" data-service-meal="lunch" title="Ogle (2)">Ogle</button><button type="button" class="filter-chip is-active" data-service-meal="dinner" title="Aksam (3)">Aksam</button></div></div>'
+    + '    <div class="service-bottom-block"><h5>Diger Durumlar (Reddedilen / Gelmeyen)</h5><div id="serviceModeOtherList" class="service-list"></div></div>'
+    + '    <div class="service-bottom-block"><h5>Plan ve Alan</h5><div class="filter-chips" id="serviceModeAreaChips" aria-label="Alan secimi"><button type="button" class="filter-chip is-active" data-service-area="main">Ana Mekan</button><button type="button" class="filter-chip" data-service-area="pool">Havuz</button></div><div class="stack" style="gap:8px;align-items:flex-start;margin-top:8px;"><label style="font-size:.78rem;color:var(--muted);">Plan:</label><select id="serviceModePlanSelect" aria-label="Servis modu plan secimi"></select></div></div>'
     + '  </div>'
     + '</div>';
 
@@ -1412,6 +1437,12 @@ function renderServiceMode(){
   renderServiceCanvas();
   renderServiceReservationLists();
   renderServiceChipStates();
+  var md = document.getElementById('serviceMetaDate');
+  var mt = document.getElementById('serviceMetaTime');
+  var mc = document.getElementById('serviceMetaChef');
+  if(md) md.textContent = serviceState.date || '-';
+  if(mt) mt.textContent = new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+  if(mc) mc.textContent = (state.restaurantSettings && state.restaurantSettings.chef_phone) ? String(state.restaurantSettings.chef_phone) : '-';
 }
 
 function renderServiceChipStates(){
