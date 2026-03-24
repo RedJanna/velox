@@ -159,7 +159,9 @@ ADMIN_RESTAURANT_STYLE = """
 .service-shortcut-chip{border:1px solid var(--border);border-radius:999px;padding:.12rem .5rem;background:var(--bg-2)}
 .service-mode-body{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px;min-height:0;flex:1}
 .service-mode-canvas-wrap{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:8px;min-height:0}
-.service-mode-canvas{height:100%;min-height:560px;overflow:auto;touch-action:manipulation}
+.service-mode-canvas{height:100%;min-height:560px;overflow:hidden;touch-action:manipulation;position:relative}
+.service-canvas-scaler{position:absolute;top:0;left:0;transform-origin:0 0;pointer-events:auto}
+.service-canvas-scaler .canvas-table,.service-canvas-scaler .canvas-shape{pointer-events:auto}
 .service-mode-side{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto}
 .service-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}
 .service-reservation-card{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem;cursor:grab;touch-action:none}
@@ -1740,6 +1742,30 @@ function renderServiceChipStates(){
   });
 }
 
+function computePlanBounds(tables, shapes){
+  var minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+  tables.forEach(function(t){
+    var dims = TABLE_DIMS[t.type] || {w:72,h:72};
+    var x = t.x || 0, y = t.y || 0;
+    if(x < minX) minX = x;
+    if(y < minY) minY = y;
+    if(x + dims.w > maxX) maxX = x + dims.w;
+    if(y + dims.h > maxY) maxY = y + dims.h;
+  });
+  shapes.forEach(function(s){
+    var x = s.x || 0, y = s.y || 0;
+    var w = s.width || 40, h = s.height || 40;
+    if(x < minX) minX = x;
+    if(y < minY) minY = y;
+    if(x + w > maxX) maxX = x + w;
+    if(y + h > maxY) maxY = y + h;
+  });
+  if(minX === Infinity){ minX = 0; minY = 0; maxX = 400; maxY = 400; }
+  // Add padding around content
+  var pad = 30;
+  return {minX: Math.max(0, minX - pad), minY: Math.max(0, minY - pad), width: maxX - Math.max(0, minX - pad) + pad, height: maxY - Math.max(0, minY - pad) + pad};
+}
+
 function renderServiceCanvas(){
   var canvas = document.getElementById('serviceModeCanvas');
   if(!canvas) return;
@@ -1752,6 +1778,32 @@ function renderServiceCanvas(){
   applyThemeClassToCanvas(canvas, (plan.layout_data && plan.layout_data.floor_theme) || DEFAULT_FLOOR_THEME);
   var tables = (plan.layout_data.tables || []);
   var shapes = (plan.layout_data.shapes || []);
+
+  // Calculate bounding box & scale factor to fit service mode viewport
+  var bounds = computePlanBounds(tables, shapes);
+  var canvasRect = canvas.getBoundingClientRect();
+  var viewW = canvasRect.width || 600;
+  var viewH = canvasRect.height || 560;
+  var scaleX = viewW / bounds.width;
+  var scaleY = viewH / bounds.height;
+  var scale = Math.min(scaleX, scaleY, 1); // never upscale beyond 1:1
+  var offsetX = -bounds.minX;
+  var offsetY = -bounds.minY;
+  // Center if content is smaller than viewport after scaling
+  var scaledW = bounds.width * scale;
+  var scaledH = bounds.height * scale;
+  var translateX = (viewW - scaledW) / 2 / scale + offsetX;
+  var translateY = (viewH - scaledH) / 2 / scale + offsetY;
+
+  // Create a scaling wrapper
+  var scaler = document.createElement('div');
+  scaler.className = 'service-canvas-scaler';
+  scaler.style.width = bounds.width + 'px';
+  scaler.style.height = bounds.height + 'px';
+  scaler.style.transform = 'scale(' + scale + ')';
+  scaler.style.left = ((viewW - scaledW) / 2) + 'px';
+  scaler.style.top = ((viewH - scaledH) / 2) + 'px';
+
   var occupiedByTable = {};
   serviceState.holds.filter(function(h){
     return !!h.table_id && isHoldInMeal(h, serviceState.meal) && String(h.date) === serviceState.date;
@@ -1761,13 +1813,13 @@ function renderServiceCanvas(){
     var shape = document.createElement('div');
     shape.className = 'canvas-shape service-shape-locked';
     shape.dataset.shape = s.type;
-    shape.style.left = (s.x || 0) + 'px';
-    shape.style.top = (s.y || 0) + 'px';
+    shape.style.left = ((s.x || 0) - bounds.minX) + 'px';
+    shape.style.top = ((s.y || 0) - bounds.minY) + 'px';
     shape.style.width = (s.width || 40) + 'px';
     shape.style.height = (s.height || 40) + 'px';
     shape.style.setProperty('--rot', getRotation(s) + 'deg');
     shape.innerHTML = '<div class="shape-body" aria-hidden="true"></div>';
-    canvas.appendChild(shape);
+    scaler.appendChild(shape);
   });
 
   tables.forEach(function(t){
@@ -1775,8 +1827,8 @@ function renderServiceCanvas(){
     var el = document.createElement('div');
     el.className = 'canvas-table';
     el.dataset.tableId = t.table_id;
-    el.style.left = (t.x || 0) + 'px';
-    el.style.top = (t.y || 0) + 'px';
+    el.style.left = ((t.x || 0) - bounds.minX) + 'px';
+    el.style.top = ((t.y || 0) - bounds.minY) + 'px';
     el.style.width = svgData.w + 'px';
     el.style.height = svgData.h + 'px';
     el.style.setProperty('--rot', getRotation(t) + 'deg');
@@ -1802,8 +1854,9 @@ function renderServiceCanvas(){
       if(!holdId) return;
       await assignHoldToServiceTable(holdId, t);
     });
-    canvas.appendChild(el);
+    scaler.appendChild(el);
   });
+  canvas.appendChild(scaler);
 }
 
 function renderServiceReservationLists(){
