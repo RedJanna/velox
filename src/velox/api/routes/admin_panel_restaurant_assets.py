@@ -1749,8 +1749,9 @@ function computePlanBounds(tables, shapes){
     var x = t.x || 0, y = t.y || 0;
     if(x < minX) minX = x;
     if(y < minY) minY = y;
+    // Add extra space below tables for labels (+20px)
     if(x + dims.w > maxX) maxX = x + dims.w;
-    if(y + dims.h > maxY) maxY = y + dims.h;
+    if(y + dims.h + 20 > maxY) maxY = y + dims.h + 20;
   });
   shapes.forEach(function(s){
     var x = s.x || 0, y = s.y || 0;
@@ -1761,9 +1762,13 @@ function computePlanBounds(tables, shapes){
     if(y + h > maxY) maxY = y + h;
   });
   if(minX === Infinity){ minX = 0; minY = 0; maxX = 400; maxY = 400; }
-  // Add padding around content
-  var pad = 30;
-  return {minX: Math.max(0, minX - pad), minY: Math.max(0, minY - pad), width: maxX - Math.max(0, minX - pad) + pad, height: maxY - Math.max(0, minY - pad) + pad};
+  var pad = 20;
+  return {
+    minX: Math.max(0, minX - pad),
+    minY: Math.max(0, minY - pad),
+    width: (maxX - Math.max(0, minX - pad)) + pad,
+    height: (maxY - Math.max(0, minY - pad)) + pad
+  };
 }
 
 function renderServiceCanvas(){
@@ -1778,48 +1783,31 @@ function renderServiceCanvas(){
   applyThemeClassToCanvas(canvas, (plan.layout_data && plan.layout_data.floor_theme) || DEFAULT_FLOOR_THEME);
   var tables = (plan.layout_data.tables || []);
   var shapes = (plan.layout_data.shapes || []);
-
-  // Calculate bounding box & scale factor to fit service mode viewport
-  var bounds = computePlanBounds(tables, shapes);
-  var canvasRect = canvas.getBoundingClientRect();
-  var viewW = canvasRect.width || 600;
-  var viewH = canvasRect.height || 560;
-  var scaleX = viewW / bounds.width;
-  var scaleY = viewH / bounds.height;
-  var scale = Math.min(scaleX, scaleY, 1); // never upscale beyond 1:1
-  var offsetX = -bounds.minX;
-  var offsetY = -bounds.minY;
-  // Center if content is smaller than viewport after scaling
-  var scaledW = bounds.width * scale;
-  var scaledH = bounds.height * scale;
-  var translateX = (viewW - scaledW) / 2 / scale + offsetX;
-  var translateY = (viewH - scaledH) / 2 / scale + offsetY;
-
-  // Create a scaling wrapper
-  var scaler = document.createElement('div');
-  scaler.className = 'service-canvas-scaler';
-  scaler.style.width = bounds.width + 'px';
-  scaler.style.height = bounds.height + 'px';
-  scaler.style.transform = 'scale(' + scale + ')';
-  scaler.style.left = ((viewW - scaledW) / 2) + 'px';
-  scaler.style.top = ((viewH - scaledH) / 2) + 'px';
+  if(!tables.length && !shapes.length){
+    canvas.innerHTML = '<div class="empty-state"><p>Plan bos — henuz masa veya sekil eklenmemis.</p></div>';
+    return;
+  }
 
   var occupiedByTable = {};
   serviceState.holds.filter(function(h){
     return !!h.table_id && isHoldInMeal(h, serviceState.meal) && String(h.date) === serviceState.date;
   }).forEach(function(h){ occupiedByTable[String(h.table_id)] = h; });
 
+  // Build elements first, then measure & scale in next frame
+  var tempElements = [];
+
   shapes.forEach(function(s){
     var shape = document.createElement('div');
     shape.className = 'canvas-shape service-shape-locked';
     shape.dataset.shape = s.type;
-    shape.style.left = ((s.x || 0) - bounds.minX) + 'px';
-    shape.style.top = ((s.y || 0) - bounds.minY) + 'px';
+    shape.style.position = 'absolute';
+    shape.style.left = (s.x || 0) + 'px';
+    shape.style.top = (s.y || 0) + 'px';
     shape.style.width = (s.width || 40) + 'px';
     shape.style.height = (s.height || 40) + 'px';
     shape.style.setProperty('--rot', getRotation(s) + 'deg');
     shape.innerHTML = '<div class="shape-body" aria-hidden="true"></div>';
-    scaler.appendChild(shape);
+    tempElements.push(shape);
   });
 
   tables.forEach(function(t){
@@ -1827,8 +1815,9 @@ function renderServiceCanvas(){
     var el = document.createElement('div');
     el.className = 'canvas-table';
     el.dataset.tableId = t.table_id;
-    el.style.left = ((t.x || 0) - bounds.minX) + 'px';
-    el.style.top = ((t.y || 0) - bounds.minY) + 'px';
+    el.style.position = 'absolute';
+    el.style.left = (t.x || 0) + 'px';
+    el.style.top = (t.y || 0) + 'px';
     el.style.width = svgData.w + 'px';
     el.style.height = svgData.h + 'px';
     el.style.setProperty('--rot', getRotation(t) + 'deg');
@@ -1854,9 +1843,55 @@ function renderServiceCanvas(){
       if(!holdId) return;
       await assignHoldToServiceTable(holdId, t);
     });
-    scaler.appendChild(el);
+    tempElements.push(el);
   });
-  canvas.appendChild(scaler);
+
+  // Use requestAnimationFrame to ensure canvas has its final layout dimensions
+  requestAnimationFrame(function(){
+    var bounds = computePlanBounds(tables, shapes);
+    var canvasRect = canvas.getBoundingClientRect();
+    var viewW = canvasRect.width;
+    var viewH = canvasRect.height;
+    // Fallback: if dialog hasn't laid out yet, retry next frame
+    if(!viewW || !viewH){
+      requestAnimationFrame(function(){
+        var r2 = canvas.getBoundingClientRect();
+        applyScaleAndAppend(r2.width || 600, r2.height || 560);
+      });
+      return;
+    }
+    applyScaleAndAppend(viewW, viewH);
+
+    function applyScaleAndAppend(vw, vh){
+      var scaleX = vw / bounds.width;
+      var scaleY = vh / bounds.height;
+      // Allow both downscale AND upscale so plan always fills the viewport
+      var scale = Math.min(scaleX, scaleY);
+
+      var scaledW = bounds.width * scale;
+      var scaledH = bounds.height * scale;
+      var padLeft = (vw - scaledW) / 2;
+      var padTop = (vh - scaledH) / 2;
+
+      var scaler = document.createElement('div');
+      scaler.className = 'service-canvas-scaler';
+      scaler.style.width = bounds.width + 'px';
+      scaler.style.height = bounds.height + 'px';
+      scaler.style.transform = 'scale(' + scale + ')';
+      scaler.style.left = padLeft + 'px';
+      scaler.style.top = padTop + 'px';
+
+      tempElements.forEach(function(el){
+        // Offset coordinates so content starts at 0,0 within scaler
+        var origLeft = parseInt(el.style.left, 10) || 0;
+        var origTop = parseInt(el.style.top, 10) || 0;
+        el.style.left = (origLeft - bounds.minX) + 'px';
+        el.style.top = (origTop - bounds.minY) + 'px';
+        scaler.appendChild(el);
+      });
+      canvas.appendChild(scaler);
+    }
+  });
 }
 
 function renderServiceReservationLists(){
