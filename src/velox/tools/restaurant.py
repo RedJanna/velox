@@ -18,13 +18,13 @@ from velox.config.constants import (
 )
 from velox.core.hotel_profile_loader import get_profile
 from velox.db.database import execute, fetchrow
-from velox.db.repositories.hotel import ApprovalRequestRepository, NotificationRepository
+from velox.db.repositories.hotel import ApprovalRequestRepository, NotificationPhoneRepository, NotificationRepository
 from velox.db.repositories.restaurant import RestaurantRepository
 from velox.db.repositories.restaurant_floor_plan import RestaurantSettingsRepository
 from velox.models.restaurant import RestaurantAvailabilityRequest, RestaurantHold
 from velox.tools.approval import ApprovalRequestTool
 from velox.tools.base import BaseTool
-from velox.tools.notification import NotifySendTool
+from velox.tools.notification import NotifySendTool, send_admin_whatsapp_alerts, send_whatsapp_to_phone
 
 logger = structlog.get_logger(__name__)
 
@@ -251,6 +251,31 @@ class RestaurantCreateHoldTool(BaseTool):
                 status=RestaurantReservationStatus.BEKLEMEDE,
             )
             created = await self._restaurant_repository.create_hold(hold)
+
+        # Notify admin + chef via WhatsApp
+        notif_msg = (
+            f"🍽️ Yeni Restoran Rezervasyonu\n"
+            f"ID: {created.hold_id}\n"
+            f"Misafir: {created.guest_name}\n"
+            f"Kisi: {created.party_size}\n"
+            f"Tarih: {created.date} {created.time}\n"
+            f"Alan: {created.area or '-'}\n"
+            f"Not: {created.notes or '-'}"
+        )
+        try:
+            await send_admin_whatsapp_alerts(
+                hotel_id=hotel_id,
+                message=notif_msg,
+                phone_repo=NotificationPhoneRepository(),
+            )
+            if settings.chef_phone:
+                await send_whatsapp_to_phone(
+                    phone=settings.chef_phone,
+                    message=notif_msg,
+                    hotel_id=hotel_id,
+                )
+        except Exception:
+            logger.warning("restaurant_hold_notif_failed", hold_id=created.hold_id)
 
         # Approval flow / auto-confirm mode
         approval_request_id: str | None = None

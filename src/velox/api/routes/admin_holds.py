@@ -45,6 +45,8 @@ from velox.models.restaurant import (
     RestaurantSettingsUpdate,
 )
 from velox.models.transfer import TransferHold
+from velox.tools.notification import send_admin_whatsapp_alerts, send_whatsapp_to_phone
+from velox.db.repositories.hotel import NotificationPhoneRepository
 from velox.utils.json import decode_json_object
 
 logger = structlog.get_logger(__name__)
@@ -434,6 +436,36 @@ async def create_restaurant_hold_from_panel(
     )
     repo = RestaurantRepository()
     created = await repo.create_hold(hold)
+
+    # Send notifications to admin + chef
+    slot_info = slot_data or {}
+    notif_msg = (
+        f"🍽️ Yeni Restoran Rezervasyonu\n"
+        f"ID: {created.hold_id}\n"
+        f"Misafir: {body.guest_name}\n"
+        f"Kisi: {body.party_size}\n"
+        f"Tarih: {slot_info.get('date', '-')} {slot_info.get('time', '')}\n"
+        f"Alan: {body.area or '-'}\n"
+        f"Not: {body.notes or '-'}"
+    )
+    try:
+        # Admin notification
+        await send_admin_whatsapp_alerts(
+            hotel_id=body.hotel_id,
+            message=notif_msg,
+            phone_repo=NotificationPhoneRepository(),
+        )
+        # Chef notification
+        settings = await settings_repo.get(body.hotel_id)
+        if settings.chef_phone:
+            await send_whatsapp_to_phone(
+                phone=settings.chef_phone,
+                message=notif_msg,
+                hotel_id=body.hotel_id,
+            )
+    except Exception:
+        logger.warning("restaurant_hold_notification_failed", hold_id=created.hold_id)
+
     return {"status": "created", "hold_id": created.hold_id, "table_type": created.table_type, "table_id": created.table_id}
 
 

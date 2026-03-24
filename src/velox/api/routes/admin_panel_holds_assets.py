@@ -683,7 +683,8 @@ function renderRestaurantHoldRows(items) {
       + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Hotel ' + escapeHtml(String(item.hotel_id)) + '</span>' + (hasSpecialRequest ? '<span class="pill warn">Ozel Istek Var</span>' : '') + requestTagHtml + '</div></td>'
       + '<td><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span></td>'
       + '<td>' + escapeHtml(item.guest_name || '-') + '</td>'
-      + '<td><span class="muted">' + escapeHtml(item.date || '-') + ' ' + escapeHtml(item.time || '') + '</span></td>'
+      + '<td><span class="muted">' + escapeHtml(item.date || '-') + ' ' + escapeHtml(item.time || '') + '</span>'
+      + (item.created_at ? '<br><small class="muted">Olusturma: ' + escapeHtml(formatDate(item.created_at)) + '</small>' : '') + '</td>'
       + '<td>' + escapeHtml(String(item.party_size || '-')) + ' kisi' + (hasSpecialRequest ? '<br><small style="color:#92400e;font-weight:700">' + escapeHtml((item.notes || '').trim().slice(0, 60)) + '</small>' : '') + '</td>'
       + '</tr>';
   }).join('');

@@ -159,14 +159,26 @@ ADMIN_RESTAURANT_STYLE = """
 .service-shortcut-chip{border:1px solid var(--border);border-radius:999px;padding:.12rem .5rem;background:var(--bg-2)}
 .service-mode-body{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px;min-height:0;flex:1}
 .service-mode-canvas-wrap{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:8px;min-height:0}
-.service-mode-canvas{width:100%;height:100%;min-height:560px;overflow:hidden;touch-action:manipulation;position:relative}
+.service-mode-canvas{width:100%;height:100%;min-height:560px;overflow:hidden;touch-action:none;position:relative}
 .service-canvas-scaler{position:absolute;top:0;left:0;transform-origin:0 0}
+.service-mode-canvas .canvas-table{touch-action:none;cursor:grab}
+.service-mode-canvas .canvas-table:active{cursor:grabbing}
 .service-mode-side{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto}
 .service-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}
 .service-reservation-card{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem;cursor:grab;touch-action:none}
 .service-reservation-card small{display:block;color:var(--muted)}
 .service-table-drop{outline:2px dashed var(--accent);outline-offset:6px}
 .service-shape-locked{pointer-events:none;opacity:.72;filter:saturate(.7)}
+
+/* Service mode toolbox */
+.service-toolbox{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0}
+.service-toolbox-item{display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:var(--radius);background:var(--bg-1);border:1px solid var(--border);cursor:grab;font-size:.72rem;user-select:none;transition:background .15s}
+.service-toolbox-item:hover{background:var(--accent-bg);border-color:var(--accent)}
+.service-toolbox-item svg{width:28px;height:28px}
+
+/* Service mode table tooltip */
+.service-table-tooltip{position:absolute;z-index:100;background:var(--bg-0,#1e293b);color:#f8fafc;border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;font-size:.72rem;line-height:1.4;pointer-events:none;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.4);transform:translateX(-50%);left:50%;bottom:calc(100% + 8px)}
+.service-table-tooltip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--bg-0,#1e293b)}
 
 /* Service Mode V2 layout */
 .service-mode-v2{padding:10px 12px}
@@ -178,7 +190,7 @@ ADMIN_RESTAURANT_STYLE = """
 .service-col-center .service-canvas-panel .service-mode-canvas{flex:1}
 .service-col-right .service-panel{height:100%;overflow:auto}
 .service-meta-row{font-size:.85rem;color:var(--muted);margin:.3rem 0}
-.service-mode-bottom-v2{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:10px}
+.service-mode-bottom-v2{display:grid;grid-template-columns:1fr 1.2fr 1fr 1fr;gap:10px}
 .service-bottom-block{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:10px;min-height:120px}
 .service-bottom-block h5{margin:0 0 8px 0;font-size:.82rem;color:var(--muted)}
 
@@ -1567,6 +1579,7 @@ function ensureServiceModeDialogScaffold(){
     + '    <div class="service-bottom-block"><h5>Ogun Secimi</h5><div class="filter-chips" id="serviceModeMealChips" aria-label="Ogun secimi"><button type="button" class="filter-chip" data-service-meal="breakfast" title="Kahvalti (1)">Kahvalti</button><button type="button" class="filter-chip" data-service-meal="lunch" title="Ogle (2)">Ogle</button><button type="button" class="filter-chip is-active" data-service-meal="dinner" title="Aksam (3)">Aksam</button></div></div>'
     + '    <div class="service-bottom-block"><h5>Diger Durumlar (Reddedilen / Gelmeyen)</h5><div id="serviceModeOtherList" class="service-list"></div></div>'
     + '    <div class="service-bottom-block"><h5>Plan ve Alan</h5><div class="filter-chips" id="serviceModeAreaChips" aria-label="Alan secimi"><button type="button" class="filter-chip is-active" data-service-area="main">Ana Mekan</button><button type="button" class="filter-chip" data-service-area="pool">Havuz</button></div><div class="stack" style="gap:8px;align-items:flex-start;margin-top:8px;"><label style="font-size:.78rem;color:var(--muted);">Plan:</label><select id="serviceModePlanSelect" aria-label="Servis modu plan secimi"></select></div></div>'
+    + '    <div class="service-bottom-block"><h5>Masa Ekle (Surukle)</h5><div id="serviceModeToolbox" class="service-toolbox"></div></div>'
     + '  </div>'
     + '</div>';
 
@@ -1838,11 +1851,73 @@ function renderServiceCanvas(){
     var html = svgData.svg + '<span class="table-label">' + escapeHtml(t.table_id) + '</span>';
     if(hold){
       html += '<div class="guest-overlay"><div>' + escapeHtml(hold.guest_name || '-') + '</div><div class="guest-time">' + escapeHtml(hold.time || '') + '</div></div>';
-      el.title = 'Dolu: ' + (hold.guest_name || '-') + ' | ' + (hold.party_size || '-') + ' kisi';
-    } else {
-      el.title = 'Bos masa: ' + t.table_id;
     }
     el.innerHTML = html;
+
+    // Hover tooltip with reservation details
+    el.addEventListener('mouseenter', function(){
+      var existing = el.querySelector('.service-table-tooltip');
+      if(existing) existing.remove();
+      var tip = document.createElement('div');
+      tip.className = 'service-table-tooltip';
+      if(hold){
+        tip.innerHTML = '<strong>' + escapeHtml(hold.guest_name || '-') + '</strong><br>'
+          + escapeHtml(hold.time || '-') + ' · ' + escapeHtml(String(hold.party_size || '-')) + ' kisi<br>'
+          + 'Durum: ' + escapeHtml(hold.status || '-')
+          + (hold.notes ? '<br>Not: ' + escapeHtml(String(hold.notes).slice(0,60)) : '');
+      } else {
+        tip.innerHTML = '<strong>' + escapeHtml(t.table_id) + '</strong> — ' + escapeHtml(t.type) + '<br>Bos masa (' + (TABLE_DIMS[t.type]||{}).w + 'px)';
+      }
+      el.appendChild(tip);
+    });
+    el.addEventListener('mouseleave', function(){
+      var existing = el.querySelector('.service-table-tooltip');
+      if(existing) existing.remove();
+    });
+
+    // ── Pointer-based drag to move table in service mode ──
+    (function(tableEl, tableData, currentScale, originX, originY){
+      var isDragging = false;
+      var startPX, startPY, origLeft, origTop;
+      tableEl.addEventListener('pointerdown', function(e){
+        if(e.target.closest('.tbl-act-btn') || e.target.closest('.service-table-tooltip')) return;
+        e.preventDefault();
+        isDragging = false;
+        startPX = e.clientX; startPY = e.clientY;
+        origLeft = parseInt(tableEl.style.left, 10) || 0;
+        origTop  = parseInt(tableEl.style.top, 10) || 0;
+        tableEl.setPointerCapture(e.pointerId);
+
+        function onMove(ev){
+          var dx = (ev.clientX - startPX) / currentScale;
+          var dy = (ev.clientY - startPY) / currentScale;
+          if(!isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) isDragging = true;
+          if(!isDragging) return;
+          // Remove tooltip while dragging
+          var tip = tableEl.querySelector('.service-table-tooltip');
+          if(tip) tip.remove();
+          var nx = Math.max(0, Math.round((origLeft + dx) / 20) * 20);
+          var ny = Math.max(0, Math.round((origTop + dy) / 20) * 20);
+          tableEl.style.left = nx + 'px';
+          tableEl.style.top  = ny + 'px';
+        }
+        function onUp(ev){
+          tableEl.releasePointerCapture(ev.pointerId);
+          tableEl.removeEventListener('pointermove', onMove);
+          tableEl.removeEventListener('pointerup', onUp);
+          if(!isDragging) return; // was a click, not a drag
+          var finalLeft = parseInt(tableEl.style.left, 10) || 0;
+          var finalTop  = parseInt(tableEl.style.top, 10) || 0;
+          // Convert back to plan coordinates (add origin offset)
+          var newX = finalLeft + originX;
+          var newY = finalTop + originY;
+          saveServiceTablePosition(tableData.table_id, newX, newY);
+        }
+        tableEl.addEventListener('pointermove', onMove);
+        tableEl.addEventListener('pointerup', onUp);
+      });
+    })(el, t, scale, ox, oy);
+
     if(hold){
       el.addEventListener('click', function(){ openServiceHoldActions(hold, t); });
     }
@@ -1860,6 +1935,37 @@ function renderServiceCanvas(){
 
   /* ── 8. Append scaler to canvas ── */
   canvas.appendChild(scaler);
+
+  /* ── 9. Canvas-level drop: accept new tables from toolbox ── */
+  canvas.ondragover = function(ev){ ev.preventDefault(); };
+  canvas.ondrop = async function(ev){
+    ev.preventDefault();
+    var tableData = ev.dataTransfer.getData('application/velox-table');
+    if(!tableData) return; // not a table drop — handled per-table for holds
+    var info;
+    try{ info = JSON.parse(tableData); }catch{ return; }
+    // Place table at drop position, accounting for scale
+    var canvasRect2 = canvas.getBoundingClientRect();
+    var dropX = (ev.clientX - canvasRect2.left - parseFloat(scaler.style.left || 0)) / scale + ox;
+    var dropY = (ev.clientY - canvasRect2.top - parseFloat(scaler.style.top || 0)) / scale + oy;
+    dropX = Math.round(dropX / 20) * 20;
+    dropY = Math.round(dropY / 20) * 20;
+    var tableId = window.prompt('Masa numarasi girin:', 'T' + info.capacity + '-' + Math.floor(Math.random()*100));
+    if(!tableId) return;
+    // Save table to plan via API
+    var activePlan = getServiceActivePlan();
+    if(!activePlan || !activePlan.id) return;
+    var hid = state.selectedHotelId || state.hotelId;
+    var newTable = {table_id:tableId.trim().toUpperCase(), type:info.type, capacity:info.capacity, x:dropX, y:dropY, rotation:0, label:tableId.trim().toUpperCase()};
+    var updatedTables = (activePlan.layout_data.tables || []).concat([newTable]);
+    var updatedLayout = Object.assign({}, activePlan.layout_data, {tables:updatedTables});
+    try{
+      await apiFetch('/hotels/' + hid + '/restaurant/floor-plans/' + activePlan.id, {method:'PUT', body:{layout_data:updatedLayout}});
+      notify('Masa ' + tableId + ' plana eklendi.', 'success');
+      await loadServiceModePlans();
+      renderServiceMode();
+    }catch(e){ notify(e.message || 'Masa eklenemedi.', 'error'); }
+  };
 }
 
 function renderServiceReservationLists(){
@@ -1870,7 +1976,8 @@ function renderServiceReservationLists(){
   var rows = (serviceState.holds || []).filter(function(item){
     return String(item.date) === serviceState.date && isHoldInMeal(item, serviceState.meal);
   });
-  var approvedRows = rows.filter(function(item){ return item.status === 'ONAYLANDI'; });
+  // Approved items that are already assigned to a table don't show in the list (they appear on canvas)
+  var approvedRows = rows.filter(function(item){ return item.status === 'ONAYLANDI' && !item.table_id; });
   var pendingRows = rows.filter(function(item){ return item.status === 'BEKLEMEDE' || item.status === 'PENDING_APPROVAL'; });
   var otherRows = rows.filter(function(item){ return item.status !== 'ONAYLANDI' && item.status !== 'BEKLEMEDE' && item.status !== 'PENDING_APPROVAL'; });
   approved.innerHTML = renderServiceHoldCards(approvedRows, true);
@@ -1908,6 +2015,22 @@ async function assignHoldToServiceTable(holdId, table){
   }catch(error){
     notify(error.message || 'Masa atamasi basarisiz.', 'error');
   }
+}
+
+async function saveServiceTablePosition(tableId, newX, newY){
+  var activePlan = getServiceActivePlan();
+  if(!activePlan || !activePlan.id || !activePlan.layout_data) return;
+  var hid = state.selectedHotelId || state.hotelId;
+  var tables = (activePlan.layout_data.tables || []).map(function(t){
+    if(t.table_id === tableId) return Object.assign({}, t, {x: newX, y: newY});
+    return t;
+  });
+  var updatedLayout = Object.assign({}, activePlan.layout_data, {tables: tables});
+  try{
+    await apiFetch('/hotels/' + hid + '/restaurant/floor-plans/' + activePlan.id, {method:'PUT', body:{layout_data: updatedLayout}});
+    // Update local cache so next render uses new position
+    activePlan.layout_data = updatedLayout;
+  }catch(e){ notify(e.message || 'Masa pozisyonu kaydedilemedi.', 'error'); }
 }
 
 async function openServiceHoldActions(hold, table){
@@ -2043,6 +2166,30 @@ function bindServiceModeEvents(){
       renderServiceMode();
     });
     planSelect.dataset.serviceModeBound = '1';
+  }
+
+  // Render service mode toolbox (draggable table types)
+  var toolboxEl = document.getElementById('serviceModeToolbox');
+  if(toolboxEl && !toolboxEl.dataset.bound){
+    toolboxEl.dataset.bound = '1';
+    var tableTypes = [
+      {type:'TABLE_2', capacity:2, label:'2 Kisilik', svg:miniSvg2()},
+      {type:'TABLE_4', capacity:4, label:'4 Kisilik', svg:miniSvg4()},
+      {type:'TABLE_6', capacity:6, label:'6 Kisilik', svg:miniSvg6()},
+      {type:'TABLE_8', capacity:8, label:'8 Kisilik', svg:miniSvg8()},
+      {type:'TABLE_10', capacity:10, label:'10 Kisilik', svg:miniSvg10()}
+    ];
+    tableTypes.forEach(function(tt){
+      var item = document.createElement('div');
+      item.className = 'service-toolbox-item';
+      item.draggable = true;
+      item.innerHTML = '<span class="toolbox-preview">' + tt.svg + '</span> ' + escapeHtml(tt.label);
+      item.addEventListener('dragstart', function(ev){
+        ev.dataTransfer.setData('application/velox-table', JSON.stringify({type:tt.type, capacity:tt.capacity}));
+        ev.dataTransfer.setData('text/plain', '');
+      });
+      toolboxEl.appendChild(item);
+    });
   }
 
   if(!window.__veloxServiceModeDocBound){
