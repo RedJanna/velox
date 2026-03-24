@@ -4,12 +4,17 @@
 
 ADMIN_RESTAURANT_STYLE = """
 /* ── Floor plan workspace ───────────────────────────── */
-.floor-plan-workspace{display:flex;gap:1rem;align-items:stretch;min-height:720px}
-.floor-plan-toolbox{width:180px;flex-shrink:0;display:flex;flex-direction:column;gap:.35rem;padding:.75rem;background:var(--bg-2);border-radius:var(--radius);border:1px solid var(--border);max-height:760px;overflow-y:auto}
-.floor-plan-controls{display:flex;align-items:flex-end;gap:.5rem;flex-wrap:wrap;justify-content:flex-end}
-.fp-plan-name-field{min-width:220px;max-width:320px;margin:0}
-.fp-plan-list-field{min-width:220px;max-width:300px;margin:0}
+.floor-plan-workspace{display:flex;gap:1rem;align-items:stretch;min-height:1400px}
+.floor-plan-toolbox{width:180px;flex-shrink:0;display:flex;flex-direction:column;gap:.35rem;padding:.75rem;background:var(--bg-2);border-radius:var(--radius);border:1px solid var(--border);max-height:1500px;overflow-y:auto}
+#floorPlanEditorCard>.module-header{display:flex;flex-wrap:wrap;align-items:flex-start;gap:.5rem}
+.floor-plan-controls{display:flex;align-items:flex-end;gap:.5rem;flex-wrap:wrap;flex:1 1 100%;margin-top:.75rem;padding:.75rem;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius)}
+.fp-plan-name-field{min-width:200px;max-width:300px;margin:0}
+.fp-plan-list-field{min-width:200px;max-width:280px;margin:0}
 .fp-plan-name-field span,.fp-plan-list-field span{display:block;font-size:.68rem;color:var(--muted);margin-bottom:.2rem}
+.fp-plan-dirty-indicator{display:inline-block;width:8px;height:8px;border-radius:50%;background:#f59e0b;margin-left:6px;vertical-align:middle;opacity:0;transition:opacity .2s}
+.fp-plan-dirty-indicator.visible{opacity:1}
+.fp-plan-status{font-size:.72rem;color:var(--muted);align-self:center;margin-left:auto;display:flex;align-items:center;gap:.3rem}
+.fp-plan-status .fp-plan-id-badge{font-size:.65rem;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:.1rem .4rem}
 .toolbox-title{font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.6rem 0 .15rem;font-weight:700}
 .toolbox-item{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;border-radius:var(--radius);background:var(--bg-1);border:1px solid var(--border);cursor:grab;font-size:.78rem;transition:background .15s,border-color .15s}
 .toolbox-item:hover{background:var(--accent-bg);border-color:var(--accent)}
@@ -30,7 +35,7 @@ ADMIN_RESTAURANT_STYLE = """
 .fp-toolbar .fp-sep{width:1px;height:22px;background:var(--border);margin:0 .15rem;align-self:center}
 
 /* Canvas */
-.floor-plan-canvas{flex:1;position:relative;background:var(--floor-base,var(--bg-1));background-image:var(--floor-texture,none);background-size:var(--floor-size,auto);background-position:center;border:2px dashed var(--border);border-radius:var(--radius);min-height:720px;aspect-ratio:1/1;max-height:78vh;overflow:hidden}
+.floor-plan-canvas{flex:1;position:relative;background:var(--floor-base,var(--bg-1));background-image:var(--floor-texture,none);background-size:var(--floor-size,auto);background-position:center;border:2px dashed var(--border);border-radius:var(--radius);min-height:1400px;aspect-ratio:1/1;max-height:none;overflow:hidden}
 .floor-plan-canvas.show-grid{background-image:var(--floor-texture,none),radial-gradient(circle,var(--border,#d1cdc4) 1px,transparent 1px);background-size:var(--floor-size,auto),20px 20px;background-position:center,0 0}
 .floor-plan-canvas.drag-over{border-color:var(--accent);background-color:var(--accent-bg)}
 .floor-plan-canvas.click-place-mode{cursor:crosshair}
@@ -184,7 +189,7 @@ ADMIN_RESTAURANT_STYLE = """
   .floor-plan-controls{justify-content:stretch}
   .fp-plan-name-field,.fp-plan-list-field{min-width:100%;max-width:none}
   .floor-plan-toolbox{width:100%;flex-direction:row;flex-wrap:wrap;min-height:auto;max-height:none}
-  .floor-plan-canvas{min-height:460px;max-height:none}
+  .floor-plan-canvas{min-height:800px;max-height:none}
   .fp-toolbar{justify-content:center}
   .service-mode-shell{padding:8px}
   .service-mode-actions .inline-button,.service-mode-toolbar .filter-chip{min-height:42px;padding:.45rem .8rem}
@@ -440,6 +445,7 @@ function syncFloorPlanHeaderFields(){
   if(select && fpState.planId){
     select.value = String(fpState.planId);
   }
+  updateDirtyIndicator();
 }
 
 function renderFloorPlanSelect(){
@@ -451,11 +457,18 @@ function renderFloorPlanSelect(){
     return;
   }
   select.disabled = false;
-  select.innerHTML = floorPlanCollection.map(function(plan){
+  var opts = '<option value="">-- Plan sec (' + floorPlanCollection.length + ' kayitli) --</option>';
+  opts += floorPlanCollection.map(function(plan){
     var pid = String(plan.id || '');
-    var activeTag = plan.is_active ? ' (Aktif)' : '';
-    return '<option value="' + escapeHtml(pid) + '">' + escapeHtml((plan.name || 'Adsiz Plan') + activeTag) + '</option>';
+    var activeTag = plan.is_active ? ' ★ Aktif' : '';
+    var tableCount = (plan.layout_data && plan.layout_data.tables) ? plan.layout_data.tables.length : 0;
+    var shapeCount = (plan.layout_data && plan.layout_data.shapes) ? plan.layout_data.shapes.length : 0;
+    var suffix = '';
+    if(tableCount > 0 || shapeCount > 0) suffix = ' (' + tableCount + ' masa, ' + shapeCount + ' sekil)';
+    var dateInfo = plan.updated_at ? ' - ' + String(plan.updated_at).slice(0,10) : '';
+    return '<option value="' + escapeHtml(pid) + '">' + escapeHtml((plan.name || 'Adsiz Plan') + activeTag + suffix + dateInfo) + '</option>';
   }).join('');
+  select.innerHTML = opts;
   if(fpState.planId){
     select.value = String(fpState.planId);
   }
@@ -470,9 +483,26 @@ function scheduleFloorPlanAutoSave(){
   }, FLOOR_PLAN_AUTOSAVE_DELAY_MS);
 }
 
+function updateDirtyIndicator(){
+  var dot = document.getElementById('fpDirtyDot');
+  if(dot) dot.classList.toggle('visible', !!fpState._dirty);
+  var badge = document.getElementById('fpPlanIdBadge');
+  if(badge){
+    if(fpState.planId){
+      badge.textContent = 'ID: ' + String(fpState.planId).slice(0,8);
+      badge.title = 'Plan ID: ' + String(fpState.planId);
+    } else {
+      badge.textContent = 'Yeni';
+      badge.title = 'Henuz kaydedilmemis yeni plan';
+    }
+  }
+}
+
 function markFloorPlanChanged(){
   fpState.planName = getFloorPlanNameInputValue();
+  fpState._dirty = true;
   syncFloorPlanHeaderFields();
+  updateDirtyIndicator();
   scheduleFloorPlanAutoSave();
 }
 
@@ -610,6 +640,7 @@ function initFloorPlanEditor(){
   if(planNameInput && planNameInput.dataset.bound !== '1'){
     planNameInput.addEventListener('input', function(){
       fpState.planName = getFloorPlanNameInputValue();
+      fpState._dirty = true;
       scheduleFloorPlanAutoSave();
     });
     planNameInput.dataset.bound = '1';
@@ -617,25 +648,72 @@ function initFloorPlanEditor(){
 
   var planSelect = document.getElementById('floorPlanSelect');
   if(planSelect && planSelect.dataset.bound !== '1'){
-    planSelect.addEventListener('change', function(){
+    planSelect.addEventListener('change', async function(){
       var selectedPlanId = planSelect.value;
-      var selectedPlan = floorPlanCollection.find(function(item){ return String(item.id) === String(selectedPlanId); });
-      if(!selectedPlan || !selectedPlan.layout_data) return;
-      loadFloorPlanFromPayload(selectedPlan);
+      if(!selectedPlanId) return;
+      // Don't reload if already on this plan
+      if(fpState.planId && String(fpState.planId) === String(selectedPlanId) && !fpState._dirty) return;
+      if(fpState._dirty){
+        var shouldSave = window.confirm('Mevcut planda kaydedilmemis degisiklikler var. Kaydetmek ister misiniz?');
+        if(shouldSave) await saveFloorPlan({silent:true});
+      }
+      // Cancel pending auto-save
+      if(floorPlanAutoSaveTimer){ window.clearTimeout(floorPlanAutoSaveTimer); floorPlanAutoSaveTimer = null; }
+      var hid = state.hotelId || state.selectedHotelId;
+      try{
+        // Always fetch fresh data from API to avoid stale plan content
+        var res = await apiFetch('/hotels/' + hid + '/restaurant/floor-plans?include_all=true');
+        floorPlanCollection = res.plans || [];
+        renderFloorPlanSelect();
+        var freshPlan = floorPlanCollection.find(function(item){ return String(item.id) === String(selectedPlanId); });
+        if(freshPlan){
+          loadFloorPlanFromPayload(freshPlan);
+        } else {
+          notify('Secilen plan bulunamadi.', 'warn');
+        }
+      }catch(e){
+        // Fallback to cached version
+        var cached = floorPlanCollection.find(function(item){ return String(item.id) === String(selectedPlanId); });
+        if(cached) loadFloorPlanFromPayload(cached);
+        else notify('Plan yuklenemedi.', 'error');
+      }
     });
     planSelect.dataset.bound = '1';
   }
 
   var newPlanBtn = document.getElementById('createNewFloorPlanBtn');
   if(newPlanBtn && newPlanBtn.dataset.bound !== '1'){
-    newPlanBtn.addEventListener('click', function(){
-      fpState = {tables:[],shapes:[],planId:null,planName:'Yeni Plan',counter:0,floorTheme:DEFAULT_FLOOR_THEME};
+    newPlanBtn.addEventListener('click', async function(){
+      // Ask for plan name upfront — required before creating
+      var planName = window.prompt('Yeni plan icin bir isim girin:', '');
+      if(planName === null) return; // cancelled
+      planName = planName.trim().slice(0, 80);
+      if(!planName){
+        notify('Plan adi bos birakilamaz.', 'warn');
+        return;
+      }
+      // Save current dirty plan before switching
+      if(fpState._dirty){
+        var shouldSave = window.confirm('Mevcut planda kaydedilmemis degisiklikler var. Kaydetmek ister misiniz?');
+        if(shouldSave) await saveFloorPlan({silent:true});
+      }
+      // Cancel pending auto-save to prevent stale writes
+      if(floorPlanAutoSaveTimer){ window.clearTimeout(floorPlanAutoSaveTimer); floorPlanAutoSaveTimer = null; }
+      // Completely fresh state — zero data from previous plan
+      fpState = {tables:[],shapes:[],planId:null,planName:planName,counter:0,floorTheme:DEFAULT_FLOOR_THEME,_dirty:false};
       activeShapeEditId = null;
+      selectedEl = null;
       undoStack = [];
       applyFloorTheme(DEFAULT_FLOOR_THEME);
       rerenderCanvas();
       syncFloorPlanHeaderFields();
-      notify('Yeni plan taslagi olusturuldu. Plan adini verip kaydedin.', 'info');
+      updateDirtyIndicator();
+      var nameInput = document.getElementById('floorPlanNameInput');
+      if(nameInput){ nameInput.value = planName; nameInput.focus(); }
+      // Deselect in plan list
+      var select = document.getElementById('floorPlanSelect');
+      if(select) select.value = '';
+      notify('Yeni plan "' + planName + '" olusturuldu. Cizime baslayin, degisiklikler otomatik kaydedilir.', 'info');
     });
     newPlanBtn.dataset.bound = '1';
   }
@@ -951,19 +1029,24 @@ function makeDraggable(el, canvas, onMove){
 function loadFloorPlanFromPayload(plan){
   var canvas = document.getElementById('floorPlanCanvas');
   if(!canvas) return;
+  // Cancel any pending auto-save before switching plans
+  if(floorPlanAutoSaveTimer){ window.clearTimeout(floorPlanAutoSaveTimer); floorPlanAutoSaveTimer = null; }
   canvas.querySelectorAll('.canvas-table,.canvas-shape').forEach(function(el){el.remove();});
-  fpState = {tables:[],shapes:[],planId:null,planName:'Ana Plan',counter:0,floorTheme:DEFAULT_FLOOR_THEME};
+  fpState = {tables:[],shapes:[],planId:null,planName:'Ana Plan',counter:0,floorTheme:DEFAULT_FLOOR_THEME,_dirty:false};
   activeShapeEditId = null;
+  selectedEl = null;
   undoStack = [];
   applyFloorTheme(DEFAULT_FLOOR_THEME);
 
   if(!plan || !plan.layout_data){
     syncFloorPlanHeaderFields();
+    updateDirtyIndicator();
     return;
   }
 
   fpState.planId = plan.id || null;
   fpState.planName = String(plan.name || 'Ana Plan');
+  fpState._dirty = false;
   var ld = plan.layout_data;
   applyFloorTheme(ld.floor_theme || DEFAULT_FLOOR_THEME);
   (ld.tables||[]).forEach(function(t){
@@ -977,16 +1060,30 @@ function loadFloorPlanFromPayload(plan){
     renderCanvasShape(canvas,s);
   });
   syncFloorPlanHeaderFields();
+  updateDirtyIndicator();
 }
 
 async function loadFloorPlan(){
   var hid = state.hotelId || state.selectedHotelId;
   if(!hid) return;
 
+  // Remember current plan ID so we can restore it after reload
+  var previousPlanId = fpState.planId ? String(fpState.planId) : null;
+
   try{
     var res = await apiFetch('/hotels/' + hid + '/restaurant/floor-plans?include_all=true');
     floorPlanCollection = res.plans || (res.plan ? [res.plan] : []);
     renderFloorPlanSelect();
+
+    // If we had a plan loaded, try to reload that same plan (preserves editing context)
+    if(previousPlanId){
+      var samePlan = floorPlanCollection.find(function(p){ return String(p.id) === previousPlanId; });
+      if(samePlan){
+        loadFloorPlanFromPayload(samePlan);
+        return;
+      }
+    }
+    // Otherwise load active plan or first plan
     if(res.plan){
       loadFloorPlanFromPayload(res.plan);
     } else if(floorPlanCollection.length){
@@ -1002,9 +1099,25 @@ async function loadFloorPlan(){
 async function saveFloorPlan(options){
   var opts = options || {};
   var hid = state.hotelId || state.selectedHotelId;
-  if(!hid){ notify('Otel secilmedi','error'); return false; }
+  if(!hid){ if(!opts.silent) notify('Otel secilmedi','error'); return false; }
+  // Block auto-save for unnamed new plans to prevent accidental "Ana Plan" entries
+  if(opts.fromAutoSave && !fpState.planId && (!fpState.planName || fpState.planName === 'Ana Plan' || fpState.planName === '')){
+    return false;
+  }
 
   fpState.planName = getFloorPlanNameInputValue();
+  if(!fpState.planName || fpState.planName === 'Ana Plan'){
+    // If it's a new plan (no ID) and still has default name, require naming
+    if(!fpState.planId && !opts.fromAutoSave){
+      var prompted = window.prompt('Kaydetmeden once plana bir isim verin:', fpState.planName || '');
+      if(prompted === null) return false;
+      prompted = prompted.trim().slice(0, 80);
+      if(!prompted){ notify('Plan adi bos birakilamaz.', 'warn'); return false; }
+      fpState.planName = prompted;
+      var ni = document.getElementById('floorPlanNameInput');
+      if(ni) ni.value = prompted;
+    }
+  }
   var layout = {
     canvas_width: 1200,
     canvas_height: 800,
@@ -1031,12 +1144,13 @@ async function saveFloorPlan(options){
       fpState.planId = data.plan.id;
       fpState.planName = data.plan.name || fpState.planName;
     }
+    fpState._dirty = false;
     floorPlanAutoSaveTimer = null;
+    updateDirtyIndicator();
+    // Reload full plan list so select dropdown is current
     await loadFloorPlan();
-    if(serviceState.open){
-      await loadServiceModePlans();
-      renderServiceMode();
-    }
+    // Always sync to service mode after save so live view reflects changes
+    await syncFloorPlanToServiceMode();
     if(!opts.silent){
       notify('Plan kaydedildi','success');
     }
@@ -1048,6 +1162,27 @@ async function saveFloorPlan(options){
     }
     return false;
   }
+}
+
+/* ── Service Mode Sync ────────────────────── */
+
+async function syncFloorPlanToServiceMode(){
+  try{
+    // Always refresh plans cache from API so service mode uses latest version
+    var hid = state.hotelId || state.selectedHotelId;
+    if(hid){
+      var freshRes = await apiFetch('/hotels/' + hid + '/restaurant/floor-plans?include_all=true');
+      var freshPlans = freshRes.plans || (freshRes.plan ? [freshRes.plan] : []);
+      // Update shared plan collection for editor select
+      floorPlanCollection = freshPlans;
+      // Update service state plans
+      serviceState.plans = freshPlans;
+    }
+    if(serviceState.open){
+      await loadServiceModePlans();
+      renderServiceMode();
+    }
+  }catch(e){ /* non-critical: service mode will refresh on next open/poll */ }
 }
 
 /* ── Daily View ───────────────────────────── */
@@ -1520,8 +1655,8 @@ function startServiceModePolling(){
   stopServiceModePolling();
   serviceState.pollTimer = window.setInterval(async function(){
     if(!serviceState.open) return;
-    await loadServiceModeHolds();
-    renderServiceReservationLists();
+    await Promise.all([loadServiceModeHolds(), loadServiceModePlans()]);
+    renderServiceMode();
   }, 10000);
 }
 

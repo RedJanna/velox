@@ -645,9 +645,10 @@ def render_admin_panel_html() -> str:
                   <span>Kayitli Planlar</span>
                   <select id="floorPlanSelect" aria-label="Kayitli planlar"></select>
                 </label>
-                <button class="inline-button secondary" id="createNewFloorPlanBtn" type="button" aria-label="Yeni plan olustur">Yeni Plan</button>
+                <button class="inline-button accent" id="createNewFloorPlanBtn" type="button" aria-label="Yeni plan olustur">+ Yeni Plan</button>
                 <button class="inline-button primary" id="saveFloorPlanBtn" type="button" aria-label="Plani kaydet">Kaydet</button>
-                <button class="inline-button secondary" id="resetFloorPlanBtn" type="button" aria-label="Plani sifirla">Sifirla</button>
+                <button class="inline-button secondary" id="resetFloorPlanBtn" type="button" aria-label="Son kaydedilen hale don">Sifirla</button>
+                <span class="fp-plan-status"><span class="fp-plan-dirty-indicator" id="fpDirtyDot" title="Kaydedilmemis degisiklik var"></span><span id="fpPlanIdBadge" class="fp-plan-id-badge"></span></span>
               </div>
             </div>
             <div class="fp-toolbar">
