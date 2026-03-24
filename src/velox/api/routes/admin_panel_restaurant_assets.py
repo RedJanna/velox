@@ -159,9 +159,8 @@ ADMIN_RESTAURANT_STYLE = """
 .service-shortcut-chip{border:1px solid var(--border);border-radius:999px;padding:.12rem .5rem;background:var(--bg-2)}
 .service-mode-body{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px;min-height:0;flex:1}
 .service-mode-canvas-wrap{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:8px;min-height:0}
-.service-mode-canvas{height:100%;min-height:560px;overflow:hidden;touch-action:manipulation;position:relative}
-.service-canvas-scaler{position:absolute;top:0;left:0;transform-origin:0 0;pointer-events:auto}
-.service-canvas-scaler .canvas-table,.service-canvas-scaler .canvas-shape{pointer-events:auto}
+.service-mode-canvas{width:100%;height:100%;min-height:560px;overflow:hidden;touch-action:manipulation;position:relative}
+.service-canvas-scaler{position:absolute;top:0;left:0;transform-origin:0 0}
 .service-mode-side{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto}
 .service-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}
 .service-reservation-card{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem;cursor:grab;touch-action:none}
@@ -175,7 +174,8 @@ ADMIN_RESTAURANT_STYLE = """
 .service-col{min-height:0;display:flex;flex-direction:column;gap:10px}
 .service-panel{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:10px}
 .service-col-left .service-panel{flex:1;min-height:180px;overflow:auto}
-.service-col-center .service-canvas-panel{height:100%;min-height:620px}
+.service-col-center .service-canvas-panel{display:flex;flex-direction:column;height:100%;min-height:620px}
+.service-col-center .service-canvas-panel .service-mode-canvas{flex:1}
 .service-col-right .service-panel{height:100%;overflow:auto}
 .service-meta-row{font-size:.85rem;color:var(--muted);margin:.3rem 0}
 .service-mode-bottom-v2{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:10px}
@@ -1742,35 +1742,6 @@ function renderServiceChipStates(){
   });
 }
 
-function computePlanBounds(tables, shapes){
-  var minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
-  tables.forEach(function(t){
-    var dims = TABLE_DIMS[t.type] || {w:72,h:72};
-    var x = t.x || 0, y = t.y || 0;
-    if(x < minX) minX = x;
-    if(y < minY) minY = y;
-    // Add extra space below tables for labels (+20px)
-    if(x + dims.w > maxX) maxX = x + dims.w;
-    if(y + dims.h + 20 > maxY) maxY = y + dims.h + 20;
-  });
-  shapes.forEach(function(s){
-    var x = s.x || 0, y = s.y || 0;
-    var w = s.width || 40, h = s.height || 40;
-    if(x < minX) minX = x;
-    if(y < minY) minY = y;
-    if(x + w > maxX) maxX = x + w;
-    if(y + h > maxY) maxY = y + h;
-  });
-  if(minX === Infinity){ minX = 0; minY = 0; maxX = 400; maxY = 400; }
-  var pad = 20;
-  return {
-    minX: Math.max(0, minX - pad),
-    minY: Math.max(0, minY - pad),
-    width: (maxX - Math.max(0, minX - pad)) + pad,
-    height: (maxY - Math.max(0, minY - pad)) + pad
-  };
-}
-
 function renderServiceCanvas(){
   var canvas = document.getElementById('serviceModeCanvas');
   if(!canvas) return;
@@ -1788,37 +1759,78 @@ function renderServiceCanvas(){
     return;
   }
 
+  /* ── 1. Compute content bounding box ── */
+  var minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+  tables.forEach(function(t){
+    var d = TABLE_DIMS[t.type] || {w:72,h:72};
+    var x = t.x || 0, y = t.y || 0;
+    if(x < minX) minX = x;
+    if(y < minY) minY = y;
+    if(x + d.w > maxX) maxX = x + d.w;
+    if(y + d.h + 18 > maxY) maxY = y + d.h + 18; // +18 for table label
+  });
+  shapes.forEach(function(s){
+    var x = s.x || 0, y = s.y || 0;
+    if(x < minX) minX = x;
+    if(y < minY) minY = y;
+    if(x + (s.width||40) > maxX) maxX = x + (s.width||40);
+    if(y + (s.height||40) > maxY) maxY = y + (s.height||40);
+  });
+  if(minX === Infinity){ minX = 0; minY = 0; maxX = 400; maxY = 400; }
+  var PAD = 16;
+  var ox = minX - PAD;  // origin offset X
+  var oy = minY - PAD;  // origin offset Y
+  var contentW = (maxX - minX) + PAD * 2;
+  var contentH = (maxY - minY) + PAD * 2;
+
+  /* ── 2. Measure visible viewport ── */
+  var rect = canvas.getBoundingClientRect();
+  var viewW = rect.width  || canvas.clientWidth  || canvas.offsetWidth  || 600;
+  var viewH = rect.height || canvas.clientHeight || canvas.offsetHeight || 560;
+
+  /* ── 3. Calculate scale to fit ── */
+  var scale = Math.min(viewW / contentW, viewH / contentH);
+  var scaledW = contentW * scale;
+  var scaledH = contentH * scale;
+
+  /* ── 4. Create scaler wrapper — centered in viewport ── */
+  var scaler = document.createElement('div');
+  scaler.className = 'service-canvas-scaler';
+  scaler.style.width  = contentW + 'px';
+  scaler.style.height = contentH + 'px';
+  scaler.style.transform = 'scale(' + scale.toFixed(4) + ')';
+  scaler.style.left = Math.round((viewW - scaledW) / 2) + 'px';
+  scaler.style.top  = Math.round((viewH - scaledH) / 2) + 'px';
+
+  /* ── 5. Build hold lookup ── */
   var occupiedByTable = {};
   serviceState.holds.filter(function(h){
     return !!h.table_id && isHoldInMeal(h, serviceState.meal) && String(h.date) === serviceState.date;
   }).forEach(function(h){ occupiedByTable[String(h.table_id)] = h; });
 
-  // Build elements first, then measure & scale in next frame
-  var tempElements = [];
-
+  /* ── 6. Render shapes (offset from origin) ── */
   shapes.forEach(function(s){
-    var shape = document.createElement('div');
-    shape.className = 'canvas-shape service-shape-locked';
-    shape.dataset.shape = s.type;
-    shape.style.position = 'absolute';
-    shape.style.left = (s.x || 0) + 'px';
-    shape.style.top = (s.y || 0) + 'px';
-    shape.style.width = (s.width || 40) + 'px';
-    shape.style.height = (s.height || 40) + 'px';
-    shape.style.setProperty('--rot', getRotation(s) + 'deg');
-    shape.innerHTML = '<div class="shape-body" aria-hidden="true"></div>';
-    tempElements.push(shape);
+    var el = document.createElement('div');
+    el.className = 'canvas-shape service-shape-locked';
+    el.dataset.shape = s.type;
+    el.style.left   = ((s.x || 0) - ox) + 'px';
+    el.style.top    = ((s.y || 0) - oy) + 'px';
+    el.style.width  = (s.width || 40) + 'px';
+    el.style.height = (s.height || 40) + 'px';
+    el.style.setProperty('--rot', getRotation(s) + 'deg');
+    el.innerHTML = '<div class="shape-body" aria-hidden="true"></div>';
+    scaler.appendChild(el);
   });
 
+  /* ── 7. Render tables (offset from origin) ── */
   tables.forEach(function(t){
     var svgData = getTableSvg(t.type);
     var el = document.createElement('div');
     el.className = 'canvas-table';
     el.dataset.tableId = t.table_id;
-    el.style.position = 'absolute';
-    el.style.left = (t.x || 0) + 'px';
-    el.style.top = (t.y || 0) + 'px';
-    el.style.width = svgData.w + 'px';
+    el.style.left   = ((t.x || 0) - ox) + 'px';
+    el.style.top    = ((t.y || 0) - oy) + 'px';
+    el.style.width  = svgData.w + 'px';
     el.style.height = svgData.h + 'px';
     el.style.setProperty('--rot', getRotation(t) + 'deg');
     var hold = occupiedByTable[String(t.table_id)];
@@ -1843,55 +1855,11 @@ function renderServiceCanvas(){
       if(!holdId) return;
       await assignHoldToServiceTable(holdId, t);
     });
-    tempElements.push(el);
+    scaler.appendChild(el);
   });
 
-  // Use requestAnimationFrame to ensure canvas has its final layout dimensions
-  requestAnimationFrame(function(){
-    var bounds = computePlanBounds(tables, shapes);
-    var canvasRect = canvas.getBoundingClientRect();
-    var viewW = canvasRect.width;
-    var viewH = canvasRect.height;
-    // Fallback: if dialog hasn't laid out yet, retry next frame
-    if(!viewW || !viewH){
-      requestAnimationFrame(function(){
-        var r2 = canvas.getBoundingClientRect();
-        applyScaleAndAppend(r2.width || 600, r2.height || 560);
-      });
-      return;
-    }
-    applyScaleAndAppend(viewW, viewH);
-
-    function applyScaleAndAppend(vw, vh){
-      var scaleX = vw / bounds.width;
-      var scaleY = vh / bounds.height;
-      // Allow both downscale AND upscale so plan always fills the viewport
-      var scale = Math.min(scaleX, scaleY);
-
-      var scaledW = bounds.width * scale;
-      var scaledH = bounds.height * scale;
-      var padLeft = (vw - scaledW) / 2;
-      var padTop = (vh - scaledH) / 2;
-
-      var scaler = document.createElement('div');
-      scaler.className = 'service-canvas-scaler';
-      scaler.style.width = bounds.width + 'px';
-      scaler.style.height = bounds.height + 'px';
-      scaler.style.transform = 'scale(' + scale + ')';
-      scaler.style.left = padLeft + 'px';
-      scaler.style.top = padTop + 'px';
-
-      tempElements.forEach(function(el){
-        // Offset coordinates so content starts at 0,0 within scaler
-        var origLeft = parseInt(el.style.left, 10) || 0;
-        var origTop = parseInt(el.style.top, 10) || 0;
-        el.style.left = (origLeft - bounds.minX) + 'px';
-        el.style.top = (origTop - bounds.minY) + 'px';
-        scaler.appendChild(el);
-      });
-      canvas.appendChild(scaler);
-    }
-  });
+  /* ── 8. Append scaler to canvas ── */
+  canvas.appendChild(scaler);
 }
 
 function renderServiceReservationLists(){
