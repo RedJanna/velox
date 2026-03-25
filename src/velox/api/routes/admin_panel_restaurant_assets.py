@@ -840,7 +840,7 @@ function initFloorPlanEditor(){
   if(delPlanBtn && delPlanBtn.dataset.bound !== '1'){
     delPlanBtn.addEventListener('click', async function(){
       if(!fpState.planId){ notify('Silinecek kayitli plan yok.','warn'); return; }
-      if(!confirm('Bu plani kalici olarak silmek istediginizden emin misiniz?\n\nPlan: ' + (fpState.planName || '-'))) return;
+      if(!confirm('Bu plani kalici olarak silmek istediginizden emin misiniz? Plan: ' + (fpState.planName || '-'))) return;
       var hid = state.hotelId || state.selectedHotelId;
       try{
         await apiFetch('/hotels/' + hid + '/restaurant/floor-plans/' + fpState.planId, {method:'DELETE'});
