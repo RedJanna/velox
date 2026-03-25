@@ -4,8 +4,8 @@
 
 ADMIN_RESTAURANT_STYLE = """
 /* ── Floor plan workspace ───────────────────────────── */
-.floor-plan-workspace{display:flex;gap:1rem;align-items:stretch;min-height:1400px}
-.floor-plan-toolbox{width:180px;flex-shrink:0;display:flex;flex-direction:column;gap:.35rem;padding:.75rem;background:var(--bg-2);border-radius:var(--radius);border:1px solid var(--border);max-height:1500px;overflow-y:auto}
+.floor-plan-workspace{display:flex;gap:1rem;align-items:stretch;min-height:1600px}
+.floor-plan-toolbox{width:180px;flex-shrink:0;display:flex;flex-direction:column;gap:.35rem;padding:.75rem;background:var(--bg-2);border-radius:var(--radius);border:1px solid var(--border);max-height:1700px;overflow-y:auto;position:sticky;top:1rem;align-self:flex-start}
 #floorPlanEditorCard>.module-header{display:flex;flex-wrap:wrap;align-items:flex-start;gap:.5rem}
 .floor-plan-controls{display:flex;align-items:flex-end;gap:.5rem;flex-wrap:wrap;flex:1 1 100%;margin-top:.75rem;padding:.75rem;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius)}
 .fp-plan-name-field{min-width:200px;max-width:300px;margin:0}
@@ -15,6 +15,20 @@ ADMIN_RESTAURANT_STYLE = """
 .fp-plan-dirty-indicator.visible{opacity:1}
 .fp-plan-status{font-size:.72rem;color:var(--muted);align-self:center;margin-left:auto;display:flex;align-items:center;gap:.3rem}
 .fp-plan-status .fp-plan-id-badge{font-size:.65rem;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:.1rem .4rem}
+.fp-plan-info-bar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;font-size:.75rem;color:var(--muted);padding:.5rem .75rem;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:.5rem}
+.fp-plan-info-bar .fp-plan-badge{display:inline-flex;align-items:center;gap:.25rem;background:var(--accent-bg);color:var(--accent);border-radius:999px;padding:.15rem .55rem;font-weight:600;font-size:.7rem}
+.fp-plan-info-bar .fp-plan-badge.is-new{background:#fef3c7;color:#92400e}
+.fp-plan-info-bar .fp-plan-date{color:var(--muted)}
+.fp-name-prompt-overlay{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center}
+.fp-name-prompt-box{background:var(--bg-1);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;width:min(400px,90vw);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+.fp-name-prompt-box h4{margin:0 0 .75rem;font-size:.95rem}
+.fp-name-prompt-box input{width:100%;padding:.5rem .6rem;font-size:.88rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-2);color:var(--fg);outline:none;margin-bottom:.75rem}
+.fp-name-prompt-box input:focus{border-color:var(--accent)}
+.fp-name-prompt-actions{display:flex;justify-content:flex-end;gap:.5rem}
+.fp-delete-btn{background:none;border:1px solid var(--danger,#ef4444);color:var(--danger,#ef4444);border-radius:var(--radius);padding:.3rem .6rem;font-size:.72rem;cursor:pointer;transition:all .15s}
+.fp-delete-btn:hover{background:var(--danger,#ef4444);color:#fff}
+.fp-activate-btn{background:none;border:1px solid var(--accent);color:var(--accent);border-radius:var(--radius);padding:.3rem .6rem;font-size:.72rem;cursor:pointer;transition:all .15s}
+.fp-activate-btn:hover{background:var(--accent);color:#fff}
 .toolbox-title{font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.6rem 0 .15rem;font-weight:700}
 .toolbox-item{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;border-radius:var(--radius);background:var(--bg-1);border:1px solid var(--border);cursor:grab;font-size:.78rem;transition:background .15s,border-color .15s}
 .toolbox-item:hover{background:var(--accent-bg);border-color:var(--accent)}
@@ -35,7 +49,7 @@ ADMIN_RESTAURANT_STYLE = """
 .fp-toolbar .fp-sep{width:1px;height:22px;background:var(--border);margin:0 .15rem;align-self:center}
 
 /* Canvas */
-.floor-plan-canvas{flex:1;position:relative;background:var(--floor-base,var(--bg-1));background-image:var(--floor-texture,none);background-size:var(--floor-size,auto);background-position:center;border:2px dashed var(--border);border-radius:var(--radius);min-height:1400px;aspect-ratio:1/1;max-height:none;overflow:hidden}
+.floor-plan-canvas{flex:1;position:relative;background:var(--floor-base,var(--bg-1));background-image:var(--floor-texture,none);background-size:var(--floor-size,auto);background-position:center;border:2px dashed var(--border);border-radius:var(--radius);min-height:1600px;aspect-ratio:1/1;max-height:none;overflow:hidden}
 .floor-plan-canvas.show-grid{background-image:var(--floor-texture,none),radial-gradient(circle,var(--border,#d1cdc4) 1px,transparent 1px);background-size:var(--floor-size,auto),20px 20px;background-position:center,0 0}
 .floor-plan-canvas.drag-over{border-color:var(--accent);background-color:var(--accent-bg)}
 .floor-plan-canvas.click-place-mode{cursor:crosshair}
@@ -193,6 +207,62 @@ ADMIN_RESTAURANT_STYLE = """
 .service-mode-bottom-v2{display:grid;grid-template-columns:1fr 1.2fr 1fr 1fr;gap:10px}
 .service-bottom-block{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:10px;min-height:120px}
 .service-bottom-block h5{margin:0 0 8px 0;font-size:.82rem;color:var(--muted)}
+.service-table-legend{position:absolute;bottom:10px;right:10px;z-index:20;background:rgba(255,255,255,.92);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;font-size:.72rem;line-height:1;display:flex;flex-direction:column;gap:5px}
+.service-table-legend h6{margin:0 0 2px 0;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.service-legend-row{display:flex;align-items:center;gap:6px;cursor:grab;padding:3px 4px;border-radius:4px;transition:background .15s}
+.service-legend-row:hover{background:rgba(0,0,0,.06)}
+.service-legend-row:active{cursor:grabbing}
+.service-legend-row svg{width:28px;height:20px;flex-shrink:0;pointer-events:none}
+.service-legend-row span{color:var(--fg);white-space:nowrap;pointer-events:none}
+
+/* ── Service mode context menu ──────────────────── */
+.svc-ctx-menu{position:fixed;z-index:2147483010;min-width:200px;background:var(--bg-1,#1e293b);border:1px solid var(--border,#334155);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.45),0 2px 8px rgba(0,0,0,.2);padding:5px 0;opacity:0;transform:scale(.92) translateY(-4px);transition:opacity .12s ease,transform .12s ease;pointer-events:none;font-family:inherit}
+.svc-ctx-menu.is-visible{opacity:1;transform:scale(1) translateY(0);pointer-events:auto}
+.svc-ctx-menu-header{padding:8px 14px 6px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted,#94a3b8);user-select:none;border-bottom:1px solid var(--border,#334155);margin-bottom:2px}
+.svc-ctx-item{display:flex;align-items:center;gap:10px;padding:9px 14px;font-size:.82rem;color:var(--fg,#f1f5f9);cursor:pointer;transition:background .1s;border-radius:0;user-select:none;border:none;background:none;width:100%;text-align:left;font-family:inherit}
+.svc-ctx-item:hover{background:var(--accent-bg,rgba(99,102,241,.12))}
+.svc-ctx-item:active{background:var(--accent-bg,rgba(99,102,241,.2))}
+.svc-ctx-item .ctx-icon{width:18px;height:18px;display:flex;align-items:center;justify-content:center;border-radius:5px;font-size:.72rem;flex-shrink:0}
+.svc-ctx-item .ctx-icon.icon-remove{background:rgba(239,68,68,.15);color:#f87171}
+.svc-ctx-item .ctx-icon.icon-swap{background:rgba(99,102,241,.15);color:#818cf8}
+.svc-ctx-item .ctx-icon.icon-edit{background:rgba(34,197,94,.15);color:#4ade80}
+.svc-ctx-item .ctx-icon.icon-cancel{background:rgba(251,191,36,.15);color:#fbbf24}
+.svc-ctx-item .ctx-label{display:flex;flex-direction:column;gap:1px}
+.svc-ctx-item .ctx-label small{font-size:.66rem;color:var(--muted,#94a3b8);font-weight:400}
+.svc-ctx-sep{height:1px;background:var(--border,#334155);margin:3px 10px}
+.svc-ctx-item.ctx-danger:hover{background:rgba(239,68,68,.12)}
+.svc-ctx-item.ctx-danger .ctx-label,.svc-ctx-item.ctx-danger .ctx-label small{color:#f87171}
+
+/* ── Service mode confirm modal ─────────────────── */
+.svc-confirm-backdrop{position:fixed;inset:0;z-index:2147483020;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;pointer-events:none}
+.svc-confirm-backdrop.is-visible{opacity:1;pointer-events:auto}
+.svc-confirm-box{background:var(--bg-1,#1e293b);border:1px solid var(--border,#334155);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);width:min(420px,92vw);padding:0;transform:scale(.94);transition:transform .15s;overflow:hidden}
+.svc-confirm-backdrop.is-visible .svc-confirm-box{transform:scale(1)}
+.svc-confirm-head{padding:16px 20px 12px;border-bottom:1px solid var(--border,#334155)}
+.svc-confirm-head h4{margin:0;font-size:.95rem;font-weight:600;color:var(--fg,#f1f5f9)}
+.svc-confirm-head p{margin:6px 0 0;font-size:.78rem;color:var(--muted,#94a3b8);line-height:1.45}
+.svc-confirm-body{padding:14px 20px;display:flex;flex-direction:column;gap:10px}
+.svc-confirm-option{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border,#334155);border-radius:10px;background:var(--bg-2,#0f172a);cursor:pointer;transition:border-color .12s,background .12s}
+.svc-confirm-option:hover{border-color:var(--accent,#6366f1);background:rgba(99,102,241,.06)}
+.svc-confirm-option .opt-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+.svc-confirm-option .opt-icon.opt-remove{background:rgba(239,68,68,.15);color:#f87171}
+.svc-confirm-option .opt-icon.opt-move{background:rgba(99,102,241,.15);color:#818cf8}
+.svc-confirm-option .opt-text{display:flex;flex-direction:column;gap:2px}
+.svc-confirm-option .opt-text strong{font-size:.84rem;color:var(--fg,#f1f5f9);font-weight:600}
+.svc-confirm-option .opt-text span{font-size:.72rem;color:var(--muted,#94a3b8)}
+.svc-confirm-foot{padding:10px 20px 14px;display:flex;justify-content:flex-end}
+.svc-confirm-foot .svc-cancel-btn{background:none;border:1px solid var(--border,#334155);border-radius:8px;padding:7px 18px;font-size:.78rem;color:var(--muted,#94a3b8);cursor:pointer;transition:border-color .12s,color .12s;font-family:inherit}
+.svc-confirm-foot .svc-cancel-btn:hover{border-color:var(--fg,#f1f5f9);color:var(--fg,#f1f5f9)}
+
+/* Move-to-table input modal */
+.svc-move-input-group{display:flex;gap:8px;align-items:stretch}
+.svc-move-input{flex:1;background:var(--bg-2,#0f172a);border:1px solid var(--border,#334155);border-radius:8px;padding:10px 12px;font-size:.88rem;color:var(--fg,#f1f5f9);outline:none;transition:border-color .12s;font-family:inherit}
+.svc-move-input:focus{border-color:var(--accent,#6366f1)}
+.svc-move-input.has-error{border-color:#ef4444}
+.svc-move-submit{background:var(--accent,#6366f1);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:.82rem;font-weight:600;cursor:pointer;transition:opacity .12s;font-family:inherit;white-space:nowrap}
+.svc-move-submit:hover{opacity:.88}
+.svc-move-submit:disabled{opacity:.4;cursor:not-allowed}
+.svc-move-error{font-size:.72rem;color:#f87171;margin-top:2px;min-height:16px}
 
 @media(max-width:1400px){
   .service-mode-grid-v2{grid-template-columns:280px minmax(0,1fr) 300px}
@@ -203,7 +273,7 @@ ADMIN_RESTAURANT_STYLE = """
   .floor-plan-controls{justify-content:stretch}
   .fp-plan-name-field,.fp-plan-list-field{min-width:100%;max-width:none}
   .floor-plan-toolbox{width:100%;flex-direction:row;flex-wrap:wrap;min-height:auto;max-height:none}
-  .floor-plan-canvas{min-height:800px;max-height:none}
+  .floor-plan-canvas{min-height:900px;max-height:none}
   .fp-toolbar{justify-content:center}
   .service-mode-shell{padding:8px}
   .service-mode-actions .inline-button,.service-mode-toolbar .filter-chip{min-height:42px;padding:.45rem .8rem}
@@ -218,7 +288,7 @@ ADMIN_RESTAURANT_STYLE = """
 ADMIN_RESTAURANT_SCRIPT = """
 /* ═══════════════════════════════════════════════════════
    Restaurant Floor Plan Editor, Daily View, Settings
-   — Realistic SVG tables with chairs, advanced tools
+   - Realistic SVG tables with chairs, advanced tools
    ═══════════════════════════════════════════════════════ */
 (function(){
 'use strict';
@@ -510,6 +580,43 @@ function updateDirtyIndicator(){
       badge.title = 'Henuz kaydedilmemis yeni plan';
     }
   }
+  updatePlanInfoBar();
+}
+
+function updatePlanInfoBar(){
+  var bar = document.getElementById('fpPlanInfoBar');
+  if(!bar) return;
+  var badgeEl = document.getElementById('fpPlanBadge');
+  var dateEl = document.getElementById('fpPlanDate');
+  var countEl = document.getElementById('fpPlanTableCount');
+  if(badgeEl){
+    if(fpState.planId){
+      var currentPlan = floorPlanCollection.find(function(p){ return String(p.id) === String(fpState.planId); });
+      var isActive = currentPlan && currentPlan.is_active;
+      badgeEl.textContent = isActive ? '\u2605 Aktif Plan' : 'Kayitli Plan';
+      badgeEl.className = 'fp-plan-badge' + (isActive ? '' : ' is-new');
+    } else {
+      badgeEl.textContent = 'Yeni Plan';
+      badgeEl.className = 'fp-plan-badge is-new';
+    }
+  }
+  if(dateEl){
+    var plan = floorPlanCollection.find(function(p){ return fpState.planId && String(p.id) === String(fpState.planId); });
+    dateEl.textContent = plan && plan.updated_at ? 'Son guncelleme: ' + String(plan.updated_at).slice(0,16).replace('T',' ') : '';
+  }
+  if(countEl){
+    var tc = fpState.tables.length;
+    var sc = fpState.shapes.length;
+    countEl.textContent = tc + ' masa, ' + sc + ' sekil';
+  }
+  // Toggle delete & activate button visibility
+  var delBtn = document.getElementById('deleteFloorPlanBtn');
+  var actBtn = document.getElementById('activateFloorPlanBtn');
+  if(delBtn) delBtn.style.display = fpState.planId ? '' : 'none';
+  if(actBtn){
+    var activePlan = floorPlanCollection.find(function(p){ return fpState.planId && String(p.id) === String(fpState.planId); });
+    actBtn.style.display = (fpState.planId && !(activePlan && activePlan.is_active)) ? '' : 'none';
+  }
 }
 
 function markFloorPlanChanged(){
@@ -655,6 +762,7 @@ function initFloorPlanEditor(){
     planNameInput.addEventListener('input', function(){
       fpState.planName = getFloorPlanNameInputValue();
       fpState._dirty = true;
+      updateDirtyIndicator();
       scheduleFloorPlanAutoSave();
     });
     planNameInput.dataset.bound = '1';
@@ -698,14 +806,9 @@ function initFloorPlanEditor(){
   var newPlanBtn = document.getElementById('createNewFloorPlanBtn');
   if(newPlanBtn && newPlanBtn.dataset.bound !== '1'){
     newPlanBtn.addEventListener('click', async function(){
-      // Ask for plan name upfront — required before creating
-      var planName = window.prompt('Yeni plan icin bir isim girin:', '');
+      // Ask for plan name upfront via inline prompt
+      var planName = await showPlanNamePrompt('');
       if(planName === null) return; // cancelled
-      planName = planName.trim().slice(0, 80);
-      if(!planName){
-        notify('Plan adi bos birakilamaz.', 'warn');
-        return;
-      }
       // Save current dirty plan before switching
       if(fpState._dirty){
         var shouldSave = window.confirm('Mevcut planda kaydedilmemis degisiklikler var. Kaydetmek ister misiniz?');
@@ -713,7 +816,7 @@ function initFloorPlanEditor(){
       }
       // Cancel pending auto-save to prevent stale writes
       if(floorPlanAutoSaveTimer){ window.clearTimeout(floorPlanAutoSaveTimer); floorPlanAutoSaveTimer = null; }
-      // Completely fresh state — zero data from previous plan
+      // Completely fresh state - zero data from previous plan
       fpState = {tables:[],shapes:[],planId:null,planName:planName,counter:0,floorTheme:DEFAULT_FLOOR_THEME,_dirty:false};
       activeShapeEditId = null;
       selectedEl = null;
@@ -727,9 +830,49 @@ function initFloorPlanEditor(){
       // Deselect in plan list
       var select = document.getElementById('floorPlanSelect');
       if(select) select.value = '';
-      notify('Yeni plan "' + planName + '" olusturuldu. Cizime baslayin, degisiklikler otomatik kaydedilir.', 'info');
+      notify('Yeni plan "' + escapeHtml(planName) + '" olusturuldu. Cizime baslayin, degisiklikler otomatik kaydedilir.', 'info');
     });
     newPlanBtn.dataset.bound = '1';
+  }
+
+  // Delete plan button
+  var delPlanBtn = document.getElementById('deleteFloorPlanBtn');
+  if(delPlanBtn && delPlanBtn.dataset.bound !== '1'){
+    delPlanBtn.addEventListener('click', async function(){
+      if(!fpState.planId){ notify('Silinecek kayitli plan yok.','warn'); return; }
+      if(!confirm('Bu plani kalici olarak silmek istediginizden emin misiniz?\n\nPlan: ' + (fpState.planName || '-'))) return;
+      var hid = state.hotelId || state.selectedHotelId;
+      try{
+        await apiFetch('/hotels/' + hid + '/restaurant/floor-plans/' + fpState.planId, {method:'DELETE'});
+        notify('Plan "' + escapeHtml(fpState.planName) + '" silindi.','success');
+        fpState = {tables:[],shapes:[],planId:null,planName:'Ana Plan',counter:0,floorTheme:DEFAULT_FLOOR_THEME,_dirty:false};
+        activeShapeEditId = null; selectedEl = null; undoStack = [];
+        rerenderCanvas();
+        await loadFloorPlan();
+        await syncFloorPlanToServiceMode();
+      }catch(e){
+        notify('Plan silinemedi: ' + (e.message||'Bilinmeyen hata'),'error');
+      }
+    });
+    delPlanBtn.dataset.bound = '1';
+  }
+
+  // Activate plan button
+  var actPlanBtn = document.getElementById('activateFloorPlanBtn');
+  if(actPlanBtn && actPlanBtn.dataset.bound !== '1'){
+    actPlanBtn.addEventListener('click', async function(){
+      if(!fpState.planId){ notify('Aktif yapilacak kayitli plan yok.','warn'); return; }
+      var hid = state.hotelId || state.selectedHotelId;
+      try{
+        await apiFetch('/hotels/' + hid + '/restaurant/floor-plans/' + fpState.planId + '/activate', {method:'POST'});
+        notify('Plan "' + escapeHtml(fpState.planName) + '" aktif yapildi.','success');
+        await loadFloorPlan();
+        await syncFloorPlanToServiceMode();
+      }catch(e){
+        notify('Plan aktif yapilamadi.','error');
+      }
+    });
+    actPlanBtn.dataset.bound = '1';
   }
 
   // Toolbar buttons
@@ -1110,6 +1253,38 @@ async function loadFloorPlan(){
   }
 }
 
+function showPlanNamePrompt(defaultName){
+  return new Promise(function(resolve){
+    var overlay = document.createElement('div');
+    overlay.className = 'fp-name-prompt-overlay';
+    overlay.innerHTML = '<div class="fp-name-prompt-box">'
+      + '<h4>Plan Adi Girin</h4>'
+      + '<input type="text" id="fpNamePromptInput" maxlength="80" placeholder="Orn. Ana Salon Aksam Duzeni" value="' + escapeHtml(defaultName || '') + '" autofocus>'
+      + '<div class="fp-name-prompt-actions">'
+      + '<button class="inline-button secondary" id="fpNamePromptCancel" type="button">Iptal</button>'
+      + '<button class="inline-button primary" id="fpNamePromptOk" type="button">Kaydet</button>'
+      + '</div></div>';
+    document.body.appendChild(overlay);
+    var input = document.getElementById('fpNamePromptInput');
+    if(input) input.focus();
+    function cleanup(val){
+      if(overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      resolve(val);
+    }
+    document.getElementById('fpNamePromptCancel').addEventListener('click', function(){ cleanup(null); });
+    document.getElementById('fpNamePromptOk').addEventListener('click', function(){
+      var v = input ? input.value.trim().slice(0,80) : '';
+      if(!v){ input.style.borderColor = '#ef4444'; return; }
+      cleanup(v);
+    });
+    if(input) input.addEventListener('keydown', function(e){
+      if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('fpNamePromptOk').click(); }
+      if(e.key === 'Escape'){ cleanup(null); }
+    });
+    overlay.addEventListener('click', function(e){ if(e.target === overlay) cleanup(null); });
+  });
+}
+
 async function saveFloorPlan(options){
   var opts = options || {};
   var hid = state.hotelId || state.selectedHotelId;
@@ -1121,20 +1296,18 @@ async function saveFloorPlan(options){
 
   fpState.planName = getFloorPlanNameInputValue();
   if(!fpState.planName || fpState.planName === 'Ana Plan'){
-    // If it's a new plan (no ID) and still has default name, require naming
+    // If it's a new plan (no ID) and still has default name, require naming via inline prompt
     if(!fpState.planId && !opts.fromAutoSave){
-      var prompted = window.prompt('Kaydetmeden once plana bir isim verin:', fpState.planName || '');
+      var prompted = await showPlanNamePrompt(fpState.planName === 'Ana Plan' ? '' : fpState.planName);
       if(prompted === null) return false;
-      prompted = prompted.trim().slice(0, 80);
-      if(!prompted){ notify('Plan adi bos birakilamaz.', 'warn'); return false; }
       fpState.planName = prompted;
       var ni = document.getElementById('floorPlanNameInput');
       if(ni) ni.value = prompted;
     }
   }
   var layout = {
-    canvas_width: 1200,
-    canvas_height: 800,
+    canvas_width: 1400,
+    canvas_height: 1400,
     floor_theme: fpState.floorTheme || DEFAULT_FLOOR_THEME,
     tables: fpState.tables,
     shapes: fpState.shapes
@@ -1166,7 +1339,7 @@ async function saveFloorPlan(options){
     // Always sync to service mode after save so live view reflects changes
     await syncFloorPlanToServiceMode();
     if(!opts.silent){
-      notify('Plan kaydedildi','success');
+      notify('Plan "' + escapeHtml(fpState.planName) + '" kaydedildi','success');
     }
     return true;
   }catch(e){
@@ -1180,7 +1353,12 @@ async function saveFloorPlan(options){
 
 /* ── Service Mode Sync ────────────────────── */
 
+let _syncInProgress = false;
+
 async function syncFloorPlanToServiceMode(){
+  // Debounce concurrent calls
+  if(_syncInProgress) return;
+  _syncInProgress = true;
   try{
     // Always refresh plans cache from API so service mode uses latest version
     var hid = state.hotelId || state.selectedHotelId;
@@ -1189,14 +1367,16 @@ async function syncFloorPlanToServiceMode(){
       var freshPlans = freshRes.plans || (freshRes.plan ? [freshRes.plan] : []);
       // Update shared plan collection for editor select
       floorPlanCollection = freshPlans;
-      // Update service state plans
-      serviceState.plans = freshPlans;
+      // Update service state plans with deep copy to prevent cross-mutation
+      serviceState.plans = JSON.parse(JSON.stringify(freshPlans));
     }
     if(serviceState.open){
       await loadServiceModePlans();
+      await loadServiceModeHolds();
       renderServiceMode();
     }
   }catch(e){ /* non-critical: service mode will refresh on next open/poll */ }
+  finally{ _syncInProgress = false; }
 }
 
 /* ── Daily View ───────────────────────────── */
@@ -1768,7 +1948,7 @@ function renderServiceCanvas(){
   var tables = (plan.layout_data.tables || []);
   var shapes = (plan.layout_data.shapes || []);
   if(!tables.length && !shapes.length){
-    canvas.innerHTML = '<div class="empty-state"><p>Plan bos — henuz masa veya sekil eklenmemis.</p></div>';
+    canvas.innerHTML = '<div class="empty-state"><p>Plan bos - henuz masa veya sekil eklenmemis.</p></div>';
     return;
   }
 
@@ -1806,7 +1986,7 @@ function renderServiceCanvas(){
   var scaledW = contentW * scale;
   var scaledH = contentH * scale;
 
-  /* ── 4. Create scaler wrapper — centered in viewport ── */
+  /* ── 4. Create scaler wrapper - centered in viewport ── */
   var scaler = document.createElement('div');
   scaler.className = 'service-canvas-scaler';
   scaler.style.width  = contentW + 'px';
@@ -1866,7 +2046,7 @@ function renderServiceCanvas(){
           + 'Durum: ' + escapeHtml(hold.status || '-')
           + (hold.notes ? '<br>Not: ' + escapeHtml(String(hold.notes).slice(0,60)) : '');
       } else {
-        tip.innerHTML = '<strong>' + escapeHtml(t.table_id) + '</strong> — ' + escapeHtml(t.type) + '<br>Bos masa (' + (TABLE_DIMS[t.type]||{}).w + 'px)';
+        tip.innerHTML = '<strong>' + escapeHtml(t.table_id) + '</strong> - ' + escapeHtml(t.type) + '<br>Bos masa (' + (TABLE_DIMS[t.type]||{}).w + 'px)';
       }
       el.appendChild(tip);
     });
@@ -1880,6 +2060,7 @@ function renderServiceCanvas(){
       var isDragging = false;
       var startPX, startPY, origLeft, origTop;
       tableEl.addEventListener('pointerdown', function(e){
+        if(e.button === 2) return; // right-click handled by contextmenu
         if(e.target.closest('.tbl-act-btn') || e.target.closest('.service-table-tooltip')) return;
         e.preventDefault();
         isDragging = false;
@@ -1918,13 +2099,24 @@ function renderServiceCanvas(){
       });
     })(el, t, scale, ox, oy);
 
-    if(hold){
-      el.addEventListener('click', function(){ openServiceHoldActions(hold, t); });
-    }
+    // Right-click context menu (all tables - with or without hold)
+    (function(tableEl, tableData, tableHold){
+      tableEl.addEventListener('contextmenu', function(e){
+        openSvcTableContextMenu(e, tableData, tableHold || null);
+      });
+      // Left-click on occupied table also opens context menu for quick actions
+      if(tableHold){
+        tableEl.addEventListener('click', function(e){
+          if(e.target.closest('.tbl-act-btn') || e.target.closest('.service-table-tooltip')) return;
+          openSvcTableContextMenu(e, tableData, tableHold);
+        });
+      }
+    })(el, t, hold);
     el.addEventListener('dragover', function(ev){ ev.preventDefault(); el.classList.add('service-table-drop'); });
     el.addEventListener('dragleave', function(){ el.classList.remove('service-table-drop'); });
     el.addEventListener('drop', async function(ev){
       ev.preventDefault();
+      ev.stopPropagation();
       el.classList.remove('service-table-drop');
       var holdId = ev.dataTransfer.getData('text/plain');
       if(!holdId) return;
@@ -1936,35 +2128,90 @@ function renderServiceCanvas(){
   /* ── 8. Append scaler to canvas ── */
   canvas.appendChild(scaler);
 
-  /* ── 9. Canvas-level drop: accept new tables from toolbox ── */
+  /* ── 8b. Table type legend overlay (bottom-right, draggable) ── */
+  var legend = document.createElement('div');
+  legend.className = 'service-table-legend';
+  legend.innerHTML = '<h6>Masa Tipleri</h6>';
+  var legendTypes = [
+    {type:'TABLE_2', capacity:2, label:'2 Kisilik', svg:miniSvg2()},
+    {type:'TABLE_4', capacity:4, label:'4 Kisilik', svg:miniSvg4()},
+    {type:'TABLE_6', capacity:6, label:'6 Kisilik', svg:miniSvg6()},
+    {type:'TABLE_8', capacity:8, label:'8 Kisilik', svg:miniSvg8()},
+    {type:'TABLE_10', capacity:10, label:'10 Kisilik', svg:miniSvg10()}
+  ];
+  legendTypes.forEach(function(lt){
+    var row = document.createElement('div');
+    row.className = 'service-legend-row';
+    row.draggable = true;
+    row.setAttribute('aria-label', lt.label + ' masa surukle');
+    row.innerHTML = lt.svg + '<span>' + escapeHtml(lt.label) + '</span>';
+    row.addEventListener('dragstart', function(ev){
+      ev.dataTransfer.setData('application/velox-table', JSON.stringify({type:lt.type, capacity:lt.capacity}));
+      ev.dataTransfer.setData('text/plain', '');
+    });
+    legend.appendChild(row);
+  });
+  canvas.appendChild(legend);
+
+  /* ── 9. Canvas-level drop: toolbox tables + reservation fallback ── */
   canvas.ondragover = function(ev){ ev.preventDefault(); };
   canvas.ondrop = async function(ev){
     ev.preventDefault();
+
+    /* ── 9a. Toolbox table drop (new table onto canvas) ── */
     var tableData = ev.dataTransfer.getData('application/velox-table');
-    if(!tableData) return; // not a table drop — handled per-table for holds
-    var info;
-    try{ info = JSON.parse(tableData); }catch{ return; }
-    // Place table at drop position, accounting for scale
-    var canvasRect2 = canvas.getBoundingClientRect();
-    var dropX = (ev.clientX - canvasRect2.left - parseFloat(scaler.style.left || 0)) / scale + ox;
-    var dropY = (ev.clientY - canvasRect2.top - parseFloat(scaler.style.top || 0)) / scale + oy;
-    dropX = Math.round(dropX / 20) * 20;
-    dropY = Math.round(dropY / 20) * 20;
-    var tableId = window.prompt('Masa numarasi girin:', 'T' + info.capacity + '-' + Math.floor(Math.random()*100));
-    if(!tableId) return;
-    // Save table to plan via API
-    var activePlan = getServiceActivePlan();
-    if(!activePlan || !activePlan.id) return;
-    var hid = state.selectedHotelId || state.hotelId;
-    var newTable = {table_id:tableId.trim().toUpperCase(), type:info.type, capacity:info.capacity, x:dropX, y:dropY, rotation:0, label:tableId.trim().toUpperCase()};
-    var updatedTables = (activePlan.layout_data.tables || []).concat([newTable]);
-    var updatedLayout = Object.assign({}, activePlan.layout_data, {tables:updatedTables});
-    try{
-      await apiFetch('/hotels/' + hid + '/restaurant/floor-plans/' + activePlan.id, {method:'PUT', body:{layout_data:updatedLayout}});
-      notify('Masa ' + tableId + ' plana eklendi.', 'success');
-      await loadServiceModePlans();
-      renderServiceMode();
-    }catch(e){ notify(e.message || 'Masa eklenemedi.', 'error'); }
+    if(tableData){
+      var info;
+      try{ info = JSON.parse(tableData); }catch{ return; }
+      var canvasRect2 = canvas.getBoundingClientRect();
+      var dropX = (ev.clientX - canvasRect2.left - parseFloat(scaler.style.left || 0)) / scale + ox;
+      var dropY = (ev.clientY - canvasRect2.top - parseFloat(scaler.style.top || 0)) / scale + oy;
+      dropX = Math.round(dropX / 20) * 20;
+      dropY = Math.round(dropY / 20) * 20;
+      var tableId = window.prompt('Masa numarasi girin:', 'T' + info.capacity + '-' + Math.floor(Math.random()*100));
+      if(!tableId) return;
+      var activePlan = getServiceActivePlan();
+      if(!activePlan || !activePlan.id) return;
+      var hid = state.selectedHotelId || state.hotelId;
+      var newTable = {table_id:tableId.trim().toUpperCase(), type:info.type, capacity:info.capacity, x:dropX, y:dropY, rotation:0, label:tableId.trim().toUpperCase()};
+      var updatedTables = (activePlan.layout_data.tables || []).concat([newTable]);
+      var updatedLayout = Object.assign({}, activePlan.layout_data, {tables:updatedTables});
+      try{
+        await apiFetch('/hotels/' + hid + '/restaurant/floor-plans/' + activePlan.id, {method:'PUT', body:{layout_data:updatedLayout}});
+        notify('Masa ' + tableId + ' plana eklendi.', 'success');
+        await loadServiceModePlans();
+        renderServiceMode();
+      }catch(e){ notify(e.message || 'Masa eklenemedi.', 'error'); }
+      return;
+    }
+
+    /* ── 9b. Reservation hold drop - fallback when per-table handler missed
+             (CSS transform scale can shift hit-test areas in some browsers) ── */
+    var holdId = ev.dataTransfer.getData('text/plain');
+    if(!holdId) return;
+    var canvasRect3 = canvas.getBoundingClientRect();
+    var scalerLeft = parseFloat(scaler.style.left || 0);
+    var scalerTop  = parseFloat(scaler.style.top || 0);
+    var planX = (ev.clientX - canvasRect3.left - scalerLeft) / scale + ox;
+    var planY = (ev.clientY - canvasRect3.top - scalerTop) / scale + oy;
+    // Find closest table within hit tolerance
+    var hitTable = null;
+    var hitDist  = Infinity;
+    var HIT_PAD  = 20; // px tolerance around table edges
+    tables.forEach(function(t){
+      var d = TABLE_DIMS[t.type] || {w:72,h:72};
+      var tx = t.x || 0, ty = t.y || 0;
+      if(planX >= tx - HIT_PAD && planX <= tx + d.w + HIT_PAD && planY >= ty - HIT_PAD && planY <= ty + d.h + HIT_PAD){
+        var cx = tx + d.w / 2, cy = ty + d.h / 2;
+        var dist = Math.abs(planX - cx) + Math.abs(planY - cy);
+        if(dist < hitDist){ hitDist = dist; hitTable = t; }
+      }
+    });
+    if(hitTable){
+      await assignHoldToServiceTable(holdId, hitTable);
+    } else {
+      notify('Lutfen rezervasyonu bir masanin uzerine birakin.', 'warn');
+    }
   };
 }
 
@@ -2033,47 +2280,334 @@ async function saveServiceTablePosition(tableId, newX, newY){
   }catch(e){ notify(e.message || 'Masa pozisyonu kaydedilemedi.', 'error'); }
 }
 
-async function openServiceHoldActions(hold, table){
-  var action = window.prompt('Aksiyon secin: DEGISTIR / KALDIR / GUNCELLE / IPTAL', 'GUNCELLE');
-  if(!action) return;
-  var normalized = String(action || '').trim().toUpperCase();
-  try{
-    if(normalized === 'DEGISTIR'){
-      var nextTable = window.prompt('Yeni masa numarasi girin', String(table.table_id || hold.table_id || ''));
-      if(!nextTable) return;
-      await apiFetch('/holds/restaurant/' + encodeURIComponent(hold.hold_id), {
-        method:'PUT',
-        body:({table_id:String(nextTable).trim(), table_type:hold.table_type || table.type || null})
-      });
-      notify('Masa degistirildi.', 'success');
-    } else if(normalized === 'KALDIR'){
-      await apiFetch('/holds/restaurant/' + encodeURIComponent(hold.hold_id), {
-        method:'PUT',
-        body:({table_id:''})
-      });
-      notify('Masa atamasi kaldirildi.', 'success');
-    } else if(normalized === 'IPTAL'){
-      await apiFetch('/holds/restaurant/' + encodeURIComponent(hold.hold_id) + '/status', {
-        method:'PUT',
-        body:({status:'IPTAL', reason:'Servis Modu iptal islemi'})
-      });
-      notify('Rezervasyon iptal edildi.', 'success');
-    } else {
-      var guestName = window.prompt('Misafir adi', hold.guest_name || '') || hold.guest_name;
-      var partySizeText = window.prompt('Kisi sayisi', String(hold.party_size || '')) || String(hold.party_size || '');
-      var timeText = window.prompt('Saat (HH:MM)', String(hold.time || '')) || String(hold.time || '');
-      var notesText = window.prompt('Notlar', hold.notes || '') || hold.notes || '';
-      await apiFetch('/holds/restaurant/' + encodeURIComponent(hold.hold_id), {
-        method:'PUT',
-        body:({guest_name:guestName, party_size:Number(partySizeText), time:timeText, notes:notesText})
-      });
-      notify('Rezervasyon guncellendi.', 'success');
+/* ═══════════════════════════════════════════════════════
+   Service Mode - Context Menu + Confirm Modals
+   ═══════════════════════════════════════════════════════ */
+
+// ── Singleton DOM helpers ──────────────────────────────
+function getOrCreateCtxMenu(){
+  var el = document.getElementById('svcCtxMenu');
+  if(el) return el;
+  el = document.createElement('div');
+  el.id = 'svcCtxMenu';
+  el.className = 'svc-ctx-menu';
+  el.setAttribute('role', 'menu');
+  el.setAttribute('aria-label', 'Masa islemleri');
+  document.body.appendChild(el);
+  return el;
+}
+
+function getOrCreateConfirm(){
+  var el = document.getElementById('svcConfirmBackdrop');
+  if(el) return el;
+  el = document.createElement('div');
+  el.id = 'svcConfirmBackdrop';
+  el.className = 'svc-confirm-backdrop';
+  document.body.appendChild(el);
+  return el;
+}
+
+// ── Close context menu ─────────────────────────────────
+function closeSvcCtxMenu(){
+  var m = document.getElementById('svcCtxMenu');
+  if(m) m.classList.remove('is-visible');
+}
+
+function closeSvcConfirm(){
+  var b = document.getElementById('svcConfirmBackdrop');
+  if(b){ b.classList.remove('is-visible'); b.innerHTML = ''; }
+}
+
+// Global click-away & Escape
+if(!window.__svcCtxGlobalBound){
+  window.__svcCtxGlobalBound = true;
+  document.addEventListener('pointerdown', function(ev){
+    var m = document.getElementById('svcCtxMenu');
+    if(m && m.classList.contains('is-visible') && !m.contains(ev.target)) closeSvcCtxMenu();
+  });
+  document.addEventListener('keydown', function(ev){
+    if(ev.key === 'Escape'){
+      closeSvcCtxMenu();
+      closeSvcConfirm();
     }
-    await loadServiceModeHolds();
-    renderServiceMode();
-  }catch(error){
-    notify(error.message || 'Islem basarisiz.', 'error');
+  });
+  document.addEventListener('scroll', closeSvcCtxMenu, true);
+}
+
+// ── Validate target table ID ───────────────────────────
+function validateMoveTarget(targetId, currentTableId){
+  var id = String(targetId || '').trim().toUpperCase();
+  if(!id) return {ok:false, error:'Masa numarasi bos birakilamaz.'};
+  if(id === String(currentTableId || '').trim().toUpperCase()) return {ok:false, error:'Ayni masa numarasi - farkli bir masa secin.'};
+  var plan = getServiceActivePlan();
+  if(!plan || !plan.layout_data) return {ok:false, error:'Aktif plan bulunamadi.'};
+  var found = (plan.layout_data.tables || []).find(function(t){ return String(t.table_id || '').trim().toUpperCase() === id; });
+  if(!found) return {ok:false, error:'Planda "' + id + '" numarali masa bulunamadi.'};
+  // Check if target table already has a hold for this meal/date
+  var occupied = (serviceState.holds || []).find(function(h){
+    return String(h.table_id || '').trim().toUpperCase() === id
+      && String(h.date) === serviceState.date
+      && isHoldInMeal(h, serviceState.meal)
+      && h.status !== 'IPTAL' && h.status !== 'GELMEDI';
+  });
+  if(occupied) return {ok:false, error:'Masa "' + id + '" bu ogun icin zaten dolu (' + escapeHtml(occupied.guest_name || occupied.hold_id) + ').'};
+  return {ok:true, tableData:found, cleanId:id};
+}
+
+// ── Remove table from plan ─────────────────────────────
+async function removeTableFromPlan(tableId){
+  var plan = getServiceActivePlan();
+  if(!plan || !plan.id || !plan.layout_data) return;
+  var hid = state.selectedHotelId || state.hotelId;
+  var updated = (plan.layout_data.tables || []).filter(function(t){ return t.table_id !== tableId; });
+  var layout = Object.assign({}, plan.layout_data, {tables:updated});
+  await apiFetch('/hotels/' + hid + '/restaurant/floor-plans/' + plan.id, {method:'PUT', body:{layout_data:layout}});
+  plan.layout_data = layout;
+}
+
+// ── Move reservation to another table ──────────────────
+async function moveHoldToTable(holdId, targetTableData){
+  await apiFetch('/holds/restaurant/' + encodeURIComponent(holdId), {
+    method:'PUT',
+    body:{table_id:String(targetTableData.table_id), table_type:String(targetTableData.type || '')}
+  });
+}
+
+// ── Show confirm modal: reservation exists on table ────
+function showRemoveTableConfirm(hold, table){
+  var backdrop = getOrCreateConfirm();
+  backdrop.innerHTML = ''
+    + '<div class="svc-confirm-box">'
+    + '  <div class="svc-confirm-head">'
+    + '    <h4>Masa ' + escapeHtml(table.table_id) + ' \u2014 Aktif Rezervasyon</h4>'
+    + '    <p><strong>' + escapeHtml(hold.guest_name || hold.hold_id) + '</strong> icin '
+    + escapeHtml(hold.time || '-') + ' saatinde ' + escapeHtml(String(hold.party_size || '-'))
+    + ' kisilik aktif rezervasyon mevcut. Masayi kaldirmadan once ne yapmak istiyorsunuz?</p>'
+    + '  </div>'
+    + '  <div class="svc-confirm-body">'
+    + '    <div class="svc-confirm-option" data-action="remove-hold" tabindex="0" role="button">'
+    + '      <div class="opt-icon opt-remove">\u2716</div>'
+    + '      <div class="opt-text"><strong>Rezervasyonu kaldir</strong><span>Rezervasyon iptal edilir ve masa plandan kaldirilir</span></div>'
+    + '    </div>'
+    + '    <div class="svc-confirm-option" data-action="move-hold" tabindex="0" role="button">'
+    + '      <div class="opt-icon opt-move">\u21C4</div>'
+    + '      <div class="opt-text"><strong>Baska masaya tasi</strong><span>Rezervasyon yeni masaya aktarilir, bu masa plandan kaldirilir</span></div>'
+    + '    </div>'
+    + '  </div>'
+    + '  <div class="svc-confirm-foot">'
+    + '    <button type="button" class="svc-cancel-btn" data-action="cancel">Vazgec</button>'
+    + '  </div>'
+    + '</div>';
+
+  backdrop.classList.add('is-visible');
+
+  backdrop.addEventListener('click', async function handler(ev){
+    var opt = ev.target.closest('[data-action]');
+    if(!opt) return;
+    var act = opt.dataset.action;
+
+    if(act === 'cancel'){
+      closeSvcConfirm();
+      backdrop.removeEventListener('click', handler);
+      return;
+    }
+
+    if(act === 'remove-hold'){
+      closeSvcConfirm();
+      backdrop.removeEventListener('click', handler);
+      try{
+        await apiFetch('/holds/restaurant/' + encodeURIComponent(hold.hold_id) + '/status', {
+          method:'PUT', body:{status:'IPTAL', reason:'Servis Modu - masa kaldirildi, rezervasyon iptal'}
+        });
+        await removeTableFromPlan(table.table_id);
+        notify('Rezervasyon iptal edildi, masa plandan kaldirildi.', 'success');
+        await loadServiceModeHolds();
+        await loadServiceModePlans();
+        renderServiceMode();
+      }catch(e){ notify(e.message || 'Islem basarisiz.', 'error'); }
+      return;
+    }
+
+    if(act === 'move-hold'){
+      closeSvcConfirm();
+      backdrop.removeEventListener('click', handler);
+      showMoveHoldModal(hold, table, true); // removeAfterMove = true
+      return;
+    }
+  });
+}
+
+// ── Show move-to-table modal ───────────────────────────
+function showMoveHoldModal(hold, currentTable, removeAfterMove){
+  var backdrop = getOrCreateConfirm();
+  var title = removeAfterMove
+    ? 'Rezervasyonu Tasi & Masayi Kaldir'
+    : 'Rezervasyonu Baska Masaya Tasi';
+  var desc = '<strong>' + escapeHtml(hold.guest_name || hold.hold_id) + '</strong> - '
+    + escapeHtml(hold.time || '-') + ', ' + escapeHtml(String(hold.party_size || '-')) + ' kisi';
+
+  backdrop.innerHTML = ''
+    + '<div class="svc-confirm-box">'
+    + '  <div class="svc-confirm-head">'
+    + '    <h4>' + title + '</h4>'
+    + '    <p>' + desc + '</p>'
+    + '  </div>'
+    + '  <div class="svc-confirm-body">'
+    + '    <label style="font-size:.76rem;color:var(--muted);">Hedef masa numarasi</label>'
+    + '    <div class="svc-move-input-group">'
+    + '      <input type="text" class="svc-move-input" id="svcMoveTargetInput" placeholder="Ornek: A3, T4-12" autocomplete="off" spellcheck="false">'
+    + '      <button type="button" class="svc-move-submit" id="svcMoveSubmitBtn">Tasi</button>'
+    + '    </div>'
+    + '    <div class="svc-move-error" id="svcMoveError"></div>'
+    + '  </div>'
+    + '  <div class="svc-confirm-foot">'
+    + '    <button type="button" class="svc-cancel-btn" id="svcMoveCancelBtn">Vazgec</button>'
+    + '  </div>'
+    + '</div>';
+
+  backdrop.classList.add('is-visible');
+
+  var input = document.getElementById('svcMoveTargetInput');
+  var submitBtn = document.getElementById('svcMoveSubmitBtn');
+  var errorEl = document.getElementById('svcMoveError');
+  var cancelBtn = document.getElementById('svcMoveCancelBtn');
+
+  setTimeout(function(){ if(input) input.focus(); }, 80);
+
+  async function doMove(){
+    if(!input || !submitBtn) return;
+    var val = input.value;
+    var v = validateMoveTarget(val, currentTable.table_id);
+    if(!v.ok){
+      errorEl.textContent = v.error;
+      input.classList.add('has-error');
+      input.focus();
+      return;
+    }
+    input.classList.remove('has-error');
+    errorEl.textContent = '';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Tasiyor...';
+    try{
+      await moveHoldToTable(hold.hold_id, v.tableData);
+      if(removeAfterMove){
+        await removeTableFromPlan(currentTable.table_id);
+        notify('Rezervasyon ' + v.cleanId + ' masasina tasindi, eski masa kaldirildi.', 'success');
+        await loadServiceModePlans();
+      } else {
+        notify('Rezervasyon ' + v.cleanId + ' masasina tasindi.', 'success');
+      }
+      closeSvcConfirm();
+      await loadServiceModeHolds();
+      renderServiceMode();
+    }catch(e){
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Tasi';
+      errorEl.textContent = e.message || 'Tasima basarisiz.';
+    }
   }
+
+  submitBtn.addEventListener('click', doMove);
+  input.addEventListener('keydown', function(ev){
+    if(ev.key === 'Enter'){ ev.preventDefault(); doMove(); }
+  });
+  input.addEventListener('input', function(){
+    input.classList.remove('has-error');
+    errorEl.textContent = '';
+  });
+  cancelBtn.addEventListener('click', function(){ closeSvcConfirm(); });
+}
+
+// ── Open context menu on a service mode table ──────────
+function openSvcTableContextMenu(ev, table, hold){
+  ev.preventDefault();
+  ev.stopPropagation();
+  closeSvcCtxMenu(); // close any existing
+
+  var menu = getOrCreateCtxMenu();
+  var headerLabel = escapeHtml(table.table_id) + (hold ? (' \u2014 ' + escapeHtml(hold.guest_name || hold.hold_id)) : ' \u2014 Bos');
+
+  var items = '';
+
+  if(hold){
+    items += ''
+      + '<button class="svc-ctx-item" data-ctx="swap" role="menuitem">'
+      + '  <span class="ctx-icon icon-swap">\u21C4</span>'
+      + '  <span class="ctx-label">Degistir<small>Rezervasyonu baska masaya tasi</small></span>'
+      + '</button>'
+      + '<button class="svc-ctx-item" data-ctx="unassign" role="menuitem">'
+      + '  <span class="ctx-icon icon-remove">\u2716</span>'
+      + '  <span class="ctx-label">Masa Atamasini Kaldir<small>Rezervasyon sidebar&#39;a doner</small></span>'
+      + '</button>'
+      + '<div class="svc-ctx-sep"></div>'
+      + '<button class="svc-ctx-item ctx-danger" data-ctx="cancel-hold" role="menuitem">'
+      + '  <span class="ctx-icon icon-cancel">\u26A0</span>'
+      + '  <span class="ctx-label">Rezervasyonu Iptal Et<small>Tamamen iptal edilir</small></span>'
+      + '</button>';
+  }
+
+  items += '<div class="svc-ctx-sep"></div>'
+    + '<button class="svc-ctx-item ctx-danger" data-ctx="remove-table" role="menuitem">'
+    + '  <span class="ctx-icon icon-remove">\u2716</span>'
+    + '  <span class="ctx-label">Masayi Plandan Kaldir<small>Masa kalici olarak silinir</small></span>'
+    + '</button>';
+
+  menu.innerHTML = '<div class="svc-ctx-menu-header">' + headerLabel + '</div>' + items;
+
+  // Position menu at cursor, keep within viewport
+  var mx = ev.clientX, my = ev.clientY;
+  menu.style.left = '0px';
+  menu.style.top = '0px';
+  menu.classList.add('is-visible');
+  var rect = menu.getBoundingClientRect();
+  var vw = window.innerWidth, vh = window.innerHeight;
+  if(mx + rect.width > vw - 8) mx = vw - rect.width - 8;
+  if(my + rect.height > vh - 8) my = vh - rect.height - 8;
+  if(mx < 4) mx = 4;
+  if(my < 4) my = 4;
+  menu.style.left = mx + 'px';
+  menu.style.top  = my + 'px';
+
+  // Handle menu item click
+  menu.addEventListener('click', async function handler(clickEv){
+    var btn = clickEv.target.closest('[data-ctx]');
+    if(!btn) return;
+    var action = btn.dataset.ctx;
+    closeSvcCtxMenu();
+    menu.removeEventListener('click', handler);
+
+    try{
+      if(action === 'swap' && hold){
+        showMoveHoldModal(hold, table, false);
+
+      } else if(action === 'unassign' && hold){
+        await apiFetch('/holds/restaurant/' + encodeURIComponent(hold.hold_id), {
+          method:'PUT', body:{table_id:''}
+        });
+        notify('Masa atamasi kaldirildi - rezervasyon sidebar\\'a donduruldu.', 'success');
+        await loadServiceModeHolds();
+        renderServiceMode();
+
+      } else if(action === 'cancel-hold' && hold){
+        await apiFetch('/holds/restaurant/' + encodeURIComponent(hold.hold_id) + '/status', {
+          method:'PUT', body:{status:'IPTAL', reason:'Servis Modu context menu - iptal'}
+        });
+        notify('Rezervasyon iptal edildi.', 'success');
+        await loadServiceModeHolds();
+        renderServiceMode();
+
+      } else if(action === 'remove-table'){
+        if(hold){
+          showRemoveTableConfirm(hold, table);
+        } else {
+          await removeTableFromPlan(table.table_id);
+          notify('Masa "' + table.table_id + '" plandan kaldirildi.', 'success');
+          await loadServiceModePlans();
+          renderServiceMode();
+        }
+      }
+    }catch(e){ notify(e.message || 'Islem basarisiz.', 'error'); }
+  });
 }
 
 async function saveServiceModePlanPrefs(){
@@ -2265,10 +2799,17 @@ function _initOnReady(){
   _restaurantInited = true;
   if(window.location.hash === '#restaurant') _onRestaurantView();
 }
+function _safeInitOnReady(){
+  try{
+    _initOnReady();
+  }catch(err){
+    console.error('[Velox] restaurant init error:', err);
+  }
+}
 if(document.readyState === 'loading'){
-  document.addEventListener('DOMContentLoaded', _initOnReady);
+  document.addEventListener('DOMContentLoaded', _safeInitOnReady);
 } else {
-  _initOnReady();
+  _safeInitOnReady();
 }
 
 // Global fallback: even if module init order changes, button click still opens service mode.

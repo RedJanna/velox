@@ -355,7 +355,10 @@ async def list_restaurant_holds(
     items_query = """
         SELECT hold_id, hotel_id, conversation_id, slot_id, date, time,
                party_size, guest_name, phone, area, notes, status,
-               approved_by, approved_at, rejected_reason, created_at
+               approved_by, approved_at, rejected_reason,
+               table_id, table_type,
+               arrived_at, no_show_at, extended_minutes,
+               created_at
         FROM restaurant_holds
         WHERE ($1::int IS NULL OR hotel_id = $1)
           AND ($2::text IS NULL OR status = $2)
@@ -644,6 +647,27 @@ async def activate_floor_plan(
     if not ok:
         raise HTTPException(status_code=404, detail="Plan bulunamadi")
     return {"status": "activated"}
+
+
+@router.delete("/hotels/{hotel_id}/restaurant/floor-plans/{plan_id}")
+async def delete_floor_plan(
+    hotel_id: int,
+    plan_id: UUID,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Delete a non-active floor plan permanently."""
+    check_permission(user, "holds:approve")
+    if user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
+
+    repo = FloorPlanRepository()
+    try:
+        ok = await repo.delete_plan(hotel_id, plan_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not ok:
+        raise HTTPException(status_code=404, detail="Plan bulunamadi")
+    return {"status": "deleted"}
 
 
 # ---------------------------------------------------------------------------

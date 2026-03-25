@@ -139,6 +139,39 @@ class FloorPlanRepository:
 
         return plan
 
+    async def delete_plan(self, hotel_id: int, plan_id: UUID) -> bool:
+        """Delete a floor plan and its associated tables.
+
+        Active plans cannot be deleted — deactivate or switch first.
+        """
+        pool = get_pool()
+        async with pool.acquire() as conn, conn.transaction():
+            # Prevent deleting the active plan
+            row = await conn.fetchrow(
+                "SELECT is_active FROM restaurant_floor_plans WHERE hotel_id = $1 AND id = $2",
+                hotel_id,
+                plan_id,
+                timeout=DB_TIMEOUT_SECONDS,
+            )
+            if not row:
+                return False
+            if row["is_active"]:
+                raise ValueError("Aktif plan silinemez. Once baska bir plani aktif yapin.")
+            # Remove associated tables
+            await conn.execute(
+                "DELETE FROM restaurant_tables WHERE hotel_id = $1 AND floor_plan_id = $2",
+                hotel_id,
+                plan_id,
+                timeout=DB_TIMEOUT_SECONDS,
+            )
+            result = await conn.execute(
+                "DELETE FROM restaurant_floor_plans WHERE hotel_id = $1 AND id = $2",
+                hotel_id,
+                plan_id,
+                timeout=DB_TIMEOUT_SECONDS,
+            )
+        return result == "DELETE 1"
+
     async def activate_plan(self, hotel_id: int, plan_id: UUID) -> bool:
         """Set a plan as active, deactivating others."""
         pool = get_pool()

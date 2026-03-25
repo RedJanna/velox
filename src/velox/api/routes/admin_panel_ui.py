@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from velox.api.routes.admin_panel_holds_assets import ADMIN_HOLDS_SCRIPT, ADMIN_HOLDS_STYLE
 from velox.api.routes.admin_panel_restaurant_assets import ADMIN_RESTAURANT_SCRIPT, ADMIN_RESTAURANT_STYLE
@@ -106,7 +106,7 @@ def render_admin_panel_html() -> str:
             <h3>Panel Girisi</h3>
             <p>Kullanici adi, sifre ve Google Authenticator kodu ile giris yapin. Tanimli cihazlarda kod adimi atlanabilir.</p>
             <div id="trustedSessionBanner" class="helper-panel mb-md" hidden></div>
-            <form id="loginForm" class="field-grid" method="post">
+            <form id="loginForm" class="field-grid">
               <div class="field">
                 <label for="login-username">Kullanıcı adı</label>
                 <input id="login-username" name="username" autocomplete="username" required>
@@ -154,7 +154,7 @@ def render_admin_panel_html() -> str:
             <h3>İlk Kurulum</h3>
             <p>Henuz yonetici hesabi yoksa buradan ilk hesabi olusturun ve Google Authenticator'i baglatin.</p>
             <div id="bootstrapSummary" class="helper-panel"></div>
-            <form id="bootstrapForm" class="field-grid mt-md" method="post">
+            <form id="bootstrapForm" class="field-grid mt-md">
               <div class="field">
                 <label for="bootstrap-hotel">Hotel</label>
                 <select id="bootstrap-hotel" name="hotel_id" required></select>
@@ -184,7 +184,7 @@ def render_admin_panel_html() -> str:
                 <strong>2FA Kurtarma</strong>
                 <p>Hesap var ama Google Authenticator kurulumu kaybolduysa, bootstrap token ile yeni QR uretebilirsiniz.</p>
               </div>
-              <form id="totpRecoveryForm" class="field-grid" method="post">
+              <form id="totpRecoveryForm" class="field-grid">
                 <div class="field">
                   <label for="recovery-username">Kullanici adi</label>
                   <input id="recovery-username" name="username" required>
@@ -218,7 +218,7 @@ def render_admin_panel_html() -> str:
                 <p id="otpUri" class="mono"></p>
               </div>
             </div>
-            <form id="otpVerifyForm" class="field-grid mt-md" method="post" hidden>
+            <form id="otpVerifyForm" class="field-grid mt-md" hidden>
               <div class="field full">
                 <label for="otp-verify-code">Google Authenticator kodu</label>
                 <input id="otp-verify-code" name="otp_code" inputmode="numeric" pattern="[0-9]*" placeholder="6 haneli kod" required>
@@ -648,8 +648,15 @@ def render_admin_panel_html() -> str:
                 <button class="inline-button accent" id="createNewFloorPlanBtn" type="button" aria-label="Yeni plan olustur">+ Yeni Plan</button>
                 <button class="inline-button primary" id="saveFloorPlanBtn" type="button" aria-label="Plani kaydet">Kaydet</button>
                 <button class="inline-button secondary" id="resetFloorPlanBtn" type="button" aria-label="Son kaydedilen hale don">Sifirla</button>
+                <button class="fp-activate-btn" id="activateFloorPlanBtn" type="button" aria-label="Plani aktif yap" title="Bu plani aktif plan olarak ayarla">&#9733; Aktif Yap</button>
+                <button class="fp-delete-btn" id="deleteFloorPlanBtn" type="button" aria-label="Plani sil" title="Kayitli plani sil">&#10005; Sil</button>
                 <span class="fp-plan-status"><span class="fp-plan-dirty-indicator" id="fpDirtyDot" title="Kaydedilmemis degisiklik var"></span><span id="fpPlanIdBadge" class="fp-plan-id-badge"></span></span>
               </div>
+            </div>
+            <div class="fp-plan-info-bar" id="fpPlanInfoBar">
+              <span class="fp-plan-badge is-new" id="fpPlanBadge">Yeni Plan</span>
+              <span class="fp-plan-date" id="fpPlanDate"></span>
+              <span id="fpPlanTableCount"></span>
             </div>
             <div class="fp-toolbar">
               <button class="fp-tool-btn active" id="fpGridBtn" type="button" title="Izgara goster/gizle">&#9638; Izgara</button>
@@ -923,9 +930,9 @@ def render_admin_panel_html() -> str:
   </dialog>
 
   <script>window.ADMIN_PANEL_CONFIG = {config_json};</script>
-  <script>{ADMIN_PANEL_SCRIPT}
-{ADMIN_HOLDS_SCRIPT}
-{ADMIN_RESTAURANT_SCRIPT}</script>
+  <script>{ADMIN_PANEL_SCRIPT}</script>
+  <script>{ADMIN_HOLDS_SCRIPT}</script>
+  <script>{ADMIN_RESTAURANT_SCRIPT}</script>
 </body>
 </html>
 """
@@ -949,3 +956,22 @@ else:
     async def admin_panel_ui_legacy() -> HTMLResponse:
         """Serve admin UI on legacy path for compatibility during cutover."""
         return HTMLResponse(content=render_admin_panel_html())
+
+
+# ── POST fallback: prevent 405 when JS fails and browser submits the login
+# form natively to the current URL (POST /admin). Redirect back to GET /admin
+# so the user sees the panel page instead of a raw JSON error. ──
+
+
+@router.post("/admin", response_class=RedirectResponse, include_in_schema=False)
+async def admin_panel_post_fallback() -> RedirectResponse:
+    """Catch accidental native form POST to /admin and redirect to GET."""
+    return RedirectResponse(url="/admin", status_code=303)
+
+
+if ADMIN_PANEL_ROUTE != "/admin":
+
+    @router.post(ADMIN_PANEL_ROUTE, response_class=RedirectResponse, include_in_schema=False)
+    async def admin_panel_post_fallback_custom() -> RedirectResponse:
+        """Catch accidental native form POST to custom admin path and redirect."""
+        return RedirectResponse(url=ADMIN_PANEL_ROUTE, status_code=303)
