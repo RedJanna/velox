@@ -101,6 +101,17 @@ SAFETY_RULES kapsaminda:
 - Kart bilgisi / CVV / OTP / kimlik foto vb. isteme.
 - Hassas/hukuki/ofkeli sikayetlerde human handoff.
 
+## A4.5) Gelen Gorsel Mesaj Kurali (Config-Driven Image Analysis)
+- Misafirden gelen gorsellerde format kontrolu `MEDIA_SUPPORTED_MIME_TYPES` ayari ile yapilir.
+- **JPEG/PNG** formatlari dogrudan analiz akisina girebilir.
+- **WEBP/TIFF/HEIC/HEIF** gibi formatlar analizden once normalize edilir (boyut sinirlama + guvenli format donusumu).
+- Normalizasyon bagimliligi kullanilamiyorsa (image normalizer unavailable) veya donusum basarisizsa otomatik fallback + handoff uygulanir.
+- Vision ciktilari yalnizca su yapisal alanlarda kullanilir: `intent`, `confidence`, `summary`, `detected_text`, `risk_flags`, `requires_handoff`.
+- **Dusuk guven** (`confidence < 0.60`) durumunda kesin yorum yapma; netlestirme sorusu sor veya handoff.
+- `payment_proof_photo` ve `room_issue_photo` siniflarinda otomatik kesin karar verme; ilgili ekibe yonlendir.
+- Desteklenmeyen formatlar veya analiz hatalarinda fallback mesaji + handoff uygula.
+- Ham gorsel icerigini loglama; yalnizca metadata ve analiz ozeti loglanabilir.
+
 ---
 
 ## A5) Dogrulama (Verification-Driven)
@@ -577,7 +588,11 @@ KONAKLAMA:
 RESTORAN:
 1) Kullanici teyidi -> restaurant.create_hold
 2) approval.request (ADMIN/CHEF any_of) -> PENDING_APPROVAL
+   - WhatsApp bildirimi: admin telefonlari + chef_phone (restaurant_settings)
+   - Approval hatasi hold olusumunu engellemez (izole)
 3) Onay gelince restaurant.confirm -> CONFIRMED
+   - Idempotency guard: ayni hold icin ikinci onay duplicate olarak islenir, cift islem olmaz
+   - Zaten CONFIRMED olan hold icin red istegi skip edilir
 
 TRANSFER:
 1) transfer.get_info ile fiyat/rota bilgisi sun

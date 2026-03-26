@@ -1,7 +1,37 @@
 # Velox (NexlumeAI) — Codex Project Guide
 
-> **Sürüm:** v4.4 | **Son güncelleme:** 2026-03-18 00:00:00
-> **Değişiklik özeti:** `system_prompt_velox.md` ile hizalama yapıldı; başlangıç okuma sırası, backend-first debug protokolü, operasyonel çalışma ilkeleri ve `ULTRATHINK` tetikleyicisi netleştirildi.
+## Mandatory Bootstrap
+
+This file is the permanent repository entry point for Codex-style agents.
+
+Treat this section as binding startup behavior, not as optional documentation.
+
+Before any coding, debugging, documentation, configuration, or review work:
+
+1. Open `system_prompt_velox.md`
+2. Open `SKILL.md`
+3. Open only the skill files relevant to the current task
+4. Apply the rule hierarchy exactly as defined there
+5. Only then start analysis, edits, tests, or explanations
+
+Hard rules:
+
+- Do not wait for the user to resend `system_prompt_velox.md`.
+- Do not treat a pasted file path as "already loaded".
+- If `system_prompt_velox.md` was not read in the current task, bootstrap is incomplete.
+- If rules conflict, follow the documented hierarchy instead of improvising.
+
+Permanent usage:
+
+- For tools that support repository instruction files, `AGENTS.md` is the canonical auto-load entry point.
+- For tools that support project-level custom instructions, save this once:
+
+`Always read AGENTS.md from the repo root first, then follow its required read order before doing any work.`
+
+- For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
+
+> **Sürüm:** v5.1 | **Son güncelleme:** 2026-03-26 13:30:00
+> **Değişiklik özeti:** Medya alım adımı config-driven format/normalizasyon (JPEG/PNG + WEBP/TIFF/HEIC/HEIF) ve MEDIA_* env tablolarıyla senkronlandı.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -34,7 +64,14 @@ FastAPI Webhook Endpoint
     ├── 3. Session Manager (Redis) ── Load/create conversation
     |                                  Key: session:{hotel_id}:{phone_hash}
     |
-    ├── 4. LLM Engine (OpenAI GPT + function calling)
+    ├── 4. Media Intake Gate (opsiyonel; config-driven image mime)
+    |       ├── Metadata parse (media_id, mime, sha256, caption)
+    |       ├── Download + size/mime doğrulama
+    |       ├── Normalize (JPEG/PNG direct; WEBP/TIFF/HEIC/HEIF -> PNG/JPEG)
+    |       ├── Vision analyze (structured JSON only)
+    |       └── Düşük güven/normalizasyon hata -> fallback + handoff
+    |
+    ├── 5. LLM Engine (OpenAI GPT + function calling)
     |       |
     |       |--- Tool calls ──> Tools Layer ──────────────────────────┐
     |       |                   (booking, restaurant, transfer,      |
@@ -50,7 +87,7 @@ FastAPI Webhook Endpoint
     |       |                   └── External APIs ◄── Retry + Backoff |
     |       |                                                        |
     |       v                                                        |
-    ├── 5. QC Gate (7 checks, parallel, ≤500ms budget)               |
+    ├── 6. QC Gate (7 checks, parallel, ≤500ms budget)               |
     |       ├── QC1: Intent/Entity    ├── QC5: Format                |
     |       ├── QC2: Source Check     ├── QC6: Escalation            |
     |       ├── QC3: Policy Gate      └── QC7: Session               |
@@ -59,13 +96,13 @@ FastAPI Webhook Endpoint
     |       ├── PASS ──> Response Parser (USER_MESSAGE + INTERNAL_JSON)
     |       └── FAIL ──> Düzelt / Tool çağır / İnsan devri           |
     |                                                                |
-    ├── 6. Handoff & SLA Engine                                      |
+    ├── 7. Handoff & SLA Engine                                      |
     |       ├── L1: 30 min  (genel sorular)                          |
     |       ├── L2: 15 min  (rezervasyon sorunları)                  |
     |       └── L3: 5 min   (ödeme/güvenlik)                         |
     |       └── Follow-up: %100 → hatırlatma, %300 → escalate       |
     |
-    └── 7. WhatsApp API (send reply)
+    └── 8. WhatsApp API (send reply)
             ├── Text / Reply Buttons (≤3) / List Message (4+)
             └── DB (log conversation) + Metrics (Prometheus)
 ```
@@ -339,6 +376,11 @@ All secrets, API keys, and configuration must be in environment variables. Never
 | `REDIS_SESSION_TTL_SECONDS` | Redis session TTL (saniye) | `1800` |
 | `SENTRY_DSN` | Sentry error tracking DSN | _(boş = devre dışı)_ |
 | `PROMETHEUS_PORT` | Prometheus metrics port | `9090` |
+| `MEDIA_ANALYSIS_ENABLED` | Inbound image analysis feature flag | `true` |
+| `MEDIA_MAX_BYTES` | Inbound media maksimum dosya boyutu (byte) | `8388608` |
+| `MEDIA_MAX_IMAGE_DIMENSION` | Görsel normalize sonrası max kenar piksel sınırı | `2048` |
+| `MEDIA_RETENTION_HOURS` | Medya analiz kaydı saklama süresi (saat) | `24` |
+| `MEDIA_SUPPORTED_MIME_TYPES` | Desteklenen inbound image mime listesi (virgüllü) | `image/jpeg,image/jpg,image/png,image/webp,image/tiff,image/heic,image/heif` |
 
 > **Kural:** Yeni bir ENV değişkeni eklendiğinde bu tabloyu güncelle ve `.env.example` dosyasına da ekle.
 

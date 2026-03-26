@@ -1,0 +1,26 @@
+"""Models for inbound WhatsApp media analysis."""
+
+from pydantic import BaseModel, Field
+
+
+class InboundMediaItem(BaseModel):
+    """One incoming media reference extracted from WhatsApp payload."""
+
+    media_id: str
+    media_type: str
+    mime_type: str = ""
+    sha256: str = ""
+    caption: str = ""
+    whatsapp_message_id: str = ""
+
+
+class VisionAnalysisResult(BaseModel):
+    """Structured output produced by the vision analysis layer."""
+
+    intent: str = "general_photo_info"
+    confidence: float = 0.0
+    summary: str = ""
+    detected_text: str = ""
+    risk_flags: list[str] = Field(default_factory=list)
+    requires_handoff: bool = False
+

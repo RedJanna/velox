@@ -118,3 +118,44 @@ def test_parse_status_events_extracts_failed_delivery_details() -> None:
     assert event.timestamp == 1710000100
     assert event.error_code == 131047
     assert event.error_title == "Re-engagement message"
+
+
+def test_parse_message_extracts_image_media_metadata() -> None:
+    """Parser should preserve incoming image media metadata for analysis pipeline."""
+    webhook = WhatsAppWebhook(verify_token="token", app_secret="secret")  # noqa: S106
+    payload = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "contacts": [{"profile": {"name": "Guest User"}}],
+                            "messages": [
+                                {
+                                    "id": "wamid.img.1",
+                                    "from": "905551112233",
+                                    "timestamp": "1710000200",
+                                    "type": "image",
+                                    "image": {
+                                        "id": "media-123",
+                                        "mime_type": "image/jpeg",
+                                        "sha256": "abc123",
+                                        "caption": "bathroom leak",
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+    parsed = webhook.parse_message(payload)
+    assert parsed is not None
+    assert parsed.message_type == "image"
+    assert parsed.text == "bathroom leak"
+    assert parsed.media_id == "media-123"
+    assert parsed.media_mime_type == "image/jpeg"
+    assert parsed.media_sha256 == "abc123"
+    assert parsed.media_caption == "bathroom leak"

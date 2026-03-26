@@ -104,6 +104,24 @@ class Settings(BaseSettings):
     burst_max_wait_seconds: float = 10.0
     burst_lock_ttl_seconds: int = 60
 
+    # Media Analysis
+    media_analysis_enabled: bool = True
+    media_max_bytes: int = 8 * 1024 * 1024
+    media_max_image_dimension: int = 2048
+    media_retention_hours: int = 24
+    media_supported_mime_types: str = (
+        "image/jpeg,image/jpg,image/png,image/webp,image/tiff,image/heic,image/heif"
+    )
+
+    @property
+    def media_supported_mime_type_list(self) -> list[str]:
+        """Normalized list of supported media mime types."""
+        return [
+            item.strip().lower()
+            for item in self.media_supported_mime_types.split(",")
+            if item.strip()
+        ]
+
     # Paths
     hotel_profiles_dir: str = "data/hotel_profiles"
     escalation_matrix_path: str = "data/escalation_matrix.yaml"

@@ -14,23 +14,26 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, s
 from fastapi.responses import PlainTextResponse
 
 from velox.adapters.elektraweb.endpoints import CHILD_OCCUPANCY_UNVERIFIED
-from velox.core.burst_buffer import AggregatedMessage, BufferedMessage, enqueue_or_fallback
 from velox.adapters.whatsapp.client import WhatsAppSendBlockedError, get_whatsapp_client
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.adapters.whatsapp.webhook import IncomingMessage, WhatsAppWebhook
 from velox.config.constants import CONTEXT_WINDOW_MAX_MESSAGES, SUPPORTED_LANGUAGES
 from velox.config.settings import settings
-from velox.escalation.engine import EscalationEngine
+from velox.core.burst_buffer import AggregatedMessage, BufferedMessage, enqueue_or_fallback
 from velox.core.hotel_profile_loader import get_profile
+from velox.core.media_pipeline import MediaPipelineService
+from velox.core.media_response_policy import build_media_policy_response
 from velox.core.pipeline import post_process_escalation
 from velox.db.repositories.conversation import ConversationRepository
 from velox.db.repositories.whatsapp_number import WhatsAppNumberRepository
+from velox.escalation.engine import EscalationEngine
 from velox.llm.client import LLMUnavailableError, get_llm_client
 from velox.llm.function_registry import get_tool_definitions
 from velox.llm.prompt_builder import get_prompt_builder
 from velox.llm.response_parser import ResponseParser
 from velox.models.conversation import Conversation, InternalJSON, LLMResponse, Message
 from velox.models.escalation import EscalationResult
+from velox.models.media import InboundMediaItem
 from velox.tools.notification import NotifySendTool, send_admin_whatsapp_alerts
 from velox.utils.privacy import hash_phone
 
@@ -381,6 +384,100 @@ def _normalize_text(text: str) -> str:
     """Normalize incoming text to safe bounded plain text."""
     sanitized = text.replace("\x00", " ").strip()
     return formatter.truncate(sanitized, MAX_TEXT_LENGTH)
+
+
+def _extract_media_items_from_incoming(incoming: IncomingMessage) -> list[InboundMediaItem]:
+    """Extract media payload details from one incoming message."""
+    if not incoming.media_id:
+        return []
+    return [
+        InboundMediaItem(
+            media_id=incoming.media_id,
+            media_type=str(incoming.message_type or ""),
+            mime_type=str(incoming.media_mime_type or ""),
+            sha256=str(incoming.media_sha256 or ""),
+            caption=str(incoming.media_caption or ""),
+            whatsapp_message_id=str(incoming.message_id or ""),
+        )
+    ]
+
+
+def _extract_media_items_from_audits(audit_contexts: list[dict[str, Any]]) -> list[InboundMediaItem]:
+    """Extract media payload details from burst audit contexts."""
+    items: list[InboundMediaItem] = []
+    for audit in audit_contexts:
+        media = audit.get("media")
+        if not isinstance(media, dict):
+            continue
+        media_id = str(media.get("id") or "").strip()
+        if not media_id:
+            continue
+        items.append(
+            InboundMediaItem(
+                media_id=media_id,
+                media_type=str(media.get("type") or "image"),
+                mime_type=str(media.get("mime_type") or ""),
+                sha256=str(media.get("sha256") or ""),
+                caption=str(media.get("caption") or ""),
+                whatsapp_message_id=str(audit.get("message_id") or ""),
+            )
+        )
+    return items
+
+
+def _extract_media_items_from_aggregated(aggregated: AggregatedMessage) -> list[InboundMediaItem]:
+    """Extract media payload details from aggregated burst object."""
+    items: list[InboundMediaItem] = []
+    for media in aggregated.media_items:
+        if not isinstance(media, dict):
+            continue
+        media_id = str(media.get("media_id") or "").strip()
+        if not media_id:
+            continue
+        items.append(
+            InboundMediaItem(
+                media_id=media_id,
+                media_type=str(media.get("media_type") or "image"),
+                mime_type=str(media.get("mime_type") or ""),
+                sha256=str(media.get("sha256") or ""),
+                caption=str(media.get("caption") or ""),
+                whatsapp_message_id=str(media.get("message_id") or ""),
+            )
+        )
+    if items:
+        return items
+    return _extract_media_items_from_audits(aggregated.audit_contexts)
+
+
+async def _analyze_media_policy_response(
+    *,
+    hotel_id: int,
+    conversation_id: Any,
+    language: str,
+    media_items: list[InboundMediaItem],
+) -> LLMResponse | None:
+    """Run media analysis pipeline and return deterministic response when applicable."""
+    if not settings.media_analysis_enabled:
+        return None
+    if not media_items:
+        return None
+    if not any(item.media_type == "image" for item in media_items):
+        return None
+    whatsapp_client = get_whatsapp_client()
+    pipeline = MediaPipelineService(whatsapp_client)
+    result = await pipeline.process_first_image(
+        hotel_id=hotel_id,
+        conversation_id=conversation_id,
+        language=language,
+        media_items=media_items,
+    )
+    if result.analyzed and result.analysis is not None:
+        return build_media_policy_response(language=language, analysis=result.analysis)
+    return build_media_policy_response(
+        language=language,
+        analysis=None,
+        failure_reason=result.failure_reason,
+    )
 
 
 def _payment_warning_message(language: str = "tr") -> str:
@@ -2450,6 +2547,13 @@ async def _process_incoming_message(
         if conversation.language != detected_language:
             conversation.language = detected_language
             await conversation_repository.update_language(conversation.id, detected_language)
+        media_items = _extract_media_items_from_incoming(incoming)
+        media_policy_response = await _analyze_media_policy_response(
+            hotel_id=hotel_id,
+            conversation_id=conversation.id,
+            language=detected_language,
+            media_items=media_items,
+        )
 
         user_msg = Message(
             conversation_id=conversation.id,
@@ -2481,13 +2585,16 @@ async def _process_incoming_message(
             )
             return
 
-        llm_response = await _run_message_pipeline(
-            conversation=conversation,
-            normalized_text=normalized_text,
-            dispatcher=dispatcher,
-            expected_language=detected_language,
-            reply_context=reply_context,
-        )
+        if media_policy_response is not None:
+            llm_response = media_policy_response
+        else:
+            llm_response = await _run_message_pipeline(
+                conversation=conversation,
+                normalized_text=normalized_text,
+                dispatcher=dispatcher,
+                expected_language=detected_language,
+                reply_context=reply_context,
+            )
         current_state_value = (
             str(conversation.current_state.value)
             if hasattr(conversation.current_state, "value")
@@ -2629,7 +2736,7 @@ async def _is_human_override_active(
                     return False
                 return redis_override or db_override
         except Exception:
-            pass
+            logger.warning("human_override_redis_read_failed", phone_hash=phone_hash[:8] + "***")
 
     return db_override
 
@@ -2764,6 +2871,7 @@ async def _activate_handoff_guard(
     redis_client: Any = None,
 ) -> None:
     """Enable human override immediately once handoff becomes terminal."""
+    _ = tools
     if conversation.id is None:
         return
 
@@ -2782,7 +2890,11 @@ async def _activate_handoff_guard(
         "handoff_guard_activated",
         conversation_id=str(conversation.id),
         phone=_mask_phone(phone),
-        reason=str((llm_response.internal_json.handoff or {}).get("reason") or llm_response.internal_json.next_step or "human_handoff"),
+        reason=str(
+            (llm_response.internal_json.handoff or {}).get("reason")
+            or llm_response.internal_json.next_step
+            or "human_handoff"
+        ),
     )
 
 def _build_fallback_handoff_dedupe_key(conversation: Conversation, llm_response: LLMResponse) -> str:
@@ -2960,6 +3072,14 @@ async def _process_burst_aggregated(
             message_type=aggregated.message_type,
             phone_number_id=aggregated.phone_number_id,
             display_phone_number=aggregated.display_phone_number,
+            media_id=str(aggregated.media_items[0].get("media_id") or "").strip() if aggregated.media_items else None,
+            media_mime_type=(
+                str(aggregated.media_items[0].get("mime_type") or "").strip() if aggregated.media_items else None
+            ),
+            media_sha256=str(aggregated.media_items[0].get("sha256") or "").strip() if aggregated.media_items else None,
+            media_caption=(
+                str(aggregated.media_items[0].get("caption") or "").strip() if aggregated.media_items else None
+            ),
         )
         conversation = await _create_or_get_conversation(conversation_repository, first_incoming, hotel_id)
         if conversation.id is None:
@@ -2971,6 +3091,13 @@ async def _process_burst_aggregated(
         if conversation.language != detected_language:
             conversation.language = detected_language
             await conversation_repository.update_language(conversation.id, detected_language)
+        media_items = _extract_media_items_from_aggregated(aggregated)
+        media_policy_response = await _analyze_media_policy_response(
+            hotel_id=hotel_id,
+            conversation_id=conversation.id,
+            language=detected_language,
+            media_items=media_items,
+        )
 
         # Store each original message as a separate DB record (audit trail)
         user_messages: list[Message] = []
@@ -3011,7 +3138,7 @@ async def _process_burst_aggregated(
             try:
                 await whatsapp_client.mark_as_read(mid)
             except Exception:
-                pass
+                logger.warning("burst_mark_as_read_failed", message_id=mid)
 
         human_override = await _is_human_override_active(phone_hash, conversation.id, redis_client)
         if human_override:
@@ -3032,14 +3159,17 @@ async def _process_burst_aggregated(
             }
 
         # Run LLM pipeline with the combined text
-        llm_response = await _run_message_pipeline(
-            conversation=conversation,
-            normalized_text=combined_normalized,
-            dispatcher=dispatcher,
-            expected_language=detected_language,
-            burst_metadata=burst_metadata,
-            reply_context=reply_context,
-        )
+        if media_policy_response is not None:
+            llm_response = media_policy_response
+        else:
+            llm_response = await _run_message_pipeline(
+                conversation=conversation,
+                normalized_text=combined_normalized,
+                dispatcher=dispatcher,
+                expected_language=detected_language,
+                burst_metadata=burst_metadata,
+                reply_context=reply_context,
+            )
 
         # State update (same as original pipeline)
         current_state_value = (
@@ -3182,6 +3312,10 @@ def _schedule_background_task(
         message_type=incoming.message_type,
         phone_number_id=incoming.phone_number_id,
         display_phone_number=incoming.display_phone_number,
+        media_id=incoming.media_id,
+        media_mime_type=incoming.media_mime_type,
+        media_sha256=incoming.media_sha256,
+        media_caption=incoming.media_caption,
         audit_context=audit_context,
     )
 
@@ -3275,7 +3409,7 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
             if stored_mode and stored_mode in ("test", "ai", "approval", "off"):
                 settings.operation_mode = stored_mode
         except Exception:
-            pass
+            logger.warning("operation_mode_redis_read_failed")
         if await _redis_is_duplicate_message(redis_client, incoming.message_id):
             logger.info("whatsapp_webhook_duplicate", message_id=incoming.message_id)
             return {"status": "ok"}
@@ -3353,6 +3487,15 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
         "message_type": incoming.message_type,
         "reply_to_message_id": incoming.reply_to_message_id,
         "reply_to_from": incoming.reply_to_from,
+        "media": {
+            "id": incoming.media_id,
+            "type": incoming.message_type if incoming.media_id else "",
+            "mime_type": incoming.media_mime_type,
+            "sha256": incoming.media_sha256,
+            "caption": incoming.media_caption,
+        }
+        if incoming.media_id
+        else {},
         "route_audit": route_audit,
     }
 

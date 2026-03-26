@@ -54,6 +54,10 @@ class BufferedMessage:
     message_type: str
     phone_number_id: str | None = None
     display_phone_number: str | None = None
+    media_id: str | None = None
+    media_mime_type: str | None = None
+    media_sha256: str | None = None
+    media_caption: str | None = None
     audit_context: dict[str, Any] = field(default_factory=dict)
     enqueued_at: float = 0.0
 
@@ -74,6 +78,7 @@ class AggregatedMessage:
     part_count: int
     message_type: str
     audit_contexts: list[dict[str, Any]]
+    media_items: list[dict[str, Any]] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +95,10 @@ def _serialize(msg: BufferedMessage) -> bytes:
             "message_type": msg.message_type,
             "phone_number_id": msg.phone_number_id,
             "display_phone_number": msg.display_phone_number,
+            "media_id": msg.media_id,
+            "media_mime_type": msg.media_mime_type,
+            "media_sha256": msg.media_sha256,
+            "media_caption": msg.media_caption,
             "audit_context": msg.audit_context,
             "enqueued_at": msg.enqueued_at,
         }
@@ -353,10 +362,22 @@ def _aggregate(messages: list[BufferedMessage]) -> AggregatedMessage:
     first = messages[0]
     last = messages[-1]
 
-    if len(messages) == 1:
-        combined = texts[0]
-    else:
-        combined = "\n".join(texts)
+    combined = texts[0] if len(messages) == 1 else "\n".join(texts)
+
+    media_items: list[dict[str, Any]] = []
+    for message in messages:
+        if not message.media_id:
+            continue
+        media_items.append(
+            {
+                "media_id": message.media_id,
+                "media_type": message.message_type,
+                "mime_type": message.media_mime_type,
+                "sha256": message.media_sha256,
+                "caption": message.media_caption,
+                "message_id": message.message_id,
+            }
+        )
 
     return AggregatedMessage(
         phone=first.phone,
@@ -371,6 +392,7 @@ def _aggregate(messages: list[BufferedMessage]) -> AggregatedMessage:
         part_count=len(messages),
         message_type=first.message_type,
         audit_contexts=[m.audit_context for m in messages],
+        media_items=media_items,
     )
 
 

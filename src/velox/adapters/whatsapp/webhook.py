@@ -20,6 +20,10 @@ class IncomingMessage:
     display_phone_number: str | None = None
     reply_to_message_id: str | None = None
     reply_to_from: str | None = None
+    media_id: str | None = None
+    media_mime_type: str | None = None
+    media_sha256: str | None = None
+    media_caption: str | None = None
 
 
 @dataclass(slots=True)
@@ -134,6 +138,10 @@ class WhatsAppWebhook:
         phone = str(message.get("from", ""))
         message_type = str(message.get("type", "unknown"))
         context = message.get("context", {})
+        media_id: str | None = None
+        media_mime_type: str | None = None
+        media_sha256: str | None = None
+        media_caption: str | None = None
 
         try:
             timestamp = int(str(message.get("timestamp", "0")))
@@ -171,7 +179,11 @@ class WhatsAppWebhook:
             text = " | ".join(parts) if parts else "location shared"
         elif message_type in {"image", "video", "audio", "document", "sticker"}:
             media = message.get(message_type, {})
-            text = str(media.get("caption", "")).strip() or message_type
+            media_id = str(media.get("id", "")).strip() or None
+            media_mime_type = str(media.get("mime_type", "")).strip() or None
+            media_sha256 = str(media.get("sha256", "")).strip() or None
+            media_caption = str(media.get("caption", "")).strip() or None
+            text = media_caption or message_type
         else:
             text = message_type
 
@@ -192,6 +204,10 @@ class WhatsAppWebhook:
             display_phone_number=display_phone_number,
             reply_to_message_id=reply_to_message_id,
             reply_to_from=reply_to_from,
+            media_id=media_id,
+            media_mime_type=media_mime_type,
+            media_sha256=media_sha256,
+            media_caption=media_caption,
         )
 
     @staticmethod

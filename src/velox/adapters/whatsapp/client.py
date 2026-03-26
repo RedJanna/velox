@@ -128,6 +128,66 @@ class WhatsAppClient:
             raise last_error
         raise RuntimeError("WhatsApp request failed.")
 
+    async def download_media_bytes(self, media_id: str) -> tuple[bytes, str]:
+        """Download incoming media bytes from WhatsApp and return payload + mime."""
+        client = await self._get_client()
+        metadata_path = f"/{media_id}"
+        last_error: Exception | None = None
+        media_url = ""
+        mime_type = ""
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                meta_resp = await client.get(metadata_path)
+                meta_resp.raise_for_status()
+                metadata = cast(dict[str, Any], meta_resp.json())
+                media_url = str(metadata.get("url") or "").strip()
+                mime_type = str(metadata.get("mime_type") or "").strip()
+                if media_url:
+                    break
+                raise RuntimeError("Missing media URL in WhatsApp metadata response.")
+            except Exception as error:
+                last_error = error
+                logger.warning(
+                    "whatsapp_media_metadata_error",
+                    media_id=media_id[:12],
+                    attempt=attempt + 1,
+                    error_type=type(error).__name__,
+                )
+                if attempt < MAX_RETRIES - 1:
+                    await asyncio.sleep(RETRY_BACKOFF[min(attempt, len(RETRY_BACKOFF) - 1)])
+
+        if not media_url:
+            if last_error is not None:
+                raise last_error
+            raise RuntimeError("Failed to fetch WhatsApp media metadata.")
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                binary_resp = await client.get(media_url, headers={"Authorization": f"Bearer {self.access_token}"})
+                binary_resp.raise_for_status()
+                resolved_mime = mime_type or str(binary_resp.headers.get("content-type") or "").strip()
+                logger.info(
+                    "whatsapp_media_download_ok",
+                    media_id=media_id[:12],
+                    bytes=len(binary_resp.content),
+                )
+                return bytes(binary_resp.content), resolved_mime
+            except Exception as error:
+                last_error = error
+                logger.warning(
+                    "whatsapp_media_download_error",
+                    media_id=media_id[:12],
+                    attempt=attempt + 1,
+                    error_type=type(error).__name__,
+                )
+                if attempt < MAX_RETRIES - 1:
+                    await asyncio.sleep(RETRY_BACKOFF[min(attempt, len(RETRY_BACKOFF) - 1)])
+
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("Failed to download WhatsApp media bytes.")
+
     async def _upload_media(self, *, file_path: Path, mime_type: str) -> str:
         """Upload media binary to WhatsApp and return media id."""
         client = await self._get_client()

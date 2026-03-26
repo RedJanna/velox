@@ -1372,6 +1372,37 @@ def test_admin_notify_required_if_admin_ticket_could_not_be_ensured() -> None:
     ) is True
 
 
+@pytest.mark.asyncio
+async def test_stale_human_override_cache_is_self_healed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Phone-scoped Redis override must not block a fresh conversation when DB says false."""
+
+    class _FakeRedis:
+        def __init__(self) -> None:
+            self.store = {"velox:human_override:phone_hash": "1"}
+
+        async def get(self, key: str) -> str | None:
+            return self.store.get(key)
+
+        async def delete(self, key: str) -> int:
+            existed = key in self.store
+            self.store.pop(key, None)
+            return 1 if existed else 0
+
+    _FakeHandoffConversationRepository.reset()
+    _FakeHandoffConversationRepository.human_override = False
+    monkeypatch.setattr(whatsapp_webhook, "ConversationRepository", _FakeHandoffConversationRepository)
+    redis = _FakeRedis()
+
+    active = await whatsapp_webhook._is_human_override_active(
+        "phone_hash",
+        _FakeHandoffConversationRepository.conversation_id,
+        redis,
+    )
+
+    assert active is False
+    assert redis.store == {}
+
+
 def test_handoff_transcript_summary_uses_recent_messages() -> None:
     """Immediate handoff notifications should summarize the latest turns only."""
     conversation_id = uuid4()
@@ -1456,6 +1487,71 @@ async def test_run_message_pipeline_locks_expected_language(monkeypatch: pytest.
         expected_language="en",
     )
     assert result.internal_json.language == "en"
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_restaurant_daily_capacity_full_routes_to_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Restaurant daily max full should preserve collected details and route to human handoff."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Talebinizi kontrol ediyorum.\nINTERNAL_JSON: "
+            '{"language":"tr","intent":"restaurant_booking_create","state":"TOOL_RUNNING","entities":{},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"await_tool_result"}',
+            [
+                {
+                    "name": "restaurant_create_hold",
+                    "arguments": {
+                        "slot_id": 42,
+                        "guest_name": "Ali Veli",
+                        "phone": "+905551112233",
+                        "party_size": 4,
+                    },
+                    "result": {
+                        "available": False,
+                        "reason": "DAILY_CAPACITY_FULL",
+                        "suggestion": "handoff",
+                        "handoff_required": True,
+                        "count": 15,
+                        "max": 15,
+                        "collected_reservation_context": {
+                            "date": "2026-08-10",
+                            "time": "20:00:00",
+                            "party_size": 4,
+                            "guest_name": "Ali Veli",
+                            "phone": "+905551112233",
+                            "area": "outdoor",
+                            "notes": "Window side if possible",
+                        },
+                    },
+                }
+            ],
+        )
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    conversation = Conversation(hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="Akşam 8 için 4 kişilik restoran rezervasyonu yapmak istiyorum",
+        expected_language="tr",
+    )
+
+    assert result.internal_json.state == "HANDOFF"
+    assert result.internal_json.handoff["needed"] is True
+    assert result.internal_json.handoff["reason"] == "restaurant_daily_capacity_full"
+    assert result.internal_json.entities["guest_name"] == "Ali Veli"
+    assert result.internal_json.entities["phone"] == "+905551112233"
+    assert result.internal_json.entities["date"] == "2026-08-10"
+    assert "günlük restoran rezervasyon kotamız" in result.user_message.casefold()
 
 
 @pytest.mark.asyncio

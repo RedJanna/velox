@@ -155,7 +155,8 @@ Mesaj uzarsa, aşağıdaki sırayla "en az önemli" kısımlar kesilir:
 
 | Medya türü | Sistem tepkisi | İnsan devri? |
 |------------|---------------|-------------|
-| **Fotoğraf** | Logla (metadata: boyut, tip). İçeriği analiz etme. Misafire: "Fotoğrafınızı aldım. İlgili ekibe iletiyorum." | ✅ Evet |
+| **Fotoğraf (JPEG/PNG)** | Metadata logla + kontrollü görsel analiz çalıştır. Sonuç güvenliyse bağlama uygun otomatik yanıt üret. | Duruma göre |
+| **Fotoğraf (WEBP/TIFF/HEIC/HEIF)** | Önce normalize et (boyut + format), sonra analiz et. Normalizasyon yoksa fallback + handoff uygula. | Duruma göre |
 | **Video** | Logla (metadata). Misafire: "Videounuzu aldım. İlgili ekibe iletiyorum." | ✅ Evet |
 | **Ses mesajı** | Logla (metadata). Misafire: "Sesli mesajınızı aldım. Yardımcı olmam için yazılı olarak iletirseniz daha hızlı dönüş yapabilirim." | ❌ Hayır (yazılı iste) |
 | **Konum** | Koordinatları kaydet. Transfer bağlamında kullanılabilir. | Bağlama göre |
@@ -165,7 +166,12 @@ Mesaj uzarsa, aşağıdaki sırayla "en az önemli" kısımlar kesilir:
 
 ### 7.2 Media kuralları
 
-- Sistem **fotoğraf / video içeriğini analiz etmez** (OCR, image recognition vb. yok — gizlilik riski)
+- Sistem fotoğraf analizinde formatı `MEDIA_SUPPORTED_MIME_TYPES` ayarından okur
+- **JPEG/PNG** doğrudan analiz edilir; **WEBP/TIFF/HEIC/HEIF** önce normalize edilerek analiz edilir
+- Normalizasyon bağımlılığı yoksa veya dönüşüm başarısızsa analiz yapılmaz; fallback + handoff uygulanır
+- Video/ses/belge için otomatik içerik analizi yapılmaz
+- Görsel analiz çıktısı düşük güvendeyse kesin hüküm kurulmaz; netleştirme sorusu veya insan devri uygulanır
+- Kart/OTP/kimlik gibi hassas içerik şüphesinde otomatik onay verilmez, doğrudan insan devri yapılır
 - Media dosyaları **uzun süre saklanmaz** — `security_privacy.md` veri saklama kuralları geçerli
 - Gelen media hakkında **metadata loglanır** (boyut, tip, timestamp) ama **dosya içeriği loglanmaz**
 - Misafire "fotoğraf gönderdiğiniz için teşekkürler" gibi gereksiz yanıt verilmez — kısa ve net
@@ -191,7 +197,7 @@ Sistem şu durumlarda medya gönderebilir:
 - İç kimlikleri (hold_id, ticket_id vb.) misafire gösterme
 - Emoji zinciri kullanma
 - Kesin süre verme ("10 dakika içinde") → "en kısa sürede" de
-- Gelen fotoğraf/videoyu OCR veya image recognition ile analiz etme
+- Desteklenmeyen formatta veya normalizasyon yapılamayan görselde kesin içerik yorumu yapma
 - Kart bilgisi içeren fotoğrafı işleme (hemen insan devri)
 
 ---
@@ -208,7 +214,7 @@ Sistem şu durumlarda medya gönderebilir:
 - [ ] Dil tutarlı
 - [ ] 2-3 seçenekte Reply Buttons, 4+ seçenekte List Message değerlendirildi
 - [ ] Interactive mesaj fallback'i var (eski client için text)
-- [ ] Gelen fotoğraf/video/belge için insan devri akışı var
+- [ ] Fotoğraf formatları için config-driven analiz + normalizasyon fallback + güven eşiği akışı var
 - [ ] Ses mesajı için "yazılı olarak iletin" yanıtı var
 - [ ] Gelen media metadata loglanıyor, içerik loglanmıyor
 

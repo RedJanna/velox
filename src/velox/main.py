@@ -29,6 +29,7 @@ from velox.api.routes import (
 )
 from velox.config.constants import (
     MAX_STARTUP_RETRIES,
+    RESTAURANT_NOSHOW_CHECK_INTERVAL_SECONDS,
     STARTUP_DEPENDENCY_TIMEOUT_SECONDS,
     STARTUP_RETRY_BACKOFF_SECONDS,
 )
@@ -40,10 +41,12 @@ from velox.core.template_engine import load_templates
 from velox.db.database import close_db_pool, init_db_pool
 from velox.db.migrate import apply_pending_migrations
 from velox.db.repositories.hotel import HotelRepository
+from velox.db.repositories.restaurant_floor_plan import RestaurantStatusManager
 from velox.db.repositories.whatsapp_number import WhatsAppNumberRepository
 from velox.escalation.engine import EscalationEngine
 from velox.escalation.matrix import load_escalation_matrix
 from velox.llm.client import close_llm_client
+from velox.llm.vision_client import close_vision_client
 from velox.tools import initialize_tool_dispatcher
 from velox.utils.logger import setup_logging
 
@@ -81,6 +84,27 @@ async def _connect_redis_with_retry() -> Redis | None:
     await redis_client.aclose()
     logger.warning("redis_startup_degraded", max_attempts=MAX_STARTUP_RETRIES)
     return None
+
+
+async def _noshow_background_loop(hotel_ids: list[int]) -> None:
+    """Periodically check for no-show reservations and auto-mark GELMEDI."""
+    status_mgr = RestaurantStatusManager()
+    while True:
+        try:
+            await asyncio.sleep(RESTAURANT_NOSHOW_CHECK_INTERVAL_SECONDS)
+            for hid in hotel_ids:
+                try:
+                    count = await status_mgr.process_no_shows(hid)
+                    if count:
+                        logger.info("noshow_processed", hotel_id=hid, count=count)
+                except Exception:
+                    logger.exception("noshow_check_error", hotel_id=hid)
+        except asyncio.CancelledError:
+            logger.info("noshow_background_loop_cancelled")
+            return
+        except Exception:
+            logger.exception("noshow_loop_unexpected_error")
+            await asyncio.sleep(60)
 
 
 @asynccontextmanager
@@ -145,11 +169,25 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     _app.state.post_process_escalation = post_process_escalation
     logger.info("tools_registered", count=len(dispatcher.registered_names()))
 
+    # Start no-show background checker for all loaded hotels
+    noshow_task = asyncio.create_task(
+        _noshow_background_loop(list(profiles.keys())),
+        name="restaurant_noshow_checker",
+    )
+
     yield
+
+    # Cancel the no-show background task
+    noshow_task.cancel()
+    try:
+        await noshow_task
+    except asyncio.CancelledError:
+        pass
     await close_db_pool()
     await close_elektraweb_client()
     await close_whatsapp_client()
     await close_llm_client()
+    await close_vision_client()
     redis_state = getattr(_app.state, "redis", None)
     if redis_state is not None:
         await redis_state.aclose()

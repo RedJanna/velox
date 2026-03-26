@@ -97,6 +97,13 @@ MIGRATION_SIGNATURES = {
               AND column_name = 'whatsapp_message_id'
         )
     """,
+    "019": """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'inbound_media'
+        )
+    """,
 }
 
 
