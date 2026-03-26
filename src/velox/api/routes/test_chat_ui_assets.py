@@ -52,7 +52,21 @@ body{overflow:hidden}
 .msg-assistant{align-self:flex-start;background:rgba(255,255,255,.96);border:1px solid rgba(18,33,59,.08);border-bottom-left-radius:6px}
 .msg-system{align-self:center;max-width:88%;background:rgba(18,33,59,.08);color:var(--muted);box-shadow:none}
 .msg-body{font-size:14px;line-height:1.55;word-break:break-word}
+.msg-attachments{display:flex;flex-direction:column;gap:8px}
+.msg-attachment{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;background:rgba(18,33,59,.08);border:1px solid rgba(18,33,59,.12)}
+.msg-user .msg-attachment{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.22)}
+.msg-attachment-meta{display:flex;flex-direction:column;gap:2px;min-width:0}
+.msg-attachment-name{font-size:12px;font-weight:700;line-height:1.3;word-break:break-word}
+.msg-attachment-kind{font-size:11px;opacity:.78}
+.msg-attachment-audio{width:100%}
+.msg-attachment-image{max-width:260px;max-height:220px;border-radius:10px;border:1px solid rgba(18,33,59,.16);background:#fff}
 .msg-time{font-size:11px;opacity:.66}.msg-user .msg-time{text-align:right}
+.msg-sending{opacity:.6}
+.msg-sending .msg-time::after{content:' \u2022 gonderiliyor...';font-style:italic;color:var(--muted-2)}
+.msg-error{border:1px solid var(--red)!important}
+.msg-error .msg-time::after{content:' \u2022 gonderilemedi';color:var(--red);font-weight:700}
+.msg-retry-btn{margin-top:6px;padding:4px 12px;border:1px solid var(--red);border-radius:10px;background:rgba(220,38,38,.08);color:var(--red);font-size:11px;font-weight:700;cursor:pointer;transition:background .15s ease}
+.msg-retry-btn:hover{background:rgba(220,38,38,.16)}
 .feedback-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-top:6px;border-top:1px solid rgba(18,33,59,.08)}
 .feedback-label{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
 .feedback-buttons{display:flex;gap:6px;flex-wrap:wrap}
@@ -64,8 +78,31 @@ body{overflow:hidden}
 .typing span:nth-child(2){animation-delay:.2s}.typing span:nth-child(3){animation-delay:.4s}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:100%;color:var(--muted)}
 .empty-state svg{width:52px;height:52px;opacity:.35}
-.input-bar{display:flex;align-items:flex-end;gap:12px;padding:16px 20px;border-top:1px solid rgba(18,33,59,.08);background:rgba(255,255,255,.86)}
+.msg-reply{padding:10px 12px;border-radius:14px;border-left:3px solid var(--amber);background:rgba(18,33,59,.06);font-size:12px;line-height:1.45}
+.msg-reply-label{display:block;font-weight:800;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.msg-reply-text{color:inherit;opacity:.82}
+.input-bar{display:flex;flex-direction:column;align-items:stretch;gap:10px;padding:16px 20px;border-top:1px solid rgba(18,33,59,.08);background:rgba(255,255,255,.86)}
+.input-row{display:flex;align-items:flex-end;gap:12px}
+.composer-attachments{display:flex;flex-wrap:wrap;gap:8px}
+.composer-chip{display:flex;align-items:center;gap:8px;max-width:320px;padding:7px 10px;border-radius:12px;background:rgba(18,33,59,.08);border:1px solid rgba(18,33,59,.14)}
+.composer-chip-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.composer-chip-name{font-size:12px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.composer-chip-meta{font-size:11px;color:var(--muted)}
+.composer-chip-progress{width:100%;height:4px;border-radius:999px;background:rgba(18,33,59,.12);overflow:hidden;margin-top:2px}
+.composer-chip-progress-fill{height:100%;background:var(--teal);transition:width .2s ease}
+.composer-chip.error .composer-chip-progress-fill{background:var(--red)}
+.composer-chip-remove{width:24px;height:24px;border:none;border-radius:8px;background:rgba(18,33,59,.12);cursor:pointer;font-size:14px;line-height:1;color:var(--ink)}
+.composer-chip-remove:hover{background:rgba(18,33,59,.2)}
+.reply-preview{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:16px;border:1px solid rgba(18,33,59,.1);background:rgba(18,33,59,.05)}
+.reply-preview-copy{min-width:0}
+.reply-preview-label{display:block;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--teal)}
+.reply-preview-text{margin-top:4px;font-size:13px;line-height:1.45;color:var(--ink);word-break:break-word}
+.reply-preview-clear{width:32px;height:32px;border:none;border-radius:10px;background:rgba(18,33,59,.08);color:var(--ink);font-size:20px;line-height:1;cursor:pointer}
+.reply-preview-clear:hover{background:rgba(18,33,59,.14)}
 .input-bar textarea{flex:1;resize:none;padding:12px 16px;font-size:14px;line-height:1.45;max-height:130px}
+.btn-attach,.btn-voice{width:44px;height:44px;padding:0;border-radius:14px;display:flex;align-items:center;justify-content:center}
+.btn-attach svg,.btn-voice svg{width:20px;height:20px;fill:currentColor}
+.btn-voice.is-recording{background:#fee2e2;color:#991b1b}
 .btn-send{width:46px;height:46px;border-radius:16px;display:flex;align-items:center;justify-content:center}
 .btn-send svg{width:20px;height:20px;fill:currentColor}
 .debug-panel{width:410px;display:flex;flex-direction:column;background:linear-gradient(180deg,#152238 0%,#0f172a 100%);color:#fff;border-left:1px solid rgba(255,255,255,.06)}
@@ -224,6 +261,7 @@ body{overflow:hidden}
   .debug-panel{position:fixed;inset:0 0 0 auto;z-index:30;width:min(90vw,410px)}
   .btn-toggle{display:inline-flex;align-items:center;justify-content:center}
   .msg{max-width:90%}
+  .composer-chip{max-width:100%}
 }
 """
 
@@ -282,7 +320,7 @@ const state = {
   importFile: '',
   roleMapping: {},
   messages: [],
-  isSending: false,
+  inflightMessages: new Map(),
   conversation: null,
   importMetadata: {},
   catalog: {
@@ -300,6 +338,12 @@ const state = {
   liveConversations: [],
   importItems: [],
   activeConversationId: null,
+  replyTarget: null,
+  composerAttachments: [],
+  uploadInProgress: 0,
+  mediaRecorder: null,
+  mediaChunks: [],
+  isRecordingVoice: false,
 };
 const CATEGORY_PRIORITY = ['yanlis_bilgi', 'eksik_bilgi', 'baglam_kopuklugu', 'intent_iskalama', 'mantik_celiskisi', 'format_ihlali', 'gevezelik', 'alakasiz_yanit', 'uydurma_bilgi', 'ton_politika_ihlali', 'ozel_kategori'];
 const CATEGORY_TAG_SUGGESTIONS = {
@@ -513,6 +557,294 @@ function extractApiErrorMessage(data, rawText) {
   return extractErrorDetail(data, rawText);
 }
 
+function formatBytes(size) {
+  const value = Number(size || 0);
+  if (!Number.isFinite(value) || value <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let idx = 0;
+  let current = value;
+  while (current >= 1024 && idx < units.length - 1) {
+    current /= 1024;
+    idx += 1;
+  }
+  const digits = idx === 0 ? 0 : 1;
+  return `${current.toFixed(digits)} ${units[idx]}`;
+}
+
+function attachmentKindLabel(kind) {
+  if (kind === 'image') return 'Gorsel';
+  if (kind === 'audio') return 'Ses';
+  if (kind === 'document') return 'Belge';
+  return 'Dosya';
+}
+
+function normalizeAttachments(rawAttachments) {
+  if (!Array.isArray(rawAttachments)) return [];
+  return rawAttachments
+    .filter(item => item && typeof item === 'object')
+    .map(item => ({
+      asset_id: String(item.asset_id || ''),
+      kind: String(item.kind || 'document'),
+      mime_type: String(item.mime_type || ''),
+      file_name: String(item.file_name || 'dosya'),
+      size_bytes: Number(item.size_bytes || 0),
+      content_url: String(item.content_url || ''),
+    }))
+    .filter(item => item.asset_id);
+}
+
+function updateComposerControls() {
+  const sendDisabled = state.sourceType !== 'live_test_chat' || state.uploadInProgress > 0;
+  const sendBtn = el('send-btn');
+  const attachBtn = el('attach-btn');
+  const voiceBtn = el('voice-btn');
+  if (sendBtn) sendBtn.disabled = sendDisabled;
+  if (attachBtn) attachBtn.disabled = state.sourceType !== 'live_test_chat' || state.uploadInProgress > 0;
+  if (voiceBtn) voiceBtn.disabled = state.sourceType !== 'live_test_chat' || state.uploadInProgress > 0;
+}
+
+function renderComposerAttachments() {
+  const container = el('composer-attachments');
+  if (!container) return;
+  if (!state.composerAttachments.length) {
+    container.classList.add('hidden');
+    container.innerHTML = '';
+    updateComposerControls();
+    return;
+  }
+
+  container.classList.remove('hidden');
+  container.innerHTML = state.composerAttachments.map(item => {
+    const pct = Math.max(0, Math.min(100, Number(item.progress || 0)));
+    const status = item.status === 'uploading'
+      ? `Yukleniyor (%${pct})`
+      : item.status === 'error'
+        ? (item.error || 'Hata')
+        : item.status === 'uploaded'
+          ? 'Hazir'
+          : 'Bekliyor';
+    const chipClass = item.status === 'error' ? 'composer-chip error' : 'composer-chip';
+    return `
+      <div class="${chipClass}">
+        <div class="composer-chip-main">
+          <div class="composer-chip-name">${escapeHtml(item.file_name || 'dosya')}</div>
+          <div class="composer-chip-meta">${escapeHtml(attachmentKindLabel(item.kind))} • ${escapeHtml(formatBytes(item.size_bytes))} • ${escapeHtml(status)}</div>
+          <div class="composer-chip-progress">
+            <div class="composer-chip-progress-fill" style="width:${pct}%"></div>
+          </div>
+        </div>
+        <button class="composer-chip-remove" type="button" data-remove-attachment="${escapeHtml(item.local_id)}" aria-label="Eki kaldir">&times;</button>
+      </div>`;
+  }).join('');
+  updateComposerControls();
+}
+
+async function removeComposerAttachment(localId) {
+  const index = state.composerAttachments.findIndex(item => item.local_id === localId);
+  if (index < 0) return;
+  const item = state.composerAttachments[index];
+  state.composerAttachments.splice(index, 1);
+  renderComposerAttachments();
+  if (item.asset_id && item.status === 'uploaded') {
+    try {
+      await apiFetch('/chat/upload-asset/' + encodeURIComponent(item.asset_id), {method: 'DELETE'});
+    } catch (_error) {
+      // Best effort cleanup only.
+    }
+  }
+}
+
+function buildMessageAttachments(message) {
+  const direct = normalizeAttachments(message.attachments);
+  if (direct.length) return direct;
+  const internal = message && message.internal_json && typeof message.internal_json === 'object'
+    ? message.internal_json
+    : {};
+  return normalizeAttachments(internal.attachments);
+}
+
+function renderMessageAttachments(message) {
+  const attachments = buildMessageAttachments(message);
+  if (!attachments.length) return '';
+  return '<div class="msg-attachments">' + attachments.map(item => {
+    const safeName = escapeHtml(item.file_name || 'dosya');
+    const safeLabel = escapeHtml(attachmentKindLabel(item.kind));
+    const safeSize = escapeHtml(formatBytes(item.size_bytes));
+    const safeUrl = escapeHtml(item.content_url || '');
+    if (item.kind === 'image' && safeUrl) {
+      return `
+        <div class="msg-attachment">
+          <img src="${safeUrl}" alt="${safeName}" class="msg-attachment-image" loading="lazy">
+          <div class="msg-attachment-meta">
+            <span class="msg-attachment-name">${safeName}</span>
+            <span class="msg-attachment-kind">${safeLabel} • ${safeSize}</span>
+          </div>
+        </div>`;
+    }
+    if (item.kind === 'audio' && safeUrl) {
+      return `
+        <div class="msg-attachment">
+          <audio controls preload="none" class="msg-attachment-audio" src="${safeUrl}"></audio>
+          <div class="msg-attachment-meta">
+            <span class="msg-attachment-name">${safeName}</span>
+            <span class="msg-attachment-kind">${safeLabel} • ${safeSize}</span>
+          </div>
+        </div>`;
+    }
+    if (safeUrl) {
+      return `
+        <a class="msg-attachment" href="${safeUrl}" target="_blank" rel="noopener noreferrer">
+          <div class="msg-attachment-meta">
+            <span class="msg-attachment-name">${safeName}</span>
+            <span class="msg-attachment-kind">${safeLabel} • ${safeSize}</span>
+          </div>
+        </a>`;
+    }
+    return `
+      <div class="msg-attachment">
+        <div class="msg-attachment-meta">
+          <span class="msg-attachment-name">${safeName}</span>
+          <span class="msg-attachment-kind">${safeLabel} • ${safeSize}</span>
+        </div>
+      </div>`;
+  }).join('') + '</div>';
+}
+
+function guessAttachmentKindByMime(mime) {
+  const normalized = String(mime || '').toLowerCase();
+  if (normalized.startsWith('image/')) return 'image';
+  if (normalized.startsWith('audio/')) return 'audio';
+  return 'document';
+}
+
+async function uploadComposerFile(file) {
+  if (!file) return;
+  const localId = `asset_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const kind = guessAttachmentKindByMime(file.type);
+  const item = {
+    local_id: localId,
+    asset_id: '',
+    kind,
+    mime_type: file.type || '',
+    file_name: file.name || 'dosya',
+    size_bytes: Number(file.size || 0),
+    content_url: '',
+    status: 'uploading',
+    progress: 15,
+    error: '',
+  };
+  state.composerAttachments.push(item);
+  state.uploadInProgress += 1;
+  renderComposerAttachments();
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    item.progress = 45;
+    renderComposerAttachments();
+    const data = await apiFetch('/chat/upload-asset', {
+      method: 'POST',
+      body: formData,
+      headers: {},
+    });
+    const asset = data.asset || {};
+    item.asset_id = String(asset.asset_id || '');
+    item.kind = String(asset.kind || item.kind);
+    item.mime_type = String(asset.mime_type || item.mime_type || '');
+    item.file_name = String(asset.file_name || item.file_name);
+    item.size_bytes = Number(asset.size_bytes || item.size_bytes || 0);
+    item.content_url = String(asset.content_url || '');
+    item.status = 'uploaded';
+    item.progress = 100;
+    item.error = '';
+  } catch (error) {
+    item.status = 'error';
+    item.progress = 100;
+    item.error = error.message || 'Yukleme basarisiz.';
+    notify(item.error, 'error');
+  } finally {
+    state.uploadInProgress = Math.max(0, state.uploadInProgress - 1);
+    renderComposerAttachments();
+  }
+}
+
+async function handleAttachmentFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  for (const file of files) {
+    if (state.composerAttachments.length >= 5) {
+      notify('Tek mesajda en fazla 5 dosya gonderebilirsiniz.', 'warn');
+      break;
+    }
+    await uploadComposerFile(file);
+  }
+}
+
+function openAttachmentPicker() {
+  if (state.sourceType !== 'live_test_chat') return;
+  const input = el('attachment-input');
+  if (!input) return;
+  input.value = '';
+  input.click();
+}
+
+async function startVoiceRecording() {
+  if (state.isRecordingVoice) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    notify('Tarayici ses kaydini desteklemiyor.', 'error');
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+    const recorderOptions = (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm'))
+      ? {mimeType: 'audio/webm'}
+      : undefined;
+    const recorder = recorderOptions ? new MediaRecorder(stream, recorderOptions) : new MediaRecorder(stream);
+    state.mediaChunks = [];
+    state.mediaRecorder = recorder;
+    state.isRecordingVoice = true;
+    const voiceBtn = el('voice-btn');
+    if (voiceBtn) voiceBtn.classList.add('is-recording');
+
+    recorder.addEventListener('dataavailable', event => {
+      if (event.data && event.data.size > 0) state.mediaChunks.push(event.data);
+    });
+    recorder.addEventListener('stop', async () => {
+      stream.getTracks().forEach(track => track.stop());
+      const blob = new Blob(state.mediaChunks, {type: 'audio/webm'});
+      state.mediaChunks = [];
+      state.mediaRecorder = null;
+      state.isRecordingVoice = false;
+      const voiceBtnStop = el('voice-btn');
+      if (voiceBtnStop) voiceBtnStop.classList.remove('is-recording');
+      if (!blob.size) return;
+      const file = new File([blob], `voice_${Date.now()}.webm`, {type: 'audio/webm'});
+      await handleAttachmentFiles([file]);
+    });
+    recorder.start();
+    notify('Ses kaydi basladi. Durdurmak icin tekrar mikrofon ikonuna basin.', 'info');
+  } catch (_error) {
+    state.isRecordingVoice = false;
+    notify('Mikrofon izni olmadan ses kaydi baslatilamaz.', 'error');
+  }
+}
+
+function stopVoiceRecording() {
+  const recorder = state.mediaRecorder;
+  if (!recorder || recorder.state === 'inactive') return;
+  recorder.stop();
+  notify('Ses kaydi durduruldu.', 'success');
+}
+
+function toggleVoiceRecording() {
+  if (state.sourceType !== 'live_test_chat') return;
+  if (state.isRecordingVoice) {
+    stopVoiceRecording();
+    return;
+  }
+  startVoiceRecording();
+}
+
 function showTyping() {
   const typing = document.createElement('div');
   typing.className = 'typing';
@@ -544,16 +876,52 @@ function renderMessages() {
     bubble.className = 'msg msg-' + message.role;
     bubble.dataset.role = message.role;
     bubble.dataset.messageId = message.id || '';
+    bubble.dataset.status = message.status || '';
+    if (message.status === 'sending') bubble.classList.add('msg-sending');
+    if (message.status === 'error') bubble.classList.add('msg-error');
+
+    const replySnippet = buildReplySnippet(message);
+    if (replySnippet) {
+      const replyBlock = document.createElement('div');
+      replyBlock.className = 'msg-reply';
+
+      const replyLabel = document.createElement('span');
+      replyLabel.className = 'msg-reply-label';
+      replyLabel.textContent = replySnippet.label;
+      replyBlock.appendChild(replyLabel);
+
+      const replyText = document.createElement('div');
+      replyText.className = 'msg-reply-text';
+      replyText.textContent = replySnippet.text;
+      replyBlock.appendChild(replyText);
+
+      bubble.appendChild(replyBlock);
+    }
 
     const body = document.createElement('div');
     body.className = 'msg-body';
     body.innerHTML = formatMessageHtml(message.content || '');
+    const attachmentsHtml = renderMessageAttachments(message);
+    if (attachmentsHtml) {
+      body.innerHTML += attachmentsHtml;
+    }
     bubble.appendChild(body);
 
     const stamp = document.createElement('div');
     stamp.className = 'msg-time';
     stamp.textContent = fmtTime(message.created_at);
     bubble.appendChild(stamp);
+
+    if (message.status === 'error' && message._retryPayload) {
+      const retryBtn = document.createElement('button');
+      retryBtn.type = 'button';
+      retryBtn.className = 'msg-retry-btn';
+      retryBtn.textContent = 'Tekrar Dene';
+      retryBtn.setAttribute('aria-label', 'Mesaji tekrar gonder');
+      const msgId = message.id;
+      retryBtn.addEventListener('click', () => retryMessage(msgId));
+      bubble.appendChild(retryBtn);
+    }
 
     if (message.role === 'assistant' && message.id) {
       bubble.appendChild(buildFeedbackBar(message.id));
@@ -598,6 +966,70 @@ function buildFeedbackBar(messageId) {
 
 function findMessage(messageId) {
   return state.messages.find(message => String(message.id) === String(messageId)) || null;
+}
+
+function truncateReplyPreview(text, maxLength = 180) {
+  const normalized = String(text || '').replace(/\\s+/g, ' ').trim();
+  if (!normalized) return '-';
+  if (normalized.length <= maxLength) return normalized;
+  return normalized.slice(0, maxLength - 3) + '...';
+}
+
+function replyRoleLabel(role) {
+  if (role === 'assistant') return 'AI mesajina yanit';
+  if (role === 'user') return 'Misafir mesajina yanit';
+  if (role === 'system') return 'Sistem mesajina yanit';
+  return 'Mesaja yanit';
+}
+
+function buildReplyTargetFromMessage(message) {
+  if (!message || !message.id) return null;
+  return {
+    messageId: String(message.id),
+    role: String(message.role || 'assistant'),
+    preview: truncateReplyPreview(message.content || ''),
+  };
+}
+
+function clearReplyTarget() {
+  state.replyTarget = null;
+  renderReplyPreview();
+}
+
+function setReplyTarget(messageId) {
+  const message = findMessage(messageId);
+  const target = buildReplyTargetFromMessage(message);
+  if (!target) return;
+  state.replyTarget = target;
+  renderReplyPreview();
+  el('msg-input').focus();
+}
+
+function renderReplyPreview() {
+  const wrapper = el('reply-preview');
+  const label = el('reply-preview-label');
+  const text = el('reply-preview-text');
+  if (!wrapper || !label || !text) return;
+  if (!state.replyTarget || state.sourceType !== 'live_test_chat') {
+    wrapper.classList.add('hidden');
+    text.textContent = '';
+    return;
+  }
+  label.textContent = replyRoleLabel(state.replyTarget.role);
+  text.textContent = state.replyTarget.preview || '-';
+  wrapper.classList.remove('hidden');
+}
+
+function buildReplySnippet(message) {
+  const internal = message?.internal_json || {};
+  const replyContext = internal.reply_context;
+  if (!replyContext || !replyContext.present) return null;
+  const role = replyContext.target_role || 'assistant';
+  const label = replyContext.resolved ? replyRoleLabel(role) : 'Mesaja yanit';
+  const text = replyContext.resolved
+    ? truncateReplyPreview(replyContext.target_content || '')
+    : 'Hedef mesaj artik cozulmuyor.';
+  return {label, text};
 }
 
 function buildFeedbackContext(messageId) {
@@ -757,7 +1189,14 @@ function currentRoleMapping() {
 function setComposerMode(isLive) {
   el('msg-input').disabled = !isLive;
   el('send-btn').disabled = !isLive;
+  el('attach-btn').disabled = !isLive;
+  el('voice-btn').disabled = !isLive;
   el('export-btn').disabled = !isLive;
+  if (!isLive) {
+    clearReplyTarget();
+    state.composerAttachments = [];
+    if (state.isRecordingVoice) stopVoiceRecording();
+  }
   if (state.sourceType === 'live_conversation') {
     el('msg-input').placeholder = 'Canli konusma salt okunur. Mesaj gondermek icin detay modalini kullanin.';
     el('source-banner').textContent = 'Canli konusma goruntuleniyor.';
@@ -768,6 +1207,8 @@ function setComposerMode(isLive) {
     el('msg-input').placeholder = 'Import gorunumu salt okunur. Yeni mesaj icin New Test secin.';
     el('source-banner').textContent = 'Import gorunumu aktif: ' + (state.importFile || '-');
   }
+  renderReplyPreview();
+  renderComposerAttachments();
 }
 
 function updateDebug(message = null) {
@@ -792,6 +1233,7 @@ function refreshDebugFromLatestAssistant() {
 
 async function loadHistory() {
   if (state.sourceType !== 'live_test_chat') return;
+  clearReplyTarget();
   const phone = encodeURIComponent(el('phone-input').value.trim() || 'test_user_123');
   try {
     const data = await apiFetch(`/chat/history?phone=${phone}`);
@@ -804,38 +1246,87 @@ async function loadHistory() {
   }
 }
 
-async function sendMessage() {
+function updateTypingIndicator() {
+  state.inflightMessages.size > 0 ? showTyping() : hideTyping();
+}
+
+function sendMessage() {
   if (state.sourceType !== 'live_test_chat') return;
-  if (state.isSending) return;
   const message = el('msg-input').value.trim();
-  if (!message) return;
+  const attachments = state.composerAttachments
+    .filter(item => item.status === 'uploaded' && item.asset_id)
+    .map(item => ({
+      asset_id: item.asset_id,
+      kind: item.kind,
+      mime_type: item.mime_type,
+      file_name: item.file_name,
+      size_bytes: item.size_bytes,
+      content_url: item.content_url,
+    }));
+  if (!message && attachments.length === 0) return;
+  if (state.uploadInProgress > 0) {
+    notify('Dosya yuklemesi tamamlanmadan mesaj gonderilemez.', 'warn');
+    return;
+  }
+  const replyTarget = state.replyTarget ? {...state.replyTarget} : null;
+  const clientMsgId = `cl_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  const visibleText = message || (attachments.length ? `Ek gonderildi (${attachments.length})` : '');
 
   const userMsg = {
     id: `user_${Date.now()}`,
     role: 'user',
-    content: message,
+    content: visibleText,
+    attachments: attachments,
     created_at: new Date().toISOString(),
-    internal_json: null,
+    internal_json: replyTarget ? {
+      reply_to_message_id: replyTarget.messageId,
+      reply_context: {
+        present: true,
+        resolved: true,
+        reply_to_message_id: replyTarget.messageId,
+        target_role: replyTarget.role,
+        target_content: replyTarget.preview,
+      },
+    } : null,
+    status: 'sending',
   };
   state.messages.push(userMsg);
   el('msg-input').value = '';
+  state.composerAttachments = [];
+  clearReplyTarget();
+  renderComposerAttachments();
   renderMessages();
 
-  state.isSending = true;
-  el('send-btn').disabled = true;
-  showTyping();
+  state.inflightMessages.set(clientMsgId, { userMsg });
+  updateTypingIndicator();
+
+  _fireSend(clientMsgId, userMsg, message, attachments, replyTarget);
+}
+
+async function _fireSend(clientMsgId, userMsg, message, attachments, replyTarget) {
   try {
     const payload = {
       message: message,
       phone: el('phone-input').value.trim() || 'test_user_123',
-      client_message_id: `cl_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+      client_message_id: clientMsgId,
+      reply_to_message_id: replyTarget?.messageId || null,
+      attachments: attachments.map(item => ({asset_id: item.asset_id})),
     };
     const data = await apiFetch('/chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload),
     });
+    userMsg.id = data.user_message_id || userMsg.id;
     userMsg.created_at = data.timestamp;
+    userMsg.status = 'delivered';
+    if (data.blocked) {
+      state.conversation = data.conversation || null;
+      renderMessages();
+      refreshDebugFromLatestAssistant();
+      notify('Bu konusma insan temsilci devrinde. AI yaniti durduruldu.', 'warn');
+      return;
+    }
     state.messages.push(
       {
         id: data.assistant_message_id,
@@ -849,14 +1340,29 @@ async function sendMessage() {
     state.conversation = data.conversation || null;
     renderMessages();
     updateDebug(state.messages[state.messages.length - 1]);
-    notify('Mesaj gonderildi.', 'success');
   } catch (error) {
+    userMsg.status = 'error';
+    userMsg.errorMessage = error.message || 'Mesaj gonderilemedi.';
+    userMsg._retryPayload = { clientMsgId, message, attachments, replyTarget };
+    renderMessages();
     notify(error.message || 'Mesaj gonderilemedi.', 'error');
   } finally {
-    hideTyping();
-    state.isSending = false;
-    el('send-btn').disabled = false;
+    state.inflightMessages.delete(clientMsgId);
+    updateTypingIndicator();
   }
+}
+
+function retryMessage(messageId) {
+  const msg = state.messages.find(m => m.id === messageId);
+  if (!msg || !msg._retryPayload) return;
+  const { clientMsgId, message, attachments, replyTarget } = msg._retryPayload;
+  msg.status = 'sending';
+  msg.errorMessage = undefined;
+  msg._retryPayload = undefined;
+  renderMessages();
+  state.inflightMessages.set(clientMsgId, { userMsg: msg });
+  updateTypingIndicator();
+  _fireSend(clientMsgId, msg, message, attachments || [], replyTarget);
 }
 
 async function resetConversation() {
@@ -866,6 +1372,10 @@ async function resetConversation() {
     state.sourceType = 'live_test_chat';
     state.importMetadata = {};
     state.roleMapping = {};
+    state.inflightMessages.clear();
+    state.composerAttachments = [];
+    updateTypingIndicator();
+    clearReplyTarget();
     setComposerMode(true);
     renderRoleMappingPanel(null);
     await loadHistory();
@@ -879,6 +1389,11 @@ async function resetConversation() {
     state.conversation = null;
     state.feedbackStates.clear();
     state.selectedFeedback = null;
+    state.inflightMessages.clear();
+    state.composerAttachments = [];
+    updateTypingIndicator();
+    clearReplyTarget();
+    renderComposerAttachments();
     renderMessages();
     renderFeedbackStudio();
     updateDebug(null);
@@ -911,6 +1426,7 @@ async function loadLiveConversation(convId) {
   state.importFile = '';
   state.importMetadata = {};
   state.roleMapping = {};
+  clearReplyTarget();
   setComposerMode(false);
   renderRoleMappingPanel(null);
   el('source-banner').textContent = 'Canli konusma goruntuleniyor.';
@@ -922,6 +1438,7 @@ async function loadLiveConversation(convId) {
       content: m.content,
       created_at: m.created_at,
       internal_json: m.internal_json || null,
+      attachments: Array.isArray(m.attachments) ? m.attachments : [],
       model: m.model || null,
       send_blocked: m.send_blocked || false,
       rejected: m.rejected || false,
@@ -948,6 +1465,7 @@ async function loadSelectedImport(roleMapping = {}) {
     state.importMetadata = {};
     state.roleMapping = {};
     state.activeConversationId = null;
+    clearReplyTarget();
     setComposerMode(true);
     renderRoleMappingPanel(null);
     await loadHistory();
@@ -1180,6 +1698,24 @@ function showCtxMenu(event, text, bubble) {
   const menu = document.createElement('div');
   menu.className = 'ctx-menu';
   menu.setAttribute('role', 'menu');
+  const canReply = Boolean(
+    bubble &&
+    state.sourceType === 'live_test_chat' &&
+    bubble.dataset.messageId &&
+    bubble.dataset.status !== 'sending' && bubble.dataset.status !== 'error',
+  );
+  if (canReply) {
+    const replyBtn = document.createElement('button');
+    replyBtn.type = 'button';
+    replyBtn.className = 'ctx-menu-item';
+    replyBtn.setAttribute('role', 'menuitem');
+    replyBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-.9-5-4-10-11-11z"/></svg>Yanitla';
+    replyBtn.addEventListener('click', () => {
+      setReplyTarget(bubble.dataset.messageId);
+      removeCtxMenu();
+    });
+    menu.appendChild(replyBtn);
+  }
   const copyBtn = document.createElement('button');
   copyBtn.type = 'button';
   copyBtn.className = 'ctx-menu-item';
@@ -1742,6 +2278,17 @@ function wireEvents() {
     showCtxMenu(event, body.textContent, bubble);
   });
   el('send-btn').addEventListener('click', sendMessage);
+  el('attach-btn').addEventListener('click', openAttachmentPicker);
+  el('voice-btn').addEventListener('click', toggleVoiceRecording);
+  el('attachment-input').addEventListener('change', event => {
+    handleAttachmentFiles(event.target.files);
+  });
+  el('composer-attachments').addEventListener('click', event => {
+    const removeBtn = event.target.closest('[data-remove-attachment]');
+    if (!removeBtn) return;
+    removeComposerAttachment(removeBtn.dataset.removeAttachment);
+  });
+  el('reply-preview-clear').addEventListener('click', clearReplyTarget);
   el('msg-input').addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -1920,6 +2467,7 @@ async function boot() {
   wireEvents();
   renderCategoryOptions();
   renderTagOptions();
+  renderReplyPreview();
   try {
     await Promise.all([loadCatalog(), loadModels(), refreshImportFiles(), loadMetrics(), loadMode(), loadLiveFeed()]);
   } catch (error) {

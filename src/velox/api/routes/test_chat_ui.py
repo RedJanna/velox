@@ -152,10 +152,27 @@ TEST_CHAT_HTML = (
     <div class="chat-panel">
       <div class="messages" id="messages" role="log" aria-live="polite" aria-label="Mesaj akisi"></div>
       <div class="input-bar">
-        <textarea id="msg-input" rows="1" placeholder="Mesajinizi yazin..." aria-label="Mesaj girisi"></textarea>
-        <button class="btn btn-primary btn-send" id="send-btn" type="button" aria-label="Mesaji gonder">
-          <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-        </button>
+        <div id="reply-preview" class="reply-preview hidden" aria-live="polite">
+          <div class="reply-preview-copy">
+            <span class="reply-preview-label" id="reply-preview-label">Yanitlaniyor</span>
+            <div class="reply-preview-text" id="reply-preview-text"></div>
+          </div>
+          <button id="reply-preview-clear" class="reply-preview-clear" type="button" aria-label="Yaniti iptal et">&times;</button>
+        </div>
+        <div id="composer-attachments" class="composer-attachments hidden" aria-live="polite"></div>
+        <input id="attachment-input" type="file" class="hidden" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,.txt,.ogg,.mp3,.m4a,.mp4,.webm" aria-label="Dosya sec">
+        <div class="input-row">
+          <button class="btn btn-ghost btn-attach" id="attach-btn" type="button" aria-label="Dosya ekle">
+            <svg viewBox="0 0 24 24"><path d="M16.5 6.5l-7.6 7.6a2.5 2.5 0 103.5 3.5l7.1-7.1a4.5 4.5 0 10-6.4-6.4L5.3 12a6 6 0 008.5 8.5l6.3-6.3-1.4-1.4-6.3 6.3a4 4 0 11-5.7-5.7l7.8-7.8a2.5 2.5 0 113.5 3.5l-7.1 7.1a.5.5 0 11-.7-.7l6.4-6.4-1.4-1.4-6.4 6.4a2.5 2.5 0 003.5 3.5l7.1-7.1a4.5 4.5 0 10-6.4-6.4z"/></svg>
+          </button>
+          <button class="btn btn-ghost btn-voice" id="voice-btn" type="button" aria-label="Ses kaydi baslat">
+            <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 003-3V6a3 3 0 10-6 0v5a3 3 0 003 3zm5-3a1 1 0 10-2 0 3 3 0 01-6 0 1 1 0 10-2 0 5 5 0 004 4.9V20H8a1 1 0 100 2h8a1 1 0 100-2h-3v-1.1A5 5 0 0017 11z"/></svg>
+          </button>
+          <textarea id="msg-input" rows="1" placeholder="Mesajinizi yazin..." aria-label="Mesaj girisi"></textarea>
+          <button class="btn btn-primary btn-send" id="send-btn" type="button" aria-label="Mesaji gonder">
+            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
       </div>
     </div>
 

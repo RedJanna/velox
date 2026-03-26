@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+from pathlib import Path
 from typing import Any, cast
 
 import httpx
@@ -83,7 +84,6 @@ class WhatsAppClient:
                 timeout=httpx.Timeout(REQUEST_TIMEOUT),
                 headers={
                     "Authorization": f"Bearer {self.access_token}",
-                    "Content-Type": "application/json",
                 },
             )
         return self._client
@@ -128,6 +128,27 @@ class WhatsAppClient:
             raise last_error
         raise RuntimeError("WhatsApp request failed.")
 
+    async def _upload_media(self, *, file_path: Path, mime_type: str) -> str:
+        """Upload media binary to WhatsApp and return media id."""
+        client = await self._get_client()
+        path = f"/{self.phone_number_id}/media"
+        file_bytes = await asyncio.to_thread(file_path.read_bytes)
+        files = {
+            "file": (file_path.name, file_bytes, mime_type),
+        }
+        data = {
+            "messaging_product": "whatsapp",
+            "type": mime_type,
+        }
+
+        response = await client.post(path, data=data, files=files)
+        response.raise_for_status()
+        payload = cast(dict[str, Any], response.json())
+        media_id = str(payload.get("id") or "").strip()
+        if not media_id:
+            raise RuntimeError("WhatsApp media id missing in upload response.")
+        return media_id
+
     async def send_text_message(self, to: str, body: str, *, force: bool = False) -> dict[str, Any]:
         """Send a plain text message."""
         self._assert_send_allowed("send_text_message", to, force=force)
@@ -142,15 +163,91 @@ class WhatsAppClient:
         logger.info("whatsapp_send_text", to=_mask_phone(normalized_to))
         return await self._request(payload)
 
+    async def send_image_message(
+        self,
+        *,
+        to: str,
+        file_path: Path,
+        mime_type: str,
+        caption: str | None = None,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        """Send an image message using uploaded media id."""
+        self._assert_send_allowed("send_image_message", to, force=force)
+        normalized_to = _normalize_recipient_phone(to)
+        media_id = await self._upload_media(file_path=file_path, mime_type=mime_type)
+        image_payload: dict[str, Any] = {"id": media_id}
+        if caption:
+            image_payload["caption"] = caption[:1024]
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": normalized_to,
+            "type": "image",
+            "image": image_payload,
+        }
+        logger.info("whatsapp_send_image", to=_mask_phone(normalized_to), media_id=media_id)
+        return await self._request(payload)
+
+    async def send_document_message(
+        self,
+        *,
+        to: str,
+        file_path: Path,
+        mime_type: str,
+        file_name: str | None = None,
+        caption: str | None = None,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        """Send a document message using uploaded media id."""
+        self._assert_send_allowed("send_document_message", to, force=force)
+        normalized_to = _normalize_recipient_phone(to)
+        media_id = await self._upload_media(file_path=file_path, mime_type=mime_type)
+        document_payload: dict[str, Any] = {"id": media_id}
+        if file_name:
+            document_payload["filename"] = file_name[:240]
+        if caption:
+            document_payload["caption"] = caption[:1024]
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": normalized_to,
+            "type": "document",
+            "document": document_payload,
+        }
+        logger.info("whatsapp_send_document", to=_mask_phone(normalized_to), media_id=media_id)
+        return await self._request(payload)
+
+    async def send_audio_message(
+        self,
+        *,
+        to: str,
+        file_path: Path,
+        mime_type: str,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        """Send an audio message using uploaded media id."""
+        self._assert_send_allowed("send_audio_message", to, force=force)
+        normalized_to = _normalize_recipient_phone(to)
+        media_id = await self._upload_media(file_path=file_path, mime_type=mime_type)
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": normalized_to,
+            "type": "audio",
+            "audio": {"id": media_id},
+        }
+        logger.info("whatsapp_send_audio", to=_mask_phone(normalized_to), media_id=media_id)
+        return await self._request(payload)
+
     async def send_template_message(
         self,
         to: str,
         template_name: str,
         language: str,
         components: list[dict[str, Any]],
+        *,
+        force: bool = False,
     ) -> dict[str, Any]:
         """Send a template message."""
-        self._assert_send_allowed("send_template_message", to)
+        self._assert_send_allowed("send_template_message", to, force=force)
         normalized_to = _normalize_recipient_phone(to)
         payload = {
             "messaging_product": "whatsapp",

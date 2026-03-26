@@ -2,14 +2,15 @@
 
 import asyncio
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated, Any
 from uuid import uuid4
 
 import asyncpg
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse
+from pydantic import BaseModel, Field, model_validator
 
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.api.middleware.auth import require_role
@@ -21,13 +22,19 @@ from velox.api.routes.test_chat_export import (
 )
 from velox.api.routes.test_chat_ui import TEST_CHAT_HTML
 from velox.api.routes.whatsapp_webhook import (
+    _HandoffToolAdapter,
+    _NotifyToolAdapter,
+    _activate_handoff_guard,
     _detect_message_language,
     _extract_user_message_parts,
+    _finalize_handoff_transition,
     _hash_phone,
+    _is_human_override_active,
     _mask_phone,
     _merge_entities_with_context,
     _normalize_text,
     _run_message_pipeline,
+    _should_activate_handoff_lock,
 )
 from velox.config.constants import Role
 from velox.config.settings import settings
@@ -37,6 +44,11 @@ from velox.core.chat_lab_feedback import (
     ChatLabImportError,
     FeedbackConversationNotFoundError,
     FeedbackMessageNotFoundError,
+)
+from velox.core.chat_lab_attachments import (
+    ChatLabAttachmentError,
+    ChatLabAttachmentService,
+    serialize_asset_for_client,
 )
 from velox.core.chat_lab_metrics import compute_feedback_metrics
 from velox.core.chat_lab_report import ChatLabReportError, ChatLabReportService
@@ -67,6 +79,7 @@ def _chat_lab_dependencies() -> list[Any]:
 router = APIRouter(prefix="/test", tags=["test-chat"], dependencies=_chat_lab_dependencies())
 ui_router = APIRouter(tags=["test-chat-ui"])
 formatter = WhatsAppFormatter()
+attachment_service = ChatLabAttachmentService()
 
 TEST_PHONE_PREFIX = "test_"
 _chat_locks: dict[str, asyncio.Lock] = {}
@@ -78,16 +91,32 @@ IDEMPOTENT_ASSISTANT_WAIT_SECONDS = 0.1
 class TestChatRequest(BaseModel):
     """Inbound payload for Chat Lab message simulation."""
 
-    message: str = Field(min_length=1, max_length=4096)
+    message: str = Field(default="", max_length=4096)
     phone: str = Field(default="test_user_123")
     client_message_id: str | None = Field(default=None, min_length=1, max_length=128)
+    reply_to_message_id: str | None = Field(default=None, min_length=1, max_length=128)
+    attachments: list[dict[str, str]] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_payload(self) -> "TestChatRequest":
+        """Require text or at least one attachment."""
+        has_text = bool(str(self.message or "").strip())
+        has_attachments = bool(self.attachments)
+        if not has_text and not has_attachments:
+            raise ValueError("Mesaj veya en az bir dosya gerekli.")
+        if len(self.attachments) > 5:
+            raise ValueError("Tek mesajda en fazla 5 dosya gonderilebilir.")
+        return self
 
 
 class TestChatResponse(BaseModel):
     """Chat Lab reply payload with debug metadata."""
 
     reply: str
+    user_message_id: str
     assistant_message_id: str
+    blocked: bool = False
+    block_reason: str | None = None
     internal_json: dict[str, Any]
     conversation: dict[str, Any]
     timestamp: str
@@ -136,13 +165,75 @@ async def _wait_for_assistant_by_client_id(
 
 
 def _serialize_message(message: Message) -> dict[str, Any]:
+    internal_json = message.internal_json if isinstance(message.internal_json, dict) else {}
+    raw_attachments = internal_json.get("attachments")
+    attachments: list[dict[str, Any]] = []
+    if isinstance(raw_attachments, list):
+        for item in raw_attachments:
+            if not isinstance(item, dict):
+                continue
+            attachments.append(
+                {
+                    "asset_id": str(item.get("asset_id") or ""),
+                    "kind": str(item.get("kind") or ""),
+                    "mime_type": str(item.get("mime_type") or ""),
+                    "file_name": str(item.get("file_name") or ""),
+                    "size_bytes": int(item.get("size_bytes") or 0),
+                    "content_url": str(item.get("content_url") or ""),
+                }
+            )
     return {
         "id": str(message.id),
         "role": message.role,
         "content": message.content,
         "internal_json": message.internal_json,
+        "attachments": attachments,
         "created_at": message.created_at.isoformat(),
     }
+
+
+def _build_attachment_summary(attachments: list[dict[str, Any]]) -> str:
+    """Create short text describing attached assets for test pipeline context."""
+    parts: list[str] = []
+    for item in attachments:
+        kind = str(item.get("kind") or "file")
+        file_name = str(item.get("file_name") or kind)
+        parts.append(f"{kind}:{file_name}")
+    if not parts:
+        return ""
+    return "Kullanici dosya paylasti: " + ", ".join(parts[:5])
+
+
+def _build_attachment_only_fallback_text(attachments: list[dict[str, Any]]) -> str:
+    """Create visible message text when user sends only attachments."""
+    labels = [str(item.get("file_name") or item.get("kind") or "dosya") for item in attachments]
+    if not labels:
+        return "Dosya gonderildi."
+    return "Ek gonderildi: " + ", ".join(labels[:3])
+
+
+def _extract_attachment_ids(payload: list[dict[str, str]]) -> list[str]:
+    """Parse attachment ids from client payload."""
+    ids: list[str] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        candidate = str(item.get("asset_id") or "").strip()
+        if candidate:
+            ids.append(candidate)
+    return ids
+
+
+def _extract_whatsapp_message_id(response_payload: dict[str, Any]) -> str | None:
+    """Extract provider message id from WhatsApp API response payload."""
+    messages = response_payload.get("messages")
+    if not isinstance(messages, list) or not messages:
+        return None
+    first = messages[0]
+    if not isinstance(first, dict):
+        return None
+    message_id = str(first.get("id") or "").strip()
+    return message_id or None
 
 
 def _conversation_state_value(conversation: Conversation) -> str:
@@ -159,6 +250,19 @@ def _conversation_intent_value(conversation: Conversation) -> str | None:
     return str(conversation.current_intent)
 
 
+async def _clear_human_override_cache(
+    redis_client: Any | None,
+    phone_hash: str,
+) -> None:
+    """Best-effort cleanup for phone-scoped human override cache."""
+    if redis_client is None:
+        return
+    try:
+        await redis_client.delete(f"velox:human_override:{phone_hash}")
+    except Exception:
+        logger.warning("test_chat_human_override_cache_clear_failed", phone_hash=phone_hash[:8] + "***")
+
+
 def _serialize_conversation(conversation: Conversation) -> dict[str, Any]:
     return {
         "id": str(conversation.id),
@@ -168,6 +272,35 @@ def _serialize_conversation(conversation: Conversation) -> dict[str, Any]:
         "entities": conversation.entities_json,
         "risk_flags": conversation.risk_flags,
         "is_active": conversation.is_active,
+    }
+
+
+def _resolve_test_chat_reply_context(
+    conversation: Conversation,
+    reply_to_message_id: str | None,
+) -> dict[str, Any] | None:
+    """Resolve a Chat Lab reply target using persisted message row ids."""
+    normalized_reply_to_message_id = str(reply_to_message_id or "").strip()
+    if not normalized_reply_to_message_id:
+        return None
+
+    for target in conversation.messages:
+        if str(target.id) != normalized_reply_to_message_id:
+            continue
+        return {
+            "present": True,
+            "resolved": True,
+            "reply_to_message_id": normalized_reply_to_message_id,
+            "target_message_db_id": str(target.id) if target.id is not None else None,
+            "target_role": target.role,
+            "target_content": str(target.content or "")[:500],
+        }
+
+    return {
+        "present": True,
+        "resolved": False,
+        "reason": "target_not_found",
+        "reply_to_message_id": normalized_reply_to_message_id,
     }
 
 
@@ -182,6 +315,23 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
     phone_hash = _hash_phone(phone)
     chat_lock = await _get_chat_lock(phone_hash)
     normalized_client_message_id = (body.client_message_id or "").strip() or f"cl_{uuid4().hex}"
+    normalized_reply_to_message_id = str(body.reply_to_message_id or "").strip() or None
+    dispatcher = getattr(request.app.state, "tool_dispatcher", None)
+    redis_client = getattr(request.app.state, "redis", None)
+    db_pool = getattr(request.app.state, "db_pool", None)
+    tools = {
+        "handoff": _HandoffToolAdapter(dispatcher) if dispatcher is not None else None,
+        "notify": _NotifyToolAdapter(dispatcher) if dispatcher is not None else None,
+    }
+    attachment_ids = _extract_attachment_ids(body.attachments)
+    try:
+        resolved_assets = await attachment_service.resolve_assets_for_message(
+            hotel_id=settings.elektra_hotel_id,
+            attachment_ids=attachment_ids,
+        )
+    except ChatLabAttachmentError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    serialized_attachments = [serialize_asset_for_client(asset) for asset in resolved_assets]
 
     async with chat_lock:
         conversation = await repository.get_active_by_phone(settings.elektra_hotel_id, phone_hash)
@@ -212,14 +362,25 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
             )
             return TestChatResponse(
                 reply=existing_assistant.content,
+                user_message_id="",
                 assistant_message_id=str(existing_assistant.id),
+                blocked=False,
+                block_reason=None,
                 internal_json=internal_json,
                 conversation=_serialize_conversation(safe_conversation),
                 timestamp=datetime.now(UTC).isoformat(),
             )
 
         normalized = _normalize_text(body.message)
-        detected_language = _detect_message_language(normalized, conversation.language)
+        attachment_context = _build_attachment_summary(serialized_attachments)
+        message_for_pipeline = normalized
+        if attachment_context:
+            message_for_pipeline = f"{normalized}\n\n[{attachment_context}]" if normalized else attachment_context
+        if len(message_for_pipeline) > 4096:
+            message_for_pipeline = message_for_pipeline[:4096]
+        display_content = normalized or _build_attachment_only_fallback_text(serialized_attachments)
+
+        detected_language = _detect_message_language(message_for_pipeline, conversation.language)
         if conversation.language != detected_language:
             conversation.language = detected_language
             await repository.update_language(conversation.id, detected_language)
@@ -227,11 +388,13 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
         user_message = Message(
             conversation_id=conversation.id,
             role="user",
-            content=normalized,
+            content=display_content,
             client_message_id=normalized_client_message_id,
             internal_json={
                 "source_type": "live_test_chat",
                 "client_message_id": normalized_client_message_id,
+                "reply_to_message_id": normalized_reply_to_message_id,
+                "attachments": serialized_attachments,
                 "route_audit": {
                     "route": "/api/v1/test/chat",
                     "received_at": datetime.now(UTC).isoformat(),
@@ -240,6 +403,11 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
         )
         try:
             await repository.add_message(user_message)
+            if user_message.id is not None and attachment_ids:
+                await attachment_service.attach_assets_to_message(
+                    asset_ids=attachment_ids,
+                    message_id=user_message.id,
+                )
         except asyncpg.UniqueViolationError:
             existing_assistant = await _wait_for_assistant_by_client_id(
                 repository,
@@ -260,18 +428,53 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
             )
             return TestChatResponse(
                 reply=existing_assistant.content,
+                user_message_id="",
                 assistant_message_id=str(existing_assistant.id),
+                blocked=False,
+                block_reason=None,
                 internal_json=internal_json,
                 conversation=_serialize_conversation(safe_conversation),
                 timestamp=datetime.now(UTC).isoformat(),
             )
         conversation.messages = await repository.get_recent_messages(conversation.id, count=20)
+        reply_context = _resolve_test_chat_reply_context(conversation, normalized_reply_to_message_id)
+        if reply_context:
+            user_internal_json = dict(user_message.internal_json or {})
+            user_internal_json["reply_context"] = reply_context
+            user_message.internal_json = user_internal_json
+            if user_message.id is not None:
+                await repository.update_message_internal_json(user_message.id, user_internal_json)
+
+        human_override = await _is_human_override_active(
+            conversation.phone_hash,
+            conversation.id,
+            redis_client,
+        )
+        if human_override:
+            latest_conversation = await repository.get_by_id(conversation.id)
+            safe_conversation = latest_conversation or conversation
+            internal_json = dict(user_message.internal_json or {})
+            internal_json["human_override_blocked"] = True
+            internal_json["handoff_lock_activated"] = True
+            if user_message.id is not None:
+                await repository.update_message_internal_json(user_message.id, internal_json)
+            return TestChatResponse(
+                reply="",
+                user_message_id=str(user_message.id) if user_message.id is not None else "",
+                assistant_message_id="",
+                blocked=True,
+                block_reason="human_override_active",
+                internal_json=internal_json,
+                conversation=_serialize_conversation(safe_conversation),
+                timestamp=datetime.now(UTC).isoformat(),
+            )
 
         llm_response = await _run_message_pipeline(
             conversation=conversation,
-            normalized_text=normalized,
-            dispatcher=getattr(request.app.state, "tool_dispatcher", None),
+            normalized_text=message_for_pipeline,
+            dispatcher=dispatcher,
             expected_language=detected_language,
+            reply_context=reply_context,
         )
         current_state_value = (
             str(conversation.current_state.value)
@@ -291,13 +494,31 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
             entities=merged_entities or None,
             risk_flags=llm_response.internal_json.risk_flags or None,
         )
+        next_state = str(llm_response.internal_json.state or current_state_value)
+        handoff_lock_activated = _should_activate_handoff_lock(
+            next_state,
+            llm_response.internal_json.handoff,
+        )
+        if handoff_lock_activated:
+            await _activate_handoff_guard(
+                conversation_repository=repository,
+                conversation=conversation,
+                llm_response=llm_response,
+                phone=phone,
+                tools=tools,
+                redis_client=redis_client,
+            )
 
         outbound_messages = _extract_user_message_parts(llm_response)
         if not outbound_messages:
             outbound_messages = [llm_response.user_message]
+        if handoff_lock_activated and outbound_messages:
+            outbound_messages = outbound_messages[:1]
         reply_text = formatter.truncate(outbound_messages[0])
         assistant_internal = llm_response.internal_json.model_dump(mode="json")
         assistant_internal["client_message_id"] = normalized_client_message_id
+        assistant_internal["human_override_blocked"] = False
+        assistant_internal["handoff_lock_activated"] = handoff_lock_activated
         if len(outbound_messages) > 1:
             assistant_internal["user_message_parts"] = [formatter.truncate(message) for message in outbound_messages]
 
@@ -332,13 +553,27 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
 
             if assistant_message is None:
                 assistant_message = saved_message
+            conversation.messages.append(saved_message)
 
         if assistant_message is None:
             raise HTTPException(status_code=500, detail="Assistant message was not created")
 
+        if handoff_lock_activated:
+            await _finalize_handoff_transition(
+                conversation=conversation,
+                llm_response=llm_response,
+                phone=phone,
+                tools=tools,
+                db_pool=db_pool,
+                escalation_result=None,
+            )
+
         return TestChatResponse(
             reply=reply_text,
+            user_message_id=str(user_message.id) if user_message.id is not None else "",
             assistant_message_id=str(assistant_message.id),
+            blocked=False,
+            block_reason=None,
             internal_json=assistant_internal,
             conversation=_serialize_conversation(conversation),
             timestamp=datetime.now(UTC).isoformat(),
@@ -383,7 +618,72 @@ async def test_chat_reset(request: Request, phone: str = "test_user_123") -> dic
         return {"status": "no_active_conversation"}
 
     await repository.close(conversation.id)
+    await _clear_human_override_cache(getattr(request.app.state, "redis", None), conversation.phone_hash)
     return {"status": "reset", "closed_conversation_id": str(conversation.id)}
+
+
+@router.post("/chat/upload-asset")
+async def upload_chat_asset(request: Request, file: UploadFile = File(...)) -> dict[str, Any]:
+    """Upload a Chat Lab attachment and return reusable metadata."""
+    if getattr(request.app.state, "db_pool", None) is None:
+        raise HTTPException(status_code=503, detail="Database not available")
+
+    file_name = file.filename or "upload.bin"
+    try:
+        file_bytes = await file.read()
+    finally:
+        await file.close()
+
+    try:
+        stored = await attachment_service.save_upload(
+            hotel_id=settings.elektra_hotel_id,
+            file_name=file_name,
+            content_type=file.content_type,
+            file_bytes=file_bytes,
+        )
+    except ChatLabAttachmentError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return {
+        "status": "uploaded",
+        "asset": serialize_asset_for_client(stored),
+    }
+
+
+@router.delete("/chat/upload-asset/{asset_id}")
+async def delete_chat_asset(request: Request, asset_id: str) -> dict[str, str]:
+    """Delete one not-yet-sent Chat Lab attachment."""
+    if getattr(request.app.state, "db_pool", None) is None:
+        raise HTTPException(status_code=503, detail="Database not available")
+    try:
+        await attachment_service.delete_asset(asset_id=asset_id, hotel_id=settings.elektra_hotel_id)
+    except ChatLabAttachmentError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return {"status": "deleted", "asset_id": asset_id}
+
+
+@router.get("/chat/upload-asset/{asset_id}/content")
+async def get_chat_asset_content(request: Request, asset_id: str) -> FileResponse:
+    """Serve one uploaded attachment to authenticated Chat Lab users."""
+    if getattr(request.app.state, "db_pool", None) is None:
+        raise HTTPException(status_code=503, detail="Database not available")
+    try:
+        asset = await attachment_service.get_asset_for_hotel(
+            asset_id=asset_id,
+            hotel_id=settings.elektra_hotel_id,
+        )
+    except ChatLabAttachmentError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+    storage_path = Path(asset.storage_path)
+    if not storage_path.exists():
+        raise HTTPException(status_code=404, detail="Dosya depoda bulunamadi.")
+
+    return FileResponse(
+        path=storage_path,
+        media_type=asset.mime_type,
+        filename=asset.file_name,
+    )
 
 
 @router.get("/chat/export")
@@ -647,12 +947,29 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
     messages = []
     for m in msg_rows:
         ij = _pj(m["internal_json"])
+        raw_attachments = ij.get("attachments") if isinstance(ij, dict) else None
+        attachments: list[dict[str, Any]] = []
+        if isinstance(raw_attachments, list):
+            for item in raw_attachments:
+                if not isinstance(item, dict):
+                    continue
+                attachments.append(
+                    {
+                        "asset_id": str(item.get("asset_id") or ""),
+                        "kind": str(item.get("kind") or ""),
+                        "mime_type": str(item.get("mime_type") or ""),
+                        "file_name": str(item.get("file_name") or ""),
+                        "size_bytes": int(item.get("size_bytes") or 0),
+                        "content_url": str(item.get("content_url") or ""),
+                    }
+                )
         messages.append({
             "id": str(m["id"]),
             "role": m["role"],
             "content": m["content"] or "",
             "created_at": m["created_at"].isoformat() if m["created_at"] else None,
             "internal_json": ij,
+            "attachments": attachments,
             "send_blocked": ij.get("send_blocked", False),
             "rejected": ij.get("rejected", False),
         })
@@ -854,8 +1171,18 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
     body = await request.json()
     conv_id = body.get("conversation_id")
     message = body.get("message", "").strip()
-    if not conv_id or not message:
-        raise HTTPException(status_code=400, detail="conversation_id and message required")
+    raw_attachments = body.get("attachments") or []
+    attachment_ids: list[str] = []
+    if isinstance(raw_attachments, list):
+        for item in raw_attachments:
+            if isinstance(item, dict):
+                candidate = str(item.get("asset_id") or "").strip()
+            else:
+                candidate = str(item or "").strip()
+            if candidate:
+                attachment_ids.append(candidate)
+    if not conv_id or (not message and not attachment_ids):
+        raise HTTPException(status_code=400, detail="conversation_id and message or attachments required")
 
     pool = getattr(request.app.state, "db_pool", None)
     if pool is None:
@@ -867,6 +1194,13 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Invalid id format") from err
 
     repo = ConversationRepository()
+    try:
+        resolved_assets = await attachment_service.resolve_assets_for_message(
+            hotel_id=settings.elektra_hotel_id,
+            attachment_ids=attachment_ids,
+        )
+    except ChatLabAttachmentError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
     async with pool.acquire() as conn:
         conv_row = await conn.fetchrow(
@@ -899,27 +1233,98 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
 
     # Send via WhatsApp
     whatsapp_client = get_whatsapp_client()
+    outbound_events: list[dict[str, Any]] = []
     try:
-        await whatsapp_client.send_text_message(to=phone, body=message, force=True)
+        if message:
+            text_result = await whatsapp_client.send_text_message(to=phone, body=message, force=True)
+            outbound_events.append(
+                {
+                    "kind": "text",
+                    "content": message,
+                    "whatsapp_message_id": _extract_whatsapp_message_id(text_result),
+                    "attachments": [],
+                }
+            )
+
+        for asset in resolved_assets:
+            storage_path = Path(asset.storage_path)
+            if not storage_path.exists():
+                raise HTTPException(status_code=400, detail=f"Dosya bulunamadi: {asset.file_name}")
+
+            if asset.kind == "image":
+                media_result = await whatsapp_client.send_image_message(
+                    to=phone,
+                    file_path=storage_path,
+                    mime_type=asset.mime_type,
+                    force=True,
+                )
+                title = f"[Gorsel] {asset.file_name}"
+            elif asset.kind == "document":
+                media_result = await whatsapp_client.send_document_message(
+                    to=phone,
+                    file_path=storage_path,
+                    mime_type=asset.mime_type,
+                    file_name=asset.file_name,
+                    force=True,
+                )
+                title = f"[Belge] {asset.file_name}"
+            elif asset.kind == "audio":
+                media_result = await whatsapp_client.send_audio_message(
+                    to=phone,
+                    file_path=storage_path,
+                    mime_type=asset.mime_type,
+                    force=True,
+                )
+                title = f"[Ses] {asset.file_name}"
+            else:
+                raise HTTPException(status_code=400, detail="Bilinmeyen dosya tipi.")
+
+            outbound_events.append(
+                {
+                    "kind": asset.kind,
+                    "content": title,
+                    "whatsapp_message_id": _extract_whatsapp_message_id(media_result),
+                    "attachments": [serialize_asset_for_client(asset)],
+                    "asset_id": asset.id,
+                }
+            )
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"WhatsApp gonderilemedi: {exc}") from exc
 
-    # Save as assistant message in DB
+    # Save outbound events as assistant messages in DB
     from velox.models.conversation import Message
-    assistant_msg = Message(
-        conversation_id=conv_uuid,
-        role="assistant",
-        content=message,
-        internal_json={
-            "send_blocked": False,
-            "manual_send": True,
-            "sent_at": datetime.now(UTC).isoformat(),
-            "sent_by": "admin",
-        },
-    )
-    await repo.add_message(assistant_msg)
+    sent_ids: list[str] = []
+    for event in outbound_events:
+        assistant_msg = Message(
+            conversation_id=conv_uuid,
+            role="assistant",
+            content=str(event["content"]),
+            internal_json={
+                "send_blocked": False,
+                "manual_send": True,
+                "sent_at": datetime.now(UTC).isoformat(),
+                "sent_by": "admin",
+                "whatsapp_message_id": event.get("whatsapp_message_id"),
+                "attachments": event.get("attachments") or [],
+            },
+        )
+        await repo.add_message(assistant_msg)
+        if assistant_msg.id is not None:
+            sent_ids.append(str(assistant_msg.id))
+            asset_id = str(event.get("asset_id") or "").strip()
+            if asset_id:
+                await attachment_service.attach_assets_to_message(
+                    asset_ids=[asset_id],
+                    message_id=assistant_msg.id,
+                )
 
-    return {"status": "sent", "conversation_id": str(conv_id)}
+    return {
+        "status": "sent",
+        "conversation_id": str(conv_id),
+        "message_ids": sent_ids,
+    }
 
 
 @router.post("/chat/approve-message")
