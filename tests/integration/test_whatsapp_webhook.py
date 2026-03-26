@@ -15,6 +15,7 @@ from velox.config.constants import EscalationLevel, Role
 from velox.core.burst_buffer import AggregatedMessage
 from velox.models.conversation import Conversation, InternalJSON, LLMResponse, Message
 from velox.models.escalation import EscalationResult
+from velox.models.media import InboundMediaItem
 
 
 class _FakeHandoffConversationRepository:
@@ -1053,6 +1054,43 @@ async def test_process_burst_aggregated_skips_llm_after_handoff_lock(
     assert len(_FakeHandoffConversationRepository.assistant_messages) == 1
     assert len(_FakeHandoffConversationRepository.user_messages) == 2
     assert mock_whatsapp.send_text_message.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_analyze_media_policy_response_returns_fallback_when_pipeline_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Media policy hook must return deterministic fallback even if pipeline crashes."""
+
+    class _BrokenPipeline:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        async def process_first_image(self, **_kwargs: Any) -> Any:
+            raise RuntimeError("inbound_media_table_missing")
+
+    monkeypatch.setattr(whatsapp_webhook, "MediaPipelineService", _BrokenPipeline)
+    monkeypatch.setattr(whatsapp_webhook, "get_whatsapp_client", lambda: SimpleNamespace())
+    monkeypatch.setattr(whatsapp_webhook.settings, "media_analysis_enabled", True)
+
+    response = await whatsapp_webhook._analyze_media_policy_response(
+        hotel_id=21966,
+        conversation_id="conv-media-fallback",
+        language="tr",
+        media_items=[
+            InboundMediaItem(
+                media_id="mid-fallback",
+                media_type="image",
+                mime_type="image/jpeg",
+                whatsapp_message_id="wamid-fallback",
+            )
+        ],
+    )
+
+    assert response is not None
+    assert response.internal_json.intent == "human_handoff"
+    assert response.internal_json.state == "HANDOFF"
+    assert response.internal_json.handoff.get("needed") is True
 
 
 @pytest.mark.asyncio

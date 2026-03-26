@@ -465,12 +465,25 @@ async def _analyze_media_policy_response(
         return None
     whatsapp_client = get_whatsapp_client()
     pipeline = MediaPipelineService(whatsapp_client)
-    result = await pipeline.process_first_image(
-        hotel_id=hotel_id,
-        conversation_id=conversation_id,
-        language=language,
-        media_items=media_items,
-    )
+    try:
+        result = await pipeline.process_first_image(
+            hotel_id=hotel_id,
+            conversation_id=conversation_id,
+            language=language,
+            media_items=media_items,
+        )
+    except Exception as error:
+        logger.warning(
+            "media_policy_pipeline_failed",
+            hotel_id=hotel_id,
+            conversation_id=str(conversation_id),
+            error_type=type(error).__name__,
+        )
+        return build_media_policy_response(
+            language=language,
+            analysis=None,
+            failure_reason="ANALYSIS_ERROR",
+        )
     if result.analyzed and result.analysis is not None:
         return build_media_policy_response(language=language, analysis=result.analysis)
     return build_media_policy_response(
