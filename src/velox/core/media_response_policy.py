@@ -7,12 +7,40 @@ from typing import Any
 from velox.models.conversation import InternalJSON, LLMResponse
 from velox.models.media import VisionAnalysisResult
 
+_PRICE_CHECK_HINTS = (
+    "fiyat",
+    "fiyatlar",
+    "price",
+    "prices",
+    "rate",
+    "rates",
+    "ucret",
+    "tariff",
+    "tarife",
+    "dogru mu",
+    "doğru mu",
+    "correct",
+    "accurate",
+    "eur",
+    "usd",
+    "try",
+)
+
+_META_SUMMARY_MARKERS = (
+    "the guest",
+    "the user",
+    "is inquiring",
+    "is asking",
+    "wants to know",
+)
+
 
 def build_media_policy_response(
     *,
     language: str,
     analysis: VisionAnalysisResult | None,
     failure_reason: str | None = None,
+    user_text: str = "",
 ) -> LLMResponse:
     """Create a safe response for media turns with deterministic routing."""
     normalized_language = (language or "tr").lower()
@@ -80,6 +108,21 @@ def build_media_policy_response(
                 state="NEEDS_VERIFICATION",
                 entities=_analysis_entities(analysis),
                 required_questions=["image_context"],
+                handoff={"needed": False},
+                risk_flags=list(dict.fromkeys(analysis.risk_flags)),
+                next_step="ask_clarifying_question",
+            ),
+        )
+
+    if _is_price_check_request(analysis, user_text):
+        return LLMResponse(
+            user_message=_price_check_message(normalized_language),
+            internal_json=InternalJSON(
+                language=normalized_language,
+                intent="stay_quote",
+                state="NEEDS_VERIFICATION",
+                entities=_analysis_entities(analysis),
+                required_questions=["checkin_date", "checkout_date", "adults"],
                 handoff={"needed": False},
                 risk_flags=list(dict.fromkeys(analysis.risk_flags)),
                 next_step="ask_clarifying_question",
@@ -185,8 +228,47 @@ def _low_confidence_message(language: str) -> str:
     )
 
 
+def _price_check_message(language: str) -> str:
+    if language == "en":
+        return (
+            "I reviewed your screenshot. I cannot confirm prices only from the image, "
+            "but I can verify the live rate for you now. "
+            "Please share check-in/check-out dates and number of guests."
+        )
+    if language == "ru":
+        return (
+            "Я просмотрел(а) скриншот. Точную цену по изображению подтвердить нельзя, "
+            "но я могу сразу проверить актуальный тариф. "
+            "Пожалуйста, укажите даты заезда/выезда и количество гостей."
+        )
+    return (
+        "Gorseli inceledim. Fiyati sadece ekran goruntusunden kesin onaylayamam, "
+        "ancak sizin icin canli fiyati hemen kontrol edebilirim. "
+        "Lutfen giris-cikis tarihini ve kisi sayisini paylasin."
+    )
+
+
+def _is_price_check_request(analysis: VisionAnalysisResult, user_text: str) -> bool:
+    haystack = " ".join(
+        [
+            str(user_text or ""),
+            str(analysis.summary or ""),
+            str(analysis.detected_text or ""),
+        ]
+    ).lower()
+    return any(hint in haystack for hint in _PRICE_CHECK_HINTS)
+
+
+def _sanitize_summary(summary: str) -> str:
+    text = summary.strip()
+    lowered = text.lower()
+    if any(marker in lowered for marker in _META_SUMMARY_MARKERS):
+        return ""
+    return text
+
+
 def _general_media_message(language: str, summary: str) -> str:
-    summary_text = summary.strip()
+    summary_text = _sanitize_summary(summary)
     if language == "en":
         if summary_text:
             return (
@@ -203,7 +285,7 @@ def _general_media_message(language: str, summary: str) -> str:
         return "Я получил(а) изображение. Напишите, пожалуйста, коротко, с чем вам помочь."
     if summary_text:
         return (
-            f"Gorselinizi aldim. Bunun su konuyla ilgili olabilecegini goruyorum: {summary_text}. "
-            "Eger dogruysa buradan devam edebilirim."
+            f"Gorselinizi aldim ve inceledim. Gordugum konu: {summary_text}. "
+            "Bu gorselle ilgili nasil yardim etmemi istersiniz?"
         )
-    return "Gorselinizi aldim. Kisa bir not paylasirsaniz size hemen yardimci olabilirim."
+    return "Gorselinizi aldim ve inceledim. Bu gorselle ilgili hangi konuda yardim istersiniz?"

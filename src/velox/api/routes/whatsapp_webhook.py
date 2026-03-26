@@ -455,6 +455,7 @@ async def _analyze_media_policy_response(
     conversation_id: Any,
     language: str,
     media_items: list[InboundMediaItem],
+    user_text: str = "",
 ) -> LLMResponse | None:
     """Run media analysis pipeline and return deterministic response when applicable."""
     if not settings.media_analysis_enabled:
@@ -483,13 +484,19 @@ async def _analyze_media_policy_response(
             language=language,
             analysis=None,
             failure_reason="ANALYSIS_ERROR",
+            user_text=user_text,
         )
     if result.analyzed and result.analysis is not None:
-        return build_media_policy_response(language=language, analysis=result.analysis)
+        return build_media_policy_response(
+            language=language,
+            analysis=result.analysis,
+            user_text=user_text,
+        )
     return build_media_policy_response(
         language=language,
         analysis=None,
         failure_reason=result.failure_reason,
+        user_text=user_text,
     )
 
 
@@ -2566,6 +2573,7 @@ async def _process_incoming_message(
             conversation_id=conversation.id,
             language=detected_language,
             media_items=media_items,
+            user_text=normalized_text,
         )
 
         user_msg = Message(
@@ -3110,6 +3118,7 @@ async def _process_burst_aggregated(
             conversation_id=conversation.id,
             language=detected_language,
             media_items=media_items,
+            user_text=combined_normalized,
         )
 
         # Store each original message as a separate DB record (audit trail)

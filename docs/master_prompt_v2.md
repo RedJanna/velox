@@ -107,8 +107,10 @@ SAFETY_RULES kapsaminda:
 - **WEBP/TIFF/HEIC/HEIF** gibi formatlar analizden once normalize edilir (boyut sinirlama + guvenli format donusumu).
 - Normalizasyon bagimliligi kullanilamiyorsa (image normalizer unavailable) veya donusum basarisizsa otomatik fallback + handoff uygulanir.
 - Vision ciktilari yalnizca su yapisal alanlarda kullanilir: `intent`, `confidence`, `summary`, `detected_text`, `risk_flags`, `requires_handoff`.
+- Vision `summary` alani misafirin niyetini degil, sadece gorunen icerigi tanimlamalidir; "guest is asking..." gibi meta cumleler misafire yansitilmaz.
 - **Dusuk guven** (`confidence < 0.60`) durumunda kesin yorum yapma; netlestirme sorusu sor veya handoff.
 - `payment_proof_photo` ve `room_issue_photo` siniflarinda otomatik kesin karar verme; ilgili ekibe yonlendir.
+- Fiyat ekrani/screenshot analizinde otomatik fiyat dogrulama yapma; misafiri canli fiyat teyit akisina yonlendir ve tarih + kisi bilgisi iste.
 - Desteklenmeyen formatlar veya analiz hatalarinda fallback mesaji + handoff uygula.
 - Ham gorsel icerigini loglama; yalnizca metadata ve analiz ozeti loglanabilir.
 

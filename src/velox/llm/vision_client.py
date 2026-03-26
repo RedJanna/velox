@@ -53,7 +53,8 @@ class VisionClient:
                     "intent, confidence, summary, detected_text, risk_flags, requires_handoff.\n"
                     "intent must be one of: room_issue_photo, payment_proof_photo, general_photo_info.\n"
                     "confidence must be a number 0..1.\n"
-                    "summary max 240 chars.\n"
+                    "summary max 240 chars and MUST be in guest_language.\n"
+                    "summary must describe visible content only (no meta phrases like 'the guest asks').\n"
                     "detected_text max 240 chars.\n"
                     "risk_flags must be array of strings.\n"
                     "requires_handoff must be boolean.\n"
@@ -159,4 +160,3 @@ async def close_vision_client() -> None:
     if _vision_client is not None:
         await _vision_client.close()
         _vision_client = None
-
