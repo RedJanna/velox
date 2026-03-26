@@ -245,6 +245,29 @@ SCRIPT_LANGUAGE_PATTERNS = (
     (re.compile(r"[\u0900-\u097F]"), "hi"),
     (re.compile(r"[\u4E00-\u9FFF]"), "zh"),
 )
+URL_PATTERN = re.compile(r"(https?://\S+|www\.\S+)", flags=re.IGNORECASE)
+URL_LIKE_TOKEN_PATTERN = re.compile(
+    r"^(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/:?#].*)?$",
+    flags=re.IGNORECASE,
+)
+TECHNICAL_LINK_TOKENS = {
+    "checkin",
+    "checkout",
+    "adult",
+    "adults",
+    "child",
+    "children",
+    "childages",
+    "language",
+    "currency",
+    "promo",
+    "promocode",
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+}
+LANGUAGE_SWITCH_MIN_SCORE = 2
+LANGUAGE_SWITCH_MIN_MARGIN = 2
 
 
 class SlidingWindowRateLimiter:
@@ -1245,21 +1268,44 @@ def _normalize_language_text(text: str) -> str:
     return " ".join(stripped.split())
 
 
-def _detect_message_language(text: str, fallback: str = "tr") -> str:
+def _strip_language_detection_noise(text: str) -> str:
+    """Strip URL-heavy and technical noise before language hint scoring."""
+    without_urls = URL_PATTERN.sub(" ", text)
+    if not without_urls.strip():
+        return ""
+    cleaned_tokens: list[str] = []
+    for raw_token in without_urls.split():
+        token = raw_token.strip(".,;:!?()[]{}<>\"'")
+        if not token:
+            continue
+        lowered = token.casefold()
+        if lowered in TECHNICAL_LINK_TOKENS:
+            continue
+        if URL_LIKE_TOKEN_PATTERN.match(lowered):
+            continue
+        if any(character in token for character in ("/", "=", "&", "?", "%", "#")):
+            continue
+        cleaned_tokens.append(token)
+    return " ".join(cleaned_tokens)
+
+
+def _detect_message_language(text: str, fallback: str = "tr", *, sticky_mode: bool = False) -> str:
     """Detect guest message language with lightweight heuristics."""
-    normalized = _normalize_language_text(text)
+    safe_fallback = fallback if fallback in SUPPORTED_LANGUAGE_CODES else "tr"
+    cleaned_text = _strip_language_detection_noise(text)
+    normalized = _normalize_language_text(cleaned_text)
     if not normalized:
-        return fallback if fallback in SUPPORTED_LANGUAGE_CODES else "tr"
+        return safe_fallback
 
     for pattern, language_code in SCRIPT_LANGUAGE_PATTERNS:
-        if pattern.search(text):
+        if pattern.search(cleaned_text):
             return language_code
 
     scores = {
         language_code: sum(1 for keyword in keywords if _contains_keyword(normalized, keyword))
         for language_code, keywords in LANGUAGE_HINTS.items()
     }
-    if re.search(r"[çğış]", text.casefold()):
+    if re.search(r"[çğış]", cleaned_text.casefold()):
         scores["tr"] += 2
 
     best_language = max(scores, key=lambda language_code: scores[language_code])
@@ -1267,9 +1313,18 @@ def _detect_message_language(text: str, fallback: str = "tr") -> str:
     if best_score > 0:
         top_languages = [language_code for language_code, score in scores.items() if score == best_score]
         if len(top_languages) == 1:
-            return best_language
-    if fallback in SUPPORTED_LANGUAGE_CODES:
-        return fallback
+            if not sticky_mode or best_language == safe_fallback:
+                return best_language
+            sorted_scores = sorted(scores.values(), reverse=True)
+            second_best = sorted_scores[1] if len(sorted_scores) > 1 else 0
+            if (
+                best_score >= LANGUAGE_SWITCH_MIN_SCORE
+                and (best_score - second_best) >= LANGUAGE_SWITCH_MIN_MARGIN
+            ):
+                return best_language
+            return safe_fallback
+    if safe_fallback in SUPPORTED_LANGUAGE_CODES:
+        return safe_fallback
     return "tr"
 
 
@@ -2563,7 +2618,11 @@ async def _process_incoming_message(
             raise RuntimeError("Conversation id is missing.")
 
         normalized_text = _normalize_text(incoming.text)
-        detected_language = _detect_message_language(normalized_text, conversation.language)
+        detected_language = _detect_message_language(
+            normalized_text,
+            conversation.language,
+            sticky_mode=True,
+        )
         if conversation.language != detected_language:
             conversation.language = detected_language
             await conversation_repository.update_language(conversation.id, detected_language)
@@ -3108,7 +3167,11 @@ async def _process_burst_aggregated(
 
         # Detect language from the combined text
         combined_normalized = _normalize_text(aggregated.combined_text)
-        detected_language = _detect_message_language(combined_normalized, conversation.language)
+        detected_language = _detect_message_language(
+            combined_normalized,
+            conversation.language,
+            sticky_mode=True,
+        )
         if conversation.language != detected_language:
             conversation.language = detected_language
             await conversation_repository.update_language(conversation.id, detected_language)

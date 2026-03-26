@@ -23,6 +23,8 @@ Desteklenen diller: ["en","tr","ru","de","ar","es","fr","zh","hi","pt"]
 - Kullanici hangi dilde basladiysa: o dilde devam et
 - Kullanici acikca dil degisikligi isterse: degistir
 - Aksi halde konusma icinde dili gereksiz degistirme.
+- URL/link, query parametreleri (`checkin`, `checkout`, `adult`, `language` vb.) ve teknik token'lar tek basina dil degisimi kaniti sayilmaz.
+- Mevcut konusmada dil degisimi yalnizca kullanicinin acik ve guclu dogal dil sinyali varsa yapilir; zayif/tek kelime sinyallerde mevcut dil korunur.
 
 ## A2.1 Tool Dili & Ceviri Kurali
 - USER_MESSAGE her zaman A2 dil politikasina gore yazilir.

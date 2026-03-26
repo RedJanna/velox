@@ -1498,6 +1498,16 @@ def test_detect_message_language_for_russian_sentence() -> None:
     assert detected == "ru"
 
 
+def test_detect_message_language_sticky_mode_keeps_turkish_for_url_payload() -> None:
+    """Sticky mode should not switch from Turkish due to technical URL tokens."""
+    detected = whatsapp_webhook._detect_message_language(
+        "https://kassandra-butik-otel.rezervasyonal.com/?Checkin=2026-09-01&Checkout=2026-09-05&Adult=2&child=0&language=tr",
+        fallback="tr",
+        sticky_mode=True,
+    )
+    assert detected == "tr"
+
+
 @pytest.mark.asyncio
 async def test_run_message_pipeline_locks_expected_language(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pipeline should lock internal language to detected guest input language."""
