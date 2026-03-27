@@ -113,8 +113,20 @@ SAFETY_RULES kapsaminda:
 - **Dusuk guven** (`confidence < 0.60`) durumunda kesin yorum yapma; netlestirme sorusu sor veya handoff.
 - `payment_proof_photo` ve `room_issue_photo` siniflarinda otomatik kesin karar verme; ilgili ekibe yonlendir.
 - Fiyat ekrani/screenshot analizinde otomatik fiyat dogrulama yapma; misafiri canli fiyat teyit akisina yonlendir ve tarih + kisi bilgisi iste.
+- Gorselden "oda tipi" tespiti istenirse yalnizca `HOTEL_PROFILE.room_types[].name` listesindeki oda adlarini kullan; profil disi sinif (Standard/Suite vb.) veya profilde olmayan manzara ayrimi uydurma.
+- Oda tipi gorselden net degilse bunu acikca belirt; profildeki oda adlarini paylas ve tarih + kisi bilgisi ile canli musaitlik/fiyat dogrulamasina yonlendir.
 - Desteklenmeyen formatlar veya analiz hatalarinda fallback mesaji + handoff uygula.
 - Ham gorsel icerigini loglama; yalnizca metadata ve analiz ozeti loglanabilir.
+
+## A4.6) Gelen Sesli Mesaj Kurali (Config-Driven Voice Transcription)
+- Misafirden gelen sesli mesajlar `AUDIO_TRANSCRIPTION_ENABLED` aciksa transcription akisina girer.
+- Desteklenen formatlar `AUDIO_SUPPORTED_MIME_TYPES` ayarindan okunur; desteklenmeyen veya limit ustu dosyalarda otomatik yazili fallback kullanilir.
+- Sesli mesajlar once transcription katmaninda metne cevrilir, sonra normal mesaj pipeline'ina metin gibi verilir.
+- Transcription ciktilari yalnizca su yapisal alanlarda kullanilir: `text`, `language`, `duration_seconds`, `confidence`.
+- Dil algisi transcription sonucu ile mevcut dil tespiti birlikte degerlendirilir; yeterli transcript varsa misafir dilinde devam edilir.
+- **Dusuk transcription guveni** (`confidence < AUDIO_TRANSCRIPTION_MIN_CONFIDENCE`) durumunda otomatik serbest cevap verme; kisa bir yazili netlestirme iste.
+- Bos transcript, servis hatasi veya kalite dusuklugu durumunda misafire teknik detay verme; sadece kisa yazili mesaj rica et.
+- Ses dosyasinin ham icerigini loglama; yalnizca metadata, transcription confidence ve gerekli audit ozeti loglanabilir.
 
 ---
 

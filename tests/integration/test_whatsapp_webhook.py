@@ -15,7 +15,7 @@ from velox.config.constants import EscalationLevel, Role
 from velox.core.burst_buffer import AggregatedMessage
 from velox.models.conversation import Conversation, InternalJSON, LLMResponse, Message
 from velox.models.escalation import EscalationResult
-from velox.models.media import InboundMediaItem
+from velox.models.media import AudioTranscriptionResult, InboundMediaItem
 
 
 class _FakeHandoffConversationRepository:
@@ -1094,6 +1094,97 @@ async def test_analyze_media_policy_response_returns_fallback_when_pipeline_rais
 
 
 @pytest.mark.asyncio
+async def test_process_voice_message_returns_transcript_when_pipeline_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Voice helper should pass high-confidence transcript into normal chat flow."""
+
+    class _VoicePipeline:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        async def process_first_audio(self, **_kwargs: Any) -> Any:
+            return SimpleNamespace(
+                analyzed=True,
+                transcription=AudioTranscriptionResult(
+                    text="I need a transfer from Dalaman airport tonight.",
+                    language="en",
+                    confidence=0.91,
+                    model_name="gpt-4o-mini-transcribe",
+                    mime_type="audio/ogg",
+                ),
+                failure_reason=None,
+            )
+
+    monkeypatch.setattr(whatsapp_webhook, "VoicePipelineService", _VoicePipeline)
+    monkeypatch.setattr(whatsapp_webhook, "get_whatsapp_client", lambda: SimpleNamespace())
+    monkeypatch.setattr(whatsapp_webhook.settings, "audio_transcription_enabled", True)
+
+    transcript, language, fallback = await whatsapp_webhook._process_voice_message(
+        hotel_id=21966,
+        conversation_id="conv-voice-ok",
+        media_items=[
+            InboundMediaItem(
+                media_id="aud-ok",
+                media_type="audio",
+                mime_type="audio/ogg",
+                whatsapp_message_id="wamid.voice.ok",
+            )
+        ],
+    )
+
+    assert transcript == "I need a transfer from Dalaman airport tonight."
+    assert language == "en"
+    assert fallback is None
+
+
+@pytest.mark.asyncio
+async def test_process_voice_message_returns_written_fallback_when_confidence_low(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Low-confidence voice transcripts must not auto-enter the free-form reply path."""
+
+    class _VoicePipeline:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        async def process_first_audio(self, **_kwargs: Any) -> Any:
+            return SimpleNamespace(
+                analyzed=True,
+                transcription=AudioTranscriptionResult(
+                    text="yarin transfer",
+                    language="tr",
+                    confidence=0.20,
+                    model_name="gpt-4o-mini-transcribe",
+                    mime_type="audio/ogg",
+                ),
+                failure_reason=None,
+            )
+
+    monkeypatch.setattr(whatsapp_webhook, "VoicePipelineService", _VoicePipeline)
+    monkeypatch.setattr(whatsapp_webhook, "get_whatsapp_client", lambda: SimpleNamespace())
+    monkeypatch.setattr(whatsapp_webhook.settings, "audio_transcription_enabled", True)
+
+    transcript, language, fallback = await whatsapp_webhook._process_voice_message(
+        hotel_id=21966,
+        conversation_id="conv-voice-low",
+        media_items=[
+            InboundMediaItem(
+                media_id="aud-low",
+                media_type="audio",
+                mime_type="audio/ogg",
+                whatsapp_message_id="wamid.voice.low",
+            )
+        ],
+    )
+
+    assert transcript is None
+    assert language == "tr"
+    assert fallback is not None
+    assert fallback.internal_json.next_step == "ask_written_followup"
+
+
+@pytest.mark.asyncio
 async def test_process_incoming_message_resolves_reply_target_and_persists_outbound_whatsapp_id(
     monkeypatch: pytest.MonkeyPatch,
     mock_whatsapp: Any,
@@ -1535,6 +1626,106 @@ async def test_run_message_pipeline_locks_expected_language(monkeypatch: pytest.
         expected_language="en",
     )
     assert result.internal_json.language == "en"
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_media_room_type_followup_is_profile_grounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Media follow-up room-type question must bypass LLM and stay profile-grounded."""
+    llm_called = {"count": 0}
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        llm_called["count"] += 1
+        return (
+            "Bu görsele bakarak net bir oda tipi söylemem mümkün değil. "
+            "Standart mı, Deluxe mi yoksa Süit mi?",
+            [],
+        )
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    fake_profile = SimpleNamespace(
+        room_types=[
+            SimpleNamespace(name=SimpleNamespace(tr="Deluxe", en="Deluxe")),
+            SimpleNamespace(name=SimpleNamespace(tr="Premium", en="Premium")),
+        ]
+    )
+    conversation = Conversation(
+        hotel_id=21966,
+        phone_hash="hash",
+        language="tr",
+        entities_json={"media_analysis": {"intent": "general_photo_info", "confidence": 0.9}},
+    )
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: fake_profile)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="Hangi oda tipi olduğunu söyler misiniz?",
+        expected_language="tr",
+    )
+
+    assert llm_called["count"] == 0
+    assert "Sistemimizde tanımlı oda tipleri: Deluxe, Premium." in result.user_message
+    assert "Standart" not in result.user_message
+    assert "Süit" not in result.user_message
+    assert result.internal_json.state == "NEEDS_VERIFICATION"
+    assert result.internal_json.required_questions == ["checkin_date", "checkout_date", "adults"]
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_media_guard_rewrites_profile_unsupported_room_classes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If LLM emits unsupported room classes in media context, response must be rewritten."""
+    llm_called = {"count": 0}
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        llm_called["count"] += 1
+        return (
+            "Bu görsele bakarak net bir oda tipi söylemem mümkün değil. Standart mı, Deluxe mi yoksa Süit mi?\n"
+            'INTERNAL_JSON: {"language":"tr","intent":"faq_info","state":"INTENT_DETECTED","entities":{},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"await_user_input"}',
+            [],
+        )
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    fake_profile = SimpleNamespace(
+        room_types=[
+            SimpleNamespace(name=SimpleNamespace(tr="Deluxe", en="Deluxe")),
+            SimpleNamespace(name=SimpleNamespace(tr="Premium", en="Premium")),
+        ]
+    )
+    conversation = Conversation(
+        hotel_id=21966,
+        phone_hash="hash",
+        language="tr",
+        entities_json={"media_analysis": {"intent": "general_photo_info", "confidence": 0.9}},
+    )
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: fake_profile)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="Teşekkürler, devam edelim.",
+        expected_language="tr",
+    )
+
+    assert llm_called["count"] == 1
+    assert "Sistemimizde tanımlı oda tipleri: Deluxe, Premium." in result.user_message
+    assert "Standart" not in result.user_message
+    assert "Süit" not in result.user_message
+    assert result.internal_json.state == "NEEDS_VERIFICATION"
+    assert result.internal_json.required_questions == ["checkin_date", "checkout_date", "adults"]
 
 
 @pytest.mark.asyncio
