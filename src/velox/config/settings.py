@@ -112,6 +112,22 @@ class Settings(BaseSettings):
     media_supported_mime_types: str = (
         "image/jpeg,image/jpg,image/png,image/webp,image/tiff,image/heic,image/heif"
     )
+    audio_transcription_enabled: bool = True
+    audio_max_bytes: int = 16 * 1024 * 1024
+    audio_supported_mime_types: str = (
+        "audio/ogg,audio/oga,audio/mpeg,audio/mp3,audio/mp4,audio/aac,audio/amr,audio/wav,audio/x-wav,audio/webm"
+    )
+    audio_transcription_min_confidence: float = 0.55
+    audio_transcription_fallback_language: str = "en"
+
+    @property
+    def audio_supported_mime_type_list(self) -> list[str]:
+        """Normalized list of supported audio mime types."""
+        return [
+            item.strip().lower()
+            for item in self.audio_supported_mime_types.split(",")
+            if item.strip()
+        ]
 
     @property
     def media_supported_mime_type_list(self) -> list[str]:

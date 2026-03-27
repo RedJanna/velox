@@ -1,5 +1,7 @@
 """Models for inbound WhatsApp media analysis."""
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -23,4 +25,16 @@ class VisionAnalysisResult(BaseModel):
     detected_text: str = ""
     risk_flags: list[str] = Field(default_factory=list)
     requires_handoff: bool = False
+
+
+class AudioTranscriptionResult(BaseModel):
+    """Structured output produced by the audio transcription layer."""
+
+    text: str = ""
+    language: str = ""
+    duration_seconds: float = 0.0
+    confidence: float = 0.0
+    model_name: str = ""
+    mime_type: str = ""
+    raw_json: dict[str, Any] = Field(default_factory=dict)
 

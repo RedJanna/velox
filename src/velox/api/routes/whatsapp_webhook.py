@@ -24,6 +24,8 @@ from velox.core.hotel_profile_loader import get_profile
 from velox.core.media_pipeline import MediaPipelineService
 from velox.core.media_response_policy import build_media_policy_response
 from velox.core.pipeline import post_process_escalation
+from velox.core.voice_pipeline import VoicePipelineService
+from velox.core.voice_response_policy import build_voice_policy_response
 from velox.db.repositories.conversation import ConversationRepository
 from velox.db.repositories.whatsapp_number import WhatsAppNumberRepository
 from velox.escalation.engine import EscalationEngine
@@ -521,6 +523,69 @@ async def _analyze_media_policy_response(
         failure_reason=result.failure_reason,
         user_text=user_text,
     )
+
+
+async def _process_voice_message(
+    *,
+    hotel_id: int,
+    conversation_id: Any,
+    media_items: list[InboundMediaItem],
+) -> tuple[str | None, str | None, LLMResponse | None]:
+    """Transcribe audio and return transcript text, language override, and fallback response."""
+    if not settings.audio_transcription_enabled:
+        return None, None, None
+    if not media_items:
+        return None, None, None
+    if not any(item.media_type == "audio" for item in media_items):
+        return None, None, None
+
+    whatsapp_client = get_whatsapp_client()
+    pipeline = VoicePipelineService(whatsapp_client)
+    try:
+        result = await pipeline.process_first_audio(
+            hotel_id=hotel_id,
+            conversation_id=conversation_id,
+            media_items=media_items,
+        )
+    except Exception as error:
+        logger.warning(
+            "voice_policy_pipeline_failed",
+            hotel_id=hotel_id,
+            conversation_id=str(conversation_id),
+            error_type=type(error).__name__,
+        )
+        fallback = build_voice_policy_response(
+            language=settings.audio_transcription_fallback_language,
+            transcription=None,
+            failure_reason="TRANSCRIPTION_ERROR",
+        )
+        return None, None, fallback
+
+    if not result.analyzed or result.transcription is None:
+        fallback = build_voice_policy_response(
+            language=settings.audio_transcription_fallback_language,
+            transcription=None,
+            failure_reason=result.failure_reason,
+        )
+        return None, None, fallback
+
+    fallback = build_voice_policy_response(
+        language=result.transcription.language or settings.audio_transcription_fallback_language,
+        transcription=result.transcription,
+    )
+    if fallback is not None:
+        return None, result.transcription.language or None, fallback
+
+    transcript_text = result.transcription.text.strip()
+    if not transcript_text:
+        fallback = build_voice_policy_response(
+            language=result.transcription.language or settings.audio_transcription_fallback_language,
+            transcription=result.transcription,
+            failure_reason="EMPTY_TRANSCRIPT",
+        )
+        return None, result.transcription.language or None, fallback
+
+    return transcript_text, result.transcription.language or None, None
 
 
 def _payment_warning_message(language: str = "tr") -> str:
@@ -1253,6 +1318,23 @@ def _is_elevator_question(user_text: str) -> bool:
     return any(_contains_keyword(normalized, keyword) for keyword in keywords)
 
 
+def _is_room_type_identification_question(user_text: str) -> bool:
+    """Detect image follow-up questions that ask to identify a room type."""
+    normalized = _normalize_language_text(user_text)
+    keywords = (
+        "oda tipi",
+        "oda turu",
+        "hangi oda tipi",
+        "hangi oda",
+        "room type",
+        "which room type",
+        "what room type",
+        "какой тип номера",
+        "тип номера",
+    )
+    return any(_contains_keyword(normalized, keyword) for keyword in keywords)
+
+
 def _contains_keyword(text: str, keyword: str) -> bool:
     """Match single words by boundary and phrases by substring."""
     if " " in keyword:
@@ -1421,6 +1503,122 @@ def _build_turkish_child_bedding_reply(hotel_id: int, entities: dict[str, Any]) 
             bedding_note = configured_note.strip()
 
     return f"{bedding_note}\n\nHangisini tercih edersiniz?"
+
+
+def _has_recent_media_analysis_context(conversation: Conversation) -> bool:
+    """Return True when recent conversation context includes media analysis output."""
+    recent_messages = conversation.messages[-6:] if conversation.messages else []
+    for message in reversed(recent_messages):
+        internal = message.internal_json if isinstance(message.internal_json, dict) else {}
+        entities = internal.get("entities")
+        if isinstance(entities, dict) and isinstance(entities.get("media_analysis"), dict):
+            return True
+
+    entities_json = conversation.entities_json if isinstance(conversation.entities_json, dict) else {}
+    return isinstance(entities_json.get("media_analysis"), dict)
+
+
+def _list_profile_room_type_names(hotel_id: int, language: str) -> list[str]:
+    """Return configured room type names from HOTEL_PROFILE in a stable order."""
+    profile = get_profile(hotel_id)
+    if profile is None:
+        return []
+
+    preferred_language = "tr" if language == "tr" else "en"
+    names: list[str] = []
+    for room_type in getattr(profile, "room_types", []):
+        localized = getattr(room_type, "name", None)
+        selected = str(getattr(localized, preferred_language, "") or "").strip()
+        fallback = str(getattr(localized, "tr", "") or getattr(localized, "en", "") or "").strip()
+        name = selected or fallback
+        if name:
+            names.append(name)
+    return list(dict.fromkeys(names))
+
+
+def _build_media_room_type_grounded_response(hotel_id: int, language: str) -> LLMResponse:
+    """Build deterministic room-type response grounded only in HOTEL_PROFILE data."""
+    room_names = _list_profile_room_type_names(hotel_id, language)
+    room_names_text = ", ".join(room_names) if room_names else "-"
+
+    if language == "en":
+        user_message = (
+            "I cannot confirm the exact room type only from this image.\n\n"
+            f"Room types configured in our system: {room_names_text}.\n\n"
+            "If you share check-in/check-out dates and number of guests, "
+            "I can verify live availability and rates for these room types."
+        )
+    elif language == "ru":
+        user_message = (
+            "По одному фото я не могу точно подтвердить тип номера.\n\n"
+            f"Типы номеров в нашей системе: {room_names_text}.\n\n"
+            "Если укажете даты заезда/выезда и количество гостей, "
+            "я проверю актуальную доступность и цены по этим типам."
+        )
+    else:
+        user_message = (
+            "Bu görselden oda tipini tek başına kesin doğrulayamıyorum.\n\n"
+            f"Sistemimizde tanımlı oda tipleri: {room_names_text}.\n\n"
+            "Giriş-çıkış tarihi ve kişi sayısını paylaşırsanız, "
+            "bu oda tipleri için canlı müsaitlik ve fiyatı hemen kontrol edebilirim."
+        )
+
+    return LLMResponse(
+        user_message=user_message,
+        internal_json=InternalJSON(
+            language=language,
+            intent="stay_quote",
+            state="NEEDS_VERIFICATION",
+            entities={},
+            required_questions=["checkin_date", "checkout_date", "adults"],
+            tool_calls=[],
+            notifications=[],
+            handoff={"needed": False},
+            risk_flags=[],
+            escalation={"level": "L0", "route_to_role": "NONE"},
+            next_step="ask_clarifying_question",
+        ),
+    )
+
+
+def _profile_room_aliases_canonical(hotel_id: int) -> set[str]:
+    """Return canonical room aliases defined in HOTEL_PROFILE."""
+    profile = get_profile(hotel_id)
+    if profile is None:
+        return set()
+
+    aliases: set[str] = set()
+    for room_type in getattr(profile, "room_types", []):
+        localized = getattr(room_type, "name", None)
+        for candidate in (
+            str(getattr(localized, "tr", "") or "").strip(),
+            str(getattr(localized, "en", "") or "").strip(),
+        ):
+            canonical = _canonical_text(candidate)
+            if canonical:
+                aliases.add(canonical)
+    return aliases
+
+
+def _contains_profile_unsupported_room_taxonomy(text: str, hotel_id: int) -> bool:
+    """Detect room class terms that are not present in HOTEL_PROFILE room names."""
+    canonical_text = _canonical_text(text)
+    if not canonical_text:
+        return False
+
+    profile_aliases = _profile_room_aliases_canonical(hotel_id)
+    unsupported_terms = (
+        "standard",
+        "standart",
+        "suite",
+        "suit",
+        "suitoda",
+        "suitroom",
+    )
+    for term in unsupported_terms:
+        if term in canonical_text and all(term not in alias for alias in profile_aliases):
+            return True
+    return False
 
 
 def _decimal_from_value(value: Any) -> Decimal:
@@ -2353,6 +2551,9 @@ async def _run_message_pipeline(
     if payment_intake_response is not None:
         return payment_intake_response
 
+    if _has_recent_media_analysis_context(conversation) and _is_room_type_identification_question(normalized_text):
+        return _build_media_room_type_grounded_response(conversation.hotel_id, target_language)
+
     try:
         prompt_builder = get_prompt_builder()
         llm_client = get_llm_client()
@@ -2411,6 +2612,15 @@ async def _run_message_pipeline(
         entities = parsed.internal_json.entities if isinstance(parsed.internal_json.entities, dict) else {}
         entities = _merge_entities_with_context(conversation.entities_json, entities)
         parsed.internal_json.entities = entities
+        if _has_recent_media_analysis_context(conversation) and _contains_profile_unsupported_room_taxonomy(
+            parsed.user_message,
+            conversation.hotel_id,
+        ):
+            logger.warning(
+                "media_room_taxonomy_profile_guard_triggered",
+                conversation_id=str(conversation.id) if conversation.id is not None else None,
+            )
+            return _build_media_room_type_grounded_response(conversation.hotel_id, language)
         if _is_elevator_question(normalized_text):
             parsed.user_message = _build_elevator_reply(conversation.hotel_id, language)
             return parsed
@@ -2618,15 +2828,22 @@ async def _process_incoming_message(
             raise RuntimeError("Conversation id is missing.")
 
         normalized_text = _normalize_text(incoming.text)
+        media_items = _extract_media_items_from_incoming(incoming)
+        voice_transcript_text, voice_language, voice_policy_response = await _process_voice_message(
+            hotel_id=hotel_id,
+            conversation_id=conversation.id,
+            media_items=media_items,
+        )
+        if voice_transcript_text:
+            normalized_text = _normalize_text(voice_transcript_text)
         detected_language = _detect_message_language(
             normalized_text,
-            conversation.language,
+            voice_language or conversation.language,
             sticky_mode=True,
         )
         if conversation.language != detected_language:
             conversation.language = detected_language
             await conversation_repository.update_language(conversation.id, detected_language)
-        media_items = _extract_media_items_from_incoming(incoming)
         media_policy_response = await _analyze_media_policy_response(
             hotel_id=hotel_id,
             conversation_id=conversation.id,
@@ -2665,7 +2882,9 @@ async def _process_incoming_message(
             )
             return
 
-        if media_policy_response is not None:
+        if voice_policy_response is not None:
+            llm_response = voice_policy_response
+        elif media_policy_response is not None:
             llm_response = media_policy_response
         else:
             llm_response = await _run_message_pipeline(
@@ -3176,6 +3395,21 @@ async def _process_burst_aggregated(
             conversation.language = detected_language
             await conversation_repository.update_language(conversation.id, detected_language)
         media_items = _extract_media_items_from_aggregated(aggregated)
+        voice_transcript_text, voice_language, voice_policy_response = await _process_voice_message(
+            hotel_id=hotel_id,
+            conversation_id=conversation.id,
+            media_items=media_items,
+        )
+        if voice_transcript_text:
+            combined_normalized = _normalize_text(voice_transcript_text)
+            detected_language = _detect_message_language(
+                combined_normalized,
+                voice_language or conversation.language,
+                sticky_mode=True,
+            )
+            if conversation.language != detected_language:
+                conversation.language = detected_language
+                await conversation_repository.update_language(conversation.id, detected_language)
         media_policy_response = await _analyze_media_policy_response(
             hotel_id=hotel_id,
             conversation_id=conversation.id,
@@ -3244,7 +3478,9 @@ async def _process_burst_aggregated(
             }
 
         # Run LLM pipeline with the combined text
-        if media_policy_response is not None:
+        if voice_policy_response is not None:
+            llm_response = voice_policy_response
+        elif media_policy_response is not None:
             llm_response = media_policy_response
         else:
             llm_response = await _run_message_pipeline(
