@@ -42,7 +42,7 @@ class InboundMediaRepository:
                 analysis_status,
                 expires_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'PENDING', now() + ($10 || ' hour')::interval)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'PENDING', now() + ($10 * interval '1 hour'))
             ON CONFLICT (whatsapp_message_id, whatsapp_media_id) DO UPDATE
             SET media_type = EXCLUDED.media_type,
                 mime_type = EXCLUDED.mime_type,
@@ -153,4 +153,3 @@ class InboundMediaRepository:
         if row is None:
             return None
         return dict(row)
-

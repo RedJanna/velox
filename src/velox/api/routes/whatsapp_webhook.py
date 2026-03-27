@@ -530,8 +530,10 @@ async def _process_voice_message(
     hotel_id: int,
     conversation_id: Any,
     media_items: list[InboundMediaItem],
+    preferred_language: str | None = None,
 ) -> tuple[str | None, str | None, LLMResponse | None]:
     """Transcribe audio and return transcript text, language override, and fallback response."""
+    fallback_language = preferred_language or settings.audio_transcription_fallback_language
     if not settings.audio_transcription_enabled:
         return None, None, None
     if not media_items:
@@ -555,7 +557,7 @@ async def _process_voice_message(
             error_type=type(error).__name__,
         )
         fallback = build_voice_policy_response(
-            language=settings.audio_transcription_fallback_language,
+            language=fallback_language,
             transcription=None,
             failure_reason="TRANSCRIPTION_ERROR",
         )
@@ -563,14 +565,14 @@ async def _process_voice_message(
 
     if not result.analyzed or result.transcription is None:
         fallback = build_voice_policy_response(
-            language=settings.audio_transcription_fallback_language,
+            language=fallback_language,
             transcription=None,
             failure_reason=result.failure_reason,
         )
         return None, None, fallback
 
     fallback = build_voice_policy_response(
-        language=result.transcription.language or settings.audio_transcription_fallback_language,
+        language=result.transcription.language or fallback_language,
         transcription=result.transcription,
     )
     if fallback is not None:
@@ -579,7 +581,7 @@ async def _process_voice_message(
     transcript_text = result.transcription.text.strip()
     if not transcript_text:
         fallback = build_voice_policy_response(
-            language=result.transcription.language or settings.audio_transcription_fallback_language,
+            language=result.transcription.language or fallback_language,
             transcription=result.transcription,
             failure_reason="EMPTY_TRANSCRIPT",
         )
@@ -2852,6 +2854,7 @@ async def _process_incoming_message(
             hotel_id=hotel_id,
             conversation_id=conversation.id,
             media_items=media_items,
+            preferred_language=conversation.language,
         )
         if voice_transcript_text:
             normalized_text = _normalize_text(voice_transcript_text)
@@ -3418,6 +3421,7 @@ async def _process_burst_aggregated(
             hotel_id=hotel_id,
             conversation_id=conversation.id,
             media_items=media_items,
+            preferred_language=conversation.language,
         )
         if voice_transcript_text:
             combined_normalized = _normalize_text(voice_transcript_text)

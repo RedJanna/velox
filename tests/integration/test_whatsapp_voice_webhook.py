@@ -81,8 +81,10 @@ async def test_process_voice_message_returns_fallback_when_transcription_fails(m
         hotel_id=21966,
         conversation_id="conv-voice-helper-2",
         media_items=[InboundMediaItem(media_id="aud-2", media_type="audio", mime_type="audio/ogg")],
+        preferred_language="tr",
     )
 
     assert transcript is None
     assert fallback is not None
+    assert fallback.internal_json.language == "tr"
     assert fallback.internal_json.next_step == "ask_written_followup"

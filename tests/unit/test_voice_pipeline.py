@@ -95,3 +95,67 @@ async def test_process_first_audio_rejects_unsupported_mime(monkeypatch: pytest.
 
     assert result.analyzed is False
     assert result.failure_reason == "UNSUPPORTED_AUDIO_MIME"
+
+
+@pytest.mark.asyncio
+async def test_process_first_audio_accepts_ogg_with_codec_suffix(monkeypatch: pytest.MonkeyPatch) -> None:
+    from velox.core import voice_pipeline
+
+    async def _noop(*_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr(voice_pipeline.settings, "audio_supported_mime_types", "audio/ogg")
+    monkeypatch.setattr(voice_pipeline.settings, "audio_max_bytes", 16 * 1024 * 1024)
+    monkeypatch.setattr(voice_pipeline.InboundMediaRepository, "create_pending", _noop)
+    monkeypatch.setattr(voice_pipeline.InboundMediaRepository, "mark_analyzed", _noop)
+    monkeypatch.setattr(voice_pipeline.InboundMediaRepository, "mark_failed", _noop)
+    monkeypatch.setattr(voice_pipeline, "get_transcription_client", lambda: _FakeTranscriptionClient())
+
+    service = VoicePipelineService(_FakeWhatsAppClient())
+    result = await service.process_first_audio(
+        hotel_id=21966,
+        conversation_id="conv-voice-3",
+        media_items=[
+            InboundMediaItem(
+                media_id="aud-3",
+                media_type="audio",
+                mime_type="audio/ogg; codecs=opus",
+                whatsapp_message_id="wamid.voice.3",
+            )
+        ],
+    )
+
+    assert result.analyzed is True
+    assert result.transcription is not None
+
+
+@pytest.mark.asyncio
+async def test_process_first_audio_accepts_audio_opus_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    from velox.core import voice_pipeline
+
+    async def _noop(*_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr(voice_pipeline.settings, "audio_supported_mime_types", "audio/ogg")
+    monkeypatch.setattr(voice_pipeline.settings, "audio_max_bytes", 16 * 1024 * 1024)
+    monkeypatch.setattr(voice_pipeline.InboundMediaRepository, "create_pending", _noop)
+    monkeypatch.setattr(voice_pipeline.InboundMediaRepository, "mark_analyzed", _noop)
+    monkeypatch.setattr(voice_pipeline.InboundMediaRepository, "mark_failed", _noop)
+    monkeypatch.setattr(voice_pipeline, "get_transcription_client", lambda: _FakeTranscriptionClient())
+
+    service = VoicePipelineService(_FakeWhatsAppClient())
+    result = await service.process_first_audio(
+        hotel_id=21966,
+        conversation_id="conv-voice-4",
+        media_items=[
+            InboundMediaItem(
+                media_id="aud-4",
+                media_type="audio",
+                mime_type="audio/opus",
+                whatsapp_message_id="wamid.voice.4",
+            )
+        ],
+    )
+
+    assert result.analyzed is True
+    assert result.transcription is not None

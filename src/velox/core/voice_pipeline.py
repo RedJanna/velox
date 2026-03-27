@@ -45,7 +45,7 @@ class VoicePipelineService:
         if audio_item is None:
             return VoicePipelineResult(analyzed=False, failure_reason="NO_AUDIO_FOUND")
 
-        safe_mime = audio_item.mime_type.lower().strip()
+        safe_mime = _normalize_audio_mime(audio_item.mime_type)
         await self._safe_create_pending(
             hotel_id=hotel_id,
             conversation_id=conversation_id,
@@ -53,7 +53,8 @@ class VoicePipelineService:
             safe_mime=safe_mime,
         )
 
-        supported_mime_types = set(settings.audio_supported_mime_type_list)
+        supported_mime_types = {_normalize_audio_mime(item) for item in settings.audio_supported_mime_type_list}
+        supported_mime_types.discard("")
         if safe_mime and safe_mime not in supported_mime_types:
             await self._safe_mark_failed(
                 audio_item=audio_item,
@@ -77,11 +78,12 @@ class VoicePipelineService:
                 return VoicePipelineResult(analyzed=False, failure_reason="AUDIO_TOO_LARGE")
 
             media_hash = hashlib.sha256(raw_bytes).hexdigest()
+            normalized_mime = _normalize_audio_mime(resolved_mime) or safe_mime or "audio/ogg"
             transcription_client = get_transcription_client()
             transcription = await transcription_client.transcribe_audio(
                 audio_bytes=raw_bytes,
-                mime_type=resolved_mime or safe_mime,
-                file_name=_resolve_audio_filename(resolved_mime or safe_mime),
+                mime_type=normalized_mime,
+                file_name=_resolve_audio_filename(normalized_mime),
             )
             await self._safe_mark_transcribed(
                 audio_item=audio_item,
@@ -212,3 +214,15 @@ def _resolve_audio_filename(mime_type: str) -> str:
     if "amr" in safe_mime:
         return "voice.amr"
     return "voice.ogg"
+
+
+def _normalize_audio_mime(mime_type: str | None) -> str:
+    """Normalize audio mime values from WhatsApp payloads and headers."""
+    raw_value = (mime_type or "").strip().lower()
+    if not raw_value:
+        return ""
+    base_mime = raw_value.split(";", 1)[0].strip()
+    # WhatsApp voice notes can arrive as "audio/ogg; codecs=opus" or "audio/opus".
+    if base_mime in {"audio/opus", "application/ogg"}:
+        return "audio/ogg"
+    return base_mime

@@ -16,6 +16,7 @@ logger = structlog.get_logger(__name__)
 
 TRANSCRIPTION_TIMEOUT_SECONDS = 25.0
 TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe"
+TRANSCRIPTION_RESPONSE_FORMAT = "json"
 TRANSCRIPTION_RETRY_BACKOFF_SECONDS = (1.0, 3.0, 5.0)
 TRANSCRIPTION_MAX_ATTEMPTS = 3
 
@@ -56,16 +57,17 @@ class TranscriptionClient:
                     model=self._model,
                     file=buffer,
                     prompt=prompt[:400] if prompt else None,
-                    response_format="verbose_json",
+                    response_format=TRANSCRIPTION_RESPONSE_FORMAT,
                     timeout=TRANSCRIPTION_TIMEOUT_SECONDS,
                 )
                 duration_ms = int((time.perf_counter() - started_at) * 1000)
-                payload = response.model_dump()
+                payload = response.model_dump() if hasattr(response, "model_dump") else {"text": str(response)}
                 logger.info(
                     "audio_transcription_ok",
                     model=self._model,
                     attempt_number=attempt,
                     duration_ms=duration_ms,
+                    response_format=TRANSCRIPTION_RESPONSE_FORMAT,
                 )
                 language = str(payload.get("language") or "").strip().lower()
                 text = str(payload.get("text") or "").strip()
@@ -89,6 +91,7 @@ class TranscriptionClient:
                     attempt_number=attempt,
                     duration_ms=duration_ms,
                     error_type=type(error).__name__,
+                    error_message=str(error)[:240],
                 )
             except Exception as error:  # pragma: no cover - defensive branch
                 last_error = error
@@ -99,6 +102,7 @@ class TranscriptionClient:
                     attempt_number=attempt,
                     duration_ms=duration_ms,
                     error_type=type(error).__name__,
+                    error_message=str(error)[:240],
                 )
                 break
 
