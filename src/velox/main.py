@@ -46,6 +46,7 @@ from velox.db.repositories.whatsapp_number import WhatsAppNumberRepository
 from velox.escalation.engine import EscalationEngine
 from velox.escalation.matrix import load_escalation_matrix
 from velox.llm.client import close_llm_client
+from velox.llm.transcription_client import close_transcription_client
 from velox.llm.vision_client import close_vision_client
 from velox.tools import initialize_tool_dispatcher
 from velox.utils.logger import setup_logging
@@ -187,6 +188,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await close_elektraweb_client()
     await close_whatsapp_client()
     await close_llm_client()
+    await close_transcription_client()
     await close_vision_client()
     redis_state = getattr(_app.state, "redis", None)
     if redis_state is not None:
