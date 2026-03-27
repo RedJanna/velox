@@ -1790,7 +1790,7 @@ async def test_run_message_pipeline_restaurant_daily_capacity_full_routes_to_han
     assert result.internal_json.entities["guest_name"] == "Ali Veli"
     assert result.internal_json.entities["phone"] == "+905551112233"
     assert result.internal_json.entities["date"] == "2026-08-10"
-    assert "günlük restoran rezervasyon kotamız" in result.user_message.casefold()
+    assert "gunluk restoran rezervasyon kotamiz" in result.user_message.casefold()
 
 
 @pytest.mark.asyncio

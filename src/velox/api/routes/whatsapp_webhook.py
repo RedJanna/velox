@@ -1212,6 +1212,9 @@ def _extract_restaurant_capacity_handoff_context(executed_calls: list[dict[str, 
                 context_copy = dict(context)
                 if result.get("guest_message"):
                     context_copy["guest_message"] = str(result.get("guest_message"))
+                handoff_reason = str(result.get("reason") or "").strip()
+                if handoff_reason:
+                    context_copy["handoff_reason"] = handoff_reason
                 return context_copy
 
         if tool_name == "restaurant_availability":
@@ -1248,10 +1251,26 @@ def _build_restaurant_capacity_handoff_response(
         return None
 
     entities = _merge_entities_with_context(conversation.entities_json, context)
+    raw_reason = str(context.get("handoff_reason") or "").strip().upper()
+    handoff_reason = (
+        "restaurant_daily_capacity_full"
+        if raw_reason == "DAILY_CAPACITY_FULL"
+        else "restaurant_capacity_or_slot_unavailable"
+    )
+
     if language == "en":
-        user_message = str(context.get("guest_message") or "I am connecting you to a live customer representative now.")
+        default_message = (
+            "Our daily restaurant reservation quota is currently full. I am connecting you to a live customer representative now."
+            if handoff_reason == "restaurant_daily_capacity_full"
+            else "I am connecting you to a live customer representative now."
+        )
     else:
-        user_message = str(context.get("guest_message") or "Sizleri canlı müşteri temsilcisine bağlıyorum.")
+        default_message = (
+            "Gunluk restoran rezervasyon kotamiz su anda dolu. Sizleri canli musteri temsilcisine bagliyorum."
+            if handoff_reason == "restaurant_daily_capacity_full"
+            else "Sizleri canli musteri temsilcisine bagliyorum."
+        )
+    user_message = str(context.get("guest_message") or default_message)
 
     return LLMResponse(
         user_message=user_message,
@@ -1261,7 +1280,7 @@ def _build_restaurant_capacity_handoff_response(
             state="HANDOFF",
             entities=entities,
             required_questions=[],
-            handoff={"needed": True, "reason": "restaurant_capacity_or_slot_unavailable"},
+            handoff={"needed": True, "reason": handoff_reason},
             risk_flags=["RESTAURANT_CAPACITY_HANDOFF"],
             escalation={"level": "L2", "route_to_role": "ADMIN", "sla_hint": "high"},
             next_step="handoff_to_restaurant_team",
