@@ -15,6 +15,11 @@ from velox.config.settings import settings
 
 router = APIRouter(tags=["admin-panel-ui"])
 ADMIN_PANEL_ROUTE = settings.admin_panel_path if settings.admin_panel_path.startswith("/") else f"/{settings.admin_panel_path}"
+ADMIN_UI_NO_STORE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
 
 
 def render_admin_panel_html() -> str:
@@ -32,7 +37,7 @@ def render_admin_panel_html() -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>NexlumeAI Admin Panel</title>
+  <title>NexlumeAI Yönetim Paneli</title>
   <style>{ADMIN_PANEL_STYLE}
 {ADMIN_HOLDS_STYLE}
 {ADMIN_RESTAURANT_STYLE}</style>
@@ -40,26 +45,26 @@ def render_admin_panel_html() -> str:
 <body>
   <div id="toast" class="toast info" role="status" aria-live="polite"></div>
   <div class="shell">
-    <aside id="sidebar" class="sidebar">
+    <aside id="sidebar" class="sidebar" hidden>
       <div class="brand">
         <div class="brand-mark">NX</div>
         <div>
           <h1>NexlumeAI<br>Admin</h1>
-          <p>Misafir konusmalari, onaylar ve otel ayarlari tek yerden yonetilir.</p>
+          <p>Misafir konuşmaları, onaylar ve otel ayarları tek yerden yönetilir.</p>
         </div>
       </div>
 
-      <nav id="nav" class="nav" aria-label="Admin navigasyon">
-        <button data-nav="dashboard"><span class="nav-label"><strong>Genel Bakis</strong><span>Anlık durum ozeti</span></span><span>01</span></button>
-        <button data-nav="conversations"><span class="nav-label"><strong>Konusmalar</strong><span>Misafir mesajlari ve gecmis</span></span><span>02</span></button>
+      <nav id="nav" class="nav" aria-label="Yönetim paneli gezinmesi">
+        <button data-nav="dashboard"><span class="nav-label"><strong>Genel Bakış</strong><span>Anlık durum özeti</span></span><span>01</span></button>
+        <button data-nav="conversations"><span class="nav-label"><strong>Konuşmalar</strong><span>Misafir mesajları ve geçmiş</span></span><span>02</span></button>
         <button data-nav="holds"><span class="nav-label"><strong>Onay Bekleyenler</strong><span>Rezervasyon onay ve red islemleri</span></span><span>03</span></button>
-        <button data-nav="tickets"><span class="nav-label"><strong>Destek Talepleri</strong><span>Ekibe aktarilan gorevler</span></span><span>04</span></button>
-        <button data-nav="hotels"><span class="nav-label"><strong>Otel Bilgileri</strong><span>Otel profil ve ayarlari</span></span><span>05</span></button>
-        <button data-nav="faq"><span class="nav-label"><strong>Sik Sorulan Sorular</strong><span>Hazir yanit yonetimi</span></span><span>06</span></button>
-        <button data-nav="restaurant"><span class="nav-label"><strong>Restoran Yonetimi</strong><span>Masa ve kapasite ayarlari</span></span><span>07</span></button>
-        <button data-nav="notifications"><span class="nav-label"><strong>Bildirim Ayarlari</strong><span>WhatsApp bildirim numaralari</span></span><span>08</span></button>
-        <button data-nav="system"><span class="nav-label"><strong>Sistem Durumu</strong><span>Sunucu ve baglanti kontrolleri</span></span><span>09</span></button>
-        <button data-nav="chatlab"><span class="nav-label"><strong>Test Paneli</strong><span>Canli test ve degerlendirme</span></span><span>10</span></button>
+        <button data-nav="tickets"><span class="nav-label"><strong>Destek Talepleri</strong><span>Ekibe aktarılan görevler</span></span><span>04</span></button>
+        <button data-nav="hotels"><span class="nav-label"><strong>Otel Bilgileri</strong><span>Otel profili ve ayarları</span></span><span>05</span></button>
+        <button data-nav="faq"><span class="nav-label"><strong>Sık Sorulan Sorular</strong><span>Hazır yanıt yönetimi</span></span><span>06</span></button>
+        <button data-nav="restaurant"><span class="nav-label"><strong>Restoran Yönetimi</strong><span>Masa ve kapasite ayarları</span></span><span>07</span></button>
+        <button data-nav="notifications"><span class="nav-label"><strong>Bildirim Ayarları</strong><span>WhatsApp bildirim numaraları</span></span><span>08</span></button>
+        <button data-nav="system"><span class="nav-label"><strong>Sistem Durumu</strong><span>Sunucu ve bağlantı kontrolleri</span></span><span>09</span></button>
+        <button data-nav="chatlab"><span class="nav-label"><strong>Test Paneli</strong><span>Canlı test ve değerlendirme</span></span><span>10</span></button>
       </nav>
 
       <section class="sidebar-card">
@@ -69,33 +74,33 @@ def render_admin_panel_html() -> str:
       </section>
 
       <section class="sidebar-card">
-        <h2>Scope</h2>
-        <label for="hotelSelect">Hotel</label>
+        <h2>Kapsam</h2>
+        <label for="hotelSelect">Otel</label>
         <select id="hotelSelect" class="sidebar-select"></select>
-        <p class="mt-sm">Aktif scope: <strong id="hotelScope">-</strong></p>
+        <p class="mt-sm">Aktif kapsam: <strong id="hotelScope">-</strong></p>
       </section>
 
       <section class="sidebar-card">
         <h2>Kontroller</h2>
         <div class="sidebar-actions">
-          <button id="reloadButton" class="sidebar-button warn" type="button">Config Reload</button>
+          <button id="reloadButton" class="sidebar-button warn" type="button">Yapılandırmayı Yenile</button>
           <button id="logoutButton" class="sidebar-button secondary" type="button">Çıkış Yap</button>
         </div>
       </section>
     </aside>
 
     <main class="workspace">
-      <header class="topbar">
+      <header id="topbar" class="topbar" hidden>
         <div>
-          <div class="badge dark">NexlumeAI Yonetim Paneli</div>
-          <h2 id="pageTitle">Genel Bakis</h2>
-          <p id="pageLead">Aktif konusmalar, bekleyen onaylar ve acik talepleri tek ekranda gorun.</p>
+          <div class="badge dark">NexlumeAI Yönetim Paneli</div>
+          <h2 id="pageTitle">Genel Bakış</h2>
+          <p id="pageLead">Aktif konuşmaları, bekleyen onayları ve açık talepleri tek ekranda görüntüleyin.</p>
         </div>
         <div class="topbar-actions">
-          <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Navigasyon menusu" aria-expanded="false">Menü</button>
+          <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Gezinme menüsü" aria-expanded="false">Menü</button>
           <div class="topbar-aside">
-            <div class="badge info">Merkezi yonetim</div>
-            <div class="badge warn">Onay gerektiren islemler gorunur</div>
+            <div class="badge info">Merkezi yönetim</div>
+            <div class="badge warn">Onay gerektiren işlemler görünür</div>
           </div>
         </div>
       </header>
@@ -103,10 +108,10 @@ def render_admin_panel_html() -> str:
       <section id="authView" class="panel">
         <div class="auth-grid">
           <article class="auth-card">
-            <h3>Panel Girisi</h3>
-            <p>Kullanici adi, sifre ve Google Authenticator kodu ile giris yapin. Tanimli cihazlarda kod adimi atlanabilir.</p>
+            <h3>Panel Girişi</h3>
+            <p>Kullanıcı adı, şifre ve Google Authenticator kodu ile giriş yapın. Tanımlı cihazlarda kod adımı atlanabilir.</p>
             <div id="trustedSessionBanner" class="helper-panel mb-md" hidden></div>
-            <form id="loginForm" class="field-grid">
+            <form id="loginForm" class="field-grid" method="post">
               <div class="field">
                 <label for="login-username">Kullanıcı adı</label>
                 <input id="login-username" name="username" autocomplete="username" required>
@@ -122,8 +127,8 @@ def render_admin_panel_html() -> str:
               <div class="field full">
                 <label class="toggle-row" for="rememberDeviceToggle">
                   <span class="toggle-copy">
-                    <strong>Bu cihazi hatirla</strong>
-                    <small>Ayni cihazda tekrar girislerde Google dogrulamasini azaltir.</small>
+                    <strong>Bu cihazı hatırla</strong>
+                    <small>Aynı cihazda tekrar girişlerde Google doğrulamasını azaltır.</small>
                   </span>
                   <span class="switch">
                     <input id="rememberDeviceToggle" name="remember_device" type="checkbox">
@@ -134,14 +139,14 @@ def render_admin_panel_html() -> str:
               <div id="loginRememberOptions" class="field full" hidden>
                 <div class="session-stack">
                   <div>
-                    <label>Dogrulama tekrari</label>
+                    <label>Doğrulama tekrarı</label>
                     <div id="loginVerificationOptions" class="choice-group"></div>
                   </div>
                   <div>
-                    <label>Oturum hatirlama</label>
+                    <label>Oturum hatırlama</label>
                     <div id="loginSessionOptions" class="choice-group"></div>
                   </div>
-                  <p class="helper">Paylasilan cihazlarda bu secenegi kapali tutun.</p>
+                  <p class="helper">Paylaşılan cihazlarda bu seçeneği kapalı tutun.</p>
                 </div>
               </div>
               <div class="field full">
@@ -152,11 +157,11 @@ def render_admin_panel_html() -> str:
 
           <article id="bootstrapCard" class="auth-card">
             <h3>İlk Kurulum</h3>
-            <p>Henuz yonetici hesabi yoksa buradan ilk hesabi olusturun ve Google Authenticator'i baglatin.</p>
+            <p>Henüz yönetici hesabı yoksa buradan ilk hesabı oluşturun ve Google Authenticator'ı bağlayın.</p>
             <div id="bootstrapSummary" class="helper-panel"></div>
-            <form id="bootstrapForm" class="field-grid mt-md">
+            <form id="bootstrapForm" class="field-grid mt-md" method="post">
               <div class="field">
-                <label for="bootstrap-hotel">Hotel</label>
+                <label for="bootstrap-hotel">Otel</label>
                 <select id="bootstrap-hotel" name="hotel_id" required></select>
               </div>
               <div class="field">
@@ -182,11 +187,11 @@ def render_admin_panel_html() -> str:
             <section id="totpRecovery" class="helper-panel mt-md" hidden>
               <div class="helper-box">
                 <strong>2FA Kurtarma</strong>
-                <p>Hesap var ama Google Authenticator kurulumu kaybolduysa, bootstrap token ile yeni QR uretebilirsiniz.</p>
+                <p>Hesap var ancak Google Authenticator kurulumu kaybolduysa, kurulum anahtarı ile yeni QR kodu üretebilirsiniz.</p>
               </div>
-              <form id="totpRecoveryForm" class="field-grid">
+              <form id="totpRecoveryForm" class="field-grid" method="post">
                 <div class="field">
-                  <label for="recovery-username">Kullanici adi</label>
+                  <label for="recovery-username">Kullanıcı adı</label>
                   <input id="recovery-username" name="username" required>
                 </div>
                 <div class="field">
@@ -194,11 +199,11 @@ def render_admin_panel_html() -> str:
                   <input id="recovery-token" name="bootstrap_token" required>
                 </div>
                 <div class="field full">
-                <label for="recovery-password">Yeni sifre (opsiyonel)</label>
+                <label for="recovery-password">Yeni şifre (isteğe bağlı)</label>
                   <input id="recovery-password" name="new_password" type="password" minlength="12" maxlength="72" placeholder="Boş bırakırsanız mevcut şifre korunur">
                 </div>
                 <div class="field full">
-                  <button class="sidebar-button warn" type="submit">2FA QR Yenile</button>
+                  <button class="sidebar-button warn" type="submit">2FA QR Kodunu Yenile</button>
                 </div>
               </form>
             </section>
@@ -218,7 +223,7 @@ def render_admin_panel_html() -> str:
                 <p id="otpUri" class="mono"></p>
               </div>
             </div>
-            <form id="otpVerifyForm" class="field-grid mt-md" hidden>
+            <form id="otpVerifyForm" class="field-grid mt-md" method="post" hidden>
               <div class="field full">
                 <label for="otp-verify-code">Google Authenticator kodu</label>
                 <input id="otp-verify-code" name="otp_code" inputmode="numeric" pattern="[0-9]*" placeholder="6 haneli kod" required>
@@ -246,12 +251,12 @@ def render_admin_panel_html() -> str:
               </div>
               <form id="conversationFilters" class="toolbar">
                 <label class="toolbar-check"><input name="active_only" type="checkbox" checked> Sadece aktif</label>
-                <select name="status" aria-label="Konusma durumu">
-                  <option value="">Tum durumlar</option>
-                  <option value="GREETING">GREETING</option>
-                  <option value="PENDING_APPROVAL">PENDING_APPROVAL</option>
-                  <option value="CONFIRMED">CONFIRMED</option>
-                  <option value="HANDOFF">HANDOFF</option>
+                <select name="status" aria-label="Konuşma durumu">
+                  <option value="">Tüm durumlar</option>
+                  <option value="GREETING">Karşılama</option>
+                  <option value="PENDING_APPROVAL">Onay Bekliyor</option>
+                  <option value="CONFIRMED">Onaylandı</option>
+                  <option value="HANDOFF">İnsan Devrinde</option>
                 </select>
                 <input name="date_from" type="date" aria-label="Başlangıç tarihi">
                 <input name="date_to" type="date" aria-label="Bitiş tarihi">
@@ -259,7 +264,7 @@ def render_admin_panel_html() -> str:
               </form>
               <div class="table-shell">
                 <table>
-                  <thead><tr><th>Kullanici</th><th>Durum</th><th>Intent</th><th>Risk</th><th>Mesaj</th><th>Aksiyon</th></tr></thead>
+                  <thead><tr><th>Kullanıcı</th><th>Durum</th><th>Niyet</th><th>Risk</th><th>Mesaj</th><th>İşlem</th></tr></thead>
                   <tbody id="conversationTableBody"></tbody>
                 </table>
               </div>
@@ -280,27 +285,27 @@ def render_admin_panel_html() -> str:
             <div class="split">
               <article class="module-card">
                 <div class="module-header">
-                  <div><h3>Konaklama Talepleri</h3><p>Otel rezervasyon onay, red ve takip islemleri.</p></div>
-                  <button class="inline-button primary" data-stay-toggle-create aria-label="Yeni konaklama rezervasyonu olustur">Yeni Rezervasyon</button>
+                  <div><h3>Konaklama Talepleri</h3><p>Otel rezervasyon onay, red ve takip işlemleri.</p></div>
+                  <button class="inline-button primary" data-stay-toggle-create aria-label="Yeni konaklama rezervasyonu oluştur">Yeni Rezervasyon</button>
                 </div>
                 <form id="stayHoldFilters" class="toolbar">
                   <div class="filter-chips" id="stayStatusChips"></div>
-                  <input name="reservation_no" placeholder="Rez. No ile ara" aria-label="Rezervasyon numarasi aramasi">
+                  <input name="reservation_no" placeholder="Rez. No ile ara" aria-label="Rezervasyon numarası araması">
                   <button class="primary" type="submit">Ara</button>
                 </form>
                 <div class="table-shell">
                   <table class="holds-table"><thead><tr>
-                    <th>Ac</th><th>Rez. No</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Tarih</th><th>Tutar</th>
+                    <th>Aç</th><th>Rez. No</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Tarih</th><th>Tutar</th>
                   </tr></thead><tbody id="stayHoldTableBody"></tbody></table>
                 </div>
               </article>
               <article id="stayHoldDetail" class="module-card">
-                <div class="empty-state"><p>Detay icin listeden bir kayit secin.</p></div>
+                <div class="empty-state"><p>Ayrıntıları görmek için listeden bir kayıt seçin.</p></div>
               </article>
             </div>
             <article id="stayHoldCreatePanel" class="module-card" hidden>
               <div class="module-header">
-                <div><h3>Konaklama Rezervasyonu Olustur</h3><p>Bilgileri adim adim girin.</p></div>
+                <div><h3>Konaklama Rezervasyonu Oluştur</h3><p>Bilgileri adım adım girin.</p></div>
                 <button class="inline-button secondary" data-stay-toggle-create>Kapat</button>
               </div>
               <div class="wizard-steps" id="stayWizardSteps"></div>
@@ -312,13 +317,13 @@ def render_admin_panel_html() -> str:
             <div class="split">
               <article class="module-card">
                 <div class="module-header">
-                  <div><h3>Restoran Talepleri</h3><p>Restoran rezervasyon onay ve red islemleri.</p></div>
+                  <div><h3>Restoran Talepleri</h3><p>Restoran rezervasyon onay ve red işlemleri.</p></div>
                   <div class="stack" style="align-items:flex-end;gap:8px;">
-                    <div class="filter-chips" aria-label="Restoran mod secimi">
-                      <button class="filter-chip is-active" id="restaurantModeAiLegacy" type="button">AI Restoran</button>
+                    <div class="filter-chips" aria-label="Restoran mod seçimi">
+                      <button class="filter-chip is-active" id="restaurantModeAiLegacy" type="button">Yapay Zekâ Restoran</button>
                       <button class="filter-chip" id="restaurantModeManualLegacy" type="button">Manuel</button>
                     </div>
-                    <button class="inline-button primary" data-action="toggle-restaurant-create" data-restaurant-toggle-create aria-label="Yeni restoran rezervasyonu olustur">Yeni Rezervasyon</button>
+                    <button class="inline-button primary" data-action="toggle-restaurant-create" data-restaurant-toggle-create aria-label="Yeni restoran rezervasyonu oluştur">Yeni Rezervasyon</button>
                   </div>
                 </div>
                 <form id="restaurantHoldFiltersLegacy" class="toolbar">
@@ -327,28 +332,28 @@ def render_admin_panel_html() -> str:
                 </form>
                 <div class="table-shell">
                   <table class="holds-table"><thead><tr>
-                    <th>Ac</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Tarih/Saat</th><th>Kisi</th>
+                    <th>Aç</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Tarih/Saat</th><th>Kişi</th>
                   </tr></thead><tbody id="restaurantHoldTableBodyLegacy"></tbody></table>
                 </div>
               </article>
               <article id="restaurantHoldDetailLegacy" class="module-card">
-                <div class="empty-state"><p>Detay icin listeden bir kayit secin.</p></div>
+                <div class="empty-state"><p>Ayrıntıları görmek için listeden bir kayıt seçin.</p></div>
               </article>
             </div>
             <article id="restaurantHoldCreatePanelLegacy" class="module-card" hidden>
               <div class="module-header">
-                <div><h3>Restoran Rezervasyonu Olustur</h3><p>Bilgileri girin.</p></div>
+                <div><h3>Restoran Rezervasyonu Oluştur</h3><p>Bilgileri girin.</p></div>
                 <button class="inline-button secondary" data-restaurant-toggle-create>Kapat</button>
               </div>
               <form id="restaurantCreateFormLegacy" class="field-grid">
                 <div class="field"><label for="rc-date">Tarih</label><input id="rc-date" name="date" type="date" required></div>
                 <div class="field"><label for="rc-time">Saat</label><input id="rc-time" name="time" type="time" required></div>
-                <div class="field"><label for="rc-guest">Misafir Adi</label><input id="rc-guest" name="guest_name" required></div>
-                <div class="field"><label for="rc-pax">Kisi Sayisi</label><input id="rc-pax" name="pax" type="number" min="1" required></div>
+                <div class="field"><label for="rc-guest">Misafir Adı</label><input id="rc-guest" name="guest_name" required></div>
+                <div class="field"><label for="rc-pax">Kişi Sayısı</label><input id="rc-pax" name="pax" type="number" min="1" required></div>
                 <div class="field"><label for="rc-phone">Telefon</label><input id="rc-phone" name="phone" placeholder="+905XXXXXXXXX" required></div>
-                <div class="field"><label for="rc-area">Alan</label><select id="rc-area" name="area"><option value="outdoor">Dis Mekan</option><option value="indoor">Ic Mekan</option></select></div>
+                <div class="field"><label for="rc-area">Alan</label><select id="rc-area" name="area"><option value="outdoor">Dış Mekân</option><option value="indoor">İç Mekân</option></select></div>
                 <div class="field full"><label for="rc-notes">Notlar</label><textarea id="rc-notes" name="notes" style="min-height:80px"></textarea></div>
-                <div class="field full"><button class="inline-button primary" type="submit">Restoran Rezervasyonu Olustur</button></div>
+                <div class="field full"><button class="inline-button primary" type="submit">Restoran Rezervasyonu Oluştur</button></div>
               </form>
             </article>
           </div>
@@ -357,8 +362,8 @@ def render_admin_panel_html() -> str:
             <div class="split">
               <article class="module-card">
                 <div class="module-header">
-                  <div><h3>Transfer Talepleri</h3><p>Transfer onay ve red islemleri.</p></div>
-                  <button class="inline-button primary" data-transfer-toggle-create aria-label="Yeni transfer talebi olustur">Yeni Transfer</button>
+                  <div><h3>Transfer Talepleri</h3><p>Transfer onay ve red işlemleri.</p></div>
+                  <button class="inline-button primary" data-transfer-toggle-create aria-label="Yeni transfer talebi oluştur">Yeni Transfer</button>
                 </div>
                 <form id="transferHoldFilters" class="toolbar">
                   <div class="filter-chips" id="transferStatusChips"></div>
@@ -366,29 +371,29 @@ def render_admin_panel_html() -> str:
                 </form>
                 <div class="table-shell">
                   <table class="holds-table"><thead><tr>
-                    <th>Ac</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Guzergah</th><th>Tarih</th>
+                    <th>Aç</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Güzergâh</th><th>Tarih</th>
                   </tr></thead><tbody id="transferHoldTableBody"></tbody></table>
                 </div>
               </article>
               <article id="transferHoldDetail" class="module-card">
-                <div class="empty-state"><p>Detay icin listeden bir kayit secin.</p></div>
+                <div class="empty-state"><p>Ayrıntıları görmek için listeden bir kayıt seçin.</p></div>
               </article>
             </div>
             <article id="transferHoldCreatePanel" class="module-card" hidden>
               <div class="module-header">
-                <div><h3>Transfer Talebi Olustur</h3><p>Bilgileri girin.</p></div>
+                <div><h3>Transfer Talebi Oluştur</h3><p>Bilgileri girin.</p></div>
                 <button class="inline-button secondary" data-transfer-toggle-create>Kapat</button>
               </div>
               <form id="transferCreateForm" class="field-grid">
                 <div class="field"><label for="tc-date">Tarih</label><input id="tc-date" name="date" type="date" required></div>
                 <div class="field"><label for="tc-time">Saat</label><input id="tc-time" name="time" type="time" required></div>
-                <div class="field"><label for="tc-guest">Misafir Adi</label><input id="tc-guest" name="guest_name" required></div>
-                <div class="field"><label for="tc-pax">Kisi Sayisi</label><input id="tc-pax" name="pax" type="number" min="1" required></div>
+                <div class="field"><label for="tc-guest">Misafir Adı</label><input id="tc-guest" name="guest_name" required></div>
+                <div class="field"><label for="tc-pax">Kişi Sayısı</label><input id="tc-pax" name="pax" type="number" min="1" required></div>
                 <div class="field"><label for="tc-phone">Telefon</label><input id="tc-phone" name="phone" placeholder="+905XXXXXXXXX" required></div>
-                <div class="field"><label for="tc-from">Kalkis</label><input id="tc-from" name="pickup_location" required></div>
-                <div class="field"><label for="tc-to">Varis</label><input id="tc-to" name="dropoff_location" required></div>
+                <div class="field"><label for="tc-from">Kalkış</label><input id="tc-from" name="pickup_location" required></div>
+                <div class="field"><label for="tc-to">Varış</label><input id="tc-to" name="dropoff_location" required></div>
                 <div class="field full"><label for="tc-notes">Notlar</label><textarea id="tc-notes" name="notes" style="min-height:80px"></textarea></div>
-                <div class="field full"><button class="inline-button primary" type="submit">Transfer Talebi Olustur</button></div>
+                <div class="field full"><button class="inline-button primary" type="submit">Transfer Talebi Oluştur</button></div>
               </form>
             </article>
           </div>
@@ -397,27 +402,27 @@ def render_admin_panel_html() -> str:
         <section data-view="tickets" class="section-grid" hidden>
           <article class="module-card">
             <div class="module-header">
-              <div><h3>Ticket Takibi</h3><p>Sahiplik ve kapanış durumunu kaybetmeden ekip akışına müdahale edin.</p></div>
+              <div><h3>Talep Takibi</h3><p>Sahiplik ve kapanış durumunu kaybetmeden ekip akışına müdahale edin.</p></div>
             </div>
             <form id="ticketFilters" class="toolbar">
-              <select name="status" aria-label="Ticket durumu">
-                <option value="">Tum statuler</option>
-                <option value="OPEN">OPEN</option>
-                <option value="IN_PROGRESS">IN_PROGRESS</option>
-                <option value="RESOLVED">RESOLVED</option>
-                <option value="CLOSED">CLOSED</option>
+              <select name="status" aria-label="Talep durumu">
+                <option value="">Tüm statüler</option>
+                <option value="OPEN">Açık</option>
+                <option value="IN_PROGRESS">İşlemde</option>
+                <option value="RESOLVED">Çözüldü</option>
+                <option value="CLOSED">Kapalı</option>
               </select>
-              <select name="priority" aria-label="Ticket onceligi">
-                <option value="">Tum oncelikler</option>
-                <option value="high">high</option>
-                <option value="medium">medium</option>
-                <option value="low">low</option>
+              <select name="priority" aria-label="Talep önceliği">
+                <option value="">Tüm öncelikler</option>
+                <option value="high">Yüksek</option>
+                <option value="medium">Orta</option>
+                <option value="low">Düşük</option>
               </select>
               <button class="primary" type="submit">Filtrele</button>
             </form>
             <div class="table-shell">
               <table>
-                <thead><tr><th>Ticket</th><th>Oncelik</th><th>Durum</th><th>Sahiplik</th><th>Zaman</th><th>Ozet</th><th>Aksiyon</th></tr></thead>
+                <thead><tr><th>Talep</th><th>Öncelik</th><th>Durum</th><th>Sahiplik</th><th>Zaman</th><th>Özet</th><th>İşlem</th></tr></thead>
                 <tbody id="ticketTableBody"></tbody>
               </table>
             </div>
@@ -427,17 +432,32 @@ def render_admin_panel_html() -> str:
         <section data-view="hotels" class="section-grid" hidden>
           <article class="module-card">
             <div class="module-header">
-              <div><h3>Hotel Profile Editor</h3><p>Panelden guncellenen veri YAML kaynagina yazilir ve runtime cache yenilenir.</p></div>
+              <div><h3>Otel Profil Düzenleyicisi</h3><p>Taslağı kaydedebilir, ardından değişiklikleri yayına alabilirsiniz. Misafirler yalnızca yayımlanmış son sürümü görür.</p></div>
               <div class="module-actions">
-                <select id="hotelProfileSelect" class="sidebar-select min-w-select" aria-label="Hotel profile secimi"></select>
-                <button id="saveHotelProfile" class="inline-button primary" type="button">Profile Kaydet</button>
+                <select id="hotelProfileSelect" class="sidebar-select min-w-select" aria-label="Otel profili seçimi"></select>
+                <button id="saveHotelProfile" class="inline-button primary" type="button">Taslağı Kaydet</button>
+                <button id="publishHotelFacts" class="inline-button secondary" type="button">Değişiklikleri Yayına Al</button>
               </div>
             </div>
             <div id="hotelProfileMeta" class="helper-panel mb-md"></div>
-            <div class="field full">
-              <label for="hotelProfileEditor">profile_json</label>
-              <textarea id="hotelProfileEditor"></textarea>
-            </div>
+            <div id="hotelFactsConflict" class="helper-panel mb-md"></div>
+            <div id="hotelFactsStatus" class="helper-panel mb-md"></div>
+            <div id="hotelFactsHistory" class="helper-panel mb-md"></div>
+            <div id="hotelFactsEvents" class="helper-panel mb-md"></div>
+            <div id="hotelFactsVersionDetail" class="helper-panel mb-md"></div>
+            <div id="hotelProfileSections" class="helper-panel mb-md"></div>
+            <div id="hotelProfileSectionBody" class="helper-panel mb-md"></div>
+            <details class="helper-box" data-advanced-mode="hotel-profile-json">
+              <summary><strong>Teknik Düzenleme • Ham JSON</strong></summary>
+              <p class="muted mt-sm">Bu panel varsayılan olarak kapalıdır. Teknik eşleştirme, geri kazanım ve ileri düzey düzenlemeler için kullanılır; günlük kullanımda bölüm sekmelerini tercih edin.</p>
+              <div class="module-actions mt-sm">
+                <button id="applyHotelProfileJson" class="action-button secondary" type="button">JSON'u Forma Aktar</button>
+              </div>
+              <div class="field full mt-md">
+                <label for="hotelProfileEditor">Profil JSON'u</label>
+                <textarea id="hotelProfileEditor"></textarea>
+              </div>
+            </details>
           </article>
         </section>
 
@@ -445,28 +465,28 @@ def render_admin_panel_html() -> str:
           <div class="split">
             <article class="module-card">
               <div class="module-header">
-                <div><h3>FAQ Kayitlari</h3><p>Sadece aktif kayitlar cevap motorunda kullanilir. Uygunsuz icerikleri aninda kaldirin.</p></div>
+                <div><h3>SSS Kayıtları</h3><p>Yalnızca aktif kayıtlar yanıt motorunda kullanılır. Uygunsuz içerikleri hemen kaldırın.</p></div>
               </div>
               <form id="faqFilters" class="toolbar">
-                <select name="status" aria-label="FAQ durumu">
-                  <option value="">Tum durumlar</option>
-                  <option value="DRAFT">DRAFT</option>
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="PAUSED">PAUSED</option>
-                  <option value="REMOVED">REMOVED</option>
+                <select name="status" aria-label="SSS durumu">
+                  <option value="">Tüm durumlar</option>
+                  <option value="DRAFT">Taslak</option>
+                  <option value="ACTIVE">Aktif</option>
+                  <option value="PAUSED">Duraklatıldı</option>
+                  <option value="REMOVED">Kaldırıldı</option>
                 </select>
-                <input name="q" placeholder="Konu, soru veya cevap ara" aria-label="FAQ arama metni">
+                <input name="q" placeholder="Konu, soru veya cevap ara" aria-label="SSS arama metni">
                 <button class="primary" type="submit">Filtrele</button>
               </form>
               <div class="table-shell">
                 <table>
-                  <thead><tr><th>Konu</th><th>Durum</th><th>Soru/Ozet</th><th>Cevap/Ozet</th><th>Aksiyon</th></tr></thead>
+                  <thead><tr><th>Konu</th><th>Durum</th><th>Soru Özeti</th><th>Cevap Özeti</th><th>İşlem</th></tr></thead>
                   <tbody id="faqTableBody"></tbody>
                 </table>
               </div>
             </article>
             <article id="faqDetail" class="module-card">
-              <div class="empty-state"><p>Detay için listeden bir FAQ kaydı seçin.</p></div>
+              <div class="empty-state"><p>Ayrıntıları görmek için listeden bir SSS kaydı seçin.</p></div>
             </article>
           </div>
         </section>
@@ -474,34 +494,34 @@ def render_admin_panel_html() -> str:
         <section data-view="restaurant" class="section-grid" hidden>
           <article class="module-card">
             <div class="module-header">
-              <div><h3>Slot Yonetimi</h3><p>Kapasiteyi tarih ve rezervasyon saati bazli takip et, kalan kapasiteyi gorsel olarak izle.</p></div>
+              <div><h3>Slot Yönetimi</h3><p>Kapasiteyi tarih ve rezervasyon saati bazında takip edin, kalan kapasiteyi görsel olarak izleyin.</p></div>
               <div class="stack" style="align-items:flex-end;gap:8px;">
-                <button id="openServiceModeBtn" class="inline-button primary" type="button" aria-label="Servis modunu ac" onclick="window.__veloxOpenServiceMode && window.__veloxOpenServiceMode()">Servis Modu</button>
+                <button id="openServiceModeBtn" class="inline-button primary" type="button" aria-label="Servis modunu aç" onclick="window.__veloxOpenServiceMode && window.__veloxOpenServiceMode()">Servis Modu</button>
               </div>
             </div>
             <form id="slotFilters" class="toolbar">
-              <input name="date_from" type="date" aria-label="Slot baslangic tarihi">
-              <input name="date_to" type="date" aria-label="Slot bitis tarihi">
-              <select name="display_interval" id="slotDisplayInterval" aria-label="Slot gosterim araligi">
+              <input name="date_from" type="date" aria-label="Slot başlangıç tarihi">
+              <input name="date_to" type="date" aria-label="Slot bitiş tarihi">
+              <select name="display_interval" id="slotDisplayInterval" aria-label="Slot gösterim aralığı">
                 <option value="1m">Her 1 dakika</option>
                 <option value="1h">Her 1 saat</option>
                 <option value="2h">Her 2 saat</option>
-                <option value="1d" selected>Her gun</option>
-                <option value="3d">Her 3 gun</option>
+                <option value="1d" selected>Her gün</option>
+                <option value="3d">Her 3 gün</option>
                 <option value="1w">Her hafta</option>
-                <option value="15d">Her 15 gun</option>
-                <option value="30d">Her 30 gun</option>
+                <option value="15d">Her 15 gün</option>
+                <option value="30d">Her 30 gün</option>
                 <option value="2mo">Her 2 ay</option>
               </select>
-              <button id="loadSlotsButton" class="primary" type="button" aria-label="Slotlari getir">Slotlari Getir</button>
+              <button id="loadSlotsButton" class="primary" type="button" aria-label="Slotları getir">Slotları Getir</button>
             </form>
             <div class="toolbar" style="margin-top:-4px">
-              <button id="hideSlotsButton" class="inline-button secondary" type="button" aria-label="Slotlari kapat">Slotlari Kapat</button>
+              <button id="hideSlotsButton" class="inline-button secondary" type="button" aria-label="Slotları kapat">Slotları Kapat</button>
             </div>
             <div id="slotSummaryCards" class="split"></div>
             <div class="table-shell">
               <table>
-                <thead><tr><th>ID</th><th>Tarih</th><th>Rezervasyon Saati</th><th>Alan</th><th>Kalan Slot</th><th>Durum</th><th>Aksiyon</th></tr></thead>
+                <thead><tr><th>ID</th><th>Tarih</th><th>Rezervasyon Saati</th><th>Alan</th><th>Kalan Slot</th><th>Durum</th><th>İşlem</th></tr></thead>
                 <tbody id="slotTableBody"></tbody>
               </table>
             </div>
@@ -509,80 +529,80 @@ def render_admin_panel_html() -> str:
 
           <article class="module-card">
             <div class="module-header">
-              <div><h3>Toplu Slot Temizleme</h3><p>Secilen tarih ve saat araligindaki slot kayitlarini tek seferde sil. Baslangic ve bitis saatine denk gelen slotlar da dahildir.</p></div>
+              <div><h3>Toplu Slot Temizleme</h3><p>Seçilen tarih ve saat aralığındaki slot kayıtlarını tek seferde silin. Başlangıç ve bitiş saatine denk gelen slotlar da dahildir.</p></div>
             </div>
             <form id="slotDeleteForm" class="dense-form">
-              <div class="field"><label>Tarih baslangic</label><input name="date_from" type="date" required aria-label="Silme baslangic tarihi"></div>
-              <div class="field"><label>Tarih bitis</label><input name="date_to" type="date" required aria-label="Silme bitis tarihi"></div>
-              <div class="field"><label>Baslangic saati</label><input name="start_time" type="time" required aria-label="Silme baslangic saati"></div>
-              <div class="field"><label>Bitis saati</label><input name="end_time" type="time" required aria-label="Silme bitis saati"></div>
+              <div class="field"><label>Tarih başlangıcı</label><input name="date_from" type="date" required aria-label="Silme başlangıç tarihi"></div>
+              <div class="field"><label>Tarih bitişi</label><input name="date_to" type="date" required aria-label="Silme bitiş tarihi"></div>
+              <div class="field"><label>Başlangıç saati</label><input name="start_time" type="time" required aria-label="Silme başlangıç saati"></div>
+              <div class="field"><label>Bitiş saati</label><input name="end_time" type="time" required aria-label="Silme bitiş saati"></div>
               <div class="field full">
-                <label>Haftanin gunleri</label>
+                <label>Haftanın günleri</label>
                 <div class="checkbox-group" id="slotDeleteWeekdays">
                   <label><input type="checkbox" name="weekdays" value="0"> Pzt</label>
                   <label><input type="checkbox" name="weekdays" value="1"> Sal</label>
-                  <label><input type="checkbox" name="weekdays" value="2"> Car</label>
+                  <label><input type="checkbox" name="weekdays" value="2"> Çar</label>
                   <label><input type="checkbox" name="weekdays" value="3"> Per</label>
                   <label><input type="checkbox" name="weekdays" value="4"> Cum</label>
                   <label><input type="checkbox" name="weekdays" value="5"> Cmt</label>
                   <label><input type="checkbox" name="weekdays" value="6"> Paz</label>
                 </div>
-                <small>Secmezsen tum gunlerde uygular.</small>
+                <small>Seçmezseniz tüm günlerde uygular.</small>
               </div>
-              <div class="field full"><button class="inline-button danger" type="submit">Secili Araliktaki Slotlari Temizle</button></div>
+              <div class="field full"><button class="inline-button danger" type="submit">Seçili Aralıktaki Slotları Temizle</button></div>
             </form>
           </article>
 
           <article class="module-card">
             <div class="module-header">
-              <div><h3>Tarihler Arasi Kapasite</h3><p>Secilen tarih araliginda baslangic ve bitis saatleri arasindaki tum dakikalara rezervasyon kapasitesi olusturur.</p></div>
+              <div><h3>Tarihler Arası Kapasite</h3><p>Seçilen tarih aralığında başlangıç ve bitiş saatleri arasındaki tüm dakikalar için rezervasyon kapasitesi oluşturur.</p></div>
             </div>
             <form id="slotCreateForm" class="dense-form">
-              <div class="field"><label>Tarih baslangic</label><input name="date_from" type="date" required aria-label="Kapasite baslangic tarihi"></div>
-              <div class="field"><label>Tarih bitis</label><input name="date_to" type="date" required aria-label="Kapasite bitis tarihi"></div>
-              <div class="field"><label>Baslangic saati</label><input name="start_time" type="time" required aria-label="Kapasite baslangic saati"></div>
-              <div class="field"><label>Bitis saati</label><input name="end_time" type="time" required aria-label="Kapasite bitis saati"></div>
-                            <div class="field"><label>Toplam rezervasyon sayisi</label><input name="reservation_limit" type="number" min="1" required aria-label="Pencere toplam rezervasyon limiti"></div>
-              <div class="field"><label>Toplam kisi sayisi limiti</label><input name="total_party_size_limit" type="number" min="1" required aria-label="Pencere toplam kisi sayisi limiti"></div>
-              <div class="field"><label>Min kisi sayisi</label><input name="min_party_size" type="number" min="1" value="1" required aria-label="Minimum kisi sayisi"></div>
-              <div class="field"><label>Max kisi sayisi</label><input name="max_party_size" type="number" min="1" value="8" required aria-label="Maksimum kisi sayisi"></div>
-              <div class="field"><label>Misafire acik mi?</label><input name="is_active" type="checkbox" checked class="checkbox-field" aria-label="Slot aktif mi"></div>
-              <div class="field full"><button class="inline-button primary" type="submit">Tarihler Arasi Kapasite Olustur</button></div>
+              <div class="field"><label>Tarih başlangıcı</label><input name="date_from" type="date" required aria-label="Kapasite başlangıç tarihi"></div>
+              <div class="field"><label>Tarih bitişi</label><input name="date_to" type="date" required aria-label="Kapasite bitiş tarihi"></div>
+              <div class="field"><label>Başlangıç saati</label><input name="start_time" type="time" required aria-label="Kapasite başlangıç saati"></div>
+              <div class="field"><label>Bitiş saati</label><input name="end_time" type="time" required aria-label="Kapasite bitiş saati"></div>
+              <div class="field"><label>Toplam rezervasyon sayısı</label><input name="reservation_limit" type="number" min="1" required aria-label="Pencere toplam rezervasyon limiti"></div>
+              <div class="field"><label>Toplam kişi sayısı limiti</label><input name="total_party_size_limit" type="number" min="1" required aria-label="Pencere toplam kişi sayısı limiti"></div>
+              <div class="field"><label>Min. kişi sayısı</label><input name="min_party_size" type="number" min="1" value="1" required aria-label="Minimum kişi sayısı"></div>
+              <div class="field"><label>Maks. kişi sayısı</label><input name="max_party_size" type="number" min="1" value="8" required aria-label="Maksimum kişi sayısı"></div>
+              <div class="field"><label>Misafire açık mı?</label><input name="is_active" type="checkbox" checked class="checkbox-field" aria-label="Slot aktif mi"></div>
+              <div class="field full"><button class="inline-button primary" type="submit">Tarihler Arası Kapasite Oluştur</button></div>
             </form>
           </article>
 
           <article class="module-card" id="restaurantSettingsCard">
             <div class="module-header">
-              <div><h3>Kapasite Ayarlari</h3><p>Gunluk maksimum rezervasyon sayisini ve kabul edilen kisi araligini yonetin.</p></div>
+              <div><h3>Kapasite Ayarları</h3><p>Günlük maksimum rezervasyon sayısını ve kabul edilen kişi aralığını yönetin.</p></div>
             </div>
             <form id="restaurantSettingsForm" class="dense-form">
               <div class="field">
-                <label>Gunluk limit aktif</label>
-                <label class="toggle-switch"><input type="checkbox" id="dailyCapToggle" name="daily_max_reservations_enabled" aria-label="Gunluk kapasite limiti"><span class="toggle-slider"></span></label>
+                <label>Günlük limit aktif</label>
+                <label class="toggle-switch"><input type="checkbox" id="dailyCapToggle" name="daily_max_reservations_enabled" aria-label="Günlük kapasite limiti"><span class="toggle-slider"></span></label>
               </div>
               <div class="field">
-                <label>Maks. gunluk rezervasyon</label>
-                <input name="daily_max_reservations_count" type="number" min="1" value="50" id="dailyCapCount" aria-label="Gunluk maksimum rezervasyon sayisi">
+                <label>Maks. günlük rezervasyon</label>
+                <input name="daily_max_reservations_count" type="number" min="1" value="50" id="dailyCapCount" aria-label="Günlük maksimum rezervasyon sayısı">
               </div>
               <div class="field">
-                <label>Gunluk kisi limiti aktif</label>
-                <label class="toggle-switch"><input type="checkbox" id="dailyPartyCapToggle" name="daily_max_party_size_enabled" aria-label="Gunluk kisi limiti"><span class="toggle-slider"></span></label>
+                <label>Günlük kişi limiti aktif</label>
+                <label class="toggle-switch"><input type="checkbox" id="dailyPartyCapToggle" name="daily_max_party_size_enabled" aria-label="Günlük kişi limiti"><span class="toggle-slider"></span></label>
               </div>
               <div class="field">
-                <label>Maks. gunluk toplam kisi</label>
-                <input name="daily_max_party_size_count" type="number" min="1" value="200" id="dailyPartyCapCount" aria-label="Gunluk maksimum toplam kisi sayisi">
+                <label>Maks. günlük toplam kişi</label>
+                <input name="daily_max_party_size_count" type="number" min="1" value="200" id="dailyPartyCapCount" aria-label="Günlük maksimum toplam kişi sayısı">
               </div>
               <div class="field">
-                <label>Min kisi sayisi</label>
-                <input name="min_party_size" type="number" min="1" value="1" id="restaurantMinPartySize" aria-label="Genel minimum kisi sayisi">
+                <label>Min. kişi sayısı</label>
+                <input name="min_party_size" type="number" min="1" value="1" id="restaurantMinPartySize" aria-label="Genel minimum kişi sayısı">
               </div>
               <div class="field">
-                <label>Max kisi sayisi</label>
-                <input name="max_party_size" type="number" min="1" value="8" id="restaurantMaxPartySize" aria-label="Genel maksimum kisi sayisi">
+                <label>Maks. kişi sayısı</label>
+                <input name="max_party_size" type="number" min="1" value="8" id="restaurantMaxPartySize" aria-label="Genel maksimum kişi sayısı">
               </div>
               <div class="field">
-                <label>Restoran chef numarasi</label>
-                <input name="chef_phone" type="tel" id="restaurantChefPhone" placeholder="+905XXXXXXXXX" aria-label="Restoran chef numarasi">
+                <label>Restoran şef numarası</label>
+                <input name="chef_phone" type="tel" id="restaurantChefPhone" placeholder="+905XXXXXXXXX" aria-label="Restoran şef numarası">
               </div>
               <div class="field full"><button class="inline-button primary" type="submit">Kaydet</button></div>
             </form>
@@ -591,66 +611,66 @@ def render_admin_panel_html() -> str:
           <div class="split">
             <article class="module-card">
               <div class="module-header">
-                <div><h3>Restoran Talepleri</h3><p>Restoran rezervasyon onay, red ve manuel olusturma islemleri.</p></div>
+                <div><h3>Restoran Talepleri</h3><p>Restoran rezervasyon onay, red ve manuel oluşturma işlemleri.</p></div>
                 <div class="stack" style="align-items:flex-end;gap:8px;">
-                  <div class="filter-chips" aria-label="Restoran mod secimi">
-                    <button class="filter-chip is-active" id="restaurantModeAi" type="button">AI Restoran</button>
+                  <div class="filter-chips" aria-label="Restoran mod seçimi">
+                      <button class="filter-chip is-active" id="restaurantModeAi" type="button">Yapay Zekâ Restoran</button>
                     <button class="filter-chip" id="restaurantModeManual" type="button">Manuel</button>
                   </div>
-                  <button class="inline-button primary" data-action="toggle-restaurant-create" data-restaurant-toggle-create aria-label="Yeni restoran rezervasyonu olustur">Yeni Rezervasyon</button>
+                  <button class="inline-button primary" data-action="toggle-restaurant-create" data-restaurant-toggle-create aria-label="Yeni restoran rezervasyonu oluştur">Yeni Rezervasyon</button>
                 </div>
               </div>
               <form id="restaurantHoldFilters" class="toolbar">
                 <div class="filter-chips" id="restaurantStatusChips"></div>
-                <input id="restaurantDateFrom" name="date_from" type="date" aria-label="Restoran talebi baslangic tarihi">
-                <input id="restaurantDateTo" name="date_to" type="date" aria-label="Restoran talebi bitis tarihi">
+                <input id="restaurantDateFrom" name="date_from" type="date" aria-label="Restoran talebi başlangıç tarihi">
+                <input id="restaurantDateTo" name="date_to" type="date" aria-label="Restoran talebi bitiş tarihi">
                 <button class="primary" type="submit">Filtrele</button>
               </form>
               <div class="table-shell">
                 <table class="holds-table"><thead><tr>
-                  <th>Ac</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Tarih/Saat</th><th>Kisi</th>
+                  <th>Aç</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Tarih/Saat</th><th>Kişi</th>
                 </tr></thead><tbody id="restaurantHoldTableBody"></tbody></table>
               </div>
             </article>
             <article id="restaurantHoldDetail" class="module-card">
-              <div class="empty-state"><p>Detay icin listeden bir kayit secin.</p></div>
+              <div class="empty-state"><p>Ayrıntıları görmek için listeden bir kayıt seçin.</p></div>
             </article>
           </div>
           <article id="restaurantHoldCreatePanel" class="module-card" hidden>
             <div class="module-header">
-              <div><h3>Restoran Rezervasyonu Olustur</h3><p>Bilgileri girin.</p></div>
+              <div><h3>Restoran Rezervasyonu Oluştur</h3><p>Bilgileri girin.</p></div>
               <button class="inline-button secondary" data-restaurant-toggle-create>Kapat</button>
             </div>
             <form id="restaurantCreateForm" class="field-grid">
               <div class="field"><label for="rc-date">Tarih</label><input id="rc-date" name="date" type="date" required></div>
               <div class="field"><label for="rc-time">Saat</label><input id="rc-time" name="time" type="time" required></div>
-              <div class="field"><label for="rc-guest">Misafir Adi</label><input id="rc-guest" name="guest_name" required></div>
-              <div class="field"><label for="rc-pax">Kisi Sayisi</label><input id="rc-pax" name="pax" type="number" min="1" required></div>
+              <div class="field"><label for="rc-guest">Misafir Adı</label><input id="rc-guest" name="guest_name" required></div>
+              <div class="field"><label for="rc-pax">Kişi Sayısı</label><input id="rc-pax" name="pax" type="number" min="1" required></div>
               <div class="field"><label for="rc-phone">Telefon</label><input id="rc-phone" name="phone" placeholder="+905XXXXXXXXX" required></div>
-              <div class="field"><label for="rc-area">Alan</label><select id="rc-area" name="area"><option value="outdoor">Dis Mekan</option><option value="indoor">Ic Mekan</option></select></div>
+              <div class="field"><label for="rc-area">Alan</label><select id="rc-area" name="area"><option value="outdoor">Dış Mekân</option><option value="indoor">İç Mekân</option></select></div>
               <div class="field full"><label for="rc-notes">Notlar</label><textarea id="rc-notes" name="notes" style="min-height:80px"></textarea></div>
-              <div class="field full"><button class="inline-button primary" type="submit">Restoran Rezervasyonu Olustur</button></div>
+              <div class="field full"><button class="inline-button primary" type="submit">Restoran Rezervasyonu Oluştur</button></div>
             </form>
           </article>
 
           <article class="module-card" id="floorPlanEditorCard">
             <div class="module-header">
-              <div><h3>Restoran Plan Cizimi</h3><p>Masalari ve sekilleri surukle-birak veya tiklayarak yerlestirin. Duvarlari uzatip kisaltabilir, tum araclari dondurebilir, kopyalayabilir ve silebilirsiniz.</p></div>
+              <div><h3>Restoran Plan Çizimi</h3><p>Masaları ve şekilleri sürükleyip bırakarak veya tıklayarak yerleştirin. Duvarları uzatıp kısaltabilir, tüm araçları döndürebilir, kopyalayabilir ve silebilirsiniz.</p></div>
               <div class="floor-plan-controls">
                 <label class="field fp-plan-name-field" for="floorPlanNameInput">
-                  <span>Plan Adi</span>
-                  <input id="floorPlanNameInput" type="text" maxlength="80" placeholder="Orn. Ana Salon Aksam Duzeni" aria-label="Plan adi">
+                  <span>Plan Adı</span>
+                  <input id="floorPlanNameInput" type="text" maxlength="80" placeholder="Örn. Ana Salon Akşam Düzeni" aria-label="Plan adı">
                 </label>
                 <label class="field fp-plan-list-field" for="floorPlanSelect">
-                  <span>Kayitli Planlar</span>
-                  <select id="floorPlanSelect" aria-label="Kayitli planlar"></select>
+                  <span>Kayıtlı Planlar</span>
+                  <select id="floorPlanSelect" aria-label="Kayıtlı planlar"></select>
                 </label>
-                <button class="inline-button accent" id="createNewFloorPlanBtn" type="button" aria-label="Yeni plan olustur">+ Yeni Plan</button>
-                <button class="inline-button primary" id="saveFloorPlanBtn" type="button" aria-label="Plani kaydet">Kaydet</button>
-                <button class="inline-button secondary" id="resetFloorPlanBtn" type="button" aria-label="Son kaydedilen hale don">Sifirla</button>
-                <button class="fp-activate-btn" id="activateFloorPlanBtn" type="button" aria-label="Plani aktif yap" title="Bu plani aktif plan olarak ayarla">&#9733; Aktif Yap</button>
-                <button class="fp-delete-btn" id="deleteFloorPlanBtn" type="button" aria-label="Plani sil" title="Kayitli plani sil">&#10005; Sil</button>
-                <span class="fp-plan-status"><span class="fp-plan-dirty-indicator" id="fpDirtyDot" title="Kaydedilmemis degisiklik var"></span><span id="fpPlanIdBadge" class="fp-plan-id-badge"></span></span>
+                <button class="inline-button accent" id="createNewFloorPlanBtn" type="button" aria-label="Yeni plan oluştur">+ Yeni Plan</button>
+                <button class="inline-button primary" id="saveFloorPlanBtn" type="button" aria-label="Planı kaydet">Kaydet</button>
+                <button class="inline-button secondary" id="resetFloorPlanBtn" type="button" aria-label="Son kaydedilen hale dön">Sıfırla</button>
+                <button class="fp-activate-btn" id="activateFloorPlanBtn" type="button" aria-label="Planı aktif yap" title="Bu planı aktif plan olarak ayarla">&#9733; Aktif Yap</button>
+                <button class="fp-delete-btn" id="deleteFloorPlanBtn" type="button" aria-label="Planı sil" title="Kayıtlı planı sil">&#10005; Sil</button>
+                <span class="fp-plan-status"><span class="fp-plan-dirty-indicator" id="fpDirtyDot" title="Kaydedilmemiş değişiklik var"></span><span id="fpPlanIdBadge" class="fp-plan-id-badge"></span></span>
               </div>
             </div>
             <div class="fp-plan-info-bar" id="fpPlanInfoBar">
@@ -659,92 +679,92 @@ def render_admin_panel_html() -> str:
               <span id="fpPlanTableCount"></span>
             </div>
             <div class="fp-toolbar">
-              <button class="fp-tool-btn active" id="fpGridBtn" type="button" title="Izgara goster/gizle">&#9638; Izgara</button>
+              <button class="fp-tool-btn active" id="fpGridBtn" type="button" title="Izgarayı göster/gizle">&#9638; Izgara</button>
               <button class="fp-tool-btn" id="fpUndoBtn" type="button" title="Geri al (Ctrl+Z)">&#8630; Geri Al</button>
               <span class="fp-sep"></span>
               <label class="field fp-floor-select" style="margin:0">
                 <span style="display:block;font-size:.68rem;color:var(--muted);margin-bottom:.2rem">Zemin</span>
-                <select id="fpFloorTheme" aria-label="Restoran zemin secimi">
+                <select id="fpFloorTheme" aria-label="Restoran zemin seçimi">
                   <option value="CREAM_MARBLE_CLASSIC">Krem Mermer - Klasik</option>
-                  <option value="CREAM_MARBLE_WARM">Krem Mermer - Sicak Ton</option>
-                  <option value="CREAM_MARBLE_SOFT">Krem Mermer - Yumusayak Doku</option>
+                  <option value="CREAM_MARBLE_WARM">Krem Mermer - Sıcak Ton</option>
+                  <option value="CREAM_MARBLE_SOFT">Krem Mermer - Yumuşak Doku</option>
                 </select>
               </label>
               <span class="fp-sep"></span>
-              <button class="fp-tool-btn danger" id="fpClearBtn" type="button" title="Tum elemanlari temizle">&#10005; Temizle</button>
+              <button class="fp-tool-btn danger" id="fpClearBtn" type="button" title="Tüm elemanları temizle">&#10005; Temizle</button>
               <span class="fp-sep"></span>
-              <span style="font-size:.7rem;color:var(--muted);align-self:center">Ipucu: Aracinizi secin, sonra canvas uzerine tiklayin veya surukleyin. ESC ile modu iptal edin.</span>
+              <span style="font-size:.7rem;color:var(--muted);align-self:center">İpucu: Aracınızı seçin, ardından tuvale tıklayın veya sürükleyin. ESC ile modu iptal edin.</span>
             </div>
             <div class="floor-plan-workspace">
               <div class="floor-plan-toolbox" id="floorPlanToolbox">
                 <p class="toolbox-title">Masalar</p>
-                <div class="toolbox-item" draggable="true" data-table-type="TABLE_2" data-capacity="2" aria-label="2 kisilik masa ekle">
-                  <span class="toolbox-preview"><svg viewBox="0 0 36 36"><circle cx="18" cy="3" r="3" fill="#78716c"/><circle cx="18" cy="33" r="3" fill="#78716c"/><circle cx="18" cy="18" r="10" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 2 Kisilik
+                <div class="toolbox-item" draggable="true" data-table-type="TABLE_2" data-capacity="2" aria-label="2 kişilik masa ekle">
+                  <span class="toolbox-preview"><svg viewBox="0 0 36 36"><circle cx="18" cy="3" r="3" fill="#78716c"/><circle cx="18" cy="33" r="3" fill="#78716c"/><circle cx="18" cy="18" r="10" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 2 Kişilik
                 </div>
-                <div class="toolbox-item" draggable="true" data-table-type="TABLE_4" data-capacity="4" aria-label="4 kisilik masa ekle">
-                  <span class="toolbox-preview"><svg viewBox="0 0 36 36"><circle cx="18" cy="3" r="3" fill="#78716c"/><circle cx="18" cy="33" r="3" fill="#78716c"/><circle cx="3" cy="18" r="3" fill="#78716c"/><circle cx="33" cy="18" r="3" fill="#78716c"/><rect x="10" y="10" width="16" height="16" rx="3" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 4 Kisilik
+                <div class="toolbox-item" draggable="true" data-table-type="TABLE_4" data-capacity="4" aria-label="4 kişilik masa ekle">
+                  <span class="toolbox-preview"><svg viewBox="0 0 36 36"><circle cx="18" cy="3" r="3" fill="#78716c"/><circle cx="18" cy="33" r="3" fill="#78716c"/><circle cx="3" cy="18" r="3" fill="#78716c"/><circle cx="33" cy="18" r="3" fill="#78716c"/><rect x="10" y="10" width="16" height="16" rx="3" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 4 Kişilik
                 </div>
-                <div class="toolbox-item" draggable="true" data-table-type="TABLE_6" data-capacity="6" aria-label="6 kisilik masa ekle">
-                  <span class="toolbox-preview"><svg viewBox="0 0 44 36"><circle cx="12" cy="3" r="3" fill="#78716c"/><circle cx="22" cy="3" r="3" fill="#78716c"/><circle cx="32" cy="3" r="3" fill="#78716c"/><circle cx="12" cy="33" r="3" fill="#78716c"/><circle cx="22" cy="33" r="3" fill="#78716c"/><circle cx="32" cy="33" r="3" fill="#78716c"/><rect x="6" y="10" width="32" height="16" rx="4" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 6 Kisilik
+                <div class="toolbox-item" draggable="true" data-table-type="TABLE_6" data-capacity="6" aria-label="6 kişilik masa ekle">
+                  <span class="toolbox-preview"><svg viewBox="0 0 44 36"><circle cx="12" cy="3" r="3" fill="#78716c"/><circle cx="22" cy="3" r="3" fill="#78716c"/><circle cx="32" cy="3" r="3" fill="#78716c"/><circle cx="12" cy="33" r="3" fill="#78716c"/><circle cx="22" cy="33" r="3" fill="#78716c"/><circle cx="32" cy="33" r="3" fill="#78716c"/><rect x="6" y="10" width="32" height="16" rx="4" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 6 Kişilik
                 </div>
-                <div class="toolbox-item" draggable="true" data-table-type="TABLE_8" data-capacity="8" aria-label="8 kisilik masa ekle">
-                  <span class="toolbox-preview"><svg viewBox="0 0 48 36"><circle cx="12" cy="3" r="2.5" fill="#78716c"/><circle cx="24" cy="3" r="2.5" fill="#78716c"/><circle cx="36" cy="3" r="2.5" fill="#78716c"/><circle cx="12" cy="33" r="2.5" fill="#78716c"/><circle cx="24" cy="33" r="2.5" fill="#78716c"/><circle cx="36" cy="33" r="2.5" fill="#78716c"/><circle cx="3" cy="18" r="2.5" fill="#78716c"/><circle cx="45" cy="18" r="2.5" fill="#78716c"/><rect x="8" y="9" width="32" height="18" rx="4" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 8 Kisilik
+                <div class="toolbox-item" draggable="true" data-table-type="TABLE_8" data-capacity="8" aria-label="8 kişilik masa ekle">
+                  <span class="toolbox-preview"><svg viewBox="0 0 48 36"><circle cx="12" cy="3" r="2.5" fill="#78716c"/><circle cx="24" cy="3" r="2.5" fill="#78716c"/><circle cx="36" cy="3" r="2.5" fill="#78716c"/><circle cx="12" cy="33" r="2.5" fill="#78716c"/><circle cx="24" cy="33" r="2.5" fill="#78716c"/><circle cx="36" cy="33" r="2.5" fill="#78716c"/><circle cx="3" cy="18" r="2.5" fill="#78716c"/><circle cx="45" cy="18" r="2.5" fill="#78716c"/><rect x="8" y="9" width="32" height="18" rx="4" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 8 Kişilik
                 </div>
-                <div class="toolbox-item" draggable="true" data-table-type="TABLE_10" data-capacity="10" aria-label="10 kisilik masa ekle">
-                  <span class="toolbox-preview"><svg viewBox="0 0 52 36"><circle cx="10" cy="3" r="2.5" fill="#78716c"/><circle cx="20" cy="3" r="2.5" fill="#78716c"/><circle cx="30" cy="3" r="2.5" fill="#78716c"/><circle cx="40" cy="3" r="2.5" fill="#78716c"/><circle cx="10" cy="33" r="2.5" fill="#78716c"/><circle cx="20" cy="33" r="2.5" fill="#78716c"/><circle cx="30" cy="33" r="2.5" fill="#78716c"/><circle cx="40" cy="33" r="2.5" fill="#78716c"/><circle cx="3" cy="18" r="2.5" fill="#78716c"/><circle cx="49" cy="18" r="2.5" fill="#78716c"/><rect x="7" y="9" width="38" height="18" rx="4" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 10 Kisilik
+                <div class="toolbox-item" draggable="true" data-table-type="TABLE_10" data-capacity="10" aria-label="10 kişilik masa ekle">
+                  <span class="toolbox-preview"><svg viewBox="0 0 52 36"><circle cx="10" cy="3" r="2.5" fill="#78716c"/><circle cx="20" cy="3" r="2.5" fill="#78716c"/><circle cx="30" cy="3" r="2.5" fill="#78716c"/><circle cx="40" cy="3" r="2.5" fill="#78716c"/><circle cx="10" cy="33" r="2.5" fill="#78716c"/><circle cx="20" cy="33" r="2.5" fill="#78716c"/><circle cx="30" cy="33" r="2.5" fill="#78716c"/><circle cx="40" cy="33" r="2.5" fill="#78716c"/><circle cx="3" cy="18" r="2.5" fill="#78716c"/><circle cx="49" cy="18" r="2.5" fill="#78716c"/><rect x="7" y="9" width="38" height="18" rx="4" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 10 Kişilik
                 </div>
                 <p class="toolbox-title">Sekiller</p>
-                <div class="toolbox-item" draggable="true" data-shape-type="HORIZONTAL_DIVIDER" aria-label="Yatay ayirici ekle">━ Yatay Ayirici</div>
-                <div class="toolbox-item" draggable="true" data-shape-type="VERTICAL_DIVIDER" aria-label="Dikey ayirici ekle">┃ Dikey Ayirici</div>
+                <div class="toolbox-item" draggable="true" data-shape-type="HORIZONTAL_DIVIDER" aria-label="Yatay ayırıcı ekle">━ Yatay Ayırıcı</div>
+                <div class="toolbox-item" draggable="true" data-shape-type="VERTICAL_DIVIDER" aria-label="Dikey ayırıcı ekle">┃ Dikey Ayırıcı</div>
                 <div class="toolbox-item" draggable="true" data-shape-type="WALL" aria-label="Duvar ekle">&#9632; Duvar</div>
                 <div class="toolbox-item" draggable="true" data-shape-type="CURVED_WALL" aria-label="Yuvarlak duvar ekle">&#9681; Yuvarlak Duvar</div>
-                <div class="toolbox-item" draggable="true" data-shape-type="TREE" aria-label="Agac ekle">&#127794; Agac</div>
-                <div class="toolbox-item" draggable="true" data-shape-type="BUSH" aria-label="Cali ekle">&#127807; Cali</div>
+                <div class="toolbox-item" draggable="true" data-shape-type="TREE" aria-label="Ağaç ekle">&#127794; Ağaç</div>
+                <div class="toolbox-item" draggable="true" data-shape-type="BUSH" aria-label="Çalı ekle">&#127807; Çalı</div>
               </div>
-              <div class="floor-plan-canvas show-grid" id="floorPlanCanvas" aria-label="Restoran plan cizim alani"></div>
+              <div class="floor-plan-canvas show-grid" id="floorPlanCanvas" aria-label="Restoran plan çizim alanı"></div>
             </div>
           </article>
 
           <article class="module-card" id="dailyViewCard">
             <div class="module-header">
-              <div><h3>Gunluk Gorunum</h3><p>Masalarin doluluk durumunu gorun, masa uzerine tiklayarak detaylari inceleyin.</p></div>
+              <div><h3>Günlük Görünüm</h3><p>Masaların doluluk durumunu görün, masaya tıklayarak ayrıntıları inceleyin.</p></div>
             </div>
             <div class="toolbar">
-              <input type="date" id="dailyViewDate" aria-label="Gunluk gorunum tarihi">
-              <button class="primary" id="loadDailyViewBtn" type="button" aria-label="Gunluk goruntule">Goruntule</button>
+              <input type="date" id="dailyViewDate" aria-label="Günlük görünüm tarihi">
+              <button class="primary" id="loadDailyViewBtn" type="button" aria-label="Günlük görünümü getir">Görüntüle</button>
             </div>
-            <div class="floor-plan-canvas daily-view-canvas" id="dailyViewCanvas" aria-label="Gunluk masa gorunumu"></div>
+            <div class="floor-plan-canvas daily-view-canvas" id="dailyViewCanvas" aria-label="Günlük masa görünümü"></div>
           </article>
 
           <dialog id="tableDetailDialog" class="table-detail-dialog" aria-label="Masa detay penceresi">
             <form id="tableDetailForm" method="dialog">
               <div class="dialog-header">
-                <h3 id="tableDetailTitle">Masa Detayi</h3>
+                <h3 id="tableDetailTitle">Masa Ayrıntıları</h3>
                 <button type="button" class="close-dialog-btn" aria-label="Kapat" data-close-table-dialog>&times;</button>
               </div>
               <div class="dialog-body">
                 <div class="field"><label>Durum</label><select id="tdStatus" name="status" aria-label="Rezervasyon durumu">
                   <option value="BEKLEMEDE">Beklemede</option>
-                  <option value="ONAYLANDI">Onaylandi</option>
+                  <option value="ONAYLANDI">Onaylandı</option>
                   <option value="GELDI">Geldi</option>
                   <option value="GELMEDI">Gelmedi</option>
-                  <option value="IPTAL">Iptal</option>
-                  <option value="DEGISIKLIK_UYGULA">Degisiklik Uygula</option>
+                  <option value="IPTAL">İptal</option>
+                  <option value="DEGISIKLIK_UYGULA">Değişikliği Uygula</option>
                 </select></div>
-                <div class="field"><label>Misafir Adi</label><input id="tdGuestName" name="guest_name" type="text" maxlength="100" aria-label="Misafir adi"></div>
+                <div class="field"><label>Misafir Adı</label><input id="tdGuestName" name="guest_name" type="text" maxlength="100" aria-label="Misafir adı"></div>
                 <div class="field"><label>Telefon</label><span id="tdPhone" class="readonly-field"></span></div>
-                <div class="field"><label>Kisi Sayisi</label><input id="tdPartySize" name="party_size" type="number" min="1" aria-label="Kisi sayisi"></div>
+                <div class="field"><label>Kişi Sayısı</label><input id="tdPartySize" name="party_size" type="number" min="1" aria-label="Kişi sayısı"></div>
                 <div class="field"><label>Saat</label><input id="tdTime" name="time" type="time" aria-label="Rezervasyon saati"></div>
                 <div class="field full"><label>Notlar</label><textarea id="tdNotes" name="notes" maxlength="500" rows="2" aria-label="Notlar"></textarea></div>
                 <div class="readonly-info">
                   <p>Hold ID: <span id="tdHoldId"></span></p>
-                  <p>Olusturulma: <span id="tdCreatedAt"></span></p>
+                  <p>Oluşturulma: <span id="tdCreatedAt"></span></p>
                   <p>Onaylayan: <span id="tdApprovedBy"></span></p>
                 </div>
               </div>
               <div class="dialog-footer">
                 <button type="button" class="inline-button secondary" id="tdExtendBtn" aria-label="15 dakika uzat">+15 Dk Ver</button>
-                <button type="button" class="inline-button danger" id="tdCancelBtn" aria-label="Iptal et">Iptal</button>
+                <button type="button" class="inline-button danger" id="tdCancelBtn" aria-label="İptal et">İptal</button>
                 <button type="submit" class="inline-button primary" aria-label="Kaydet">Kaydet</button>
               </div>
             </form>
@@ -754,17 +774,17 @@ def render_admin_panel_html() -> str:
         <section data-view="notifications" class="section-grid" hidden>
           <article class="module-card">
             <div class="module-header">
-              <div><h3>Bildirim Numaralari</h3><p>Rezervasyon onay talebi olusturuldugunda WhatsApp mesaji gonderilecek admin numaralari. Varsayilan numara kaldirilAmaz.</p></div>
+              <div><h3>Bildirim Numaraları</h3><p>Rezervasyon onay talebi oluşturulduğunda WhatsApp mesajı gönderilecek yönetici numaraları. Varsayılan numara kaldırılamaz.</p></div>
             </div>
             <div class="table-shell">
               <table>
-                <thead><tr><th>Telefon</th><th>Etiket</th><th>Varsayilan</th><th>Aksiyon</th></tr></thead>
+                <thead><tr><th>Telefon</th><th>Etiket</th><th>Varsayılan</th><th>İşlem</th></tr></thead>
                 <tbody id="notifPhoneTableBody"></tbody>
               </table>
             </div>
             <form id="addNotifPhoneForm" class="dense-form mt-lg">
-              <div class="field"><label>Telefon numarasi</label><input name="phone" placeholder="+905XXXXXXXXX" required aria-label="Bildirim telefon numarasi"></div>
-              <div class="field"><label>Etiket (opsiyonel)</label><input name="label" placeholder="Orn: Satis muduru" aria-label="Bildirim etiketi"></div>
+              <div class="field"><label>Telefon numarası</label><input name="phone" placeholder="+905XXXXXXXXX" required aria-label="Bildirim telefon numarası"></div>
+              <div class="field"><label>Etiket (isteğe bağlı)</label><input name="label" placeholder="Örn: Satış müdürü" aria-label="Bildirim etiketi"></div>
               <div class="field full"><button class="inline-button primary" type="submit">Numara Ekle</button></div>
             </form>
           </article>
@@ -774,7 +794,7 @@ def render_admin_panel_html() -> str:
           <div class="split">
             <article class="module-card">
               <div class="module-header">
-                <div><h3>Sistem Kontrolleri</h3><p>Readiness, domain ve bootstrap guvenlik durumu ayni ekranda gorunur kalir.</p></div>
+                <div><h3>Sistem Kontrolleri</h3><p>Hazırlık durumu, alan adı ve kurulum güvenliği aynı ekranda görünür kalır.</p></div>
               </div>
               <div id="systemMeta" class="helper-panel mb-md"></div>
               <div id="systemChecks" class="status-list"></div>
@@ -782,15 +802,15 @@ def render_admin_panel_html() -> str:
 
             <article class="module-card">
               <div class="module-header">
-                <div><h3>Guvenlik ve Oturum</h3><p>Sik giris yapan ekipler icin dogrulama tekrari ve cihaz hatirlama suresini buradan yonetin.</p></div>
+                <div><h3>Güvenlik ve Oturum</h3><p>Sık giriş yapan ekipler için doğrulama tekrarı ve cihaz hatırlama süresini buradan yönetin.</p></div>
               </div>
               <div id="sessionSummary" class="helper-panel mb-md"></div>
               <form id="sessionPreferencesForm" class="field-grid">
                 <div class="field full">
                   <label class="toggle-row" for="sessionRememberToggle">
                     <span class="toggle-copy">
-                      <strong>Bu cihazi panel icin hatirla</strong>
-                      <small>Kayitli cihazlarda giris adimlarini kisaltir; ayar degisikligi icin 6 haneli kod gerekir.</small>
+                      <strong>Bu cihazı panel için hatırla</strong>
+                      <small>Kayıtlı cihazlarda giriş adımlarını kısaltır; ayar değişikliği için 6 haneli kod gerekir.</small>
                     </span>
                     <span class="switch">
                       <input id="sessionRememberToggle" name="remember_device" type="checkbox">
@@ -801,18 +821,18 @@ def render_admin_panel_html() -> str:
                 <div id="sessionPreferenceFields" class="field full">
                   <div class="session-stack">
                     <div>
-                      <label>Google dogrulama tekrari</label>
+                      <label>Google doğrulama tekrarı</label>
                       <div id="systemVerificationOptions" class="choice-group"></div>
                     </div>
                     <div>
-                      <label>Oturum / hatirlama suresi</label>
+                      <label>Oturum / hatırlama süresi</label>
                       <div id="systemSessionOptions" class="choice-group"></div>
                     </div>
                   </div>
                 </div>
                 <div id="sessionOtpField" class="field full">
                   <label for="session-otp-code">Google Authenticator kodu</label>
-                  <input id="session-otp-code" name="otp_code" inputmode="numeric" pattern="[0-9]*" placeholder="Tercihleri kaydetmek icin 6 haneli kod">
+                  <input id="session-otp-code" name="otp_code" inputmode="numeric" pattern="[0-9]*" placeholder="Tercihleri kaydetmek için 6 haneli kod">
                 </div>
                 <div class="field full">
                   <button class="inline-button primary" type="submit">Oturum Tercihlerini Kaydet</button>
@@ -820,7 +840,7 @@ def render_admin_panel_html() -> str:
               </form>
               <div id="trustedDevicePanel" class="helper-panel mt-md"></div>
               <div class="module-actions mt-md">
-                <button id="forgetDeviceButton" class="inline-button danger" type="button">Bu Cihazi Unut</button>
+                <button id="forgetDeviceButton" class="inline-button danger" type="button">Bu Cihazı Unut</button>
               </div>
             </article>
           </div>
@@ -839,12 +859,12 @@ def render_admin_panel_html() -> str:
       <header class="service-mode-header">
         <div>
           <h3>Servis Modu</h3>
-          <p>Operasyon plani (V2 yerlesim)</p>
+          <p>Operasyon planı (V2 yerleşim)</p>
         </div>
         <div class="service-mode-actions">
-          <button type="button" id="serviceModePrevDay" class="inline-button secondary" title="Onceki gun (Alt+Sol)">←</button>
+          <button type="button" id="serviceModePrevDay" class="inline-button secondary" title="Önceki gün (Alt+Sol)">←</button>
           <input type="date" id="serviceModeDate" aria-label="Servis modu tarihi">
-          <button type="button" id="serviceModeNextDay" class="inline-button secondary" title="Sonraki gun (Alt+Sag)">→</button>
+          <button type="button" id="serviceModeNextDay" class="inline-button secondary" title="Sonraki gün (Alt+Sağ)">→</button>
           <button type="button" id="serviceModeCloseBtn" class="inline-button" aria-label="Servis modunu kapat">Kapat</button>
         </div>
       </header>
@@ -854,10 +874,10 @@ def render_admin_panel_html() -> str:
           <article class="module-card service-panel"><h4>Onaylanan</h4><div id="serviceModeApprovedList" class="service-list"></div></article>
           <article class="module-card service-panel"><h4>Onay Bekleyen</h4><div id="serviceModePendingList" class="service-list"></div></article>
           <article class="module-card service-panel service-meta-panel">
-            <h4>Guncel Bilgi</h4>
+            <h4>Güncel Bilgi</h4>
             <div class="service-meta-row"><strong>Tarih:</strong> <span id="serviceMetaDate">-</span></div>
             <div class="service-meta-row"><strong>Saat:</strong> <span id="serviceMetaTime">-</span></div>
-            <div class="service-meta-row"><strong>Chef:</strong> <span id="serviceMetaChef">-</span></div>
+            <div class="service-meta-row"><strong>Şef:</strong> <span id="serviceMetaChef">-</span></div>
           </article>
         </aside>
 
@@ -869,14 +889,14 @@ def render_admin_panel_html() -> str:
 
         <aside class="service-col service-col-right">
           <article class="module-card service-panel">
-            <h4>Yeni Rezervasyon Olustur</h4>
+            <h4>Yeni Rezervasyon Oluştur</h4>
             <form id="serviceModeQuickCreateForm" class="dense-form">
-              <div class="field full"><label>Misafir Adi</label><input type="text" placeholder="Ad Soyad"></div>
-              <div class="field"><label>Kisi</label><input type="number" min="1" placeholder="2"></div>
+              <div class="field full"><label>Misafir Adı</label><input type="text" placeholder="Ad Soyad"></div>
+              <div class="field"><label>Kişi</label><input type="number" min="1" placeholder="2"></div>
               <div class="field"><label>Saat</label><input type="time"></div>
               <div class="field full"><label>Telefon</label><input type="tel" placeholder="+90..."></div>
               <div class="field full"><label>Not</label><textarea rows="3" placeholder="Opsiyonel not"></textarea></div>
-              <div class="field full"><button type="button" class="inline-button primary">Olustur (yakinda)</button></div>
+              <div class="field full"><button type="button" class="inline-button primary">Oluştur (yakında)</button></div>
             </form>
           </article>
         </aside>
@@ -884,26 +904,26 @@ def render_admin_panel_html() -> str:
 
       <div class="service-mode-bottom-v2">
         <div class="service-bottom-block">
-          <h5>Ogun Secimi</h5>
-          <div class="filter-chips" id="serviceModeMealChips" aria-label="Ogun secimi">
-            <button type="button" class="filter-chip" data-service-meal="breakfast" title="Kahvalti (1)">Kahvalti</button>
-            <button type="button" class="filter-chip" data-service-meal="lunch" title="Ogle (2)">Ogle</button>
-            <button type="button" class="filter-chip is-active" data-service-meal="dinner" title="Aksam (3)">Aksam</button>
+          <h5>Öğün Seçimi</h5>
+          <div class="filter-chips" id="serviceModeMealChips" aria-label="Öğün seçimi">
+            <button type="button" class="filter-chip" data-service-meal="breakfast" title="Kahvaltı (1)">Kahvaltı</button>
+            <button type="button" class="filter-chip" data-service-meal="lunch" title="Öğle (2)">Öğle</button>
+            <button type="button" class="filter-chip is-active" data-service-meal="dinner" title="Akşam (3)">Akşam</button>
           </div>
         </div>
         <div class="service-bottom-block">
-          <h5>Diger Durumlar (Reddedilen / Gelmeyen)</h5>
+          <h5>Diğer Durumlar (Reddedilen / Gelmeyen)</h5>
           <div id="serviceModeOtherList" class="service-list"></div>
         </div>
         <div class="service-bottom-block">
           <h5>Plan ve Alan</h5>
-          <div class="filter-chips" id="serviceModeAreaChips" aria-label="Alan secimi">
-            <button type="button" class="filter-chip is-active" data-service-area="main">Ana Mekan</button>
+          <div class="filter-chips" id="serviceModeAreaChips" aria-label="Alan seçimi">
+            <button type="button" class="filter-chip is-active" data-service-area="main">Ana Mekân</button>
             <button type="button" class="filter-chip" data-service-area="pool">Havuz</button>
           </div>
           <div class="stack" style="gap:8px;align-items:flex-start;margin-top:8px;">
             <label style="font-size:.78rem;color:var(--muted);">Plan:</label>
-            <select id="serviceModePlanSelect" aria-label="Servis modu plan secimi"></select>
+            <select id="serviceModePlanSelect" aria-label="Servis modu plan seçimi"></select>
           </div>
         </div>
       </div>
@@ -913,16 +933,16 @@ def render_admin_panel_html() -> str:
   <dialog id="decisionDialog" class="dialog">
     <div class="dialog-card">
       <div class="dialog-head">
-        <h3 id="decisionTitle">Aksiyon</h3>
-        <p id="decisionLead">Gerekce girin.</p>
+        <h3 id="decisionTitle">İşlem</h3>
+        <p id="decisionLead">Gerekçe girin.</p>
       </div>
       <form id="decisionForm" class="field">
         <input id="decisionHoldId" type="hidden">
         <input id="decisionMode" type="hidden">
-        <label for="decisionReason">Gerekce</label>
-        <textarea id="decisionReason" class="dialog-textarea" aria-label="Red gerekcesi"></textarea>
+        <label for="decisionReason">Gerekçe</label>
+        <textarea id="decisionReason" class="dialog-textarea" aria-label="Red gerekçesi"></textarea>
         <div class="dialog-actions">
-          <button id="closeDecision" class="inline-button secondary" type="button">Vazgec</button>
+          <button id="closeDecision" class="inline-button secondary" type="button">Vazgeç</button>
           <button class="inline-button danger" type="submit">Reddi Uygula</button>
         </div>
       </form>
@@ -943,19 +963,19 @@ if ADMIN_PANEL_ROUTE == "/admin":
     @router.get("/admin", response_class=HTMLResponse)
     async def admin_panel_ui() -> HTMLResponse:
         """Serve the standalone admin panel HTML."""
-        return HTMLResponse(content=render_admin_panel_html())
+        return HTMLResponse(content=render_admin_panel_html(), headers=ADMIN_UI_NO_STORE_HEADERS)
 
 else:
 
     @router.get(ADMIN_PANEL_ROUTE, response_class=HTMLResponse)
     async def admin_panel_ui() -> HTMLResponse:
         """Serve the standalone admin panel HTML using configured path."""
-        return HTMLResponse(content=render_admin_panel_html())
+        return HTMLResponse(content=render_admin_panel_html(), headers=ADMIN_UI_NO_STORE_HEADERS)
 
     @router.get("/admin", response_class=HTMLResponse, include_in_schema=False)
     async def admin_panel_ui_legacy() -> HTMLResponse:
         """Serve admin UI on legacy path for compatibility during cutover."""
-        return HTMLResponse(content=render_admin_panel_html())
+        return HTMLResponse(content=render_admin_panel_html(), headers=ADMIN_UI_NO_STORE_HEADERS)
 
 
 # ── POST fallback: prevent 405 when JS fails and browser submits the login

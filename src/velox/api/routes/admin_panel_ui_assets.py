@@ -23,6 +23,7 @@ body{padding:18px}
 button,input,select,textarea{font:inherit}
 [hidden]{display:none!important}
 .shell{display:grid;grid-template-columns:280px minmax(0,1fr);gap:18px;min-height:calc(100vh - 36px)}
+.shell:has(> .sidebar[hidden]){grid-template-columns:1fr}
 .sidebar{background:linear-gradient(180deg,#11223a 0%,#0a1525 100%);color:#eff6ff;border-radius:30px;padding:24px;display:flex;flex-direction:column;gap:22px;box-shadow:var(--shadow)}
 .brand{display:flex;align-items:flex-start;gap:14px}
 .brand-mark{width:46px;height:46px;border-radius:16px;background:linear-gradient(135deg,var(--gold),#f2ca72);display:grid;place-items:center;color:#4c3506;font-weight:900;letter-spacing:.06em}
@@ -50,6 +51,7 @@ button,input,select,textarea{font:inherit}
 .sidebar-button.warn,.action-button.warn{background:#fff4db;color:#7c4b06}
 .sidebar-button.danger,.action-button.danger{background:#fde7e5;color:var(--danger)}
 .action-button.secondary{background:#eef2f7;color:#334155;border:1px solid var(--line)}
+.action-button.secondary.is-active{background:linear-gradient(135deg,#102033,#1f3554);color:#fff;border-color:#102033}
 .action-button:disabled{opacity:.55;cursor:not-allowed}
 .workspace{display:flex;flex-direction:column;gap:18px;min-width:0}
 .topbar{background:rgba(255,253,248,.9);border-radius:30px;padding:22px 26px;box-shadow:var(--shadow);display:flex;align-items:flex-start;justify-content:space-between;gap:18px;backdrop-filter:blur(18px)}
@@ -122,6 +124,7 @@ thead th{padding:14px 16px;font-size:12px;letter-spacing:.06em;text-transform:up
 tbody td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:top;font-size:14px;line-height:1.45}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover{background:#fffcf7}
+.table-shell tbody tr.is-selected td{background:#eef8f6}
 .holds-table tbody tr.is-selected td{background:#f0f8f7}
 .holds-table tbody tr[data-open-hold]{cursor:pointer}
 .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:800}
@@ -171,6 +174,62 @@ tbody tr:hover{background:#fffcf7}
 .status-block{padding:16px;border-radius:18px;border:1px solid var(--line);background:var(--surface)}
 .status-block h4{margin:0 0 8px;font-size:13px}
 .status-block pre{margin:0;font-family:var(--mono);font-size:12px;white-space:pre-wrap}
+.profile-section-tabs{display:flex;flex-wrap:wrap;gap:10px}
+.profile-section-tab{border:none;padding:10px 14px;border-radius:999px;background:#eef2f7;color:#334155;font-size:13px;font-weight:800;cursor:pointer}
+.profile-section-tab.is-active{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff}
+.profile-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:14px}
+.profile-toolbar .field{flex:1 1 280px;margin:0}
+.profile-toolbar-actions{display:flex;align-items:center;gap:8px}
+.profile-overview-summary{margin-top:14px}
+.profile-overview-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.profile-overview-header h4{margin:0;font-size:14px}
+.profile-overview-header p{margin:6px 0 0;font-size:12px;color:var(--muted)}
+.profile-progress-track{position:relative;width:min(240px,100%);height:10px;border-radius:999px;background:#e5e7eb;overflow:hidden}
+.profile-progress-fill{position:absolute;inset:0 auto 0 0;height:100%;border-radius:999px;background:linear-gradient(135deg,var(--accent),var(--accent-2))}
+.profile-gap-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.profile-gap-chip{border:none;padding:8px 10px;border-radius:999px;background:#fff7ed;color:#9a3412;font-size:12px;font-weight:700;cursor:pointer}
+.profile-gap-count{display:inline-flex;align-items:center;padding:8px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);font-size:12px;font-weight:700;color:var(--muted)}
+.profile-overview-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+.profile-overview-card{display:block;width:100%;padding:12px 14px;border-radius:16px;border:1px solid var(--line);background:var(--surface);text-align:left;cursor:pointer}
+.profile-overview-card.is-active{border-color:rgba(15,118,110,.32);box-shadow:0 10px 24px rgba(15,118,110,.08)}
+.profile-overview-card:hover{border-color:rgba(15,118,110,.24)}
+.profile-overview-card h4{margin:0;font-size:13px}
+.profile-overview-card p{margin:8px 0 0;font-size:12px;color:var(--muted);line-height:1.45}
+.profile-overview-metrics{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.profile-overview-metrics span{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);font-size:11px;font-weight:700;color:var(--muted)}
+.profile-overview-status{display:inline-flex;align-items:center;gap:8px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:800}
+.profile-overview-status.complete{background:#ecfdf3;color:#166534}
+.profile-overview-status.incomplete{background:#eef2f7;color:#475569}
+.profile-overview-status.warning{background:#fff2dd;color:#92400e}
+.profile-overview-status.blocker{background:#fde7e5;color:#991b1b}
+.profile-section-badge{display:inline-flex;align-items:center;gap:6px;margin-left:8px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800}
+.profile-section-badge.blocker{background:#fde7e5;color:#991b1b}
+.profile-section-badge.warning{background:#fff2dd;color:#92400e}
+.profile-issue-panel{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.profile-issue-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface)}
+.profile-issue-row.blocker{border-color:rgba(180,35,24,.24);background:#fff4f3}
+.profile-issue-row.warning{border-color:rgba(180,83,9,.24);background:#fffaf1}
+.profile-field-invalid{border-color:rgba(180,35,24,.22)!important;background:#fff4f3}
+.profile-field-warning{border-color:rgba(180,83,9,.22)!important;background:#fffaf1}
+.profile-field-invalid label,.profile-field-warning label{color:var(--ink)}
+.profile-focus-pulse{animation:profile-focus-pulse 1.2s ease}
+@keyframes profile-focus-pulse{0%{box-shadow:0 0 0 0 rgba(15,118,110,.3)}100%{box-shadow:0 0 0 10px rgba(15,118,110,0)}}
+.facts-detail-focus{border-radius:22px;box-shadow:0 0 0 3px rgba(15,118,110,.16),0 18px 34px rgba(15,118,110,.12)}
+.profile-section-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.profile-section-grid .field.full,.profile-section-grid .helper-box.full{grid-column:1/-1}
+.profile-section-stack{display:flex;flex-direction:column;gap:12px}
+.profile-card-selector{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.profile-card-selector .field{min-width:min(320px,100%);flex:1 1 320px}
+.profile-card-selector-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.profile-item-card{padding:16px;border-radius:18px;border:1px solid var(--line);background:var(--surface)}
+.profile-item-card header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.profile-item-card h4{margin:0;font-size:14px}
+.profile-inline-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.profile-inline-grid .field.full{grid-column:1/-1}
+.profile-json-textarea,.profile-list-textarea{min-height:140px;font-family:var(--mono);font-size:12px;line-height:1.55}
+.profile-json-textarea.is-invalid{border-color:var(--danger);box-shadow:0 0 0 3px rgba(180,35,24,.12)}
+.profile-summary-strip{display:flex;flex-wrap:wrap;gap:10px}
+.profile-summary-chip{padding:8px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);font-size:12px;font-weight:700;color:var(--muted)}
 .mt-sm{margin-top:10px}.mt-md{margin-top:14px}.mt-lg{margin-top:16px}
 .mb-md{margin-bottom:14px}
 .min-w-select{min-width:240px}
@@ -195,7 +254,7 @@ tbody tr:hover{background:#fffcf7}
   .topbar-aside{justify-content:flex-start}
   .table-shell{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
   .table-shell table{min-width:640px}
-  .field-grid,.dense-form,.status-list{grid-template-columns:1fr}
+  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid{grid-template-columns:1fr}
   .topbar{padding:18px 20px;border-radius:24px;flex-direction:column}
   .card-grid{grid-template-columns:1fr}
   .status-strip{grid-template-columns:1fr}
@@ -243,12 +302,30 @@ const state = {
   faqs: [],
   faqDetail: null,
   hotelDetail: null,
+  hotelProfileDraft: null,
+  hotelProfileLoadedSourceChecksum: null,
+  hotelProfileLoadedDraftSnapshot: null,
+  hotelProfileHasUnsavedChanges: false,
+  hotelProfileMode: 'standard',
+  hotelProfileSection: 'general',
+  hotelProfileSearch: '',
+  hotelProfileFaqActiveIndex: 0,
+  hotelFactsDraftValidationHandle: null,
+  hotelFactsConflict: null,
+  hotelFactsStatus: null,
+  hotelFactsDraftValidation: null,
+  hotelFactsVersions: [],
+  hotelFactsEvents: [],
+  hotelFactsVersionDetail: null,
+  hotelFactsVersionDetailRevealTimer: null,
   restaurantSlots: [],
   systemOverview: null,
   sessionStatus: null,
   sessionPreferences: null,
   refreshPromise: null,
   liveRefreshHandle: null,
+  _authKeepAliveTimer: null,
+  _visibilityBound: false,
 };
 
 const refs = {};
@@ -257,13 +334,18 @@ document.addEventListener('DOMContentLoaded', () => {
   startInteractiveLabelObserver(document.body);
   bindRefs();
   stripSensitiveQueryParams();
-  bindEvents();
+  // Prevent native form submission on all auth forms as a safety net
+  ['loginForm','bootstrapForm','totpRecoveryForm','otpVerifyForm'].forEach(id => {
+    var f = document.getElementById(id);
+    if (f) f.addEventListener('submit', function(e){ e.preventDefault(); });
+  });
+  try { bindEvents(); } catch(e) { console.error('[Velox] bindEvents error:', e); }
   boot();
 });
 
 function bindRefs() {
   [
-    'sidebar','sidebarToggle',
+    'sidebar','sidebarToggle','topbar',
     'toast','authView','panelView','loginForm','bootstrapForm','bootstrapCard','bootstrapSummary',
     'totpRecovery','totpRecoveryForm','trustedSessionBanner','loginOtpField','rememberDeviceToggle',
     'loginRememberOptions','loginVerificationOptions','loginSessionOptions',
@@ -272,10 +354,10 @@ function bindRefs() {
     'stayHoldFilters','stayHoldTableBody','stayHoldDetail','stayHoldCreatePanel','stayWizardSteps','stayWizardBody','stayStatusChips',
     'restaurantHoldFilters','restaurantHoldTableBody','restaurantHoldDetail','restaurantHoldCreatePanel','restaurantCreateForm','restaurantStatusChips','restaurantDateFrom','restaurantDateTo',
     'transferHoldFilters','transferHoldTableBody','transferHoldDetail','transferHoldCreatePanel','transferCreateForm','transferStatusChips',
-    'ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor',
+    'ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor','applyHotelProfileJson','saveHotelProfile',
     'faqFilters','faqTableBody','faqDetail',
     'notifPhoneTableBody','addNotifPhoneForm',
-    'hotelProfileMeta','slotFilters','slotDisplayInterval','slotTableBody','slotSummaryCards','slotCreateForm','slotDeleteForm','systemChecks','systemMeta',
+    'hotelProfileMeta','hotelProfileSections','hotelProfileSectionBody','hotelFactsConflict','hotelFactsStatus','hotelFactsHistory','hotelFactsEvents','hotelFactsVersionDetail','publishHotelFacts','slotFilters','slotDisplayInterval','slotTableBody','slotSummaryCards','slotCreateForm','slotDeleteForm','systemChecks','systemMeta',
     'sessionSummary','sessionPreferencesForm','sessionRememberToggle','sessionPreferenceFields',
     'systemVerificationOptions','systemSessionOptions','sessionOtpField','trustedDevicePanel','forgetDeviceButton',
     'logoutButton','reloadButton','decisionDialog','decisionForm','decisionTitle','decisionLead','decisionReason',
@@ -287,61 +369,69 @@ function bindRefs() {
 
 function bindEvents() {
   refs.sidebarToggle?.addEventListener('click', toggleSidebar);
-  refs.loginForm.addEventListener('submit', onLogin);
-  refs.bootstrapForm.addEventListener('submit', onBootstrap);
-  refs.totpRecoveryForm.addEventListener('submit', onTotpRecovery);
-  refs.otpVerifyForm.addEventListener('submit', onBootstrapVerify);
-  refs.rememberDeviceToggle.addEventListener('change', toggleLoginRememberOptions);
-  refs.hotelSelect.addEventListener('change', onHotelScopeChange);
-  refs.hotelProfileSelect.addEventListener('change', loadHotelProfileSection);
-  refs.slotCreateForm.addEventListener('submit', onCreateSlot);
+  refs.loginForm?.addEventListener('submit', onLogin);
+  refs.bootstrapForm?.addEventListener('submit', onBootstrap);
+  refs.totpRecoveryForm?.addEventListener('submit', onTotpRecovery);
+  refs.otpVerifyForm?.addEventListener('submit', onBootstrapVerify);
+  refs.rememberDeviceToggle?.addEventListener('change', toggleLoginRememberOptions);
+  refs.hotelSelect?.addEventListener('change', onHotelScopeChange);
+  refs.hotelProfileSelect?.addEventListener('change', loadHotelProfileSection);
+  refs.publishHotelFacts?.addEventListener('click', publishHotelFacts);
+  refs.applyHotelProfileJson?.addEventListener('click', applyHotelProfileJsonToForm);
+  refs.slotCreateForm?.addEventListener('submit', onCreateSlot);
   refs.slotDeleteForm?.addEventListener('submit', onDeleteSlots);
   refs.slotDisplayInterval?.addEventListener('change', applySlotDisplayFilter);
   refs.hideSlotsButton?.addEventListener('click', hideRestaurantSlotsView);
-  refs.sessionPreferencesForm.addEventListener('submit', onSessionPreferencesSave);
-  refs.sessionRememberToggle.addEventListener('change', toggleSessionPreferenceState);
-  refs.forgetDeviceButton.addEventListener('click', forgetTrustedDevice);
-  refs.reloadButton.addEventListener('click', reloadConfig);
-  refs.logoutButton.addEventListener('click', logout);
-  refs.conversationFilters.addEventListener('submit', event => {
+  refs.sessionPreferencesForm?.addEventListener('submit', onSessionPreferencesSave);
+  refs.sessionRememberToggle?.addEventListener('change', toggleSessionPreferenceState);
+  refs.forgetDeviceButton?.addEventListener('click', forgetTrustedDevice);
+  refs.reloadButton?.addEventListener('click', reloadConfig);
+  refs.logoutButton?.addEventListener('click', logout);
+  refs.conversationFilters?.addEventListener('submit', event => {
     event.preventDefault();
     loadConversations();
   });
-  refs.stayHoldFilters.addEventListener('submit', event => {
+  refs.stayHoldFilters?.addEventListener('submit', event => {
     event.preventDefault();
     const resNo = new FormData(refs.stayHoldFilters).get('reservation_no');
     if (resNo && resNo.trim()) { lookupStayReservationNo(resNo.trim()); }
     else { loadStayHolds(); }
   });
-  refs.restaurantHoldFilters.addEventListener('submit', event => {
+  refs.restaurantHoldFilters?.addEventListener('submit', event => {
     event.preventDefault();
     const formData = new FormData(refs.restaurantHoldFilters);
     state.restaurantDateFrom = String(formData.get('date_from') || '').trim();
     state.restaurantDateTo = String(formData.get('date_to') || '').trim();
     loadRestaurantHolds();
   });
-  refs.transferHoldFilters.addEventListener('submit', event => {
+  refs.transferHoldFilters?.addEventListener('submit', event => {
     event.preventDefault();
     loadTransferHolds();
   });
-  refs.restaurantCreateForm.addEventListener('submit', event => {
+  refs.restaurantCreateForm?.addEventListener('submit', event => {
     event.preventDefault();
     submitRestaurantHold();
   });
-  refs.transferCreateForm.addEventListener('submit', event => {
+  refs.transferCreateForm?.addEventListener('submit', event => {
     event.preventDefault();
     submitTransferHold();
   });
-  refs.ticketFilters.addEventListener('submit', event => {
+  refs.ticketFilters?.addEventListener('submit', event => {
     event.preventDefault();
     loadTickets();
   });
-  refs.faqFilters.addEventListener('submit', event => {
+  refs.faqFilters?.addEventListener('submit', event => {
     event.preventDefault();
     loadFaqs();
   });
-  refs.addNotifPhoneForm.addEventListener('submit', onAddNotifPhone);
-  refs.decisionForm.addEventListener('submit', onDecisionSubmit);
+  refs.addNotifPhoneForm?.addEventListener('submit', onAddNotifPhone);
+  refs.decisionForm?.addEventListener('submit', onDecisionSubmit);
+  refs.hotelProfileSections?.addEventListener('click', onHotelProfileSectionNav);
+  refs.hotelProfileSections?.addEventListener('input', onHotelProfileSectionSearchInput);
+  refs.hotelProfileSections?.addEventListener('click', onHotelProfileSectionSearchClick);
+  refs.hotelProfileSectionBody?.addEventListener('click', onHotelProfileSectionClick);
+  refs.hotelProfileSectionBody?.addEventListener('input', onHotelProfileSectionInput);
+  refs.hotelProfileSectionBody?.addEventListener('change', onHotelProfileSectionChange);
   document.querySelectorAll('[data-nav]').forEach(button => {
     const label = button.querySelector('.nav-label strong')?.textContent || 'Navigasyon';
     button.setAttribute('aria-label', label.trim());
@@ -350,7 +440,7 @@ function bindEvents() {
       closeSidebar();
     });
   });
-  document.getElementById('saveHotelProfile').addEventListener('click', saveHotelProfile);
+  refs.saveHotelProfile?.addEventListener('click', saveHotelProfile);
   document.getElementById('loadSlotsButton').addEventListener('click', event => {
     event.preventDefault();
     loadRestaurantSlots({syncRestaurantFilters: true});
@@ -379,7 +469,7 @@ function stripSensitiveQueryParams() {
   sensitiveKeys.forEach(key => url.searchParams.delete(key));
   const nextUrl = `${url.pathname}${url.search}${url.hash}`;
   window.history.replaceState({}, document.title, nextUrl);
-  notify('URL icindeki giris parametreleri guvenlik icin temizlendi. Girisi formdan yapin.', 'warn');
+  notify('URL içindeki giriş parametreleri güvenlik için temizlendi. Girişi form üzerinden yapın.', 'warn');
 }
 
 function isMobileLayout() {
@@ -405,7 +495,7 @@ function bindDelegatedEvents() {
     // Holds module events (tabs, wizards, filters, create toggles, hold selection)
     if (typeof handleHoldsModuleClick === 'function' && handleHoldsModuleClick(event.target)) return;
 
-    const target = event.target.closest('[data-open-conversation],[data-deactivate-conversation],[data-approve-hold],[data-reject-hold],[data-save-ticket]');
+    const target = event.target.closest('[data-open-conversation],[data-deactivate-conversation],[data-approve-hold],[data-reject-hold],[data-save-ticket],[data-facts-version-detail],[data-facts-version-rollback],[data-facts-conflict-restore-draft],[data-facts-conflict-dismiss]');
     if (!target) return;
 
     // Conversation detail
@@ -417,13 +507,13 @@ function bindDelegatedEvents() {
     // Deactivate conversation
     if (target.dataset.deactivateConversation) {
       const convId = target.dataset.deactivateConversation;
-      if (!confirm('Bu konusmayi pasife almak istediginize emin misiniz?')) return;
+      if (!confirm('Bu konuşmayı pasife almak istediğinize emin misiniz?')) return;
       try {
         await apiFetch(`/conversations/${convId}/reset`, {method: 'POST'});
-        notify('Konusma pasife alindi.', 'success');
+        notify('Konuşma pasife alındı.', 'success');
         loadConversations();
       } catch (error) {
-        notify(error.message || 'Pasife alma basarisiz.', 'error');
+        notify(error.message || 'Pasife alma başarısız.', 'error');
       }
       return;
     }
@@ -436,7 +526,7 @@ function bindDelegatedEvents() {
       approveButton.textContent = 'Onaylaniyor...';
       try {
         await apiFetch(`/holds/${target.dataset.approveHold}/approve?force=true`, {method: 'POST', body: {notes: ''}});
-        notify('Hold onaylandi.', 'success');
+        notify('Hold onaylandı.', 'success');
         const tab = state.activeHoldsTab || 'stay';
         if (tab === 'stay') loadStayHolds();
         else if (tab === 'restaurant') loadRestaurantHolds();
@@ -455,7 +545,7 @@ function bindDelegatedEvents() {
       refs.decisionMode.value = 'reject';
       refs.decisionHoldId.value = target.dataset.rejectHold;
       refs.decisionTitle.textContent = 'Hold reddet';
-      refs.decisionLead.textContent = 'Isterseniz gerekce yazin; bos birakarak da reddedebilirsiniz.';
+      refs.decisionLead.textContent = 'İsterseniz gerekçe yazın; boş bırakarak da reddedebilirsiniz.';
       refs.decisionReason.value = '';
       refs.decisionDialog.showModal();
       return;
@@ -467,11 +557,11 @@ function bindDelegatedEvents() {
       if (!holdId || !nextStatus) return;
       try {
         await apiFetch(`/holds/restaurant/${encodeURIComponent(holdId)}/status`, {method: 'PUT', body: {status: nextStatus}});
-        notify('Restoran rezervasyonu guncellendi.', 'success');
+        notify('Restoran rezervasyonu güncellendi.', 'success');
         await loadRestaurantHolds();
         loadDashboard();
       } catch (error) {
-        notify(error.message || 'Durum guncellenemedi.', 'error');
+        notify(error.message || 'Durum güncellenemedi.', 'error');
       }
       return;
     }
@@ -481,11 +571,11 @@ function bindDelegatedEvents() {
       if (!holdId) return;
       try {
         const result = await apiFetch(`/holds/restaurant/${encodeURIComponent(holdId)}/extend`, {method: 'POST'});
-        notify(`Rezervasyon saati ${result.new_time || ''} olarak +15 dk guncellendi.`, 'success');
+        notify(`Rezervasyon saati ${result.new_time || ''} olarak +15 dk güncellendi.`, 'success');
         await loadRestaurantHolds();
         loadDashboard();
       } catch (error) {
-        notify(error.message || 'Uzatma basarisiz.', 'error');
+        notify(error.message || 'Uzatma başarısız.', 'error');
       }
       return;
     }
@@ -496,20 +586,57 @@ function bindDelegatedEvents() {
       const statusField = document.querySelector(`[data-ticket-status="${ticketId}"]`);
       try {
         await apiFetch(`/tickets/${ticketId}`, {method: 'PUT', body: {status: statusField.value}});
-        notify('Ticket guncellendi.', 'success');
+        notify('Talep güncellendi.', 'success');
         loadTickets();
         loadDashboard();
       } catch (error) {
         notify(error.message, 'error');
       }
+      return;
+    }
+
+    if (target.dataset.factsVersionDetail && typeof loadHotelFactsVersionDetail === 'function') {
+      loadHotelFactsVersionDetail(target.dataset.factsVersionDetail);
+      return;
+    }
+
+    if (target.dataset.factsVersionRollback && typeof rollbackHotelFacts === 'function') {
+      rollbackHotelFacts(target.dataset.factsVersionRollback);
+      return;
+    }
+
+    if (target.dataset.factsConflictRestoreDraft && typeof restoreHotelFactsConflictDraft === 'function') {
+      restoreHotelFactsConflictDraft();
+      return;
+    }
+
+    if (target.dataset.factsConflictDismiss && typeof dismissHotelFactsConflict === 'function') {
+      dismissHotelFactsConflict();
     }
   });
 }
 
 async function boot() {
   await Promise.all([loadBootstrapStatus(), loadSessionStatus()]);
+
+  // ── Proactive session recovery ──────────────────────────
+  // If access cookie is gone but a trusted device session exists,
+  // try a silent refresh BEFORE hydrateSession so we avoid the
+  // 401 → refresh → retry round-trip that sometimes loses the race
+  // against concurrent requests.
+  const hasAccess = Boolean(readCookie('velox_admin_access'));
+  const status = state.sessionStatus || {};
+  if (!hasAccess && status.has_trusted_device && status.session_active) {
+    const recovered = await refreshAccessSession({silent: true});
+    if (!recovered) {
+      showAuth();
+      return;
+    }
+  }
+
   try {
     await hydrateSession();
+    startAuthKeepAlive();
     return;
   } catch (_error) {
     showAuth();
@@ -535,23 +662,18 @@ function renderBootstrapState() {
   const hotelOptions = (info.hotel_options || []).map(item => (
     `<option value="${escapeHtml(item.hotel_id)}">${escapeHtml(item.hotel_id)} - ${escapeHtml(item.name)}</option>`
   )).join('');
-  refs.bootstrapHotels.innerHTML = hotelOptions || '<option value="">Hotel yok</option>';
+  refs.bootstrapHotels.innerHTML = hotelOptions || '<option value="">Otel bulunamadı</option>';
 
   if (!info.bootstrap_required) {
+    // Bootstrap already completed — hide the entire setup card.
+    // No system metadata (domain, access mode, recovery form) is shown
+    // to unauthenticated visitors.
+    refs.bootstrapCard.hidden = true;
     refs.bootstrapForm.hidden = true;
-    refs.totpRecovery.hidden = false;
+    refs.totpRecovery.hidden = true;
     refs.otpVerifyForm.hidden = true;
     refs.otpVerifyHint.hidden = true;
-    refs.bootstrapSummary.innerHTML = `
-      <div class="helper-box">
-        <strong>Kurulum tamam</strong>
-        <p>Panel girişi aktif. Google Authenticator kodunuz ile oturum açabilirsiniz.</p>
-      </div>
-      <div class="helper-box">
-        <strong>Alan adı</strong>
-        <p>${escapeHtml(info.panel_url || CONFIG.panel_url || '/admin')}</p>
-      </div>
-    `;
+    refs.bootstrapSummary.innerHTML = '';
     return;
   }
 
@@ -584,13 +706,13 @@ function renderLoginSessionState() {
     refs.loginVerificationOptions,
     'verification_preset',
     verificationOptions,
-    status.verification_preset || '24_hours',
+    status.verification_preset || '7_days',
   );
   renderChoiceGroup(
     refs.loginSessionOptions,
     'session_preset',
     sessionOptions,
-    status.session_preset || '8_hours',
+    status.session_preset || '24_hours',
   );
   toggleLoginRememberOptions();
 
@@ -604,16 +726,16 @@ function renderLoginSessionState() {
   refs.trustedSessionBanner.innerHTML = `
     <div class="helper-box">
       <strong>${escapeHtml(status.user_label || 'Bu cihaz')}</strong>
-      <p>${escapeHtml(status.device_label || 'Tarayici cihazi')} icin hizli giris durumu gorunur.</p>
+      <p>${escapeHtml(status.device_label || 'Tarayıcı cihazı')} için hızlı giriş durumu görünür.</p>
     </div>
     <div class="status-strip">
       <div class="helper-box">
-        <strong>OTP tekrar suresi</strong>
-        <p>${status.verification_active ? `Aktif · ${escapeHtml(formatDate(status.verification_expires_at))}` : 'Suresi doldu'}</p>
+        <strong>OTP tekrar süresi</strong>
+        <p>${status.verification_active ? `Aktif · ${escapeHtml(formatDate(status.verification_expires_at))}` : 'Süresi doldu'}</p>
       </div>
       <div class="helper-box">
-        <strong>Oturum hatirlama</strong>
-        <p>${status.session_active ? `Aktif · ${escapeHtml(formatDate(status.session_expires_at))}` : 'Aktif degil'}</p>
+        <strong>Oturum hatırlama</strong>
+        <p>${status.session_active ? `Aktif · ${escapeHtml(formatDate(status.session_expires_at))}` : 'Aktif değil'}</p>
       </div>
     </div>
     ${status.verification_active ? '<button id="loginForceOtpButton" class="inline-button secondary" type="button">Kodu yine de kullan</button>' : ''}
@@ -653,16 +775,17 @@ async function onLogin(event) {
   event.preventDefault();
   const payload = formToJson(refs.loginForm);
   payload.remember_device = refs.rememberDeviceToggle.checked;
-  payload.verification_preset = getSelectedChoice(refs.loginForm, 'verification_preset', state.sessionStatus?.verification_preset || '24_hours');
-  payload.session_preset = getSelectedChoice(refs.loginForm, 'session_preset', state.sessionStatus?.session_preset || '8_hours');
+  payload.verification_preset = getSelectedChoice(refs.loginForm, 'verification_preset', state.sessionStatus?.verification_preset || '7_days');
+  payload.session_preset = getSelectedChoice(refs.loginForm, 'session_preset', state.sessionStatus?.session_preset || '24_hours');
   if (!payload.otp_code) {
     delete payload.otp_code;
   }
   try {
     const response = await apiFetch('/login', {method: 'POST', body: payload, auth: false});
-    notify(response.authentication_mode === 'trusted_device' ? 'Bu cihaz icin OTP adimi atlandi.' : 'Oturum acildi.', 'success');
+    notify(response.authentication_mode === 'trusted_device' ? 'Bu cihaz için OTP adımı atlandı.' : 'Oturum açıldı.', 'success');
     await loadSessionStatus();
     await hydrateSession();
+    startAuthKeepAlive();
   } catch (error) {
     notify(error.message, 'error');
   }
@@ -739,9 +862,10 @@ async function onBootstrapVerify(event) {
   try {
     const response = await apiFetch('/login', {method: 'POST', body: loginPayload, auth: false});
     state.bootstrapPending = null;
-    notify('Kurulum dogrulandi, oturum acildi.', 'success');
+    notify('Kurulum doğrulandı, oturum açıldı.', 'success');
     await loadSessionStatus();
     await hydrateSession();
+    startAuthKeepAlive();
   } catch (error) {
     notify(error.message, 'error');
   }
@@ -771,7 +895,7 @@ function resolvePreferredHotel() {
 
 function populateHotelSelectors() {
   const options = state.hotels.map(item => (
-    `<option value="${escapeHtml(item.hotel_id)}">${escapeHtml(item.hotel_id)} - ${escapeHtml(item.name_en || item.name_tr || 'Hotel')}</option>`
+    `<option value="${escapeHtml(item.hotel_id)}">${escapeHtml(item.hotel_id)} - ${escapeHtml(item.name_en || item.name_tr || 'Otel')}</option>`
   )).join('');
   refs.hotelSelect.innerHTML = options;
   refs.hotelProfileSelect.innerHTML = options;
@@ -784,6 +908,9 @@ function populateHotelSelectors() {
 
 function showAuth() {
   clearLiveRefresh();
+  stopAuthKeepAlive();
+  refs.sidebar.hidden = true;
+  refs.topbar.hidden = true;
   refs.authView.hidden = false;
   refs.panelView.hidden = true;
   refs.currentUser.textContent = 'Misafir değil, operasyon';
@@ -793,6 +920,8 @@ function showAuth() {
 }
 
 function showPanel() {
+  refs.sidebar.hidden = false;
+  refs.topbar.hidden = false;
   refs.authView.hidden = true;
   refs.panelView.hidden = false;
   refs.currentUser.textContent = state.me?.display_name || state.me?.username || '-';
@@ -811,17 +940,17 @@ function setView(view) {
   });
 
   const meta = {
-    dashboard: ['Genel Bakis', 'Aktif konusmalar, bekleyen onaylar ve acik talepleri tek ekranda gorun.'],
-    conversations: ['Konusmalar', 'Misafir mesajlarini, durumlarini ve gecmisini inceleyin.'],
-    holds: ['Onay Bekleyenler', 'Konaklama, restoran ve transfer taleplerini onaylayin veya reddedin.'],
-    tickets: ['Destek Talepleri', 'Ekibe aktarilan gorevleri oncelik ve duruma gore takip edin.'],
-    hotels: ['Otel Bilgileri', 'Otel profilini duzenleyin ve degisiklikleri sisteme uygulatin.'],
-    faq: ['Sik Sorulan Sorular', 'Hazir yanitlari yonetin, uygunsuz icerigi hizlica kaldirin.'],
-    restaurant: ['Restoran Yonetimi', 'Tarih ve saat bazli masa kapasitelerini ayarlayin.'],
-    notifications: ['Bildirim Ayarlari', 'Rezervasyon onaylari icin WhatsApp bildirim numaralarini yonetin.'],
-    system: ['Sistem Durumu', 'Sunucu sagligi, alan adi ve guvenlik ayarlarini kontrol edin.'],
-    chatlab: ['Test Paneli', 'Yapay zekayi canli test edin, puanlayin ve raporlayin.'],
-  }[view] || ['Admin Panel', 'Yonetim merkezi'];
+    dashboard: ['Genel Bakış', 'Aktif konuşmaları, bekleyen onayları ve açık talepleri tek ekranda görüntüleyin.'],
+    conversations: ['Konuşmalar', 'Misafir mesajlarını, durumlarını ve geçmişini inceleyin.'],
+    holds: ['Onay Bekleyenler', 'Konaklama, restoran ve transfer taleplerini onaylayın veya reddedin.'],
+    tickets: ['Destek Talepleri', 'Ekibe aktarılan görevleri öncelik ve duruma göre takip edin.'],
+    hotels: ['Otel Bilgileri', 'Otel profilini düzenleyin ve değişiklikleri sisteme güvenle uygulayın.'],
+    faq: ['Sık Sorulan Sorular', 'Hazır yanıtları yönetin, uygunsuz içerikleri hızlıca kaldırın.'],
+    restaurant: ['Restoran Yönetimi', 'Tarih ve saat bazlı masa kapasitelerini ayarlayın.'],
+    notifications: ['Bildirim Ayarları', 'Rezervasyon onayları için WhatsApp bildirim numaralarını yönetin.'],
+    system: ['Sistem Durumu', 'Sunucu sağlığı, alan adı ve güvenlik ayarlarını kontrol edin.'],
+    chatlab: ['Test Paneli', 'Yapay zekâyı canlı test edin, puanlayın ve raporlayın.'],
+  }[view] || ['Yönetim Paneli', 'Yönetim merkezi'];
 
   refs.pageTitle.textContent = meta[0];
   refs.pageLead.textContent = meta[1];
@@ -920,10 +1049,10 @@ async function loadDashboard() {
 function renderDashboard() {
   if (!state.dashboard) return;
   const cards = [
-    ['Aktif Konusma', state.dashboard.cards.conversations_active, 'Canli takip gereken oturumlar'],
-    ['Bekleyen Hold', state.dashboard.cards.pending_holds, 'Onay akisini tikayan kayitlar'],
-    ['Acik Ticket', state.dashboard.cards.open_tickets, 'Ops, sales ve chef kuyruklari'],
-    ['Yuksek Oncelik', state.dashboard.cards.high_priority_tickets, 'Gecikirse risk artiran olaylar'],
+    ['Aktif Konuşma', state.dashboard.cards.conversations_active, 'Canlı takip gereken oturumlar'],
+    ['Bekleyen Onay', state.dashboard.cards.pending_holds, 'Onay akışını tıkayan kayıtlar'],
+    ['Açık Talep', state.dashboard.cards.open_tickets, 'Operasyon, satış ve şef kuyrukları'],
+    ['Yüksek Öncelik', state.dashboard.cards.high_priority_tickets, 'Gecikirse risk artıran olaylar'],
   ];
   refs.dashboardCards.innerHTML = cards.map(item => `
     <article class="overview-card">
@@ -935,34 +1064,34 @@ function renderDashboard() {
 
   refs.dashboardQueues.innerHTML = `
     <div class="queue-card">
-      <div class="module-header"><div><h3>Son Konusmalar</h3><p>Risk ve intent baglamiyla son aktivite.</p></div></div>
+      <div class="module-header"><div><h3>Son Konuşmalar</h3><p>Risk ve niyet bağlamıyla son aktivite.</p></div></div>
       ${renderQueue(state.dashboard.recent_conversations, item => `
         <div class="queue-item">
-          <strong>${escapeHtml(item.phone_display || 'Maskeli kullanici')}</strong>
-          <span class="muted">${escapeHtml(item.current_state || '-')} · ${escapeHtml(item.current_intent || '-')}</span>
+          <strong>${escapeHtml(item.phone_display || 'Maskeli kullanıcı')}</strong>
+          <span class="muted">${escapeHtml(formatConversationState(item.current_state || '-'))} · ${escapeHtml(item.current_intent || '-')}</span>
           <div class="muted">${formatDate(item.last_message_at)}</div>
         </div>
       `, 'Konuşma yok')}
     </div>
     <div class="queue-card">
-      <div class="module-header"><div><h3>Bekleyen Holdlar</h3><p>Onay bekleyen kararlar burada yoğunlaşır.</p></div></div>
+      <div class="module-header"><div><h3>Bekleyen Onaylar</h3><p>Onay bekleyen kararlar burada yoğunlaşır.</p></div></div>
       ${renderQueue(state.dashboard.recent_holds, item => `
         <div class="queue-item">
           <strong>${escapeHtml(item.hold_id)}</strong>
-          <span class="muted">${escapeHtml(item.hold_type)} · ${escapeHtml(item.status)}</span>
+          <span class="muted">${escapeHtml(formatHoldType(item.hold_type))} · ${escapeHtml(formatOperationalStatus(item.status))}</span>
           <div class="muted">${formatDate(item.created_at)}</div>
         </div>
-      `, 'Bekleyen hold yok')}
+      `, 'Bekleyen onay yok')}
     </div>
     <div class="queue-card">
-      <div class="module-header"><div><h3>Açık Ticketlar</h3><p>Handoff kuyruğunda sahiplik ve öncelik takibi.</p></div></div>
+      <div class="module-header"><div><h3>Açık Talepler</h3><p>Devir kuyruğunda sahiplik ve öncelik takibi.</p></div></div>
       ${renderQueue(state.dashboard.recent_tickets, item => `
         <div class="queue-item">
           <strong>${escapeHtml(item.ticket_id)}</strong>
-          <span class="muted">${escapeHtml(item.reason)} · ${escapeHtml(item.priority)}</span>
+          <span class="muted">${escapeHtml(item.reason)} · ${escapeHtml(formatPriorityLabel(item.priority))}</span>
           <div class="muted">${formatDate(item.created_at)}</div>
         </div>
-      `, 'Açık ticket yok')}
+      `, 'Açık talep yok')}
     </div>
   `;
 }
@@ -998,8 +1127,8 @@ function renderConversationRows(items) {
   }
   return items.map(item => `
     <tr>
-      <td><div class="stack"><strong>${escapeHtml(item.phone_display || 'Maskeli kullanici')}</strong><span class="muted mono">${escapeHtml(item.id)}</span></div></td>
-      <td><span class="pill open">${escapeHtml(item.current_state || '-')}</span>${item.human_override ? ' <span class="pill pill-warning" title="Insan devri aktif">👤</span>' : ''}</td>
+      <td><div class="stack"><strong>${escapeHtml(item.phone_display || 'Maskeli kullanıcı')}</strong><span class="muted mono">${escapeHtml(item.id)}</span></div></td>
+      <td><span class="pill open">${escapeHtml(formatConversationState(item.current_state || '-'))}</span>${item.human_override ? ' <span class="pill pill-warning" title="İnsan devri aktif">👤</span>' : ''}</td>
       <td>${escapeHtml(resolveConversationIntent(item, []))}</td>
       <td>${escapeHtml((item.risk_flags || []).join(', ') || 'Yok')}</td>
       <td>${escapeHtml(item.message_count || 0)}</td>
@@ -1023,14 +1152,14 @@ async function loadConversationDetail(conversationId) {
     <div class="module-header">
       <div>
         <h3>Konuşma Detayı</h3>
-        <p>${escapeHtml(response.conversation.phone_display || 'Maskeli kullanici')} · ${escapeHtml(resolvedState)}</p>
+        <p>${escapeHtml(response.conversation.phone_display || 'Maskeli kullanıcı')} · ${escapeHtml(resolvedState)}</p>
       </div>
       <div class="inline-flex-center">
         <div class="badge dark">${escapeHtml(resolvedIntent)}</div>
         ${response.conversation.is_active ? `
-          <button class="action-button ${response.conversation.human_override ? 'primary' : 'warn'} action-button-sm" data-toggle-human-override="${escapeHtml(String(response.conversation.id))}" data-current-override="${response.conversation.human_override ? 'true' : 'false'}" aria-label="Insan devri / AI modu degistir">${response.conversation.human_override ? 'AI Moduna Al' : 'Insan Devrine Al'}</button>
-          <button class="action-button danger action-button-sm" data-reset-conversation="${escapeHtml(String(response.conversation.id))}" aria-label="Secili konusmayi sifirla">Sifirla</button>
-        ` : '<span class="pill pill-closed">Kapali</span>'}
+          <button class="action-button ${response.conversation.human_override ? 'primary' : 'warn'} action-button-sm" data-toggle-human-override="${escapeHtml(String(response.conversation.id))}" data-current-override="${response.conversation.human_override ? 'true' : 'false'}" aria-label="İnsan devri / yapay zekâ modu değiştir">${response.conversation.human_override ? 'Yapay Zekâ Moduna Al' : 'İnsan Devrine Al'}</button>
+          <button class="action-button danger action-button-sm" data-reset-conversation="${escapeHtml(String(response.conversation.id))}" aria-label="Seçili konuşmayı sıfırla">Sıfırla</button>
+        ` : '<span class="pill pill-closed">Kapalı</span>'}
       </div>
     </div>
     ${renderUserAuditSection(audit)}
@@ -1051,12 +1180,12 @@ async function loadConversationDetail(conversationId) {
       const currentlyEnabled = overrideBtn.dataset.currentOverride === 'true';
       const newState = !currentlyEnabled;
       const confirmMsg = newState
-        ? 'Bu konuşmayı İNSAN DEVRİNE almak istediğinize emin misiniz? AI yanıt üretmeye devam edecek ancak mesajlar WhatsApp üzerinden GÖNDERİLMEYECEK.'
-        : 'Bu konuşmayı tekrar AI MODUNA almak istediğinize emin misiniz? Mesajlar otomatik olarak gönderilmeye başlanacak.';
+        ? 'Bu konuşmayı İNSAN DEVRİNE almak istediğinize emin misiniz? Yapay zekâ yanıt üretmeye devam edecek ancak mesajlar WhatsApp üzerinden GÖNDERİLMEYECEK.'
+        : 'Bu konuşmayı tekrar YAPAY ZEKÂ MODUNA almak istediğinize emin misiniz? Mesajlar otomatik olarak gönderilmeye başlanacak.';
       if (!confirm(confirmMsg)) return;
       try {
         await apiFetch(`/conversations/${convId}/human-override?enable=${newState}`, {method: 'POST'});
-        notify(newState ? 'İnsan devri aktif — mesajlar gönderilmeyecek.' : 'AI modu aktif — mesajlar otomatik gönderilecek.', 'success');
+        notify(newState ? 'İnsan devri aktif — mesajlar gönderilmeyecek.' : 'Yapay zekâ modu aktif — mesajlar otomatik gönderilecek.', 'success');
         loadConversationDetail(convId);
         loadConversations();
       } catch (error) {
@@ -1116,22 +1245,22 @@ async function loadTickets() {
 
 function renderTicketRows(items) {
   if (!items.length) {
-    return `<tr><td colspan="7"><div class="empty-state"><p>Açık ticket bulunamadı.</p></div></td></tr>`;
+    return `<tr><td colspan="7"><div class="empty-state"><p>Açık talep bulunamadı.</p></div></td></tr>`;
   }
   return items.map(item => `
     <tr>
       <td><div class="stack"><strong>${escapeHtml(item.ticket_id)}</strong><span class="muted">${escapeHtml(item.reason)}</span></div></td>
-      <td><span class="pill ${escapeHtml((item.priority || 'low').toLowerCase())}">${escapeHtml(item.priority)}</span></td>
-      <td>${escapeHtml(item.status)}</td>
+      <td><span class="pill ${escapeHtml((item.priority || 'low').toLowerCase())}">${escapeHtml(formatPriorityLabel(item.priority))}</span></td>
+      <td>${escapeHtml(formatTicketStatus(item.status))}</td>
       <td>${escapeHtml(item.assigned_to_role || '-')}</td>
       <td>${formatDate(item.created_at)}</td>
       <td><div class="muted">${escapeHtml(item.transcript_summary || '').slice(0, 180)}</div></td>
       <td>
         <div class="stack">
-          <select data-ticket-status="${escapeHtml(item.ticket_id)}" aria-label="${escapeHtml(item.ticket_id + ' ticket durumu')}">
-            ${['OPEN','IN_PROGRESS','RESOLVED','CLOSED'].map(status => `<option value="${status}" ${item.status === status ? 'selected' : ''}>${status}</option>`).join('')}
+          <select data-ticket-status="${escapeHtml(item.ticket_id)}" aria-label="${escapeHtml(item.ticket_id + ' talep durumu')}">
+            ${['OPEN','IN_PROGRESS','RESOLVED','CLOSED'].map(status => `<option value="${status}" ${item.status === status ? 'selected' : ''}>${escapeHtml(formatTicketStatus(status))}</option>`).join('')}
           </select>
-          <button class="action-button primary" data-save-ticket="${escapeHtml(item.ticket_id)}" aria-label="${escapeHtml(item.ticket_id + ' ticketini kaydet')}">Kaydet</button>
+          <button class="action-button primary" data-save-ticket="${escapeHtml(item.ticket_id)}" aria-label="${escapeHtml(item.ticket_id + ' talebini kaydet')}">Kaydet</button>
         </div>
       </td>
     </tr>
