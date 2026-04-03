@@ -15,7 +15,36 @@ logger = structlog.get_logger(__name__)
 
 SYSTEM_PROMPT_CHAR_LIMIT = 32000
 MASTER_PROMPT_PATH = "docs/master_prompt_v2.md"
+RECEPTION_SCOPE_PROMPT_PATH = "docs/reception_scope_prompt.md"
 _MASTER_PROMPT_A_SECTION: str | None = None
+_RECEPTION_SCOPE_PROMPT: str | None = None
+
+
+def _read_static_prompt_text(
+    path_str: str,
+    *,
+    missing_log_event: str,
+    missing_fallback: str,
+) -> str:
+    """Read a checked-in static prompt file with a safe fallback."""
+    prompt_path = Path(path_str)
+    if not prompt_path.exists():
+        logger.warning(missing_log_event, path=str(prompt_path))
+        return missing_fallback
+
+    return prompt_path.read_text(encoding="utf-8").strip()
+
+
+def _extract_prompt_section(raw_text: str, start_marker: str, end_marker: str) -> str:
+    """Extract a marker-delimited section from a static prompt document."""
+    start_index = raw_text.find(start_marker)
+    end_index = raw_text.find(end_marker)
+
+    if start_index == -1:
+        return raw_text.strip()
+    if end_index == -1 or end_index <= start_index:
+        return raw_text[start_index:].strip()
+    return raw_text[start_index:end_index].strip()
 
 
 def _load_master_prompt_a_section() -> str:
@@ -24,27 +53,27 @@ def _load_master_prompt_a_section() -> str:
     if _MASTER_PROMPT_A_SECTION is not None:
         return _MASTER_PROMPT_A_SECTION
 
-    prompt_path = Path(MASTER_PROMPT_PATH)
-    if not prompt_path.exists():
-        logger.warning("master_prompt_file_missing", path=str(prompt_path))
-        _MASTER_PROMPT_A_SECTION = "Master prompt not found."
-        return _MASTER_PROMPT_A_SECTION
-
-    raw_text = prompt_path.read_text(encoding="utf-8")
-    start_marker = "# A)"
-    end_marker = "# B)"
-    start_index = raw_text.find(start_marker)
-    end_index = raw_text.find(end_marker)
-
-    if start_index == -1:
-        selected = raw_text
-    elif end_index == -1 or end_index <= start_index:
-        selected = raw_text[start_index:]
-    else:
-        selected = raw_text[start_index:end_index]
-
-    _MASTER_PROMPT_A_SECTION = selected.strip()
+    raw_text = _read_static_prompt_text(
+        MASTER_PROMPT_PATH,
+        missing_log_event="master_prompt_file_missing",
+        missing_fallback="Master prompt not found.",
+    )
+    _MASTER_PROMPT_A_SECTION = _extract_prompt_section(raw_text, "# A)", "# B)")
     return _MASTER_PROMPT_A_SECTION
+
+
+def _load_reception_scope_prompt() -> str:
+    """Load the checked-in reception scope supplement once per process."""
+    global _RECEPTION_SCOPE_PROMPT
+    if _RECEPTION_SCOPE_PROMPT is not None:
+        return _RECEPTION_SCOPE_PROMPT
+
+    _RECEPTION_SCOPE_PROMPT = _read_static_prompt_text(
+        RECEPTION_SCOPE_PROMPT_PATH,
+        missing_log_event="reception_scope_prompt_file_missing",
+        missing_fallback="Reception scope prompt not found.",
+    )
+    return _RECEPTION_SCOPE_PROMPT
 
 
 class PromptBuilder:
@@ -59,6 +88,7 @@ class PromptBuilder:
         self.hotel_profiles = hotel_profiles
         self.escalation_matrix = escalation_matrix
         self.template_library = template_library
+        self.reception_scope_prompt = _load_reception_scope_prompt()
         self.master_prompt_a = _load_master_prompt_a_section()
 
     def _build_conversational_flow_instruction(self, hotel_id: int) -> str:
@@ -124,6 +154,8 @@ class PromptBuilder:
         ]
 
         sections = [
+            "### RECEPTION_SCOPE_PROMPT",
+            self.reception_scope_prompt,
             "### MASTER_PROMPT_A_SECTION",
             self.master_prompt_a,
             "### HOTEL_PROFILE",

@@ -46,6 +46,20 @@ def test_build_messages_includes_hotel_conversational_flow_rules() -> None:
     assert "avoid_repeating_confirmed_facts=true" in joined
 
 
+def test_build_system_prompt_includes_reception_scope_prompt() -> None:
+    builder = PromptBuilder(
+        hotel_profiles={21966: _build_profile()},
+        escalation_matrix=[],
+        template_library=[],
+    )
+
+    system_prompt = builder.build_system_prompt(21966)
+
+    assert "### RECEPTION_SCOPE_PROMPT" in system_prompt
+    assert "üst segment bir otelin dijital resepsiyonisti" in system_prompt
+    assert "nazikçe sınır koy" in system_prompt
+
+
 def test_build_messages_falls_back_to_default_conversational_limits_when_profile_missing() -> None:
     builder = PromptBuilder(
         hotel_profiles={},
