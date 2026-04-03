@@ -1554,7 +1554,7 @@ async def approve_hold(
     body: ApproveRequest,
     request: Request,
     user: Annotated[TokenData, Depends(get_current_user)],
-    force: bool = Query(False),
+    force: Annotated[bool, Query()] = False,
 ) -> dict[str, Any]:
     """Approve hold and trigger approval/retry webhook flow inside backend.
 

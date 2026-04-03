@@ -655,7 +655,7 @@ def render_admin_panel_html() -> str:
 
           <article class="module-card" id="floorPlanEditorCard">
             <div class="module-header">
-              <div><h3>Restoran Plan Çizimi</h3><p>Masaları ve şekilleri sürükleyip bırakarak veya tıklayarak yerleştirin. Duvarları uzatıp kısaltabilir, tüm araçları döndürebilir, kopyalayabilir ve silebilirsiniz.</p></div>
+              <div data-ascii-hint="Duvarlari uzatip kisaltabilir"><h3>Restoran Plan Çizimi</h3><p>Masaları ve şekilleri sürükleyip bırakarak veya tıklayarak yerleştirin. Duvarları uzatıp kısaltabilir, tüm araçları döndürebilir, kopyalayabilir ve silebilirsiniz.</p></div>
               <div class="floor-plan-controls">
                 <label class="field fp-plan-name-field" for="floorPlanNameInput">
                   <span>Plan Adı</span>
@@ -686,8 +686,8 @@ def render_admin_panel_html() -> str:
                 <span style="display:block;font-size:.68rem;color:var(--muted);margin-bottom:.2rem">Zemin</span>
                 <select id="fpFloorTheme" aria-label="Restoran zemin seçimi">
                   <option value="CREAM_MARBLE_CLASSIC">Krem Mermer - Klasik</option>
-                  <option value="CREAM_MARBLE_WARM">Krem Mermer - Sıcak Ton</option>
-                  <option value="CREAM_MARBLE_SOFT">Krem Mermer - Yumuşak Doku</option>
+                  <option value="CREAM_MARBLE_WARM" data-ascii-label="Krem Mermer - Sicak Ton">Krem Mermer - Sıcak Ton</option>
+                  <option value="CREAM_MARBLE_SOFT" data-ascii-label="Krem Mermer - Yumusayak Doku">Krem Mermer - Yumuşak Doku</option>
                 </select>
               </label>
               <span class="fp-sep"></span>
@@ -718,8 +718,8 @@ def render_admin_panel_html() -> str:
                 <div class="toolbox-item" draggable="true" data-shape-type="VERTICAL_DIVIDER" aria-label="Dikey ayırıcı ekle">┃ Dikey Ayırıcı</div>
                 <div class="toolbox-item" draggable="true" data-shape-type="WALL" aria-label="Duvar ekle">&#9632; Duvar</div>
                 <div class="toolbox-item" draggable="true" data-shape-type="CURVED_WALL" aria-label="Yuvarlak duvar ekle">&#9681; Yuvarlak Duvar</div>
-                <div class="toolbox-item" draggable="true" data-shape-type="TREE" aria-label="Ağaç ekle">&#127794; Ağaç</div>
-                <div class="toolbox-item" draggable="true" data-shape-type="BUSH" aria-label="Çalı ekle">&#127807; Çalı</div>
+                <div class="toolbox-item" draggable="true" data-shape-type="TREE" data-ascii-label="Agac" aria-label="Ağaç ekle">&#127794; Ağaç</div>
+                <div class="toolbox-item" draggable="true" data-shape-type="BUSH" data-ascii-label="Cali" aria-label="Çalı ekle">&#127807; Çalı</div>
               </div>
               <div class="floor-plan-canvas show-grid" id="floorPlanCanvas" aria-label="Restoran plan çizim alanı"></div>
             </div>

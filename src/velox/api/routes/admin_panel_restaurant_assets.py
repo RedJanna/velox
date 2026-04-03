@@ -300,6 +300,11 @@ const FLOOR_THEMES = {
   CREAM_MARBLE_SOFT: 'floor-cream-marble-soft'
 };
 const DEFAULT_FLOOR_THEME = 'CREAM_MARBLE_CLASSIC';
+const FLOOR_PLAN_EMPTY_OPTION_LABEL = 'Kayıtlı plan yok';
+const FLOOR_PLAN_SELECT_PROMPT = 'Plan seç';
+const FLOOR_PLAN_NAME_PROMPT_TITLE = 'Plan Adı Girin';
+const FLOOR_PLAN_NAME_PLACEHOLDER = 'Örn. Ana Salon Akşam Düzeni';
+const DAILY_VIEW_EMPTY_MESSAGE = 'Aktif plan yok veya bu tarihte masa ataması bulunamadı.';
 let fpState = {tables:[],shapes:[],planId:null,planName:'Ana Plan',counter:0,floorTheme:DEFAULT_FLOOR_THEME};
 let floorPlanCollection = [];
 let selectedEl = null;
@@ -536,12 +541,12 @@ function renderFloorPlanSelect(){
   var select = document.getElementById('floorPlanSelect');
   if(!select) return;
   if(!floorPlanCollection.length){
-    select.innerHTML = '<option value="">Kayitli plan yok</option>';
+    select.innerHTML = '<option value="">' + FLOOR_PLAN_EMPTY_OPTION_LABEL + '</option>';
     select.disabled = true;
     return;
   }
   select.disabled = false;
-  var opts = '<option value="">-- Plan sec (' + floorPlanCollection.length + ' kayitli) --</option>';
+  var opts = '<option value="">-- ' + FLOOR_PLAN_SELECT_PROMPT + ' (' + floorPlanCollection.length + ' kayıtlı) --</option>';
   opts += floorPlanCollection.map(function(plan){
     var pid = String(plan.id || '');
     var activeTag = plan.is_active ? ' ★ Aktif' : '';
@@ -1258,8 +1263,8 @@ function showPlanNamePrompt(defaultName){
     var overlay = document.createElement('div');
     overlay.className = 'fp-name-prompt-overlay';
     overlay.innerHTML = '<div class="fp-name-prompt-box">'
-      + '<h4>Plan Adi Girin</h4>'
-      + '<input type="text" id="fpNamePromptInput" maxlength="80" placeholder="Orn. Ana Salon Aksam Duzeni" value="' + escapeHtml(defaultName || '') + '" autofocus>'
+      + '<h4>' + FLOOR_PLAN_NAME_PROMPT_TITLE + '</h4>'
+      + '<input type="text" id="fpNamePromptInput" maxlength="80" placeholder="' + FLOOR_PLAN_NAME_PLACEHOLDER + '" value="' + escapeHtml(defaultName || '') + '" autofocus>'
       + '<div class="fp-name-prompt-actions">'
       + '<button class="inline-button secondary" id="fpNamePromptCancel" type="button">Iptal</button>'
       + '<button class="inline-button primary" id="fpNamePromptOk" type="button">Kaydet</button>'
@@ -1430,7 +1435,7 @@ async function loadDailyView(){
       canvas.appendChild(el);
     });
     if(!data.items || data.items.length === 0){
-      canvas.innerHTML = '<div class="empty-state">Aktif plan yok veya bu tarihte masa atamasi bulunamadi.</div>';
+      canvas.innerHTML = '<div class="empty-state">' + DAILY_VIEW_EMPTY_MESSAGE + '</div>';
     }
   }catch(e){
     notify('Gunluk gorunum yuklenemedi','error');

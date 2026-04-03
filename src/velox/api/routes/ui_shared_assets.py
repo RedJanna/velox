@@ -76,6 +76,11 @@ function extractErrorDetail(payload, rawText) {
   if (typeof payload?.detail === 'string' && payload.detail.trim()) {
     return payload.detail.trim();
   }
+  if (payload && typeof payload.detail === 'object' && !Array.isArray(payload.detail)) {
+    if (typeof payload.detail.message === 'string') {
+      return payload.detail.message.trim();
+    }
+  }
   if (Array.isArray(payload?.detail) && payload.detail.length) {
     var messages = payload.detail.map(function(item) {
       if (typeof item === 'string') return item;
