@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v5.1 | **Son güncelleme:** 2026-03-26 13:30:00
-> **Değişiklik özeti:** Medya alım adımı config-driven format/normalizasyon (JPEG/PNG + WEBP/TIFF/HEIC/HEIF) ve MEDIA_* env tablolarıyla senkronlandı.
+> **Sürüm:** v5.2 | **Son güncelleme:** 2026-04-03 13:57:37
+> **Değişiklik özeti:** Pre-LLM scope classifier + response validator/fallback kütüphanesi eklendi; kapsam dışı ret akışı deterministikleştirildi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -497,7 +497,7 @@ Dosyanın en üstündeki sürüm bloğu, her güncelleme sonrası şu formatta g
 src/velox/
 ├── main.py                    # FastAPI entry point
 ├── config/                    # Settings, constants
-├── core/                      # Intent engine, state machine, verification, QC
+├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses
 ├── llm/                       # OpenAI client, prompt builder, response parser
 ├── tools/                     # Tool implementations (booking, restaurant, etc.)
 ├── adapters/                  # External service clients (Elektraweb, WhatsApp)

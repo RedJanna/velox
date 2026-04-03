@@ -107,8 +107,33 @@ Cevap uretmeden hemen once ic kontrolden gec:
 - (QC5) WhatsApp kisa format: tek mesaj, net secenekler.
 - (QC6) Eskalasyon Gate: risk_flags var mi? L1/L2/L3 gerekir mi? Gerekirse notify/handoff olustur.
 - (QC7) Session Gate: konusma timeout olmamis mi? Baglam tutarli mi?
+- (QC8) Response Validation Gate: cikista teknik sizinti, bos mesaj, kapsam disi tutarsiz ret veya tone bozulmasi var mi?
 
 QC basarisizsa: soru sor / tool cagir / handoff.
+
+## A4.2.1) Scope Classifier (Pre-LLM)
+- LLM cagrisindan once mesaj deterministik scope classifier'dan gecirilir.
+- Siniflar: `in_scope`, `near_scope`, `out_of_scope`.
+- `out_of_scope` ise LLM cagrisi yapilmaz; tutarli ve nazik refusal metni donulur.
+- `near_scope` (otel yakin cevre/pratik ihtiyac) talepleri LLM akisina devam eder, ancak resepsiyon siniri korunur.
+- Scope sonucu `entities.scope_classifier` alaninda saklanir (`decision`, `reason`, `confidence`).
+
+## A4.2.2) Refusal Consistency Checker
+- Scope sonucu `out_of_scope` oldugunda cikis metni zorunlu refusal kalibina uymali.
+- Uymayan metinler otomatik normalize edilerek tek tip policy metnine cekilir.
+- Boylesi durumlarda yanit fallback olarak etiketlenir ve `response_validator.rules` altinda kaydedilir.
+
+## A4.2.3) Fallback Response Library
+- Guvenli fallback ve refusal metinleri tek bir merkezi kutuphane uzerinden yonetilir.
+- Bos mesaj, teknik sizinti, format bozulmasi veya out-of-scope tutarsizligi durumunda bu kutuphane kullanilir.
+- Daginik sabit string kullanimi yerine merkezi mesaj kaynagi tercih edilir.
+
+## A4.2.4) Tone Enforcer (Light)
+- Cikis metni hafif ton normalizasyonundan gecer:
+  - code block/backtick temizligi
+  - asiri unlem ve agresif ifade temizligi
+  - dil uyumlu premium/nezaket tonu koruma
+- Bu adim anlamsal icerigi degistirmez; sadece guvenli sunumu korur.
 
 ## A4.3) Sablon + AI Hibriti
 Mumkun oldugunda serbest metin uretme.

@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from tests.scenarios.quality_score import compute_quality_score, scenario_severity
 from tests.scenarios.runner import ScenarioResult
 
 REPORTS_DIR = Path(__file__).resolve().parents[2] / "data" / "eval_reports"
@@ -12,12 +13,7 @@ REPORTS_DIR = Path(__file__).resolve().parents[2] / "data" / "eval_reports"
 
 def _severity_for_scenario(code: str) -> str:
     """Determine severity based on scenario code range."""
-    num = int(code.replace("S", "").replace("s", ""))
-    if num >= 41:
-        return "CRITICAL"
-    if num >= 31:
-        return "MEDIUM"
-    return "HIGH"
+    return scenario_severity(code)
 
 
 def generate_console_report(results: list[ScenarioResult], mode: str = "full") -> str:
@@ -25,6 +21,7 @@ def generate_console_report(results: list[ScenarioResult], mode: str = "full") -
     total = len(results)
     passed = sum(1 for r in results if r.passed)
     failed = total - passed
+    quality = compute_quality_score(results)
 
     lines: list[str] = []
     lines.append("")
@@ -37,6 +34,8 @@ def generate_console_report(results: list[ScenarioResult], mode: str = "full") -
     lines.append(f"  Toplam senaryo:  {total}")
     lines.append(f"  Gecen:           {passed}  ({_pct(passed, total)})")
     lines.append(f"  Kalan:           {failed}  ({_pct(failed, total)})")
+    lines.append(f"  Kalite skoru:    {quality['score']} / 100")
+    lines.append(f"  Kritik pass:     %{quality['critical_pass_rate']}")
     lines.append("")
 
     # Category breakdown
@@ -83,6 +82,7 @@ def generate_json_report(
     """Generate machine-readable JSON report."""
     total = len(results)
     passed = sum(1 for r in results if r.passed)
+    quality = compute_quality_score(results)
 
     failures: list[dict[str, Any]] = []
     for r in results:
@@ -123,6 +123,10 @@ def generate_json_report(
             "passed": passed,
             "failed": total - passed,
             "pass_rate": f"{_pct(passed, total)}",
+            "quality_score": quality["score"],
+            "critical_pass_rate": quality["critical_pass_rate"],
+            "weighted_passed_steps": quality["weighted_passed_steps"],
+            "weighted_total_steps": quality["weighted_total_steps"],
         },
         "failures": failures,
     }

@@ -20,10 +20,13 @@ from velox.adapters.whatsapp.webhook import IncomingMessage, WhatsAppWebhook
 from velox.config.constants import CONTEXT_WINDOW_MAX_MESSAGES, SUPPORTED_LANGUAGES
 from velox.config.settings import settings
 from velox.core.burst_buffer import AggregatedMessage, BufferedMessage, enqueue_or_fallback
+from velox.core.fallback_response_library import out_of_scope_refusal
 from velox.core.hotel_profile_loader import get_profile
 from velox.core.media_pipeline import MediaPipelineService
 from velox.core.media_response_policy import build_media_policy_response
 from velox.core.pipeline import post_process_escalation
+from velox.core.response_validator import validate_guest_response
+from velox.core.scope_classifier import ScopeDecision, classify_reception_scope
 from velox.core.voice_pipeline import VoicePipelineService
 from velox.core.voice_response_policy import build_voice_policy_response
 from velox.db.repositories.conversation import ConversationRepository
@@ -2552,16 +2555,31 @@ async def _run_message_pipeline(
         if expected_language in SUPPORTED_LANGUAGE_CODES
         else conversation.language if conversation.language in SUPPORTED_LANGUAGE_CODES else "tr"
     )
+
+    def _finalize_response(
+        candidate: LLMResponse,
+        *,
+        scope_decision: ScopeDecision | None = None,
+        language_override: str | None = None,
+    ) -> LLMResponse:
+        return validate_guest_response(
+            candidate,
+            default_language=language_override or target_language,
+            scope_decision=scope_decision,
+        )
+
     if PAYMENT_DATA_PATTERN.search(normalized_text):
-        return LLMResponse(
-            user_message=_payment_warning_message(target_language),
-            internal_json=InternalJSON(
-                language=target_language,
-                intent="payment_inquiry",
-                state="HANDOFF",
-                risk_flags=["PAYMENT_CONFUSION"],
-                next_step="handoff_to_sales",
-            ),
+        return _finalize_response(
+            LLMResponse(
+                user_message=_payment_warning_message(target_language),
+                internal_json=InternalJSON(
+                    language=target_language,
+                    intent="payment_inquiry",
+                    state="HANDOFF",
+                    risk_flags=["PAYMENT_CONFUSION"],
+                    next_step="handoff_to_sales",
+                ),
+            )
         )
 
     payment_intake_response = _build_payment_intake_response(
@@ -2570,10 +2588,35 @@ async def _run_message_pipeline(
         target_language=target_language,
     )
     if payment_intake_response is not None:
-        return payment_intake_response
+        return _finalize_response(payment_intake_response)
 
     if _has_recent_media_analysis_context(conversation) and _is_room_type_identification_question(normalized_text):
-        return _build_media_room_type_grounded_response(conversation.hotel_id, target_language)
+        return _finalize_response(_build_media_room_type_grounded_response(conversation.hotel_id, target_language))
+
+    scope_result = classify_reception_scope(normalized_text)
+    if scope_result.decision == ScopeDecision.OUT_OF_SCOPE and not _has_payment_intake_state(conversation):
+        return _finalize_response(
+            LLMResponse(
+                user_message=out_of_scope_refusal(target_language),
+                internal_json=InternalJSON(
+                    language=target_language,
+                    intent="other",
+                    state="INTENT_DETECTED",
+                    entities={
+                        "scope_classifier": {
+                            "decision": scope_result.decision.value,
+                            "reason": scope_result.reason,
+                            "confidence": round(scope_result.confidence, 3),
+                        }
+                    },
+                    required_questions=[],
+                    handoff={"needed": False},
+                    risk_flags=[],
+                    next_step="await_hotel_related_request",
+                ),
+            ),
+            scope_decision=scope_result.decision,
+        )
 
     try:
         prompt_builder = get_prompt_builder()
@@ -2611,7 +2654,10 @@ async def _run_message_pipeline(
 
         if _has_child_quote_mismatch(executed_calls):
             logger.warning("stay_quote_child_occupancy_manual_verification")
-            return _build_child_quote_handoff_response(conversation.hotel_id, executed_calls)
+            return _finalize_response(
+                _build_child_quote_handoff_response(conversation.hotel_id, executed_calls),
+                scope_decision=scope_result.decision,
+            )
 
         restaurant_capacity_handoff = _build_restaurant_capacity_handoff_response(
             conversation,
@@ -2619,7 +2665,10 @@ async def _run_message_pipeline(
             target_language,
         )
         if restaurant_capacity_handoff is not None:
-            return restaurant_capacity_handoff
+            return _finalize_response(
+                restaurant_capacity_handoff,
+                scope_decision=scope_result.decision,
+            )
 
         parsed = ResponseParser.parse(content)
         intent = str(parsed.internal_json.intent or "").lower()
@@ -2632,6 +2681,11 @@ async def _run_message_pipeline(
         _suppress_default_year_question(parsed, normalized_text)
         entities = parsed.internal_json.entities if isinstance(parsed.internal_json.entities, dict) else {}
         entities = _merge_entities_with_context(conversation.entities_json, entities)
+        entities["scope_classifier"] = {
+            "decision": scope_result.decision.value,
+            "reason": scope_result.reason,
+            "confidence": round(scope_result.confidence, 3),
+        }
         parsed.internal_json.entities = entities
         if _has_recent_media_analysis_context(conversation) and _contains_profile_unsupported_room_taxonomy(
             parsed.user_message,
@@ -2641,19 +2695,22 @@ async def _run_message_pipeline(
                 "media_room_taxonomy_profile_guard_triggered",
                 conversation_id=str(conversation.id) if conversation.id is not None else None,
             )
-            return _build_media_room_type_grounded_response(conversation.hotel_id, language)
+            return _finalize_response(
+                _build_media_room_type_grounded_response(conversation.hotel_id, language),
+                scope_decision=scope_result.decision,
+            )
         if _is_elevator_question(normalized_text):
             parsed.user_message = _build_elevator_reply(conversation.hotel_id, language)
-            return parsed
+            return _finalize_response(parsed, scope_decision=scope_result.decision, language_override=language)
         if language == "tr" and _is_payment_method_question(normalized_text):
             parsed.user_message = _build_turkish_payment_methods_reply(conversation.hotel_id)
-            return parsed
+            return _finalize_response(parsed, scope_decision=scope_result.decision, language_override=language)
         if language == "tr" and _is_parking_question(normalized_text):
             parsed.user_message = _build_turkish_parking_reply(conversation.hotel_id)
-            return parsed
+            return _finalize_response(parsed, scope_decision=scope_result.decision, language_override=language)
         if language == "tr" and _is_child_bedding_question(normalized_text, entities):
             parsed.user_message = _build_turkish_child_bedding_reply(conversation.hotel_id, entities)
-            return parsed
+            return _finalize_response(parsed, scope_decision=scope_result.decision, language_override=language)
         if (
             dispatcher is not None
             and not _executed_stay_hold_submission(executed_calls)
@@ -2674,21 +2731,25 @@ async def _run_message_pipeline(
                     state=str(parsed.internal_json.state or ""),
                     next_step=str(parsed.internal_json.next_step or ""),
                 )
-                return LLMResponse(
-                    user_message=(
-                        "Talebinizi aldik ancak rezervasyon kaydini teknik olarak tamamlayamadik. "
-                        "Ekibimiz sizi manuel olarak en kisa surede bilgilendirecektir."
+                return _finalize_response(
+                    LLMResponse(
+                        user_message=(
+                            "Talebinizi aldik ancak rezervasyon kaydini teknik olarak tamamlayamadik. "
+                            "Ekibimiz sizi manuel olarak en kisa surede bilgilendirecektir."
+                        ),
+                        internal_json=InternalJSON(
+                            language=language,
+                            intent="stay_booking_create",
+                            state="HANDOFF",
+                            entities=entities,
+                            required_questions=[],
+                            handoff={"needed": True, "reason": "stay_hold_submission_failed"},
+                            risk_flags=["TOOL_ERROR_REPEAT"],
+                            next_step="manual_review_required",
+                        ),
                     ),
-                    internal_json=InternalJSON(
-                        language=language,
-                        intent="stay_booking_create",
-                        state="HANDOFF",
-                        entities=entities,
-                        required_questions=[],
-                        handoff={"needed": True, "reason": "stay_hold_submission_failed"},
-                        risk_flags=["TOOL_ERROR_REPEAT"],
-                        next_step="manual_review_required",
-                    ),
+                    scope_decision=scope_result.decision,
+                    language_override=language,
                 )
         if intent == "stay_quote" and _booking_quote_failed_or_empty(executed_calls):
             risk_flags = list(parsed.internal_json.risk_flags or [])
@@ -2700,7 +2761,7 @@ async def _run_message_pipeline(
             parsed.internal_json.handoff = {"needed": True, "reason": "live_price_unavailable"}
             parsed.internal_json.risk_flags = risk_flags
             parsed.internal_json.next_step = "handoff_to_live_price_team"
-            return parsed
+            return _finalize_response(parsed, scope_decision=scope_result.decision, language_override=language)
         if intent == "stay_quote":
             await _backfill_availability_for_quote(
                 conversation=conversation,
@@ -2729,18 +2790,21 @@ async def _run_message_pipeline(
             parsed.internal_json.state = "PENDING_APPROVAL"
             parsed.internal_json.next_step = "await_admin_approval"
         _enforce_single_step_collection(parsed)
-        return parsed
+        return _finalize_response(parsed, scope_decision=scope_result.decision, language_override=language)
     except LLMUnavailableError as llm_err:
         logger.warning("llm_unavailable_fallback", error_detail=str(llm_err)[:500])
-        return LLMResponse(
-            user_message=_default_reply_message(target_language),
-            internal_json=InternalJSON(
-                language=target_language,
-                intent="other",
-                state="INTENT_DETECTED",
-                risk_flags=[],
-                next_step="await_user_input",
+        return _finalize_response(
+            LLMResponse(
+                user_message=_default_reply_message(target_language),
+                internal_json=InternalJSON(
+                    language=target_language,
+                    intent="other",
+                    state="INTENT_DETECTED",
+                    risk_flags=[],
+                    next_step="await_user_input",
+                ),
             ),
+            scope_decision=scope_result.decision,
         )
 
 
