@@ -7,7 +7,6 @@ from ipaddress import ip_address
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from passlib.hash import bcrypt
 from pydantic import BaseModel, Field, field_validator
 
 from velox.api.middleware.auth import ROLE_PERMISSIONS, TokenData, get_current_user
@@ -20,6 +19,7 @@ from velox.api.routes.health import (
 )
 from velox.config.constants import Role
 from velox.config.settings import settings
+from velox.utils.passwords import ensure_password_within_bcrypt_limit, hash_password
 from velox.utils.totp import build_otpauth_qr_svg_data_uri, build_otpauth_uri, generate_totp_secret
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -53,9 +53,7 @@ class BootstrapAdminRequest(BaseModel):
     @classmethod
     def validate_password_byte_length(cls, value: str) -> str:
         """Enforce bcrypt byte-length limit to avoid runtime hashing errors."""
-        if len(value.encode("utf-8")) > 72:
-            raise ValueError("Password must be at most 72 bytes")
-        return value
+        return ensure_password_within_bcrypt_limit(value)
 
 
 class BootstrapAdminResponse(BaseModel):
@@ -81,9 +79,9 @@ class RecoverTotpRequest(BaseModel):
     @classmethod
     def validate_new_password_byte_length(cls, value: str | None) -> str | None:
         """Enforce bcrypt byte-length limit for optional recovery password reset."""
-        if value is not None and len(value.encode("utf-8")) > 72:
-            raise ValueError("Password must be at most 72 bytes")
-        return value
+        if value is None:
+            return None
+        return ensure_password_within_bcrypt_limit(value)
 
 
 class RecoverTotpResponse(BaseModel):
@@ -138,7 +136,7 @@ async def bootstrap_admin_account(body: BootstrapAdminRequest, request: Request)
             raise HTTPException(status_code=409, detail="Username already exists")
 
         totp_secret = body.totp_secret.strip() if body.totp_secret else generate_totp_secret()
-        password_hash = bcrypt.hash(body.password)
+        password_hash = hash_password(body.password)
         await conn.execute(
             """
             INSERT INTO admin_users (hotel_id, username, password_hash, role, display_name, totp_secret, is_active)
@@ -183,7 +181,7 @@ async def recover_admin_totp(body: RecoverTotpRequest, request: Request) -> Reco
 
         refreshed_secret = generate_totp_secret()
         if body.new_password:
-            password_hash = bcrypt.hash(body.new_password)
+            password_hash = hash_password(body.new_password)
             await conn.execute(
                 "UPDATE admin_users SET totp_secret = $1, password_hash = $2 WHERE id = $3",
                 refreshed_secret,

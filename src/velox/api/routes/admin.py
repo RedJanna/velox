@@ -7,7 +7,6 @@ from uuid import UUID, uuid4
 import asyncpg
 import orjson
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
-from passlib.hash import bcrypt
 from pydantic import BaseModel, Field, field_validator
 
 from velox.adapters.whatsapp.client import get_whatsapp_client
@@ -50,6 +49,7 @@ from velox.utils.admin_security import (
 )
 from velox.utils.id_gen import next_sequential_id
 from velox.utils.json import decode_json_object
+from velox.utils.passwords import verify_password
 from velox.utils.privacy import hash_phone
 from velox.utils.totp import verify_totp_code
 
@@ -285,7 +285,7 @@ async def admin_login(body: LoginRequest, request: Request, response: Response) 
             """,
             body.username,
         )
-        if not row or not bcrypt.verify(body.password, row["password_hash"]):
+        if not row or not verify_password(body.password, str(row["password_hash"])):
             raise HTTPException(status_code=401, detail="Invalid credentials")
         if not row["is_active"]:
             raise HTTPException(status_code=403, detail="Account disabled")

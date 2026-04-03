@@ -202,8 +202,8 @@ async def admin_client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.A
 
     monkeypatch.setattr(settings, "admin_bootstrap_token", "bootstrap-secret")
     monkeypatch.setattr(settings, "admin_jwt_secret", "test-secret")
-    monkeypatch.setattr(admin_portal.bcrypt, "hash", lambda password: f"hash::{password}")
-    monkeypatch.setattr(admin.bcrypt, "verify", lambda password, hashed: hashed == f"hash::{password}")
+    monkeypatch.setattr(admin_portal, "hash_password", lambda password: f"hash::{password}")
+    monkeypatch.setattr(admin, "verify_password", lambda password, hashed: hashed == f"hash::{password}")
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="https://testserver.local") as client:
         yield client
