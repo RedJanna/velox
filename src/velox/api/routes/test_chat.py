@@ -65,6 +65,7 @@ from velox.models.chat_lab_feedback import (
     ChatLabReportResponse,
 )
 from velox.models.conversation import Conversation, Message
+from velox.utils.operation_mode import REDIS_OPERATION_MODE_KEY, sync_operation_mode_from_redis
 
 logger = structlog.get_logger(__name__)
 
@@ -785,20 +786,10 @@ async def generate_chat_lab_report(body: ChatLabReportRequest) -> ChatLabReportR
         raise HTTPException(status_code=500, detail=f"Beklenmeyen rapor hatasi: {error}") from error
 
 
-REDIS_MODE_KEY = "velox:operation_mode"
-
-
 @router.get("/chat/mode")
 async def get_operation_mode(request: Request) -> dict[str, str]:
     """Return the current operation mode (reads from Redis for cross-worker consistency)."""
-    redis_client = getattr(request.app.state, "redis", None)
-    if redis_client is not None:
-        try:
-            stored = await redis_client.get(REDIS_MODE_KEY)
-            if stored and stored in ("test", "ai", "approval", "off"):
-                settings.operation_mode = stored
-        except Exception:
-            pass
+    await sync_operation_mode_from_redis(getattr(request.app.state, "redis", None))
     return {"mode": settings.operation_mode}
 
 
@@ -810,7 +801,7 @@ async def set_operation_mode(body: SetModeRequest, request: Request) -> dict[str
     redis_client = getattr(request.app.state, "redis", None)
     if redis_client is not None:
         try:
-            await redis_client.set(REDIS_MODE_KEY, body.mode)
+            await redis_client.set(REDIS_OPERATION_MODE_KEY, body.mode)
         except Exception:
             logger.warning("operation_mode_redis_write_failed")
     logger.info(

@@ -50,6 +50,7 @@ from velox.llm.transcription_client import close_transcription_client
 from velox.llm.vision_client import close_vision_client
 from velox.tools import initialize_tool_dispatcher
 from velox.utils.logger import setup_logging
+from velox.utils.operation_mode import sync_operation_mode_from_redis
 
 logger = structlog.get_logger(__name__)
 
@@ -117,6 +118,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     _app.state.db_pool = db_pool
     _app.state.migration_status = await apply_pending_migrations(db_pool)
     _app.state.redis = await _connect_redis_with_retry()
+    await sync_operation_mode_from_redis(_app.state.redis)
 
     profiles = load_all_profiles()
     logger.info("hotel_profiles_loaded", count=len(profiles))

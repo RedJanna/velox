@@ -40,6 +40,7 @@ from velox.models.conversation import Conversation, InternalJSON, LLMResponse, M
 from velox.models.escalation import EscalationResult
 from velox.models.media import InboundMediaItem
 from velox.tools.notification import NotifySendTool, send_admin_whatsapp_alerts
+from velox.utils.operation_mode import sync_operation_mode_from_redis
 from velox.utils.privacy import hash_phone
 
 logger = structlog.get_logger(__name__)
@@ -3812,12 +3813,7 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
     redis_client = getattr(request.app.state, "redis", None)
 
     if redis_client is not None:
-        try:
-            stored_mode = await redis_client.get("velox:operation_mode")
-            if stored_mode and stored_mode in ("test", "ai", "approval", "off"):
-                settings.operation_mode = stored_mode
-        except Exception:
-            logger.warning("operation_mode_redis_read_failed")
+        await sync_operation_mode_from_redis(redis_client)
         if await _redis_is_duplicate_message(redis_client, incoming.message_id):
             logger.info("whatsapp_webhook_duplicate", message_id=incoming.message_id)
             return {"status": "ok"}
