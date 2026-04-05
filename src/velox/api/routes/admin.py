@@ -73,6 +73,7 @@ FAQ_FILTER_STATUSES = {status.value for status in FAQStatus}
 FAQ_MANAGE_STATUSES = {FAQStatus.DRAFT.value, FAQStatus.ACTIVE.value, FAQStatus.PAUSED.value}
 HOTEL_FACTS_EVENT_PUBLISH = "PUBLISH"
 HOTEL_FACTS_EVENT_ROLLBACK = "ROLLBACK"
+HOTEL_FACTS_EVENT_DRAFT_SAVE = "DRAFT_SAVE"
 
 
 class LoginRequest(BaseModel):
@@ -645,8 +646,6 @@ async def update_hotel_profile(
     YAML write failure is logged but does NOT block the DB save so that the
     runtime state always stays consistent even when the file layer has issues.
     """
-    _ = user
-
     validation = _validate_hotel_facts_profile(body.profile_json, expected_hotel_id=hotel_id)
     if not validation["publishable"]:
         first_blocker = validation["blockers"][0] if validation["blockers"] else {}
@@ -697,6 +696,50 @@ async def update_hotel_profile(
                     hotel_id=hotel_id,
                     profile_json=body.profile_json,
                 )
+                current_row: dict[str, Any] | None = None
+                try:
+                    current_row = await _fetch_current_facts_version(conn, hotel_id)
+                except Exception as exc:
+                    if not _is_missing_facts_table_error(exc):
+                        raise
+
+                if current_row is not None:
+                    try:
+                        await conn.execute(
+                            """
+                            INSERT INTO hotel_facts_events (
+                                hotel_id,
+                                version,
+                                checksum,
+                                event_type,
+                                actor,
+                                metadata_json,
+                                occurred_at
+                            )
+                            VALUES ($1, $2, $3, $4, $5, $6, now())
+                            """,
+                            hotel_id,
+                            int(current_row["version"]),
+                            str(validation.get("facts_checksum") or current_row["checksum"]),
+                            HOTEL_FACTS_EVENT_DRAFT_SAVE,
+                            user.username,
+                            orjson.dumps(
+                                {
+                                    "source_profile_checksum": validation["source_profile_checksum"],
+                                    "draft_facts_checksum": validation.get("facts_checksum"),
+                                    "current_version": int(current_row["version"]),
+                                    "current_facts_checksum": str(current_row["checksum"]),
+                                    "draft_matches_runtime": bool(facts_status.get("draft_matches_runtime")),
+                                }
+                            ).decode(),
+                        )
+                    except asyncpg.PostgresError as exc:
+                        logger.warning(
+                            "hotel_facts_draft_event_insert_failed",
+                            hotel_id=hotel_id,
+                            event_type=HOTEL_FACTS_EVENT_DRAFT_SAVE,
+                            error_type=type(exc).__name__,
+                        )
     except HTTPException:
         raise
     except asyncpg.PostgresError as exc:
@@ -854,7 +897,7 @@ async def list_hotel_facts_events(
     request: Request,
     user: Annotated[TokenData, Depends(get_current_user)],
 ) -> dict[str, Any]:
-    """List publish/rollback audit events for selected hotel."""
+    """List publish/rollback/draft-save audit events for selected hotel."""
     _ensure_hotel_read_access(user, hotel_id)
     db = request.app.state.db_pool
     async with db.acquire() as conn:

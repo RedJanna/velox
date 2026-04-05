@@ -358,6 +358,48 @@ async def test_update_hotel_profile_returns_conflict_when_checksum_is_stale(
     assert isinstance(detail["current_source_profile_checksum"], str)
 
 
+async def test_update_hotel_profile_records_draft_save_event_when_live_version_exists(
+    admin_hotel_client: tuple[httpx.AsyncClient, _FakeConnection, str],
+    sample_profile_payload: dict[str, object],
+) -> None:
+    client, connection, token = admin_hotel_client
+    connection.hotels[21966]["profile_json"] = orjson.dumps(sample_profile_payload).decode()
+    connection.facts_versions.append(
+        {
+            "hotel_id": 21966,
+            "version": 7,
+            "checksum": "c" * 64,
+            "source_profile_json": {"hotel_id": 21966},
+            "facts_json": {"hotel_id": 21966},
+            "source_profile_checksum": "b" * 64,
+            "validation_json": {"blockers": [], "warnings": []},
+            "published_by": "ops_admin",
+            "published_at": datetime.now(UTC),
+            "created_at": datetime.now(UTC),
+        }
+    )
+    connection.facts_current[21966] = {
+        "hotel_id": 21966,
+        "version": 7,
+        "checksum": "c" * 64,
+        "published_at": datetime.now(UTC),
+    }
+
+    response = await client.put(
+        "/api/v1/admin/hotels/21966/profile",
+        json={"profile_json": sample_profile_payload},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    draft_events = [item for item in connection.facts_events if item["event_type"] == "DRAFT_SAVE"]
+    assert draft_events
+    assert draft_events[0]["version"] == 7
+    assert draft_events[0]["actor"] == "ops_admin"
+    assert isinstance(draft_events[0]["metadata_json"].get("draft_facts_checksum"), str)
+    assert isinstance(draft_events[0]["metadata_json"].get("source_profile_checksum"), str)
+
+
 async def test_publish_hotel_facts_creates_current_version(
     admin_hotel_client: tuple[httpx.AsyncClient, _FakeConnection, str],
     sample_profile_payload: dict[str, object],

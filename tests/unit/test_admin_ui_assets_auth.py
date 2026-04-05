@@ -581,6 +581,29 @@ state.hotelFactsEvents = [
     assert result["hasRevealClass"] is True
 
 
+def test_admin_panel_renders_draft_save_fact_event_label_and_note() -> None:
+    result = _run_admin_panel_script_harness(
+        """
+refs.hotelFactsEvents = new HTMLElement();
+state.hotelFactsVersionDetail = { version: 7 };
+renderHotelFactsEvents([
+  {
+    event_type: 'DRAFT_SAVE',
+    version: 7,
+    actor: 'ops_admin',
+    occurred_at: '2026-04-05T10:00:00Z',
+    metadata: { draft_facts_checksum: 'draft-checksum-7', source_profile_checksum: 'source-checksum-7' },
+  },
+]);
+console.log(JSON.stringify({ eventsHtml: refs.hotelFactsEvents.innerHTML }));
+"""
+    )
+
+    assert "Taslak Kaydedildi" in result["eventsHtml"]
+    assert "Taslak checksum: draft-checksum-7" in result["eventsHtml"]
+    assert "Taslak kaydetme, yayınlama ve geri alma" in result["eventsHtml"]
+
+
 def test_admin_panel_faq_section_renders_only_selected_item() -> None:
     result = _run_admin_panel_script_harness(
         """

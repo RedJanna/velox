@@ -3951,17 +3951,22 @@ function renderHotelFactsEvents(items) {
   const rows = items.slice(0, 8).map(item => {
     const metadata = asObject(item.metadata);
     const isRollback = item.event_type === 'ROLLBACK';
-    const pillClass = isRollback ? 'warn' : 'info';
+    const isDraftSave = item.event_type === 'DRAFT_SAVE';
+    const pillClass = isRollback ? 'warn' : (isDraftSave ? 'success' : 'info');
     const versionNumber = Number(item.version || 0);
     const isSelected = selectedVersion && versionNumber === selectedVersion;
     const eventLabel = isRollback
       ? 'Geri Alma'
+      : isDraftSave
+        ? 'Taslak Kaydedildi'
       : item.event_type === 'PUBLISH'
         ? 'Yayımlama'
         : (item.event_type || '-');
     const note = isRollback
       ? `Önceki sürüm: ${metadata.previous_version != null ? `v${escapeHtml(String(metadata.previous_version))}` : '-'}`
-      : `Kaynak checksum: ${escapeHtml(metadata.source_profile_checksum || '-')}`;
+      : isDraftSave
+        ? `Taslak checksum: ${escapeHtml(metadata.draft_facts_checksum || '-')}`
+        : `Kaynak checksum: ${escapeHtml(metadata.source_profile_checksum || '-')}`;
     return `
       <tr class="${isSelected ? 'is-selected' : ''}">
         <td><span class="pill ${pillClass}">${escapeHtml(eventLabel)}</span></td>
@@ -3979,7 +3984,7 @@ function renderHotelFactsEvents(items) {
   refs.hotelFactsEvents.innerHTML = `
     <div class="helper-box">
       <strong>Veri Sürümü Denetim Geçmişi</strong>
-      <p class="muted">Yayınlama ve geri alma işlemleri zaman sırasına göre listelenir.</p>
+      <p class="muted">Taslak kaydetme, yayınlama ve geri alma işlemleri zaman sırasına göre listelenir.</p>
     </div>
     <div class="table-shell">
       <table>

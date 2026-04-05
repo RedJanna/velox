@@ -129,6 +129,14 @@ MIGRATION_SIGNATURES = {
               AND column_name = 'metadata_json'
         )
     """,
+    "024": """
+        SELECT EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conname = 'chk_hotel_facts_events_type'
+              AND pg_get_constraintdef(oid) ILIKE '%DRAFT_SAVE%'
+        )
+    """,
 }
 
 
