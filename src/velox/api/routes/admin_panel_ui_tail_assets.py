@@ -1053,6 +1053,7 @@ function normalizeHotelProfileDraft(rawProfile) {
   draft.restaurant = asObject(draft.restaurant);
   draft.restaurant.area_types = Array.isArray(draft.restaurant.area_types) ? draft.restaurant.area_types : [];
   draft.restaurant.hours = asObject(draft.restaurant.hours);
+  draft.restaurant.menu = asObject(draft.restaurant.menu);
   draft.faq_data = Array.isArray(draft.faq_data) ? draft.faq_data : [];
   draft.facility_policies = asObject(draft.facility_policies);
   draft.payment = asObject(draft.payment);
@@ -1454,15 +1455,26 @@ function renderHotelProfileTransfersSection() {
 
 function renderHotelProfileRestaurantSection() {
   const restaurant = asObject(state.hotelProfileDraft?.restaurant);
+  const assistant = asObject(state.hotelProfileDraft?.assistant);
   const technicalMode = isHotelProfileTechnicalMode();
   const hours = asObject(restaurant.hours);
+  const menu = asObject(restaurant.menu);
   if (technicalMode) {
     return `
       <div class="helper-box">
         <strong>Restoran</strong>
-        <p class="muted">Restoran kapasitesi, saatleri ve hizmet biçimi.</p>
+        <p class="muted">Restoran kapasitesi, saatleri, menü katalogu ve menü-kaynak sınırları bu bölümden yönetilir.</p>
       </div>
       <div class="profile-section-grid mt-md">
+        <div class="field full">
+          <div class="helper-box">
+            <strong>Restoran Menüsü (Teknik)</strong>
+            <p class="muted">Menü kaynak dokümanları, strict menü kural metni ve kategori bazlı menü katalogu. Bu alanlar modelin menü cevap sınırını doğrudan belirler.</p>
+          </div>
+        </div>
+        ${renderListField('Menü Kaynak Dokümanları', 'assistant.menu_source_documents', assistant.menu_source_documents || [], {full: true, help: 'Her satıra tek bir menü URL adresi girin. Menü sorularında yalnızca bu dokümanlar kaynak kabul edilir.'})}
+        ${renderTextField('Menü Kapsam Talimatı (Strict)', 'assistant.menu_scope_prompt', assistant.menu_scope_prompt || '', {textarea: true, full: true, placeholder: 'Yalnızca tanımlı menü dokümanlarına dayanarak yanıt ver...', help: 'Bu metin system prompta aynen eklenir.'})}
+        ${renderJsonField('Menü Kataloğu (Kategori -> Ürünler)', 'restaurant.menu', menu || {}, {full: true, help: 'JSON yapısı örneği: {"starters":[{"name_tr":"...", "name_en":"...", "price":"..."}]}.'})}
         ${renderTextField('Restoran Adı', 'restaurant.name', restaurant.name || '')}
         ${renderTextField('Konsept', 'restaurant.concept', restaurant.concept || '')}
         ${renderTextField('Minimum Kapasite', 'restaurant.capacity_min', restaurant.capacity_min ?? 0, {type: 'number', numberKind: 'int', min: 0, max: 1000, placeholder: 'Örn: 10'})}
@@ -1481,7 +1493,7 @@ function renderHotelProfileRestaurantSection() {
   return `
     <div class="helper-box">
       <strong>Restoran</strong>
-      <p class="muted">Misafire görünen restoran bilgilerini sade alanlarla güncelleyin.</p>
+      <p class="muted">Misafire görünen restoran bilgilerini, menü kaynaklarını ve menü kapsamını bu bölümden yönetin.</p>
     </div>
     <div class="profile-section-grid mt-md">
       <div class="field full">
@@ -1521,6 +1533,15 @@ function renderHotelProfileRestaurantSection() {
       ${renderTextField('Kahvaltı Saatleri', 'restaurant.hours.breakfast', hours.breakfast || '', {placeholder: '08:00-10:30', format: 'time-range', inputMode: 'numeric', maxLength: 11})}
       ${renderTextField('Öğle Saatleri', 'restaurant.hours.lunch', hours.lunch || '', {placeholder: '12:00-17:00', format: 'time-range', inputMode: 'numeric', maxLength: 11})}
       ${renderTextField('Akşam Saatleri', 'restaurant.hours.dinner', hours.dinner || '', {placeholder: '18:00-22:00', format: 'time-range', inputMode: 'numeric', maxLength: 11})}
+      <div class="field full">
+        <div class="helper-box">
+          <strong>Restoran Menüsü</strong>
+          <p class="muted">Modelin menü yanıtları yalnızca bu kaynaklara ve menü kataloguna dayanır. Kaynak ve katalog tutarlı değilse menü yanıt kalitesi düşer.</p>
+        </div>
+      </div>
+      ${renderListField('Menü Kaynak Dokümanları', 'assistant.menu_source_documents', assistant.menu_source_documents || [], {full: true, help: 'Her satıra tek bir menü URL adresi girin. Örnek: https://www.kassandrarestaurant.com/alacarte.pdf'})}
+      ${renderTextField('Menü Kapsam Talimatı', 'assistant.menu_scope_prompt', assistant.menu_scope_prompt || '', {textarea: true, full: true, placeholder: 'Menü sorularında sadece tanımlı kaynaklardan yanıt ver...', help: 'Doküman dışı ürün/fiyat uydurmayı engelleyen kuralları burada tutun.'})}
+      ${renderJsonField('Menü Kataloğu (Opsiyonel ama önerilir)', 'restaurant.menu', menu || {}, {full: true, help: 'Kategori bazlı ürünleri JSON olarak girin. Örnek: {"wine":[{"name_tr":"...", "price":"..."}]}'} )}
     </div>
   `;
 }
@@ -1760,11 +1781,10 @@ function renderHotelProfileIdleResetSection() {
 
 function renderHotelProfileAssistantSection() {
   const flow = asObject(state.hotelProfileDraft?.hotel_conversational_flow);
-  const assistant = asObject(state.hotelProfileDraft?.assistant);
   return `
     <div class="helper-box">
       <strong>Yapay Zekâ / Konuşma Akışı</strong>
-      <p class="muted">Mesaj uzunluğu, liste sınırı ve profil bazlı özel yanıt kuralları bu bölümden yönetilir.</p>
+      <p class="muted">Mesaj uzunluğu, liste sınırı ve takip sorusu davranışı bu ayarlardan yönetilir.</p>
     </div>
     <div class="profile-section-grid mt-md">
       ${renderTextField('Yanıt Stili', 'hotel_conversational_flow.style', flow.style || 'concise_premium')}
@@ -1774,8 +1794,6 @@ function renderHotelProfileAssistantSection() {
       ${renderCheckboxField('Onaylanmış Bilgileri Tekrarlama', 'hotel_conversational_flow.avoid_repeating_confirmed_facts', Boolean(flow.avoid_repeating_confirmed_facts))}
       ${renderCheckboxField('Uzun Fiyat Listelerini Özetle', 'hotel_conversational_flow.summarize_large_price_lists', Boolean(flow.summarize_large_price_lists))}
       ${renderCheckboxField('Tam Fiyat Listesini Göstermeden Önce Sor', 'hotel_conversational_flow.ask_before_full_price_dump', Boolean(flow.ask_before_full_price_dump))}
-      ${renderListField('Menü Kaynak Dokümanları', 'assistant.menu_source_documents', assistant.menu_source_documents || [], {full: true, help: 'Restoran menü sorularında referans alınacak kaynak URL listesini satır satır girin.'})}
-      ${renderTextField('Menü Kapsam Talimatı (Strict)', 'assistant.menu_scope_prompt', assistant.menu_scope_prompt || '', {textarea: true, full: true, placeholder: 'Yalnızca tanımlı menü dokümanlarına dayanarak yanıt ver...', help: 'Bu metin sistem promptuna aynen eklenir ve menü yanıtlarını profil bazlı olarak sınırlar.'})}
     </div>
   `;
 }
@@ -3357,6 +3375,8 @@ function getHotelProfileSectionCompletion(sectionId, draft) {
         {ok: Number(draft.restaurant?.capacity_max || 0) > 0, label: 'restoran maksimum kapasitesi', path: 'restaurant.capacity_max'},
         {ok: Array.isArray(draft.restaurant?.area_types) && draft.restaurant.area_types.length > 0, label: 'restoran alan türü', path: 'restaurant.area_types'},
         {ok: Object.keys(asObject(draft.restaurant?.hours)).length > 0, label: 'restoran saatleri', path: 'restaurant.hours'},
+        {ok: Array.isArray(draft.assistant?.menu_source_documents) && draft.assistant.menu_source_documents.length > 0, label: 'menü kaynak dokümanları', path: 'assistant.menu_source_documents'},
+        {ok: Boolean(String(draft.assistant?.menu_scope_prompt || '').trim()), label: 'menü kapsam talimatı', path: 'assistant.menu_scope_prompt'},
       ], 'Restoran kimliği ve saatleri tanımlandı.');
     case 'faq':
       return describeCompletion([
@@ -3432,6 +3452,7 @@ function mapHotelProfileIssueToSection(path) {
   if (['board_types', 'rate_mapping', 'cancellation_rules'].includes(root)) return 'pricing';
   if (root === 'transfer_routes') return 'transfers';
   if (root === 'restaurant') return 'restaurant';
+  if (root === 'assistant') return 'restaurant';
   if (root === 'faq_data') return 'faq';
   if (['payment', 'facility_policies', 'operational'].includes(root)) return 'policies';
   if (root === 'hotel_conversational_flow') return 'assistant';

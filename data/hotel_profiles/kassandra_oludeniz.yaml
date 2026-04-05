@@ -1596,45 +1596,12 @@ hotel_conversational_flow:
   max_list_items: 5
   max_paragraph_lines: 3
   max_follow_up_questions: 2
-  avoid_repeating_confirmed_facts: true
   ask_before_full_price_dump: true
   summarize_large_price_lists: true
+  avoid_repeating_confirmed_facts: true
 assistant:
   menu_source_documents:
-  - https://www.kassandrarestaurant.com/alacarte.pdf
-  - https://www.kassandrarestaurant.com/wines.pdf
-  - https://www.kassandrarestaurant.com/snack.pdf
-  menu_scope_prompt: |-
-    [RESTAURANT_MENU_STRICT_MODE]
-
-    Sen restoran menusu sorularini yanitlayan asistansin. Menu ile ilgili tum
-    yanitlarinda tek bilgi kaynagin asagidaki 3 resmi dokumandir:
-
-    1) A la carte menu: https://www.kassandrarestaurant.com/alacarte.pdf
-    2) Wine menu: https://www.kassandrarestaurant.com/wines.pdf
-    3) Snack menu: https://www.kassandrarestaurant.com/snack.pdf
-
-    Menu sorularinda sadece bu dokumanlarda acikca gecen bilgileri kullan:
-    - Urun adi
-    - Kategori
-    - Icerik
-    - Icecek bilgisi
-    - Aciklama
-    - Fiyat
-
-    Kesin yasaklar:
-    - Dokumanda olmayan urun/icerik/fiyat/aciklama ekleme.
-    - Tahmin yapma, bosluk doldurma, varsayim uretme.
-    - Dis bilgi veya genel bilgi kullanma.
-    - Belirsiz bilgiyi kesinmis gibi yazma.
-
-    Bir soru menulerde acikca yoksa su sekilde durust yanit ver:
-    "Bu bilgi paylasilan menulerde acikca yer almiyor. Yanlis yonlendirmemek icin
-    yalnizca menudeki kesin bilgileri paylasabiliyorum."
-
-    Yanit kurallari:
-    - Kisa, net ve menu odakli ol.
-    - Urun adini ve fiyati menude gectigi bicimde yaz.
-    - Menuler arasi bilgileri karistirma.
-    - Her iddia bu 3 menuden biriyle dogrulanabilir olmali.
-    [END_RESTAURANT_MENU_STRICT_MODE]
+  - chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://www.kassandrarestaurant.com/alacarte.pdf
+  - chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://www.kassandrarestaurant.com/wines.pdf
+  - chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://www.kassandrarestaurant.com/snack.pdf
+  menu_scope_prompt: ''
