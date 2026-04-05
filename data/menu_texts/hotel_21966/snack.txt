@@ -1,0 +1,127 @@
+# MENU_DOCUMENT: snack
+# SOURCE_PDF: /mnt/c/Users/gonen/Downloads/snack.pdf
+
+## PAGE 1
+
+SNACK MENU
+SANDWICHES & SNACKS SNACKS /
+ATIŞTIRMALIKLAR
+SOUP OF THE DAY / GÜNÜN ÇORBASI 185 CHIPS / PATATES KIZARTMASI 320
+AVOCADO WITH POACHED EGGS / AVOKADOLU POŞE
+YUMURTA 415Sourdough Bread, Labneh Cheese, Avocado Purée,
+Poached Egg
+AVOCADO SALAD / AVOKADOLU SALATA 475
+Mediterranean Greens, Avocado, Dried Plum, Endive,
+Orange & Mustard Sauce
+CRISPY CHICKEN / ÇITIR TAVUK 490
+Served with Chips and Wings Sauce
+SMOKED SALMON SANDWICH / SOMON FÜME
+SANDVİÇ 475
+Smoked Salmon, Labneh Cheese, Capers, Dill, Red Onion,
+Greens
+CRISPY SHRIMPS / ÇITIR KARİDES 595
+Served with Special Sauce
+CHICKEN SANDWICH / TAVUK SANDVİÇ 395
+Chicken, Mayonnaise, Lettuce, Tomato, Cucumber, Thyme
+GREEK SALAD / YUNAN SALATASI 455
+Kassandra Special Greek Salad CHICKEN BOWL / TAVUKLU KASE 455Mediterranean Greens, Capia Pepper, Grilled
+Chicken Pieces, Quinoa, Oats
+CLUB SANDWICH / KULÜP SANDVİÇ 475
+Beef Ham, Beef Salami, Mediterranean Greens,
+Labneh Cheese, Chips
+CAESAR SALAD / SEZAR SALATA 465
+Caesar Sauce, Parmesan Cheese, Iceberg Lettuce
+BEEF SALAD / DANA BONFİLE SALATASI 525
+Mustard Sauce, Mushroom, Beef Fillet, Capers,
+Greens, Sun-Dried Tomato Sauce
+FALAFEL 365
+Served with Fresh Herbs and Special Sauce
+HEALTHY BOWLS /
+ SAĞLIKLI KASELERSALADS / SALATALAR
+VEGAN BOWL / VEGAN KASE 425
+Broccoli, Mediterranean Greens, Walnuts, Cucumber,
+Orange, Chickpeas, Cherry Tomatoes, Flax Seeds, Oats
+SMOOTHIE BOWL WITH CHIA SEEDS / CHİA
+TOHUMLU SMOOTHIE KASE 475
+Banana, Blueberries, Raw Almonds, Chia Seeds
+SMOOTHIE BOWL WITH STRAWBERRY /
+ÇİLEKLİ SMOOTHIE KASE 445
+Strawberries, Banana, Granola, Chia SeedsSPINACH SALAD / ISPANAK SALATASI 455
+Ezine Cheese, Fresh Orange, Pomegranate
+TUNA BOWL / TON BALIKLI KASE 445
+Mediterranean Greens, Corn, Tuna, Olives, Green
+Apple, Cucumber, Tomatoes, Dill, Mint, Capers
+AVOCADO BOWL / AVOKADOLU KASE 455
+Mediterranean Greens, Capia Pepper, Avocado,
+Cucumber, Tomatoes, Walnuts, Olives, Mozzarella
+KASSANDRA GRAIN SALAD / KASSANDRA
+TAHIL SALATASI 425
+  Dried Figs, Dried Apricots, Walnut
+MEDITERRANEAN SALAD / AKDENİZ
+SALATASI 435
+Cherry Tomato, Cucumber, Lollo Rosso, Parsley,
+Sumac, Extra Virgin Olive Oil, Lemon Juice, Capia
+Pepper
+BEER PLATE / BİRA TABAĞI 420
+Beef Sausage, Chicken Pane, Potato Croquette,
+Potato Chips, Cheese Spring Roll, Terminator
+Sauce
+%8 servis ücreti eklenmektedir / %8 service fee is added
+
+## PAGE 2
+
+PASTAS / MAKARNALAR
+BURGERS / BURGERLER
+SNACK MENU
+PIZZAS / PİZZALAR
+VEGETABLE NOODLE / SEBZELİ NOODLE 675Noodle, Colored Peppers, Carrot, Broccoli, Mushroom,Soy Sauce, Sesame Oil
+CHICKEN NOODLE / TAVUKLU NOODLE 795
+Chicken Pieces, Noodle, Colored Peppers, Carrot,Broccoli, Mushroom, Soy Sauce
+SEAFOOD PAELLA / DENİZ MAHSÜLLÜ
+PAELLA 795Octopus, Saffron, Shrimp, Squid, Shellfish
+SPAGHETTI NAPOLITANA / NAPOLİTEN
+SOSLU MAKARNA 550
+Spaghetti, Tomatoes, Fresh Basil, Garlic, Fresh Thyme,Olive Oil, Parmesan
+SPAGHETTI BOLOGNESE / BOLONEZ SOSLU
+SPAGETTİ 595
+Minced Beef, Spaghetti, Onion, Carrot, Tomatoes, Garlic,Grated Tomato, Tomato Paste, Black Pepper, Salt, Olive Oil
+FETTUCCINE ALFREDO 775
+Fettuccine, Butter, Olive Oil, Mushroom, Chicken Breast, Garlic,Cream, Fresh Basil, Grated Parmesan, Crushed Black Pepper, Salt
+MARGARITA 435With Chef’s Special Sauce and Cheeses
+FUNGHI 495
+With Smoked Beef Ribs and Local Mushrooms
+FOUR CHEESE PIZZA / 4 PEYNİRLİ PİZZA 485
+With Local Cheese Varieties
+SEAFOOD PIZZA / DENİZ ÜRÜNLERİ PİZZA 590
+Shrimp, Calamari, Mussels, Mozzarella, Corn, Mushroom,Dill, Capers
+VEGETARIAN PIZZA / VEJETARYEN PİZZA 475
+Zucchini, Eggplant, Sun-Dried Tomatoes, ColoredPeppers, Broccoli, Corn
+CHICKEN BURGER / TAVUK BURGER 495Chicken Patty, Paprika, Lettuce, Chips, Pickled Cucumber,Tomatoes
+VEGAN BURGER 455
+Olive Oil, Onion, Carrot, Black Beans, Coriander, BlackPepper, Tomato, Romaine Lettuce
+CHEESEBURGER 535
+Homemade Beef Patty, Caramelized Onion, CheddarCheese, Cocktail Sauce, Tomato, Lettuce, Pickles
+HAMBURGER 510
+Homemade Beef Patty, Caramelized Onion, Chips,Tomato, Lettuce, Pickles DESSERTS / TATLILAR
+Apple Pie / Elmalı Turta 425
+Homemade Tiramisu / Ev Yapımı Tiramisu 435
+Lemon Cheesecake / Limonlu Cheesecake 450
+Soufflé with Ice Cream / Sufle (Dondurmalı) 475
+Seasonal Fruit Plate / Mevsim Meyveleri Tabağı 475
+WRAPS / DÜRÜMLER
+STEAK WRAP / ET WRAP 525
+Beef Fillet Pieces, Colored Peppers, Caramelized Onion,Mushroom, Mediterranean Greens
+CHICKEN WRAP / TAVUK WRAP 465Chicken Pieces, Colored Peppers, Caramelized Onion,Mushroom, Mediterranean Greens
+FALAFEL WRAP (VEGAN) / FALAFEL DÜRÜM
+(VEGAN) 435
+Chef’s Special Sauce, Chickpea Patties, Cucumber, Parsley,Mint, Lettuce, Walnuts
+KIDS MENU / ÇOCUK MENÜSÜ
+TOM & JERRY 475
+Chicken Fingers, Fried Sausage, French Fries
+MASHA 475
+Grilled Meatballs with French Fries
+BUGS BUNNY 475
+Spaghetti, Plain or with Sauce
+SPONGE BOB 475
+Butter, Penne Pasta
+%8 servis ücreti eklenmektedir / %8 service fee is added

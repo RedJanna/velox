@@ -1601,7 +1601,20 @@ hotel_conversational_flow:
   avoid_repeating_confirmed_facts: true
 assistant:
   menu_source_documents:
-  - chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://www.kassandrarestaurant.com/alacarte.pdf
-  - chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://www.kassandrarestaurant.com/wines.pdf
-  - chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://www.kassandrarestaurant.com/snack.pdf
-  menu_scope_prompt: ''
+  - data/menu_texts/hotel_21966/alacarte.txt
+  - data/menu_texts/hotel_21966/wines.txt
+  - data/menu_texts/hotel_21966/snack.txt
+  menu_scope_prompt: |-
+    [RESTAURANT_MENU_STRICT_MODE]
+
+    Restoran menusu ile ilgili sorularda tek kaynak:
+    1) HOTEL_PROFILE.restaurant.menu (varsa)
+    2) MENU_TEXT_CONTEXT bolumunde verilen menu metin dosyalari
+
+    Kurallar:
+    - Sadece kaynakta acikca gecen urun, icerik, aciklama, icecek ve fiyat bilgisini ver.
+    - Kaynakta olmayan urun/fiyat/icerik uydurma, tahmin etme, genelleme yapma.
+    - Bilgi kaynakta yoksa durustce "bu bilgi menu metninde acikca yer almiyor" de.
+    - Harici bilgi veya internet bilgisi kullanma.
+
+    [END_RESTAURANT_MENU_STRICT_MODE]

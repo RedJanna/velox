@@ -1,0 +1,39 @@
+# MENU_DOCUMENT: wines
+# SOURCE_PDF: /mnt/c/Users/gonen/Downloads/wines.pdf
+
+## PAGE 1
+
+W I N E  M E N U
+
+## PAGE 2
+
+W H I T E  W I N E S
+L I K Y A  A R Y K A N D A  C H A R D O N A Y  1 6 9 5
+L İ K Y A  A R Y K A N D A  S A U V İ G N O N  B L A N C  1 7 5 0
+L I K Y A  V İ N E Y A R D S  F U M E  B L A N C  1 8 9 5
+D E Z Z A N İ  4  B U C C E  B I A N C O  2 2 9 5
+R E D  W I N E S
+S O B R A N  N E B B I O L O  2 2 9 5
+B O T T E G A  A C I N O  C H I A N T I  D O C G  1 6 9 5
+L I K Y A  V I N E Y A R D S  M A L B E C  1 8 5 0
+L I K Y A  C A B E R N E T  S A U V I G N O N  1 7 5 0
+B O R D E A U X  C H  R O U S S E A U  M E R L O T  C A B E R N E T  S A U V I G N O N  1 5 9 5
+P A Ş A E L İ  S I D A L A N  1 9 5 0
+K A Y I B A Ğ  S H I R A Z  1 6 5 0
+% 8  s e r v i s  ü c r e t i  e k l e n m e k t e d i r  /  % 8  s e r v i c e  f e e  i s  a d d e d
+
+## PAGE 3
+
+R O S E  W I N E S
+L I K Y A  A R A X A  P I N O T  M E N U E R  1 6 5 0
+D E S I R D E  C A P  D ’ A G D E  C I N S A U L T  G R E N A C H E  M E R L O T  C A R I G N A N
+1 7 9 5
+I L  C A S A T O  P I N O T  G R I G I O  2 3 9 5
+C H A T E A U  D ` E S C L A N S  W H I S P E R I N G  A N G E L  2 9 5 0
+B A R O N E  M O N T A L T O  P I N O T  G R I G I O  B L U S H  1 8 9 5
+C H A M P A G N E S
+M O E T  &  C H A N D O N  B R U T  I M P E R İ A L  6 7 5 0
+M O E T  &  C H A N D O N  I C E  I M P E R I A L  7 7 5 0
+B O T T E G A  G O L D  3 6 5 0  
+Y A Ş A S I N  2 9 5 0
+% 8  s e r v i s  ü c r e t i  e k l e n m e k t e d i r  /  % 8  s e r v i c e  f e e  i s  a d d e d

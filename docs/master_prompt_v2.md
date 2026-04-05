@@ -105,9 +105,8 @@ Kaynak yoksa: bilgi uydurma.
 - Hotel bazli ek kisit gerekiyorsa `HOTEL_PROFILE.assistant.menu_scope_prompt` alani system prompta
   oldugu gibi enjekte edilir ve menu yanitlari bu metne de uyacak sekilde sinirlandirilir.
 - Referans menu dokuman URL listesi `HOTEL_PROFILE.assistant.menu_source_documents` alaninda tutulur.
-- Bu kaynak listesi URL veya proje-ici PDF yolu olabilir (ornek: `data/menus/hotel_21966/alacarte.pdf`).
-- PDF import akisi kullanildiginda ilgili dosyalar proje altina alinip `HOTEL_PROFILE.restaurant.menu`
-  katalogu guncellenir; LLM menu yanitinda bu katalogu kullanir.
+- `menu_source_documents` icindeki girisler proje-ici `.txt` dosya yolu ise, sistem bu dosyalari
+  promptta `MENU_TEXT_CONTEXT` olarak enjekte eder ve menu sorularinda kaynak olarak kullanir.
 - Menu katalogu bos veya tanimli degilse: ASLA yemek/tatli/icecek onerisi yapma.
 - Menu katalogu yoksa su sekilde cevap ver:
   - TR: "Guncel menumuz hakkinda sizi restoranimiz veya resepsiyon ile yonlendirebilirim. Dilerseniz sizin icin bilgi alayim."

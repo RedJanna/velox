@@ -1,5 +1,6 @@
 """System prompt and message assembly for LLM requests."""
 
+from pathlib import Path
 from typing import Any
 
 import orjson
@@ -17,6 +18,7 @@ from velox.models.hotel_profile import (
     RoomType,
     TransferRouteConfig,
 )
+from velox.utils.project_paths import get_project_root
 from velox.utils.metrics import record_prompt_truncation
 
 logger = structlog.get_logger(__name__)
@@ -27,6 +29,8 @@ _MAX_PROFILE_JSON_CHARS = 420
 _MAX_ROOM_TYPES_IN_PROMPT = 6
 _MAX_TRANSFER_ROUTES_IN_PROMPT = 6
 _MAX_FAQ_TOPICS_IN_PROMPT = 10
+_MAX_MENU_TEXT_TOTAL_CHARS = 5000
+_MAX_MENU_TEXT_SINGLE_CHARS = 1800
 
 _RUNTIME_POLICY_KERNEL = """
 VELox runtime core
@@ -36,6 +40,8 @@ VELox runtime core
 - Reply in RESPONSE_LANGUAGE_LOCK unless the guest explicitly asks to switch language.
 - Use only TOOL results and HOTEL_CONTEXT below for hotel facts.
   Do not invent prices, availability, policies, menu items, or facilities.
+- For restaurant menu questions, if MENU_TEXT_CONTEXT exists in the prompt,
+  treat MENU_TEXT_CONTEXT as authoritative menu source together with HOTEL_CONTEXT.
 - For FAQ-style hotel questions, prefer faq_lookup instead of guessing from memory.
 - For static hotel-info questions (location, map links, address, contacts),
   call hotel_info_lookup before answering.
@@ -381,6 +387,9 @@ def _summarize_assistant_profile_rules(profile: HotelProfile) -> str:
     sections: list[str] = []
     if source_doc_lines:
         sections.append(_render_section("MENU_SOURCE_DOCUMENTS", source_doc_lines))
+        menu_text_context = _build_menu_text_context(source_doc_lines)
+        if menu_text_context:
+            sections.append(_render_freeform_section("MENU_TEXT_CONTEXT", menu_text_context, max_chars=5200))
 
     menu_scope_prompt = assistant.get("menu_scope_prompt")
     menu_scope_section = _render_freeform_section("MENU_SCOPE_INSTRUCTION_STRICT", menu_scope_prompt)
@@ -388,6 +397,39 @@ def _summarize_assistant_profile_rules(profile: HotelProfile) -> str:
         sections.append(menu_scope_section)
 
     return "\n\n".join(section for section in sections if section)
+
+
+def _build_menu_text_context(source_docs: list[str]) -> str:
+    """Load text snippets when source documents point to local .txt files."""
+    project_root = get_project_root()
+    snippets: list[str] = []
+    remaining = _MAX_MENU_TEXT_TOTAL_CHARS
+
+    for entry in source_docs:
+        if remaining <= 0:
+            break
+        relative = str(entry).strip()
+        if not relative.lower().endswith(".txt"):
+            continue
+        candidate = (project_root / relative).resolve()
+        if not candidate.exists() or not candidate.is_file():
+            continue
+        try:
+            text = candidate.read_text(encoding="utf-8")
+        except OSError:
+            continue
+
+        compact = text.strip()
+        if not compact:
+            continue
+        max_chars = min(_MAX_MENU_TEXT_SINGLE_CHARS, remaining)
+        excerpt = compact[:max_chars]
+        if len(compact) > max_chars:
+            excerpt = excerpt.rstrip() + "..."
+        snippets.append(f"[{relative}]\n{excerpt}")
+        remaining -= len(excerpt)
+
+    return "\n\n".join(snippets)
 
 
 class PromptBuilder:
