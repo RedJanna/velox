@@ -178,7 +178,6 @@ async def enqueue_message(
         ``_process_incoming_message`` pipeline.
     """
     buf_key = _buf_key(hotel_id, phone_hash)
-    tmr_key = _tmr_key(hotel_id, phone_hash)
 
     msg.enqueued_at = time.time()
     await redis.rpush(buf_key, _serialize(msg))
@@ -209,18 +208,23 @@ async def enqueue_message(
         await _flush_and_process(redis, hotel_id, phone_hash, process_callback)
         return
 
-    # Debounce: set/reset timer
+    await _arm_debounce_timer(redis, hotel_id, phone_hash, process_callback)
+
+
+async def _arm_debounce_timer(
+    redis: Any,
+    hotel_id: int,
+    phone_hash: str,
+    process_callback: Any,
+) -> None:
+    """Ensure debounce timer exists and watcher is armed when needed."""
+    tmr_key = _tmr_key(hotel_id, phone_hash)
     debounce_ms = int(settings.burst_debounce_seconds * 1000)
     is_new_timer = await redis.set(tmr_key, "1", px=debounce_ms, nx=True)
-
     if is_new_timer:
-        # First message in burst — start a watcher task
-        asyncio.create_task(
-            _debounce_watcher(redis, hotel_id, phone_hash, process_callback)
-        )
-    else:
-        # Subsequent message — reset the timer
-        await redis.pexpire(tmr_key, debounce_ms)
+        asyncio.create_task(_debounce_watcher(redis, hotel_id, phone_hash, process_callback))
+        return
+    await redis.pexpire(tmr_key, debounce_ms)
 
 
 async def _debounce_watcher(
@@ -329,6 +333,7 @@ async def _flush_and_process(
         for bm in buffered:
             await redis.rpush(buf_key, _serialize(bm))
         await redis.expire(buf_key, int(settings.burst_max_wait_seconds) + 10)
+        await _arm_debounce_timer(redis, hotel_id, phone_hash, process_callback)
         return
 
     try:

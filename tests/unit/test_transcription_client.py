@@ -30,6 +30,19 @@ def test_estimate_confidence_without_segments_uses_text_presence() -> None:
     assert without_text == 0.0
 
 
+def test_estimate_confidence_preserves_negative_logprobs() -> None:
+    payload = {
+        "segments": [
+            {"avg_logprob": -5.0},
+            {"avg_logprob": -4.0},
+        ]
+    }
+
+    confidence = _estimate_confidence(payload)
+
+    assert confidence == 0.1
+
+
 @pytest.mark.asyncio
 async def test_transcribe_audio_uses_json_response_format(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}

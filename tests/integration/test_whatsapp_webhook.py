@@ -202,15 +202,17 @@ class _FakeIdleResetRepository:
         self._idle = idle_conversations or []
         self._warn = warn_conversations or []
         self.closed_ids: list[str] = []
+        self.close_query_thresholds: list[int] = []
+        self.warning_query_ranges: list[tuple[int, int]] = []
 
     async def get_idle_after_assistant(self, idle_seconds: int) -> list[Conversation]:
-        _ = idle_seconds
+        self.close_query_thresholds.append(idle_seconds)
         return self._idle
 
     async def get_idle_after_assistant_in_range(
         self, min_idle_seconds: int, max_idle_seconds: int,
     ) -> list[Conversation]:
-        _ = (min_idle_seconds, max_idle_seconds)
+        self.warning_query_ranges.append((min_idle_seconds, max_idle_seconds))
         return self._warn
 
     async def close(self, conversation_id) -> None:
@@ -248,7 +250,7 @@ async def test_idle_reset_loop_closes_and_sends_farewell(monkeypatch: pytest.Mon
 
     monkeypatch.setattr(idle_mod, "ConversationRepository", lambda: fake_repo)
     monkeypatch.setattr(idle_mod, "get_whatsapp_client", lambda: fake_wa)
-    monkeypatch.setattr(idle_mod, "get_profile", lambda hid: None)  # use defaults
+    monkeypatch.setattr(idle_mod, "get_profile", lambda _hid: None)  # use defaults
 
     call_count = 0
 
@@ -295,7 +297,7 @@ async def test_idle_reset_loop_sends_warning_before_close(monkeypatch: pytest.Mo
 
     monkeypatch.setattr(idle_mod, "ConversationRepository", lambda: fake_repo)
     monkeypatch.setattr(idle_mod, "get_whatsapp_client", lambda: fake_wa)
-    monkeypatch.setattr(idle_mod, "get_profile", lambda hid: None)
+    monkeypatch.setattr(idle_mod, "get_profile", lambda _hid: None)
 
     call_count = 0
 
@@ -329,7 +331,7 @@ async def test_idle_reset_loop_skips_when_no_stale_conversations(monkeypatch: py
     fake_repo = _FakeIdleResetRepository()
 
     monkeypatch.setattr(idle_mod, "ConversationRepository", lambda: fake_repo)
-    monkeypatch.setattr(idle_mod, "get_profile", lambda hid: None)
+    monkeypatch.setattr(idle_mod, "get_profile", lambda _hid: None)
 
     call_count = 0
 
@@ -374,7 +376,7 @@ async def test_idle_reset_disabled_per_hotel_skips_everything(monkeypatch: pytes
     )
     monkeypatch.setattr(idle_mod, "ConversationRepository", lambda: fake_repo)
     monkeypatch.setattr(idle_mod, "get_whatsapp_client", lambda: fake_wa)
-    monkeypatch.setattr(idle_mod, "get_profile", lambda hid: disabled_profile)
+    monkeypatch.setattr(idle_mod, "get_profile", lambda _hid: disabled_profile)
 
     call_count = 0
 
@@ -393,6 +395,65 @@ async def test_idle_reset_disabled_per_hotel_skips_everything(monkeypatch: pytes
 
     assert fake_repo.closed_ids == []
     assert fake_wa.sent_messages == []
+
+
+@pytest.mark.asyncio
+async def test_idle_reset_loop_uses_hotel_range_bounds_for_candidate_queries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import asyncio
+
+    from velox.core import conversation_idle_reset as idle_mod
+    from velox.models.hotel_profile import ConversationIdleResetConfig, HotelProfile, LocalizedText
+
+    fake_repo = _FakeIdleResetRepository()
+
+    profile_a = HotelProfile(
+        hotel_id=1001,
+        hotel_name=LocalizedText(tr="A Otel", en="Hotel A"),
+        conversation_idle_reset=ConversationIdleResetConfig(
+            enabled=True,
+            idle_timeout_minutes=40,
+            warning_before_minutes=10,
+        ),
+    )
+    profile_b = HotelProfile(
+        hotel_id=1002,
+        hotel_name=LocalizedText(tr="B Otel", en="Hotel B"),
+        conversation_idle_reset=ConversationIdleResetConfig(
+            enabled=True,
+            idle_timeout_minutes=8,
+            warning_before_minutes=2,
+        ),
+    )
+
+    profiles = {
+        profile_a.hotel_id: profile_a,
+        profile_b.hotel_id: profile_b,
+    }
+    monkeypatch.setattr(idle_mod, "ConversationRepository", lambda: fake_repo)
+    monkeypatch.setattr(idle_mod, "get_all_profiles", lambda: profiles)
+    monkeypatch.setattr(idle_mod, "get_profile", lambda hid: profiles.get(hid))
+
+    call_count = 0
+
+    async def _fake_sleep(seconds: float) -> None:  # noqa: ARG001
+        nonlocal call_count
+        call_count += 1
+        if call_count > 1:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(asyncio, "sleep", _fake_sleep)
+    idle_mod.clear_warned_ids()
+
+    await idle_mod.run_idle_reset_loop()
+
+    assert fake_repo.warning_query_ranges
+    assert fake_repo.close_query_thresholds
+    # warning_start=min(30m, 6m)=360s, warning_end=max(40m, 8m)+interval=2460s
+    assert fake_repo.warning_query_ranges[0] == (360, 2460)
+    # close threshold should use minimum hotel timeout (8m=480s)
+    assert fake_repo.close_query_thresholds[0] == 480
 
 
 @pytest.mark.asyncio

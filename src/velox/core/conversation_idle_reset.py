@@ -18,7 +18,7 @@ from typing import Any
 import structlog
 
 from velox.adapters.whatsapp.client import get_whatsapp_client
-from velox.core.hotel_profile_loader import get_profile
+from velox.core.hotel_profile_loader import get_all_profiles, get_profile
 from velox.db.repositories.conversation import ConversationRepository
 from velox.models.hotel_profile import ConversationIdleResetConfig
 
@@ -52,6 +52,41 @@ def _pick_message(config: ConversationIdleResetConfig, language: str, kind: str)
     return config.closed_message_en if lang == "en" else config.closed_message_tr
 
 
+def _compute_idle_query_bounds() -> tuple[int, int, int]:
+    """Return warning-range and close-threshold bounds across hotel configs.
+
+    Returns tuple:
+    - warning_min_seconds
+    - warning_max_seconds
+    - close_min_seconds
+    """
+    configs: list[ConversationIdleResetConfig] = [ConversationIdleResetConfig()]
+    for profile in get_all_profiles().values():
+        configs.append(profile.conversation_idle_reset)
+
+    warning_starts: list[int] = []
+    close_thresholds: list[int] = []
+    for cfg in configs:
+        if not cfg.enabled:
+            continue
+        close_seconds = max(0, int(cfg.idle_timeout_minutes) * 60)
+        warning_start = max(0, int(cfg.idle_timeout_minutes - cfg.warning_before_minutes) * 60)
+        warning_starts.append(warning_start)
+        close_thresholds.append(close_seconds)
+
+    if not close_thresholds:
+        default_cfg = ConversationIdleResetConfig()
+        close_seconds = max(0, int(default_cfg.idle_timeout_minutes) * 60)
+        warning_start = max(0, int(default_cfg.idle_timeout_minutes - default_cfg.warning_before_minutes) * 60)
+        warning_starts = [warning_start]
+        close_thresholds = [close_seconds]
+
+    warning_min = min(warning_starts)
+    warning_max = max(close_thresholds) + CHECK_INTERVAL_SECONDS
+    close_min = min(close_thresholds)
+    return warning_min, warning_max, close_min
+
+
 async def _send_whatsapp_safe(phone: str, body: str, *, context: dict[str, Any]) -> bool:
     """Send a WhatsApp text message, swallowing errors so the sweep continues."""
     try:
@@ -69,13 +104,7 @@ async def _process_warnings(repo: ConversationRepository) -> int:
     Returns the number of warnings sent.
     """
     sent = 0
-    # We need to find conversations per hotel because each hotel may have
-    # different timeout settings.  To keep things simple, we query with
-    # the global defaults first and then filter by per-hotel config.
-    default_cfg = ConversationIdleResetConfig()
-    warning_start = (default_cfg.idle_timeout_minutes - default_cfg.warning_before_minutes) * 60
-    # Generous upper bound to capture all hotels.
-    warning_end = default_cfg.idle_timeout_minutes * 60 + CHECK_INTERVAL_SECONDS
+    warning_start, warning_end, _ = _compute_idle_query_bounds()
 
     warn_candidates = await repo.get_idle_after_assistant_in_range(warning_start, warning_end)
     for conv in warn_candidates:
@@ -95,8 +124,8 @@ async def _process_warnings(repo: ConversationRepository) -> int:
         if last.tzinfo is None:
             last = last.replace(tzinfo=UTC)
         elapsed = (datetime.now(UTC) - last).total_seconds()
-        hotel_warning_threshold = (cfg.idle_timeout_minutes - cfg.warning_before_minutes) * 60
-        hotel_close_threshold = cfg.idle_timeout_minutes * 60
+        hotel_warning_threshold = max(0, int(cfg.idle_timeout_minutes - cfg.warning_before_minutes) * 60)
+        hotel_close_threshold = max(0, int(cfg.idle_timeout_minutes) * 60)
         if elapsed < hotel_warning_threshold or elapsed >= hotel_close_threshold:
             continue
 
@@ -124,8 +153,7 @@ async def _process_closes(repo: ConversationRepository) -> int:
     Returns the number of conversations closed.
     """
     closed = 0
-    default_cfg = ConversationIdleResetConfig()
-    close_threshold = default_cfg.idle_timeout_minutes * 60
+    _, _, close_threshold = _compute_idle_query_bounds()
 
     stale = await repo.get_idle_after_assistant(close_threshold)
     for conv in stale:
@@ -142,7 +170,7 @@ async def _process_closes(repo: ConversationRepository) -> int:
         if last.tzinfo is None:
             last = last.replace(tzinfo=UTC)
         elapsed = (datetime.now(UTC) - last).total_seconds()
-        hotel_close_threshold = cfg.idle_timeout_minutes * 60
+        hotel_close_threshold = max(0, int(cfg.idle_timeout_minutes) * 60)
         if elapsed < hotel_close_threshold:
             continue
 

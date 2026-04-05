@@ -127,6 +127,13 @@ def _safe_float(value: Any) -> float:
     return parsed if parsed >= 0 else 0.0
 
 
+def _safe_logprob(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _estimate_confidence(payload: dict[str, Any]) -> float:
     segments = payload.get("segments")
     if not isinstance(segments, list) or not segments:
@@ -140,7 +147,9 @@ def _estimate_confidence(payload: dict[str, Any]) -> float:
         logprob = segment.get("avg_logprob")
         if logprob in (None, ""):
             continue
-        numeric = _safe_float(logprob)
+        numeric = _safe_logprob(logprob)
+        if numeric is None:
+            continue
         confidence = max(0.0, min(1.0, 1.0 + (numeric / 5.0)))
         values.append(confidence)
 
