@@ -3894,8 +3894,10 @@ function renderHotelFactsHistory(items) {
 
   const selectedVersion = Number(state.hotelFactsVersionDetail?.version || 0);
   const rows = items.slice(0, 6).map(item => {
-    const pillClass = item.is_current ? 'success' : 'closed';
-    const pillText = item.is_current ? 'Aktif' : 'Arşiv';
+    const entryType = String(item.entry_type || 'PUBLISH');
+    const isDraftSnapshot = entryType === 'DRAFT_SAVE';
+    const pillClass = item.is_current ? 'success' : (isDraftSnapshot ? 'info' : 'closed');
+    const pillText = item.is_current ? 'Aktif' : (isDraftSnapshot ? 'Taslak' : 'Arşiv');
     const versionNumber = Number(item.version || 0);
     const isSelected = selectedVersion && versionNumber === selectedVersion;
     return `
@@ -3918,7 +3920,7 @@ function renderHotelFactsHistory(items) {
   refs.hotelFactsHistory.innerHTML = `
     <div class="helper-box">
       <strong>Yayın Geçmişi</strong>
-      <p class="muted">Son 6 yayın gösterilir. Aktif sürüm canlı sistem tarafından kullanılır.</p>
+      <p class="muted">Son 6 sürüm (taslak kaydı + yayın) gösterilir. Aktif sürüm canlı sistem tarafından kullanılır.</p>
     </div>
     <div class="table-shell">
       <table>
@@ -4076,6 +4078,10 @@ function renderHotelFactsVersionDetail(detail) {
   const faqs = Array.isArray(facts.faq_data) ? facts.faq_data.length : 0;
   const transfers = Array.isArray(facts.transfer_routes) ? facts.transfer_routes.length : 0;
   const isCurrent = Boolean(detail.is_current);
+  const entryType = String(detail.entry_type || 'PUBLISH');
+  const isDraftSnapshot = !isCurrent && entryType === 'DRAFT_SAVE';
+  const statusPillClass = isCurrent ? 'success' : (isDraftSnapshot ? 'info' : 'closed');
+  const statusPillText = isCurrent ? 'Aktif Sürüm' : (isDraftSnapshot ? 'Taslak Sürümü' : 'Arşiv Sürümü');
 
   refs.hotelFactsVersionDetail.innerHTML = `
     <div class="helper-box">
@@ -4085,12 +4091,13 @@ function renderHotelFactsVersionDetail(detail) {
     <div class="status-list">
       <div class="status-block">
         <h4>Versiyon</h4>
-        <p><span class="pill ${isCurrent ? 'success' : 'closed'}">${isCurrent ? 'Aktif Sürüm' : 'Arşiv Sürümü'}</span></p>
+        <p><span class="pill ${statusPillClass}">${statusPillText}</span></p>
         <p class="mono">v${escapeHtml(String(detail.version || '-'))}</p>
         <p class="mono">Checksum: ${escapeHtml(detail.checksum || '-')}</p>
       </div>
       <div class="status-block">
-        <h4>Yayın Bilgisi</h4>
+        <h4>Sürüm Bilgisi</h4>
+        <p class="mono">Tür: ${escapeHtml(isDraftSnapshot ? 'Taslak Kaydı' : 'Yayın')}</p>
         <p class="mono">Yayınlayan: ${escapeHtml(detail.published_by || '-')}</p>
         <p class="mono">Tarih: ${escapeHtml(formatDate(detail.published_at) || '-')}</p>
         <p class="mono">Kaynak checksum: ${escapeHtml(detail.source_profile_checksum || '-')}</p>
@@ -4105,7 +4112,7 @@ function renderHotelFactsVersionDetail(detail) {
         <h4>Doğrulama Özeti</h4>
         <p class="mono">Engelleyici sorun: ${escapeHtml(String(blockers.length))}</p>
         <p class="mono">Uyarı: ${escapeHtml(String(warnings.length))}</p>
-        <p class="muted">${isCurrent ? 'Bu sürüm şu anda canlı sistem tarafından kullanılıyor.' : 'İsterseniz bu sürümü yeniden canlıya alabilirsiniz.'}</p>
+        <p class="muted">${isCurrent ? 'Bu sürüm şu anda canlı sistem tarafından kullanılıyor.' : 'İsterseniz bu sürümü "Canlıya Al" ile aktif sürüme taşıyabilirsiniz.'}</p>
       </div>
     </div>
     <div class="helper-panel mt-md">

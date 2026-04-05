@@ -71,9 +71,11 @@ ALLOWED_VERIFICATION_PRESETS = {item.value for item in VERIFICATION_DURATION_OPT
 ALLOWED_SESSION_PRESETS = {item.value for item in SESSION_DURATION_OPTIONS}
 FAQ_FILTER_STATUSES = {status.value for status in FAQStatus}
 FAQ_MANAGE_STATUSES = {FAQStatus.DRAFT.value, FAQStatus.ACTIVE.value, FAQStatus.PAUSED.value}
-HOTEL_FACTS_EVENT_PUBLISH = "PUBLISH"
+HOTEL_FACTS_VERSION_PUBLISH = "PUBLISH"
+HOTEL_FACTS_VERSION_DRAFT_SAVE = "DRAFT_SAVE"
+HOTEL_FACTS_EVENT_PUBLISH = HOTEL_FACTS_VERSION_PUBLISH
 HOTEL_FACTS_EVENT_ROLLBACK = "ROLLBACK"
-HOTEL_FACTS_EVENT_DRAFT_SAVE = "DRAFT_SAVE"
+HOTEL_FACTS_EVENT_DRAFT_SAVE = HOTEL_FACTS_VERSION_DRAFT_SAVE
 
 
 class LoginRequest(BaseModel):
@@ -646,11 +648,7 @@ async def update_hotel_profile(
     YAML write failure is logged but does NOT block the DB save so that the
     runtime state always stays consistent even when the file layer has issues.
     """
-    validation = _validate_hotel_facts_profile(body.profile_json, expected_hotel_id=hotel_id)
-    if not validation["publishable"]:
-        first_blocker = validation["blockers"][0] if validation["blockers"] else {}
-        raise HTTPException(status_code=400, detail=str(first_blocker.get("message") or "Profil doğrulaması başarısız."))
-
+    validation: dict[str, Any] | None = None
     facts_status: dict[str, Any] | None = None
 
     # ── Step 2: persist to DB (source of truth, conflict-aware) ─────────────
@@ -661,6 +659,14 @@ async def update_hotel_profile(
                 current_hotel = await _fetch_hotel_row(conn, hotel_id, for_update=True)
                 if current_hotel is None:
                     raise HTTPException(status_code=404, detail="Hotel not found")
+
+                validation = _validate_hotel_facts_profile(body.profile_json, expected_hotel_id=hotel_id)
+                if not validation["publishable"]:
+                    first_blocker = validation["blockers"][0] if validation["blockers"] else {}
+                    raise HTTPException(
+                        status_code=400,
+                        detail=str(first_blocker.get("message") or "Profil doğrulaması başarısız."),
+                    )
 
                 current_profile_json = current_hotel.get("profile_json") or {}
                 if not isinstance(current_profile_json, dict):
@@ -703,8 +709,56 @@ async def update_hotel_profile(
                     if not _is_missing_facts_table_error(exc):
                         raise
 
-                if current_row is not None:
+                draft_facts_checksum = str(validation.get("facts_checksum") or "")
+                current_facts_checksum = str(current_row["checksum"]) if current_row is not None else None
+                should_create_draft_snapshot = bool(
+                    draft_facts_checksum
+                    and (current_facts_checksum is None or draft_facts_checksum != current_facts_checksum)
+                )
+                draft_version: int | None = None
+
+                if should_create_draft_snapshot:
                     try:
+                        last_version = int(
+                            await conn.fetchval(
+                                "SELECT COALESCE(MAX(version), 0) FROM hotel_facts_versions WHERE hotel_id = $1",
+                                hotel_id,
+                            )
+                            or 0
+                        )
+                        draft_version = last_version + 1
+                        validation_json = {
+                            "publishable": validation["publishable"],
+                            "blockers": validation["blockers"],
+                            "warnings": validation["warnings"],
+                        }
+                        await conn.execute(
+                            """
+                            INSERT INTO hotel_facts_versions (
+                                hotel_id,
+                                version,
+                                checksum,
+                                source_profile_checksum,
+                                source_profile_json,
+                                facts_json,
+                                validation_json,
+                                entry_type,
+                                published_by,
+                                published_at
+                            )
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+                            """,
+                            hotel_id,
+                            draft_version,
+                            draft_facts_checksum,
+                            validation["source_profile_checksum"],
+                            orjson.dumps(body.profile_json).decode(),
+                            orjson.dumps(validation["facts"]).decode(),
+                            orjson.dumps(validation_json).decode(),
+                            HOTEL_FACTS_VERSION_DRAFT_SAVE,
+                            user.username,
+                        )
+
                         await conn.execute(
                             """
                             INSERT INTO hotel_facts_events (
@@ -719,16 +773,16 @@ async def update_hotel_profile(
                             VALUES ($1, $2, $3, $4, $5, $6, now())
                             """,
                             hotel_id,
-                            int(current_row["version"]),
-                            str(validation.get("facts_checksum") or current_row["checksum"]),
+                            draft_version,
+                            draft_facts_checksum,
                             HOTEL_FACTS_EVENT_DRAFT_SAVE,
                             user.username,
                             orjson.dumps(
                                 {
                                     "source_profile_checksum": validation["source_profile_checksum"],
-                                    "draft_facts_checksum": validation.get("facts_checksum"),
-                                    "current_version": int(current_row["version"]),
-                                    "current_facts_checksum": str(current_row["checksum"]),
+                                    "draft_facts_checksum": draft_facts_checksum,
+                                    "current_version": int(current_row["version"]) if current_row is not None else None,
+                                    "current_facts_checksum": current_facts_checksum,
                                     "draft_matches_runtime": bool(facts_status.get("draft_matches_runtime")),
                                 }
                             ).decode(),
@@ -842,7 +896,7 @@ async def list_hotel_facts_versions(
     request: Request,
     user: Annotated[TokenData, Depends(get_current_user)],
 ) -> dict[str, Any]:
-    """List published facts versions for selected hotel."""
+    """List facts versions (published + draft snapshots) for selected hotel."""
     _ensure_hotel_read_access(user, hotel_id)
     db = request.app.state.db_pool
     async with db.acquire() as conn:
@@ -855,7 +909,8 @@ async def list_hotel_facts_versions(
                     v.published_by,
                     v.published_at,
                     v.checksum,
-                    v.validation_json
+                    v.validation_json,
+                    v.entry_type
                 FROM hotel_facts_versions v
                 LEFT JOIN hotel_facts_current c
                   ON c.hotel_id = v.hotel_id
@@ -886,6 +941,7 @@ async def list_hotel_facts_versions(
                 "blocker_count": len(blockers) if isinstance(blockers, list) else 0,
                 "warning_count": len(warnings) if isinstance(warnings, list) else 0,
                 "checksum": payload.get("checksum"),
+                "entry_type": payload.get("entry_type"),
             }
         )
     return {"items": items}
@@ -952,6 +1008,7 @@ async def get_hotel_facts_version_detail(
                     v.published_by,
                     v.published_at,
                     v.checksum,
+                    v.entry_type,
                     v.source_profile_checksum,
                     v.facts_json,
                     v.validation_json
@@ -978,6 +1035,7 @@ async def get_hotel_facts_version_detail(
         "published_by": payload.get("published_by"),
         "published_at": payload.get("published_at"),
         "checksum": payload.get("checksum"),
+        "entry_type": payload.get("entry_type"),
         "source_profile_checksum": payload.get("source_profile_checksum"),
         "facts": decode_json_object(payload.get("facts_json")),
         "validation": decode_json_object(payload.get("validation_json")),
@@ -1064,10 +1122,11 @@ async def publish_hotel_facts(
                         source_profile_json,
                         facts_json,
                         validation_json,
+                        entry_type,
                         published_by,
                         published_at
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
                     """,
                     hotel_id,
                     next_version,
@@ -1076,6 +1135,7 @@ async def publish_hotel_facts(
                     orjson.dumps(profile_json).decode(),
                     orjson.dumps(validation["facts"]).decode(),
                     orjson.dumps(validation_json).decode(),
+                    HOTEL_FACTS_VERSION_PUBLISH,
                     user.username,
                 )
                 await conn.execute(

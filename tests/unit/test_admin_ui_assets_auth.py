@@ -604,6 +604,54 @@ console.log(JSON.stringify({ eventsHtml: refs.hotelFactsEvents.innerHTML }));
     assert "Taslak kaydetme, yayınlama ve geri alma" in result["eventsHtml"]
 
 
+def test_admin_panel_history_marks_draft_snapshot_rows() -> None:
+    result = _run_admin_panel_script_harness(
+        """
+refs.hotelFactsHistory = new HTMLElement();
+state.hotelFactsVersionDetail = null;
+renderHotelFactsHistory([
+  {
+    version: 9,
+    is_current: false,
+    entry_type: 'DRAFT_SAVE',
+    published_by: 'ops_admin',
+    published_at: '2026-04-05T11:00:00Z',
+    blocker_count: 0,
+    warning_count: 1,
+    checksum: 'checksum-v9',
+  },
+]);
+console.log(JSON.stringify({ historyHtml: refs.hotelFactsHistory.innerHTML }));
+"""
+    )
+
+    assert "Taslak" in result["historyHtml"]
+    assert "Son 6 sürüm (taslak kaydı + yayın)" in result["historyHtml"]
+
+
+def test_admin_panel_version_detail_marks_draft_snapshot_type() -> None:
+    result = _run_admin_panel_script_harness(
+        """
+refs.hotelFactsVersionDetail = new HTMLElement();
+renderHotelFactsVersionDetail({
+  version: 9,
+  is_current: false,
+  entry_type: 'DRAFT_SAVE',
+  published_by: 'ops_admin',
+  published_at: '2026-04-05T11:00:00Z',
+  checksum: 'checksum-v9',
+  source_profile_checksum: 'source-v9',
+  facts: { room_types: [], faq_data: [], transfer_routes: [] },
+  validation: { blockers: [], warnings: [] },
+});
+console.log(JSON.stringify({ detailHtml: refs.hotelFactsVersionDetail.innerHTML }));
+"""
+    )
+
+    assert "Taslak Sürümü" in result["detailHtml"]
+    assert "Tür: Taslak Kaydı" in result["detailHtml"]
+
+
 def test_admin_panel_faq_section_renders_only_selected_item() -> None:
     result = _run_admin_panel_script_harness(
         """

@@ -137,6 +137,14 @@ MIGRATION_SIGNATURES = {
               AND pg_get_constraintdef(oid) ILIKE '%DRAFT_SAVE%'
         )
     """,
+    "025": """
+        SELECT EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conname = 'chk_hotel_facts_versions_entry_type'
+              AND pg_get_constraintdef(oid) ILIKE '%DRAFT_SAVE%'
+        )
+    """,
 }
 
 

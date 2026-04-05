@@ -77,13 +77,19 @@ class _FakeConnection:
             source_profile_json = orjson.loads(str(args[4]))
             facts_json = orjson.loads(str(args[5]))
             validation_json = orjson.loads(str(args[6]))
-            published_by = str(args[7])
+            if len(args) >= 9:
+                entry_type = str(args[7])
+                published_by = str(args[8])
+            else:
+                entry_type = "PUBLISH"
+                published_by = str(args[7])
             published_at = datetime.now(UTC)
             self.facts_versions.append(
                 {
                     "hotel_id": hotel_id,
                     "version": version,
                     "checksum": checksum,
+                    "entry_type": entry_type,
                     "source_profile_json": source_profile_json,
                     "facts_json": facts_json,
                     "source_profile_checksum": source_profile_checksum,
@@ -146,6 +152,7 @@ class _FakeConnection:
                         "published_by": row["published_by"],
                         "published_at": row["published_at"],
                         "checksum": row["checksum"],
+                        "entry_type": row.get("entry_type", "PUBLISH"),
                         "source_profile_checksum": row["source_profile_checksum"],
                         "validation_json": row["validation_json"],
                     }
@@ -158,6 +165,7 @@ class _FakeConnection:
                 if int(row["hotel_id"]) == hotel_id and int(row["version"]) == version:
                     payload = dict(row)
                     payload["is_current"] = bool(current and int(current["version"]) == version)
+                    payload["entry_type"] = payload.get("entry_type", "PUBLISH")
                     return payload
             return None
         raise AssertionError(f"Unsupported fetchrow query: {query}")
@@ -369,6 +377,7 @@ async def test_update_hotel_profile_records_draft_save_event_when_live_version_e
             "hotel_id": 21966,
             "version": 7,
             "checksum": "c" * 64,
+            "entry_type": "PUBLISH",
             "source_profile_json": {"hotel_id": 21966},
             "facts_json": {"hotel_id": 21966},
             "source_profile_checksum": "b" * 64,
@@ -393,8 +402,10 @@ async def test_update_hotel_profile_records_draft_save_event_when_live_version_e
 
     assert response.status_code == 200
     draft_events = [item for item in connection.facts_events if item["event_type"] == "DRAFT_SAVE"]
+    draft_versions = [item for item in connection.facts_versions if item.get("entry_type") == "DRAFT_SAVE"]
     assert draft_events
-    assert draft_events[0]["version"] == 7
+    assert draft_versions
+    assert draft_events[0]["version"] == 8
     assert draft_events[0]["actor"] == "ops_admin"
     assert isinstance(draft_events[0]["metadata_json"].get("draft_facts_checksum"), str)
     assert isinstance(draft_events[0]["metadata_json"].get("source_profile_checksum"), str)
@@ -431,6 +442,7 @@ async def test_get_hotel_facts_versions_and_events_return_published_rows(
             "hotel_id": 21966,
             "version": 3,
             "checksum": "b" * 64,
+            "entry_type": "PUBLISH",
             "source_profile_json": {"hotel_id": 21966},
             "facts_json": {"hotel_id": 21966},
             "source_profile_checksum": "a" * 64,
@@ -474,4 +486,5 @@ async def test_get_hotel_facts_versions_and_events_return_published_rows(
     events_payload = events_response.json()
     assert versions_payload["items"][0]["version"] == 3
     assert versions_payload["items"][0]["is_current"] is True
+    assert versions_payload["items"][0]["entry_type"] == "PUBLISH"
     assert events_payload["items"][0]["event_type"] == "PUBLISH"
