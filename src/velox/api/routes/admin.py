@@ -2516,8 +2516,15 @@ async def reject_hold(
         row = await _fetch_hold_row(conn, hold_type, hold_id)
         if row is None:
             raise HTTPException(status_code=404, detail="Hold not found")
-        if row["status"] != HoldStatus.PENDING_APPROVAL:
-            raise HTTPException(status_code=409, detail=f"Hold is not pending approval (current: {row['status']})")
+        allowed_statuses = {
+            HoldStatus.PENDING_APPROVAL.value,
+            HoldStatus.PAYMENT_PENDING.value,
+        }
+        if str(row["status"]) not in allowed_statuses:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Hold cannot be rejected in current status (current: {row['status']})",
+            )
         if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
             raise HTTPException(status_code=403, detail="Access denied")
         effective_hotel_id = int(row["hotel_id"])

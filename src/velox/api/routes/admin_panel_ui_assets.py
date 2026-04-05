@@ -1216,6 +1216,10 @@ async function onDecisionSubmit(event) {
   const holdId = refs.decisionHoldId.value;
   const reason = refs.decisionReason.value.trim();
   try {
+    if (!String(holdId || '').startsWith('R_HOLD_') && !reason) {
+      notify('Reddetme gerekçesi zorunludur.', 'warn');
+      return;
+    }
     if (String(holdId || '').startsWith('R_HOLD_')) {
       await apiFetch(`/holds/restaurant/${encodeURIComponent(holdId)}/status`, {method: 'PUT', body: {status: 'IPTAL', reason: reason || null}});
     } else {
