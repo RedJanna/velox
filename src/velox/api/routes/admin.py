@@ -1,6 +1,7 @@
 """Admin panel REST API routes."""
 
 import contextlib
+import hashlib
 from datetime import UTC, date, datetime
 from typing import Annotated, Any
 from uuid import UUID, uuid4
@@ -70,6 +71,8 @@ ALLOWED_VERIFICATION_PRESETS = {item.value for item in VERIFICATION_DURATION_OPT
 ALLOWED_SESSION_PRESETS = {item.value for item in SESSION_DURATION_OPTIONS}
 FAQ_FILTER_STATUSES = {status.value for status in FAQStatus}
 FAQ_MANAGE_STATUSES = {FAQStatus.DRAFT.value, FAQStatus.ACTIVE.value, FAQStatus.PAUSED.value}
+HOTEL_FACTS_EVENT_PUBLISH = "PUBLISH"
+HOTEL_FACTS_EVENT_ROLLBACK = "ROLLBACK"
 
 
 class LoginRequest(BaseModel):
@@ -99,6 +102,21 @@ class LoginRequest(BaseModel):
 
 class HotelProfileUpdate(BaseModel):
     profile_json: dict[str, Any]
+    expected_source_profile_checksum: str | None = Field(default=None, min_length=64, max_length=64)
+
+
+class HotelFactsValidateRequest(BaseModel):
+    profile_json: dict[str, Any]
+
+
+class HotelFactsPublishRequest(BaseModel):
+    expected_source_profile_checksum: str | None = Field(default=None, min_length=64, max_length=64)
+
+
+class HotelFactsRollbackRequest(BaseModel):
+    version: int = Field(ge=1)
+    expected_current_version: int | None = Field(default=None, ge=1)
+    expected_source_profile_checksum: str | None = Field(default=None, min_length=64, max_length=64)
 
 
 class FAQCreateRequest(BaseModel):
@@ -164,6 +182,188 @@ class TicketUpdate(BaseModel):
 def _now_iso() -> str:
     """Return an ISO-8601 UTC timestamp for FAQ metadata fields."""
     return datetime.now(UTC).isoformat()
+
+
+def _canonical_json_bytes(payload: Any) -> bytes:
+    """Return deterministic JSON bytes used for checksum generation."""
+    return orjson.dumps(payload, option=orjson.OPT_SORT_KEYS)
+
+
+def _compute_payload_checksum(payload: Any) -> str:
+    """Build SHA-256 checksum from canonical JSON payload."""
+    return hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
+
+
+def _build_hotel_facts_issue(
+    *,
+    code: str,
+    message: str,
+    path: str,
+    severity: str,
+) -> dict[str, str]:
+    """Create one blocker/warning entry compatible with admin panel renderer."""
+    return {
+        "code": code,
+        "message": message,
+        "path": path,
+        "severity": severity,
+    }
+
+
+def _validate_hotel_facts_profile(
+    profile_json: dict[str, Any],
+    *,
+    expected_hotel_id: int | None = None,
+) -> dict[str, Any]:
+    """Validate draft profile and produce publishable facts/checksum metadata."""
+    blockers: list[dict[str, str]] = []
+    warnings: list[dict[str, str]] = []
+
+    try:
+        profile = HotelProfile.model_validate(profile_json)
+    except Exception as exc:
+        blockers.append(
+            _build_hotel_facts_issue(
+                code="draft_schema_invalid",
+                message=str(exc),
+                path="profile_json",
+                severity="blocker",
+            )
+        )
+        return {
+            "profile": None,
+            "facts": {},
+            "publishable": False,
+            "blockers": blockers,
+            "warnings": warnings,
+            "source_profile_checksum": _compute_payload_checksum(profile_json),
+            "facts_checksum": None,
+        }
+
+    if expected_hotel_id is not None and profile.hotel_id != expected_hotel_id:
+        blockers.append(
+            _build_hotel_facts_issue(
+                code="hotel_id_mismatch",
+                message="Path hotel_id ile profile_json.hotel_id değeri eşleşmiyor.",
+                path="hotel_id",
+                severity="blocker",
+            )
+        )
+
+    facts_payload = profile.model_dump(mode="json")
+    return {
+        "profile": profile,
+        "facts": facts_payload,
+        "publishable": len(blockers) == 0,
+        "blockers": blockers,
+        "warnings": warnings,
+        "source_profile_checksum": _compute_payload_checksum(profile_json),
+        "facts_checksum": _compute_payload_checksum(facts_payload),
+    }
+
+
+async def _fetch_hotel_row(
+    conn: Any,
+    hotel_id: int,
+    *,
+    for_update: bool = False,
+) -> dict[str, Any] | None:
+    """Fetch hotel row from DB and decode profile_json."""
+    query = "SELECT * FROM hotels WHERE hotel_id = $1"
+    if for_update:
+        query += " FOR UPDATE"
+    row = await conn.fetchrow(query, hotel_id)
+    if row is None:
+        return None
+    payload = dict(row)
+    payload["profile_json"] = decode_json_object(payload.get("profile_json"))
+    return payload
+
+
+async def _fetch_current_facts_version(conn: Any, hotel_id: int) -> dict[str, Any] | None:
+    """Fetch currently active facts version row for one hotel."""
+    row = await conn.fetchrow(
+        """
+        SELECT v.version, v.published_by, v.published_at, v.checksum, v.source_profile_checksum, v.validation_json
+        FROM hotel_facts_current c
+        JOIN hotel_facts_versions v
+          ON v.hotel_id = c.hotel_id
+         AND v.version = c.version
+        WHERE c.hotel_id = $1
+        """,
+        hotel_id,
+    )
+    return dict(row) if row is not None else None
+
+
+def _build_legacy_hotel_facts_status(validation: dict[str, Any]) -> dict[str, Any]:
+    """Fallback status payload used when facts tables are unavailable."""
+    publishable = bool(validation["publishable"])
+    draft_checksum = validation.get("facts_checksum")
+    return {
+        "state": "in_sync" if publishable else "blocked_unpublished",
+        "current_version": None,
+        "published_by": "legacy_profile_store",
+        "published_at": None,
+        "draft_facts_checksum": draft_checksum,
+        "current_facts_checksum": draft_checksum,
+        "draft_source_profile_checksum": validation["source_profile_checksum"],
+        "draft_matches_runtime": True,
+        "draft_publishable": publishable,
+        "blockers": validation["blockers"],
+        "warnings": validation["warnings"],
+    }
+
+
+async def _build_hotel_facts_status(
+    conn: Any,
+    *,
+    hotel_id: int,
+    profile_json: dict[str, Any],
+) -> dict[str, Any]:
+    """Build draft vs runtime facts status consumed by admin panel."""
+    validation = _validate_hotel_facts_profile(profile_json, expected_hotel_id=hotel_id)
+    publishable = bool(validation["publishable"])
+    blockers = validation["blockers"]
+    warnings = validation["warnings"]
+    draft_facts_checksum = validation.get("facts_checksum")
+    draft_source_checksum = validation["source_profile_checksum"]
+
+    try:
+        current_row = await _fetch_current_facts_version(conn, hotel_id)
+    except Exception:
+        logger.warning("hotel_facts_status_legacy_fallback", hotel_id=hotel_id)
+        return _build_legacy_hotel_facts_status(validation)
+
+    current_facts_checksum = str(current_row["checksum"]) if current_row is not None else None
+    draft_matches_runtime = bool(
+        draft_facts_checksum
+        and current_facts_checksum
+        and draft_facts_checksum == current_facts_checksum
+    )
+
+    if current_row is None:
+        state = "unpublished" if publishable else "blocked_unpublished"
+    elif draft_matches_runtime:
+        state = "in_sync"
+    elif publishable:
+        state = "draft_pending_publish"
+    else:
+        state = "blocked"
+
+    return {
+        "state": state,
+        "current_version": int(current_row["version"]) if current_row is not None else None,
+        "published_by": str(current_row["published_by"]) if current_row is not None else None,
+        "published_at": current_row["published_at"] if current_row is not None else None,
+        "draft_facts_checksum": draft_facts_checksum,
+        "current_facts_checksum": current_facts_checksum,
+        "draft_source_profile_checksum": draft_source_checksum,
+        "draft_matches_runtime": draft_matches_runtime,
+        "draft_publishable": publishable,
+        "blockers": blockers,
+        "warnings": warnings,
+    }
 
 
 def _faq_allowed_actions(status: FAQStatus) -> list[str]:
@@ -423,11 +623,9 @@ async def get_hotel(
 
     db = request.app.state.db_pool
     async with db.acquire() as conn:
-        row = await conn.fetchrow("SELECT * FROM hotels WHERE hotel_id = $1", hotel_id)
-    if row is None:
+        payload = await _fetch_hotel_row(conn, hotel_id)
+    if payload is None:
         raise HTTPException(status_code=404, detail="Hotel not found")
-    payload = dict(row)
-    payload["profile_json"] = decode_json_object(payload.get("profile_json"))
     return payload
 
 
@@ -449,27 +647,56 @@ async def update_hotel_profile(
     """
     _ = user
 
-    # ── Step 1: validate profile shape (returns 400 on bad data) ────────────
-    try:
-        HotelProfile.model_validate(body.profile_json)
-    except (ValueError, Exception) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    validation = _validate_hotel_facts_profile(body.profile_json, expected_hotel_id=hotel_id)
+    if not validation["publishable"]:
+        first_blocker = validation["blockers"][0] if validation["blockers"] else {}
+        raise HTTPException(status_code=400, detail=str(first_blocker.get("message") or "Profil doğrulaması başarısız."))
 
-    # ── Step 2: persist to DB (source of truth) ──────────────────────────────
+    facts_status: dict[str, Any] | None = None
+
+    # ── Step 2: persist to DB (source of truth, conflict-aware) ─────────────
     try:
         db = request.app.state.db_pool
         async with db.acquire() as conn:
-            result = await conn.execute(
-                """
-                UPDATE hotels
-                SET profile_json = $1, updated_at = now()
-                WHERE hotel_id = $2
-                """,
-                orjson.dumps(body.profile_json).decode(),
-                hotel_id,
-            )
-        if result == "UPDATE 0":
-            raise HTTPException(status_code=404, detail="Hotel not found")
+            async with conn.transaction():
+                current_hotel = await _fetch_hotel_row(conn, hotel_id, for_update=True)
+                if current_hotel is None:
+                    raise HTTPException(status_code=404, detail="Hotel not found")
+
+                current_profile_json = current_hotel.get("profile_json") or {}
+                if not isinstance(current_profile_json, dict):
+                    current_profile_json = decode_json_object(current_profile_json)
+                current_source_checksum = _compute_payload_checksum(current_profile_json)
+                expected_source_checksum = body.expected_source_profile_checksum
+                if expected_source_checksum and expected_source_checksum != current_source_checksum:
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "code": "hotel_profile_conflict",
+                            "message": "Taslak güncel değil. Son değişiklikleri çekip tekrar deneyin.",
+                            "hotel_id": hotel_id,
+                            "expected_source_profile_checksum": expected_source_checksum,
+                            "current_source_profile_checksum": current_source_checksum,
+                        },
+                    )
+
+                result = await conn.execute(
+                    """
+                    UPDATE hotels
+                    SET profile_json = $1, updated_at = now()
+                    WHERE hotel_id = $2
+                    """,
+                    orjson.dumps(body.profile_json).decode(),
+                    hotel_id,
+                )
+                if result == "UPDATE 0":
+                    raise HTTPException(status_code=404, detail="Hotel not found")
+
+                facts_status = await _build_hotel_facts_status(
+                    conn,
+                    hotel_id=hotel_id,
+                    profile_json=body.profile_json,
+                )
     except HTTPException:
         raise
     except asyncpg.PostgresError as exc:
@@ -499,7 +726,479 @@ async def update_hotel_profile(
         "status": "updated",
         "hotel_id": hotel_id,
         "profile_path": profile_path.name if profile_path else None,
+        "facts_status": facts_status,
     }
+
+
+def _ensure_hotel_read_access(user: TokenData, hotel_id: int) -> None:
+    """Apply shared read-scope checks for hotel-level admin endpoints."""
+    check_permission(user, "hotels:read")
+    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
+        raise HTTPException(status_code=403, detail="Access denied to this hotel")
+
+
+def _is_missing_facts_table_error(exc: Exception) -> bool:
+    """Return True when DB error indicates facts tables are not yet available."""
+    message = str(exc).lower()
+    if "does not exist" not in message:
+        return False
+    return (
+        "hotel_facts_versions" in message
+        or "hotel_facts_events" in message
+        or "hotel_facts_current" in message
+    )
+
+
+@router.get("/hotels/{hotel_id}/facts/status")
+async def get_hotel_facts_status(
+    hotel_id: int,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Return draft vs runtime facts status for selected hotel."""
+    _ensure_hotel_read_access(user, hotel_id)
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        hotel_row = await _fetch_hotel_row(conn, hotel_id)
+        if hotel_row is None:
+            raise HTTPException(status_code=404, detail="Hotel not found")
+        profile_json = hotel_row["profile_json"]
+        return await _build_hotel_facts_status(conn, hotel_id=hotel_id, profile_json=profile_json)
+
+
+@router.post("/hotels/{hotel_id}/facts/validate")
+async def validate_hotel_facts_draft(
+    hotel_id: int,
+    body: HotelFactsValidateRequest,
+    request: Request,
+    user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
+) -> dict[str, Any]:
+    """Validate draft profile and return publishability metadata."""
+    _ = user
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        hotel_row = await _fetch_hotel_row(conn, hotel_id)
+        if hotel_row is None:
+            raise HTTPException(status_code=404, detail="Hotel not found")
+
+    validation = _validate_hotel_facts_profile(body.profile_json, expected_hotel_id=hotel_id)
+    return {
+        "publishable": validation["publishable"],
+        "validated_facts_checksum": validation["facts_checksum"],
+        "validated_source_profile_checksum": validation["source_profile_checksum"],
+        "facts_checksum": validation["facts_checksum"],
+        "source_profile_checksum": validation["source_profile_checksum"],
+        "blockers": validation["blockers"],
+        "warnings": validation["warnings"],
+    }
+
+
+@router.get("/hotels/{hotel_id}/facts/versions")
+async def list_hotel_facts_versions(
+    hotel_id: int,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """List published facts versions for selected hotel."""
+    _ensure_hotel_read_access(user, hotel_id)
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        try:
+            rows = await conn.fetch(
+                """
+                SELECT
+                    v.version,
+                    (c.version IS NOT NULL) AS is_current,
+                    v.published_by,
+                    v.published_at,
+                    v.checksum,
+                    v.validation_json
+                FROM hotel_facts_versions v
+                LEFT JOIN hotel_facts_current c
+                  ON c.hotel_id = v.hotel_id
+                 AND c.version = v.version
+                WHERE v.hotel_id = $1
+                ORDER BY v.version DESC
+                LIMIT 100
+                """,
+                hotel_id,
+            )
+        except Exception as exc:
+            if _is_missing_facts_table_error(exc):
+                return {"items": []}
+            raise
+
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        payload = dict(row)
+        validation = decode_json_object(payload.get("validation_json"))
+        blockers = validation.get("blockers") if isinstance(validation, dict) else []
+        warnings = validation.get("warnings") if isinstance(validation, dict) else []
+        items.append(
+            {
+                "version": int(payload["version"]),
+                "is_current": bool(payload["is_current"]),
+                "published_by": payload.get("published_by"),
+                "published_at": payload.get("published_at"),
+                "blocker_count": len(blockers) if isinstance(blockers, list) else 0,
+                "warning_count": len(warnings) if isinstance(warnings, list) else 0,
+                "checksum": payload.get("checksum"),
+            }
+        )
+    return {"items": items}
+
+
+@router.get("/hotels/{hotel_id}/facts/events")
+async def list_hotel_facts_events(
+    hotel_id: int,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """List publish/rollback audit events for selected hotel."""
+    _ensure_hotel_read_access(user, hotel_id)
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        try:
+            rows = await conn.fetch(
+                """
+                SELECT event_type, version, actor, metadata_json, occurred_at
+                FROM hotel_facts_events
+                WHERE hotel_id = $1
+                ORDER BY occurred_at DESC, event_id DESC
+                LIMIT 200
+                """,
+                hotel_id,
+            )
+        except Exception as exc:
+            if _is_missing_facts_table_error(exc):
+                return {"items": []}
+            raise
+
+    items = []
+    for row in rows:
+        payload = dict(row)
+        items.append(
+            {
+                "event_type": payload.get("event_type"),
+                "version": payload.get("version"),
+                "actor": payload.get("actor"),
+                "occurred_at": payload.get("occurred_at"),
+                "metadata": decode_json_object(payload.get("metadata_json")),
+            }
+        )
+    return {"items": items}
+
+
+@router.get("/hotels/{hotel_id}/facts/versions/{version}")
+async def get_hotel_facts_version_detail(
+    hotel_id: int,
+    version: int,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Return one facts version details including facts payload and validation."""
+    _ensure_hotel_read_access(user, hotel_id)
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        try:
+            row = await conn.fetchrow(
+                """
+                SELECT
+                    v.version,
+                    (c.version IS NOT NULL) AS is_current,
+                    v.published_by,
+                    v.published_at,
+                    v.checksum,
+                    v.source_profile_checksum,
+                    v.facts_json,
+                    v.validation_json
+                FROM hotel_facts_versions v
+                LEFT JOIN hotel_facts_current c
+                  ON c.hotel_id = v.hotel_id
+                 AND c.version = v.version
+                WHERE v.hotel_id = $1 AND v.version = $2
+                """,
+                hotel_id,
+                version,
+            )
+        except Exception as exc:
+            if _is_missing_facts_table_error(exc):
+                raise HTTPException(status_code=404, detail="Facts version not found") from exc
+            raise
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="Facts version not found")
+    payload = dict(row)
+    return {
+        "version": int(payload["version"]),
+        "is_current": bool(payload["is_current"]),
+        "published_by": payload.get("published_by"),
+        "published_at": payload.get("published_at"),
+        "checksum": payload.get("checksum"),
+        "source_profile_checksum": payload.get("source_profile_checksum"),
+        "facts": decode_json_object(payload.get("facts_json")),
+        "validation": decode_json_object(payload.get("validation_json")),
+    }
+
+
+@router.post("/hotels/{hotel_id}/facts/publish")
+async def publish_hotel_facts(
+    hotel_id: int,
+    body: HotelFactsPublishRequest,
+    request: Request,
+    user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
+) -> dict[str, Any]:
+    """Publish current draft profile into versioned runtime facts."""
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        try:
+            async with conn.transaction():
+                hotel_row = await _fetch_hotel_row(conn, hotel_id, for_update=True)
+                if hotel_row is None:
+                    raise HTTPException(status_code=404, detail="Hotel not found")
+
+                profile_json = hotel_row.get("profile_json") or {}
+                validation = _validate_hotel_facts_profile(profile_json, expected_hotel_id=hotel_id)
+                if not validation["publishable"]:
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "code": "hotel_facts_publish_blocked",
+                            "message": "Taslak engelleyici sorun içeriyor.",
+                            "hotel_id": hotel_id,
+                            "blockers": validation["blockers"],
+                            "warnings": validation["warnings"],
+                        },
+                    )
+
+                source_checksum = validation["source_profile_checksum"]
+                expected_source = body.expected_source_profile_checksum
+                if expected_source and expected_source != source_checksum:
+                    current_row = await _fetch_current_facts_version(conn, hotel_id)
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "code": "hotel_facts_publish_conflict",
+                            "message": "Taslak güncel değil. Son değişiklikleri çekip tekrar deneyin.",
+                            "hotel_id": hotel_id,
+                            "expected_source_profile_checksum": expected_source,
+                            "current_source_profile_checksum": source_checksum,
+                            "current_version": int(current_row["version"]) if current_row is not None else None,
+                        },
+                    )
+
+                current_row = await _fetch_current_facts_version(conn, hotel_id)
+                draft_facts_checksum = validation["facts_checksum"]
+                if current_row is not None and str(current_row["checksum"]) == draft_facts_checksum:
+                    facts_status = await _build_hotel_facts_status(conn, hotel_id=hotel_id, profile_json=profile_json)
+                    return {
+                        "published": False,
+                        "version": int(current_row["version"]),
+                        "facts_status": facts_status,
+                    }
+
+                last_version = int(
+                    await conn.fetchval(
+                        "SELECT COALESCE(MAX(version), 0) FROM hotel_facts_versions WHERE hotel_id = $1",
+                        hotel_id,
+                    )
+                    or 0
+                )
+                next_version = last_version + 1
+                validation_json = {
+                    "publishable": validation["publishable"],
+                    "blockers": validation["blockers"],
+                    "warnings": validation["warnings"],
+                }
+
+                await conn.execute(
+                    """
+                    INSERT INTO hotel_facts_versions (
+                        hotel_id,
+                        version,
+                        checksum,
+                        source_profile_checksum,
+                        source_profile_json,
+                        facts_json,
+                        validation_json,
+                        published_by,
+                        published_at
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+                    """,
+                    hotel_id,
+                    next_version,
+                    draft_facts_checksum,
+                    source_checksum,
+                    orjson.dumps(profile_json).decode(),
+                    orjson.dumps(validation["facts"]).decode(),
+                    orjson.dumps(validation_json).decode(),
+                    user.username,
+                )
+                await conn.execute(
+                    """
+                    INSERT INTO hotel_facts_current (hotel_id, version, checksum, published_at)
+                    VALUES ($1, $2, $3, now())
+                    ON CONFLICT (hotel_id) DO UPDATE
+                    SET version = EXCLUDED.version,
+                        checksum = EXCLUDED.checksum,
+                        published_at = EXCLUDED.published_at
+                    """,
+                    hotel_id,
+                    next_version,
+                    draft_facts_checksum,
+                )
+                await conn.execute(
+                    """
+                    INSERT INTO hotel_facts_events (
+                        hotel_id,
+                        version,
+                        checksum,
+                        event_type,
+                        actor,
+                        metadata_json,
+                        occurred_at
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, now())
+                    """,
+                    hotel_id,
+                    next_version,
+                    draft_facts_checksum,
+                    HOTEL_FACTS_EVENT_PUBLISH,
+                    user.username,
+                    orjson.dumps({"source_profile_checksum": source_checksum}).decode(),
+                )
+
+                facts_status = await _build_hotel_facts_status(conn, hotel_id=hotel_id, profile_json=profile_json)
+                return {
+                    "published": True,
+                    "version": next_version,
+                    "facts_status": facts_status,
+                }
+        except HTTPException:
+            raise
+        except Exception as exc:
+            if _is_missing_facts_table_error(exc):
+                raise HTTPException(status_code=503, detail="Facts sürümleme tabloları henüz hazır değil.") from exc
+            raise
+
+
+@router.post("/hotels/{hotel_id}/facts/rollback")
+async def rollback_hotel_facts(
+    hotel_id: int,
+    body: HotelFactsRollbackRequest,
+    request: Request,
+    user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
+) -> dict[str, Any]:
+    """Rollback runtime facts to selected historical version."""
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        try:
+            async with conn.transaction():
+                hotel_row = await _fetch_hotel_row(conn, hotel_id, for_update=True)
+                if hotel_row is None:
+                    raise HTTPException(status_code=404, detail="Hotel not found")
+
+                profile_json = hotel_row.get("profile_json") or {}
+                validation = _validate_hotel_facts_profile(profile_json, expected_hotel_id=hotel_id)
+                source_checksum = validation["source_profile_checksum"]
+                current_row = await _fetch_current_facts_version(conn, hotel_id)
+                current_version = int(current_row["version"]) if current_row is not None else None
+
+                expected_source = body.expected_source_profile_checksum
+                if expected_source and expected_source != source_checksum:
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "code": "hotel_facts_rollback_conflict",
+                            "message": "Taslak güncel değil. Son değişiklikleri çekip tekrar deneyin.",
+                            "hotel_id": hotel_id,
+                            "expected_source_profile_checksum": expected_source,
+                            "current_source_profile_checksum": source_checksum,
+                            "current_version": current_version,
+                        },
+                    )
+
+                if body.expected_current_version is not None and body.expected_current_version != current_version:
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "code": "hotel_facts_rollback_conflict",
+                            "message": "Canlı sürüm değişti. Lütfen son durumu çekip tekrar deneyin.",
+                            "hotel_id": hotel_id,
+                            "expected_current_version": body.expected_current_version,
+                            "current_version": current_version,
+                        },
+                    )
+
+                target_row = await conn.fetchrow(
+                    """
+                    SELECT version, checksum
+                    FROM hotel_facts_versions
+                    WHERE hotel_id = $1 AND version = $2
+                    """,
+                    hotel_id,
+                    body.version,
+                )
+                if target_row is None:
+                    raise HTTPException(status_code=404, detail="Hedef sürüm bulunamadı.")
+
+                if current_version == body.version:
+                    facts_status = await _build_hotel_facts_status(conn, hotel_id=hotel_id, profile_json=profile_json)
+                    return {"rolled_back": False, "version": body.version, "facts_status": facts_status}
+
+                target_checksum = str(target_row["checksum"])
+                await conn.execute(
+                    """
+                    INSERT INTO hotel_facts_current (hotel_id, version, checksum, published_at)
+                    VALUES ($1, $2, $3, now())
+                    ON CONFLICT (hotel_id) DO UPDATE
+                    SET version = EXCLUDED.version,
+                        checksum = EXCLUDED.checksum,
+                        published_at = EXCLUDED.published_at
+                    """,
+                    hotel_id,
+                    body.version,
+                    target_checksum,
+                )
+                await conn.execute(
+                    """
+                    INSERT INTO hotel_facts_events (
+                        hotel_id,
+                        version,
+                        checksum,
+                        event_type,
+                        actor,
+                        metadata_json,
+                        occurred_at
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, now())
+                    """,
+                    hotel_id,
+                    body.version,
+                    target_checksum,
+                    HOTEL_FACTS_EVENT_ROLLBACK,
+                    user.username,
+                    orjson.dumps(
+                        {
+                            "previous_version": current_version,
+                            "source_profile_checksum": source_checksum,
+                        }
+                    ).decode(),
+                )
+
+                facts_status = await _build_hotel_facts_status(conn, hotel_id=hotel_id, profile_json=profile_json)
+                return {
+                    "rolled_back": True,
+                    "version": body.version,
+                    "facts_status": facts_status,
+                }
+        except HTTPException:
+            raise
+        except Exception as exc:
+            if _is_missing_facts_table_error(exc):
+                raise HTTPException(status_code=503, detail="Facts sürümleme tabloları henüz hazır değil.") from exc
+            raise
 
 
 async def _load_hotel_profile(
@@ -507,11 +1206,10 @@ async def _load_hotel_profile(
     hotel_id: int,
 ) -> tuple[dict[str, Any], HotelProfile]:
     """Load hotel DB row plus validated profile model for FAQ operations."""
-    row = await conn.fetchrow("SELECT * FROM hotels WHERE hotel_id = $1", hotel_id)
-    if row is None:
+    row_payload = await _fetch_hotel_row(conn, hotel_id)
+    if row_payload is None:
         raise HTTPException(status_code=404, detail="Hotel not found")
-    row_payload = dict(row)
-    profile_json = decode_json_object(row_payload.get("profile_json"))
+    profile_json = row_payload.get("profile_json")
     row_payload["profile_json"] = profile_json
     return row_payload, HotelProfile.model_validate(profile_json)
 
