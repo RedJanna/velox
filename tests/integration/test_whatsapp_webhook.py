@@ -2536,8 +2536,8 @@ def test_suppress_default_year_question_for_stay_quote() -> None:
     assert "Kaç yetişkin" in response.user_message
 
 
-def test_suppress_default_year_question_keeps_explicit_year_requests() -> None:
-    """Year clarification should stay when guest explicitly referenced year."""
+def test_suppress_default_year_question_removes_explicit_year_followup_for_reservations() -> None:
+    """Reservation flows should not keep standalone year clarification prompts."""
     response = LLMResponse(
         user_message="Bu tarihleri hangi yıl için düşünüyorsunuz?",
         internal_json=InternalJSON(
@@ -2553,8 +2553,74 @@ def test_suppress_default_year_question_keeps_explicit_year_requests() -> None:
 
     whatsapp_webhook._suppress_default_year_question(response, "2027 yilinda fiyat alabilir miyim?")
 
-    assert response.internal_json.required_questions == ["Hangi yıl?"]
-    assert "hangi yıl" in response.user_message.casefold()
+    assert response.internal_json.required_questions == []
+    assert "hangi yıl" not in response.user_message.casefold()
+
+
+def test_phone_single_field_prompt_offers_whatsapp_number_choice() -> None:
+    """Phone collection prompt should include 1/2 options in a single message."""
+    prompt = whatsapp_webhook._single_field_prompt("tr", "phone")
+    assert "1) Mevcut WhatsApp numaramı kaydet" in prompt
+    assert "2) Farklı bir numara paylaşacağım" in prompt
+    assert "1 veya 2" in prompt
+
+
+def test_apply_phone_collection_choice_override_uses_current_whatsapp_number() -> None:
+    """When guest selects option 1, current WhatsApp number should fill phone entity."""
+    response = LLMResponse(
+        user_message="Telefon numaranizi paylasir misiniz?",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="stay_booking_create",
+            state="NEEDS_VERIFICATION",
+            entities={"guest_name": "Ali Veli"},
+            required_questions=["phone", "email"],
+            handoff={"needed": False, "reason": None},
+            next_step="collect_stay_phone",
+        ),
+    )
+
+    whatsapp_webhook._apply_phone_collection_choice_override(
+        response,
+        user_text="1",
+        current_whatsapp_phone="905551112233",
+    )
+
+    assert response.internal_json.entities["phone"] == "+905551112233"
+    assert response.internal_json.required_questions == ["email"]
+    assert "e-posta" in response.user_message.casefold()
+
+
+def test_apply_phone_collection_choice_override_requests_different_number() -> None:
+    """When guest selects option 2, assistant should explicitly request another number."""
+    response = LLMResponse(
+        user_message="Telefon numaranizi paylasir misiniz?",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="transfer_booking_create",
+            state="NEEDS_VERIFICATION",
+            entities={},
+            required_questions=["phone"],
+            handoff={"needed": False, "reason": None},
+            next_step="collect_transfer_phone",
+        ),
+    )
+
+    whatsapp_webhook._apply_phone_collection_choice_override(
+        response,
+        user_text="2",
+        current_whatsapp_phone="905551112233",
+    )
+
+    assert response.internal_json.required_questions == ["phone"]
+    assert "farklı telefon numarasını" in response.user_message.casefold()
+
+
+def test_extract_non_current_year_returns_requested_year(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Different explicit year should be extracted for handoff routing."""
+    monkeypatch.setattr(whatsapp_webhook, "_current_reservation_year", lambda: 2026)
+    assert whatsapp_webhook._extract_non_current_year("2027 yilinda rezervasyon istiyorum") == 2027
+    assert whatsapp_webhook._extract_non_current_year("2026 yilinda rezervasyon istiyorum") is None
 
 
 def test_payment_intake_completes_then_routes_to_handoff() -> None:
@@ -3085,6 +3151,43 @@ async def test_run_message_pipeline_quote_error_uses_live_price_unavailable_fall
     assert "TOOL_UNAVAILABLE" in result.internal_json.risk_flags
     assert "canlı fiyat" in result.user_message.casefold()
     assert "yıl" not in result.user_message.casefold()
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_non_current_year_routes_to_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit reservation year different from current year should force handoff."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Tarih bilgilerini alabilirim.\nINTERNAL_JSON: "
+            '{"language":"tr","intent":"stay_quote","state":"NEEDS_VERIFICATION","entities":{},'
+            '"required_questions":["checkin_date"],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"collect_checkin_date"}',
+            [],
+        )
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    conversation = Conversation(hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "_current_reservation_year", lambda: 2026)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="2027 yilinda 12-15 haziran icin rezervasyon istiyorum",
+        expected_language="tr",
+    )
+
+    assert result.internal_json.state == "HANDOFF"
+    assert result.internal_json.handoff["needed"] is True
+    assert result.internal_json.handoff["reason"] == "reservation_non_current_year"
+    assert result.internal_json.entities["requested_year"] == 2027
+    assert "canlı ekibimize" in result.user_message.casefold()
 
 
 @pytest.mark.asyncio

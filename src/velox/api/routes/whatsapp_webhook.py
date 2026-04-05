@@ -100,6 +100,29 @@ PAYMENT_REFERENCE_PATTERN = re.compile(
 )
 EXPLICIT_YEAR_PATTERN = re.compile(r"\b20\d{2}\b")
 YEAR_KEYWORD_PATTERN = re.compile(r"\b(y[ıi]l|year)\b", flags=re.IGNORECASE)
+RESERVATION_INTENT_PREFIXES = ("stay_", "restaurant_", "transfer_")
+RESERVATION_DATE_FIELD_KEYS = {"checkin_date", "checkout_date", "date"}
+PHONE_CHOICE_USE_CURRENT_VALUES = {
+    "1",
+    "bir",
+    "one",
+    "option1",
+    "secenek1",
+    "seçenek1",
+    "mevcut",
+    "current",
+}
+PHONE_CHOICE_DIFFERENT_VALUES = {
+    "2",
+    "iki",
+    "two",
+    "option2",
+    "secenek2",
+    "seçenek2",
+    "farkli",
+    "farklı",
+    "different",
+}
 RESTAURANT_AREA_PROMPT_PATTERN = re.compile(
     r"(iç\s*mekan|ic\s*mekan|dış\s*mekan|dis\s*mekan|indoor|outdoor|alan tercihi|hangi alan|iç mi dış mı|ic mi dis mi)",
     flags=re.IGNORECASE,
@@ -3083,6 +3106,68 @@ def _guest_explicitly_referenced_year(user_text: str) -> bool:
     return YEAR_KEYWORD_PATTERN.search(user_text) is not None
 
 
+def _current_reservation_year() -> int:
+    """Return runtime current year used for reservation date defaults."""
+    return datetime.now(UTC).year
+
+
+def _extract_explicit_year_values(user_text: str) -> list[int]:
+    """Extract explicit 4-digit year mentions from user text."""
+    years: list[int] = []
+    for match in EXPLICIT_YEAR_PATTERN.finditer(user_text):
+        try:
+            year = int(match.group(0))
+        except ValueError:
+            continue
+        if year not in years:
+            years.append(year)
+    return years
+
+
+def _extract_non_current_year(user_text: str, *, current_year: int | None = None) -> int | None:
+    """Return the first explicit year that differs from the runtime current year."""
+    active_year = current_year if current_year is not None else _current_reservation_year()
+    for year in _extract_explicit_year_values(user_text):
+        if year != active_year:
+            return year
+    return None
+
+
+def _is_reservation_intent(intent: str) -> bool:
+    """Return True when intent belongs to stay/restaurant/transfer reservation flows."""
+    return str(intent or "").strip().lower().startswith(RESERVATION_INTENT_PREFIXES)
+
+
+def _reservation_year_handoff_message(language: str, requested_year: int, current_year: int) -> str:
+    """Return guest-facing handoff message for non-current-year reservation requests."""
+    if language == "en":
+        return (
+            f"Our automatic flow uses {current_year} by default. "
+            f"To handle reservation requests for {requested_year} correctly, "
+            "I am connecting you to our live team now."
+        )
+    if language == "ru":
+        return (
+            f"По умолчанию автоматический поток работает с {current_year} годом. "
+            f"Чтобы корректно оформить запрос на бронирование на {requested_year} год, "
+            "я сейчас подключаю вас к нашей живой команде."
+        )
+    return (
+        f"Otomatik akışta varsayılan yıl {current_year}. "
+        f"{requested_year} yılı için rezervasyon talebinizi doğru şekilde ilerletebilmek adına "
+        "sizi canlı ekibimize yönlendiriyorum."
+    )
+
+
+def _reservation_no_year_followup_message(language: str) -> str:
+    """Return a year-free fallback prompt when only year clarification was removed."""
+    if language == "en":
+        return "If you share your date range and guest count, I can continue right away."
+    if language == "ru":
+        return "Если укажете диапазон дат и количество гостей, я сразу продолжу."
+    return "Tarih aralığı ve kişi sayısını netleştirirseniz hemen devam edebilirim."
+
+
 def _contains_year_clarification(text: str) -> bool:
     """Detect follow-up prompts that ask only year clarification."""
     if not text:
@@ -3095,13 +3180,11 @@ def _contains_year_clarification(text: str) -> bool:
 
 def _suppress_default_year_question(
     response: LLMResponse,
-    user_text: str,
+    _user_text: str,
 ) -> None:
-    """Remove default year clarification prompts unless guest explicitly requested year context."""
+    """Remove year-only clarification prompts from reservation verification flows."""
     intent = str(response.internal_json.intent or "").lower()
-    if intent != "stay_quote":
-        return
-    if _guest_explicitly_referenced_year(user_text):
+    if not _is_reservation_intent(intent):
         return
 
     original_required = [
@@ -3118,9 +3201,38 @@ def _suppress_default_year_question(
             language = str(response.internal_json.language or "tr").lower()
             response.user_message = _single_field_prompt(language, filtered_required[0])
             return
-        response.user_message = (
-            "Tarih aralığı ve kişi sayısını netleştirirseniz fiyatı hemen kontrol edebilirim."
-        )
+        language = str(response.internal_json.language or "tr").lower()
+        response.user_message = _reservation_no_year_followup_message(language)
+
+
+def _apply_non_current_year_reservation_handoff(
+    response: LLMResponse,
+    *,
+    requested_year: int,
+    current_year: int,
+) -> None:
+    """Force human handoff when guest explicitly requests a non-current reservation year."""
+    language = str(response.internal_json.language or "tr").lower()
+    entities = response.internal_json.entities if isinstance(response.internal_json.entities, dict) else {}
+    entities["requested_year"] = requested_year
+    entities["current_year"] = current_year
+    response.internal_json.entities = entities
+
+    risk_flags = list(response.internal_json.risk_flags or [])
+    if "NON_CURRENT_YEAR_REQUEST" not in risk_flags:
+        risk_flags.append("NON_CURRENT_YEAR_REQUEST")
+
+    response.user_message = _reservation_year_handoff_message(
+        language,
+        requested_year=requested_year,
+        current_year=current_year,
+    )
+    response.internal_json.state = "HANDOFF"
+    response.internal_json.required_questions = []
+    response.internal_json.handoff = {"needed": True, "reason": "reservation_non_current_year"}
+    response.internal_json.risk_flags = risk_flags
+    response.internal_json.escalation = {"level": "L1", "route_to_role": "ADMIN", "sla_hint": "medium"}
+    response.internal_json.next_step = "handoff_to_reservations_team"
 
 
 def _normalize_restaurant_area_value(value: Any) -> str:
@@ -3322,57 +3434,229 @@ def _canonical_required_question_key(question: str) -> str:
     return question.strip()
 
 
+def _phone_collection_prompt(language: str) -> str:
+    """Return single-message phone collection flow with current-number shortcut options."""
+    if language == "en":
+        return (
+            "To make it easier for us to send your reservation confirmation and contact you during the next steps:\n\n"
+            "Would you like us to save your current WhatsApp number in our system?\n"
+            "If you prefer to use a different number, you may share it with us.\n\n"
+            "Please indicate your choice by typing the number: 1 or 2.\n"
+            "1) Save my current WhatsApp number\n"
+            "2) I will share a different number"
+        )
+    if language == "ru":
+        return (
+            "Чтобы нам было удобнее отправить подтверждение бронирования и связаться с вами на следующих шагах:\n\n"
+            "Сохранить ваш текущий номер WhatsApp в системе?\n"
+            "Если хотите использовать другой номер, можете отправить его нам.\n\n"
+            "Пожалуйста, укажите выбор цифрой: 1 или 2.\n"
+            "1) Сохранить текущий номер WhatsApp\n"
+            "2) Укажу другой номер"
+        )
+    return (
+        "Rezervasyon onayını gönderebilmemiz ve sonraki adımlarda size ulaşabilmemiz için:\n\n"
+        "Mevcut WhatsApp numaranızı sistemimize kaydedelim mi?\n"
+        "Farklı bir numara kullanmak isterseniz bizimle paylaşabilirsiniz.\n\n"
+        "Lütfen seçiminizi numara yazarak belirtin: 1 veya 2.\n"
+        "1) Mevcut WhatsApp numaramı kaydet\n"
+        "2) Farklı bir numara paylaşacağım"
+    )
+
+
+def _different_phone_followup_message(language: str) -> str:
+    """Return follow-up prompt when guest selects sharing a different phone number."""
+    if language == "en":
+        return "Please share the different phone number you would like us to save. (+country code)"
+    if language == "ru":
+        return "Пожалуйста, укажите другой номер телефона, который хотите сохранить. (+код страны)"
+    return "Kaydetmemizi istediğiniz farklı telefon numarasını paylaşır mısınız? (+ülke kodu ile)"
+
+
+def _phone_saved_message(language: str) -> str:
+    """Return acknowledgement after current WhatsApp number is accepted for contact."""
+    if language == "en":
+        return "Great, I have saved your current WhatsApp number for contact."
+    if language == "ru":
+        return "Отлично, я сохранил(а) ваш текущий номер WhatsApp для связи."
+    return "Harika, mevcut WhatsApp numaranızı iletişim için kaydettim."
+
+
+def _normalize_phone_for_collection(phone: str) -> str:
+    """Normalize phone into E.164-like format for reservation entities."""
+    cleaned = "".join(char for char in str(phone or "").strip() if char.isdigit() or char == "+")
+    if cleaned.startswith("00"):
+        cleaned = f"+{cleaned[2:]}"
+    if cleaned and not cleaned.startswith("+"):
+        cleaned = f"+{cleaned}"
+    digit_count = len(cleaned.replace("+", ""))
+    if digit_count < 10 or digit_count > 15:
+        return ""
+    return cleaned
+
+
+def _parse_phone_collection_choice(user_text: str) -> str:
+    """Return parsed phone-choice action from guest reply."""
+    canonical = _canonical_text(user_text)
+    if canonical in PHONE_CHOICE_USE_CURRENT_VALUES:
+        return "use_current"
+    if canonical in PHONE_CHOICE_DIFFERENT_VALUES:
+        return "share_different"
+    return ""
+
+
+def _response_requests_phone(response: LLMResponse) -> bool:
+    """Return True when parsed response expects phone collection from guest."""
+    required_questions = [
+        str(item).strip()
+        for item in response.internal_json.required_questions
+        if isinstance(item, str) and str(item).strip()
+    ]
+    if any(_canonical_required_question_key(item) == "phone" for item in required_questions):
+        return True
+
+    next_step = _canonical_text(str(response.internal_json.next_step or ""))
+    return "phone" in next_step or "telefon" in next_step
+
+
+def _inject_phone_choice_signal(
+    *,
+    conversation: Conversation,
+    user_text: str,
+    current_whatsapp_phone: str | None,
+) -> str:
+    """Rewrite bare 1/2 replies into explicit phone intents so the LLM can resolve them deterministically."""
+    if not current_whatsapp_phone:
+        return user_text
+    if not _is_reservation_intent(str(conversation.current_intent or "")):
+        return user_text
+
+    entities = conversation.entities_json if isinstance(conversation.entities_json, dict) else {}
+    if bool(str(entities.get("phone") or "").strip()):
+        return user_text
+
+    choice = _parse_phone_collection_choice(user_text)
+    if not choice:
+        return user_text
+
+    if choice == "share_different":
+        return "I want to use a different phone number for reservation contact."
+
+    normalized_phone = _normalize_phone_for_collection(current_whatsapp_phone)
+    if not normalized_phone:
+        return user_text
+    return f"Use this WhatsApp number for reservation contact: {normalized_phone}"
+
+
+def _apply_phone_collection_choice_override(
+    response: LLMResponse,
+    *,
+    user_text: str,
+    current_whatsapp_phone: str | None,
+) -> None:
+    """Apply deterministic phone-option handling when guest replies with choice 1/2."""
+    if not _response_requests_phone(response):
+        return
+
+    choice = _parse_phone_collection_choice(user_text)
+    if not choice:
+        return
+
+    language = str(response.internal_json.language or "tr").lower()
+    if choice == "share_different":
+        response.internal_json.required_questions = ["phone"]
+        response.user_message = _different_phone_followup_message(language)
+        return
+
+    normalized_phone = _normalize_phone_for_collection(current_whatsapp_phone or "")
+    if not normalized_phone:
+        return
+
+    entities = response.internal_json.entities if isinstance(response.internal_json.entities, dict) else {}
+    entities["phone"] = normalized_phone
+    entities["phone_source"] = "whatsapp_current_number"
+    response.internal_json.entities = entities
+
+    original_required = [
+        str(item).strip()
+        for item in response.internal_json.required_questions
+        if isinstance(item, str) and str(item).strip()
+    ]
+    filtered_required = [
+        question for question in original_required if _canonical_required_question_key(question) != "phone"
+    ]
+    response.internal_json.required_questions = filtered_required
+
+    if filtered_required:
+        response.user_message = _single_field_prompt(language, filtered_required[0])
+        return
+
+    if str(response.internal_json.intent or "").lower() == "restaurant_booking_create":
+        missing_required = _restaurant_missing_required_fields(entities)
+        if missing_required:
+            response.internal_json.required_questions = [missing_required[0]]
+            response.user_message = _single_field_prompt(language, missing_required[0])
+            return
+        response.internal_json.required_questions = []
+        response.internal_json.state = "READY_FOR_TOOL"
+        response.internal_json.next_step = "run_restaurant_availability"
+        response.user_message = _restaurant_tool_progress_message(language)
+        return
+
+    response.user_message = _phone_saved_message(language)
+
+
 def _single_field_prompt(language: str, required_question: str) -> str:
     """Build one-step follow-up prompt for a single missing reservation field."""
     key = _canonical_required_question_key(required_question)
     prompts = {
         "tr": {
-            "checkin_date": "Rezervasyon için önce giriş tarihinizi paylaşır mısınız? (GG.AA.YYYY)",
-            "checkout_date": "Çıkış tarihinizi paylaşır mısınız? (GG.AA.YYYY)",
+            "checkin_date": "Rezervasyon için önce giriş tarihinizi paylaşır mısınız? (GG.AA)",
+            "checkout_date": "Çıkış tarihinizi paylaşır mısınız? (GG.AA)",
             "adults": "Kaç yetişkin konaklayacaksınız?",
             "chd_ages": "Çocuk varsa yaşlarını tek tek paylaşır mısınız? (ör. 4, 9)",
             "guest_name": "Rezervasyon için ad soyad bilginizi paylaşır mısınız?",
-            "phone": "İletişim için telefon numaranızı paylaşır mısınız? (+90 ile)",
+            "phone": _phone_collection_prompt("tr"),
             "email": "E-posta adresinizi paylaşır mısınız? (opsiyonel)",
             "cancel_policy_type": "Hangi iptal politikasıyla devam edelim: İptal edilemez mi, Ücretsiz İptal mi?",
             "room_distribution": "Oda dağılımını nasıl planlayalım? (ör. 3+3 veya 4+2)",
             "route": "Transfer için güzergâhı paylaşır mısınız? (nereden -> nereye)",
             "area": "Acik alan mi kapali alan mi tercih edersiniz?",
-            "date": "Rezervasyon tarihi nedir?",
+            "date": "Rezervasyon tarihi nedir? (GG.AA)",
             "time": "Saat bilgisini paylaşır mısınız?",
             "party_size": "Kaç kişi için rezervasyon yapalım?",
             "notes": "Eklemek istediğiniz özel bir not var mı?",
         },
         "en": {
-            "checkin_date": "Please share your check-in date first. (DD.MM.YYYY)",
-            "checkout_date": "Please share your check-out date. (DD.MM.YYYY)",
+            "checkin_date": "Please share your check-in date first. (DD.MM)",
+            "checkout_date": "Please share your check-out date. (DD.MM)",
             "adults": "How many adults will stay?",
             "chd_ages": "If there are children, please share each age. (e.g. 4, 9)",
             "guest_name": "Please share the full name for the reservation.",
-            "phone": "Please share your phone number for contact. (+country code)",
+            "phone": _phone_collection_prompt("en"),
             "email": "Please share your email address. (optional)",
             "cancel_policy_type": "Which cancellation policy do you prefer: Non-refundable or Free Cancellation?",
             "room_distribution": "How would you like to split the rooms? (e.g. 3+3 or 4+2)",
             "route": "Please share the transfer route. (from -> to)",
             "area": "Do you prefer indoor or outdoor seating?",
-            "date": "What is the reservation date?",
+            "date": "What is the reservation date? (DD.MM)",
             "time": "Please share the preferred time.",
             "party_size": "How many guests should I reserve for?",
             "notes": "Any special note you would like to add?",
         },
         "ru": {
-            "checkin_date": "Пожалуйста, сначала укажите дату заезда. (ДД.ММ.ГГГГ)",
-            "checkout_date": "Пожалуйста, укажите дату выезда. (ДД.ММ.ГГГГ)",
+            "checkin_date": "Пожалуйста, сначала укажите дату заезда. (ДД.ММ)",
+            "checkout_date": "Пожалуйста, укажите дату выезда. (ДД.ММ)",
             "adults": "Сколько взрослых будет проживать?",
             "chd_ages": "Если есть дети, укажите возраст каждого. (например, 4, 9)",
             "guest_name": "Пожалуйста, укажите имя и фамилию для бронирования.",
-            "phone": "Пожалуйста, укажите ваш номер телефона для связи.",
+            "phone": _phone_collection_prompt("ru"),
             "email": "Пожалуйста, укажите ваш e-mail. (необязательно)",
             "cancel_policy_type": "Какой вариант отмены предпочитаете: невозвратный или бесплатная отмена?",
             "room_distribution": "Как разделим размещение по комнатам? (например, 3+3 или 4+2)",
             "route": "Пожалуйста, укажите маршрут трансфера. (откуда -> куда)",
             "area": "Вы предпочитаете место в помещении или на открытом воздухе?",
-            "date": "Какая дата бронирования?",
+            "date": "Какая дата бронирования? (ДД.ММ)",
             "time": "Пожалуйста, укажите время.",
             "party_size": "На сколько гостей оформить бронь?",
             "notes": "Есть ли особые пожелания?",
@@ -3912,8 +4196,15 @@ async def _run_message_pipeline(
     expected_language: str | None = None,
     burst_metadata: dict[str, Any] | None = None,
     reply_context: dict[str, Any] | None = None,
+    current_whatsapp_phone: str | None = None,
 ) -> LLMResponse:
     """Run message pipeline and return structured LLM response."""
+    original_user_text = normalized_text
+    normalized_text = _inject_phone_choice_signal(
+        conversation=conversation,
+        user_text=normalized_text,
+        current_whatsapp_phone=current_whatsapp_phone,
+    )
     target_language = (
         expected_language
         if expected_language in SUPPORTED_LANGUAGE_CODES
@@ -4125,7 +4416,7 @@ async def _run_message_pipeline(
             else str(parsed.internal_json.language or "tr").lower()
         )
         parsed.internal_json.language = language
-        _suppress_default_year_question(parsed, normalized_text)
+        _suppress_default_year_question(parsed, original_user_text)
         entities = parsed.internal_json.entities if isinstance(parsed.internal_json.entities, dict) else {}
         entities = _merge_entities_with_context(conversation.entities_json, entities)
         entities["scope_classifier"] = {
@@ -4136,6 +4427,32 @@ async def _run_message_pipeline(
         if not parser_error_reason:
             entities.pop("response_parser", None)
         parsed.internal_json.entities = entities
+        _apply_phone_collection_choice_override(
+            parsed,
+            user_text=original_user_text,
+            current_whatsapp_phone=current_whatsapp_phone,
+        )
+
+        current_year = _current_reservation_year()
+        requested_non_current_year = _extract_non_current_year(
+            original_user_text,
+            current_year=current_year,
+        )
+        current_intent = str(conversation.current_intent or "")
+        if requested_non_current_year is not None and (
+            _is_reservation_intent(str(parsed.internal_json.intent or "")) or _is_reservation_intent(current_intent)
+        ):
+            _apply_non_current_year_reservation_handoff(
+                parsed,
+                requested_year=requested_non_current_year,
+                current_year=current_year,
+            )
+            return _finalize_response(
+                parsed,
+                scope_decision=scope_result.decision,
+                language_override=language,
+                executed_calls=executed_calls,
+            )
         intent_guard_meta = _apply_turn_intent_domain_guard(
             parsed,
             normalized_text=normalized_text,
@@ -4390,7 +4707,7 @@ async def _run_message_pipeline(
             )
             if deterministic_messages:
                 normalized_messages = [
-                    _normalize_turkish_stay_quote_reply(message, normalized_text)
+                    _normalize_turkish_stay_quote_reply(message, original_user_text)
                     for message in deterministic_messages
                 ]
                 parsed.user_message = normalized_messages[0]
@@ -4399,7 +4716,7 @@ async def _run_message_pipeline(
                     entities["user_message_parts"] = normalized_messages
                     parsed.internal_json.entities = entities
             else:
-                parsed.user_message = _normalize_turkish_stay_quote_reply(parsed.user_message, normalized_text)
+                parsed.user_message = _normalize_turkish_stay_quote_reply(parsed.user_message, original_user_text)
         if _executed_stay_hold_submission(executed_calls):
             parsed.user_message = _stay_pending_approval_message(language)
             parsed.internal_json.state = "PENDING_APPROVAL"
@@ -4633,6 +4950,7 @@ async def _process_incoming_message(
                 dispatcher=dispatcher,
                 expected_language=detected_language,
                 reply_context=reply_context,
+                current_whatsapp_phone=incoming.phone,
             )
         current_state_value = (
             str(conversation.current_state.value)
@@ -5251,6 +5569,7 @@ async def _process_burst_aggregated(
                 expected_language=detected_language,
                 burst_metadata=burst_metadata,
                 reply_context=reply_context,
+                current_whatsapp_phone=aggregated.phone,
             )
 
         # State update (same as original pipeline)
