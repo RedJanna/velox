@@ -73,6 +73,19 @@ def reload_profiles() -> dict[int, HotelProfile]:
     return load_all_profiles()
 
 
+def cache_profile_definition(
+    profile_data: dict[str, Any],
+    *,
+    source_path: Path | None = None,
+) -> HotelProfile:
+    """Update in-memory profile cache from payload without requiring disk reload."""
+    validated = HotelProfile.model_validate(profile_data)
+    _profiles[validated.hotel_id] = validated
+    if source_path is not None:
+        _profile_sources[validated.hotel_id] = source_path
+    return validated
+
+
 def save_profile_definition(profile_data: dict[str, Any]) -> Path:
     """Persist one hotel profile payload to YAML and refresh in-memory cache."""
     validated = HotelProfile.model_validate(profile_data)

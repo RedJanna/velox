@@ -4,23 +4,33 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from velox.config.constants import SUPPORTED_LANGUAGES
 
 
-class LocalizedText(BaseModel):
+class ProfileModel(BaseModel):
+    """Base model for hotel profile structures.
+
+    Admin UI evolves faster than strict schema updates; allow additional keys so
+    profile fields edited in admin are not silently dropped during reloads.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+
+class LocalizedText(ProfileModel):
     tr: str = ""
     en: str = ""
 
 
-class ContactInfo(BaseModel):
+class ContactInfo(ProfileModel):
     phone: str = ""
     email: str = ""
     hours: str = ""
 
 
-class RoomType(BaseModel):
+class RoomType(ProfileModel):
     id: int
     pms_room_type_id: int
     name: LocalizedText
@@ -34,18 +44,18 @@ class RoomType(BaseModel):
     accessible: bool = False
 
 
-class BoardType(BaseModel):
+class BoardType(ProfileModel):
     id: int
     code: str  # BB, HB, FB, AI
     name: LocalizedText
 
 
-class RateMapping(BaseModel):
+class RateMapping(ProfileModel):
     rate_type_id: int
     rate_code_id: int
 
 
-class CancellationRule(BaseModel):
+class CancellationRule(ProfileModel):
     free_cancel_deadline_days: int | None = None
     prepayment_days_before: int | None = None
     prepayment_amount: str = "1_night"
@@ -56,7 +66,7 @@ class CancellationRule(BaseModel):
     exception_refund: str | None = None
 
 
-class TransferRouteConfig(BaseModel):
+class TransferRouteConfig(ProfileModel):
     route_code: str
     from_location: str
     to_location: str
@@ -68,7 +78,7 @@ class TransferRouteConfig(BaseModel):
     oversize_vehicle: dict[str, Any] | None = None
 
 
-class RestaurantConfig(BaseModel):
+class RestaurantConfig(ProfileModel):
     name: str
     concept: str
     capacity_min: int = 0
@@ -87,7 +97,7 @@ class FAQStatus(StrEnum):
     REMOVED = "REMOVED"
 
 
-class FAQEntry(BaseModel):
+class FAQEntry(ProfileModel):
     faq_id: str = ""
     topic: str
     status: FAQStatus = FAQStatus.ACTIVE
@@ -135,7 +145,7 @@ class FAQEntry(BaseModel):
         return candidates
 
 
-class HotelConversationalFlow(BaseModel):
+class HotelConversationalFlow(ProfileModel):
     style: str = "concise_premium"
     max_paragraph_lines: int = 3
     max_list_items: int = 5
@@ -145,7 +155,7 @@ class HotelConversationalFlow(BaseModel):
     ask_before_full_price_dump: bool = True
 
 
-class ConversationIdleResetConfig(BaseModel):
+class ConversationIdleResetConfig(ProfileModel):
     """Per-hotel settings for proactive conversation idle-reset.
 
     When the bot sends a reply and the customer does not respond within
@@ -172,7 +182,7 @@ class ConversationIdleResetConfig(BaseModel):
     )
 
 
-class HotelProfile(BaseModel):
+class HotelProfile(ProfileModel):
     hotel_id: int
     hotel_name: LocalizedText
     hotel_type: str = "boutique"

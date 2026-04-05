@@ -29,3 +29,29 @@ def test_save_profile_definition_persists_yaml_and_refreshes_cache(
     saved_raw = yaml.safe_load(saved_path.read_text(encoding="utf-8"))
     assert saved_raw["hotel_id"] == 9001
     assert hotel_profile_loader.get_profile(9001) is not None
+
+
+def test_cache_profile_definition_keeps_dynamic_admin_fields() -> None:
+    profile_payload = {
+        "hotel_id": 9010,
+        "hotel_name": {"tr": "Dinamik Otel", "en": "Dynamic Hotel"},
+        "location": {"city": "Mugla", "google_maps_restaurant": "https://maps.example"},
+        "highlights": ["central_location", "beachside"],
+        "contacts": {
+            "restaurant": {
+                "phone": "+905550000111",
+                "name": "Restoran",
+                "role": "RESTAURANT",
+            }
+        },
+    }
+    hotel_profile_loader._profiles.clear()
+    hotel_profile_loader._profile_sources.clear()
+
+    hotel_profile_loader.cache_profile_definition(profile_payload)
+
+    cached = hotel_profile_loader.get_profile(9010)
+    assert cached is not None
+    dumped = cached.model_dump()
+    assert dumped["location"]["city"] == "Mugla"
+    assert dumped["contacts"]["restaurant"]["role"] == "RESTAURANT"

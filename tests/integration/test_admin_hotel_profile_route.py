@@ -55,6 +55,15 @@ class _FakeConnection:
             return "UPDATE 1"
         raise AssertionError(f"Unsupported execute query: {query}")
 
+    async def fetchrow(self, query: str, *args: object) -> dict[str, object] | None:
+        if "SELECT * FROM hotels WHERE hotel_id = $1" in query:
+            hotel_id = int(args[0])
+            row = self.hotels.get(hotel_id)
+            if row is None:
+                return None
+            return dict(row)
+        raise AssertionError(f"Unsupported fetchrow query: {query}")
+
 
 class _FakePool:
     def __init__(self, connection: _FakeConnection) -> None:
@@ -73,7 +82,9 @@ def sample_profile_payload() -> dict[str, object]:
 
 
 @pytest.fixture
-async def admin_hotel_client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[tuple[httpx.AsyncClient, _FakeConnection, str]]:
+async def admin_hotel_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> AsyncIterator[tuple[httpx.AsyncClient, _FakeConnection, str]]:
     connection = _FakeConnection()
     app = FastAPI()
     app.state.db_pool = _FakePool(connection)
@@ -134,3 +145,49 @@ async def test_update_hotel_profile_returns_404_when_hotel_missing(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Hotel not found"
+
+
+async def test_get_hotel_decodes_profile_json_string(
+    admin_hotel_client: tuple[httpx.AsyncClient, _FakeConnection, str],
+) -> None:
+    client, connection, token = admin_hotel_client
+    connection.hotels[21966]["profile_json"] = orjson.dumps({"hotel_id": 21966, "location": {"city": "Mugla"}}).decode()
+
+    response = await client.get(
+        "/api/v1/admin/hotels/21966",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert isinstance(payload["profile_json"], dict)
+    assert payload["profile_json"]["location"]["city"] == "Mugla"
+
+
+async def test_update_hotel_profile_updates_db_even_if_yaml_write_fails(
+    admin_hotel_client: tuple[httpx.AsyncClient, _FakeConnection, str],
+    sample_profile_payload: dict[str, object],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, connection, token = admin_hotel_client
+    cache_calls: list[dict[str, object]] = []
+
+    def _raise_yaml_error(_payload: dict[str, object]) -> Path:
+        raise OSError("disk read-only")
+
+    def _cache(payload: dict[str, object]) -> None:
+        cache_calls.append(payload)
+
+    monkeypatch.setattr(admin, "save_profile_definition", _raise_yaml_error)
+    monkeypatch.setattr(admin, "cache_profile_definition", _cache)
+
+    response = await client.put(
+        "/api/v1/admin/hotels/21966/profile",
+        json={"profile_json": sample_profile_payload},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert connection.last_profile_json_decoded is not None
+    assert connection.last_profile_json_decoded["hotel_id"] == sample_profile_payload["hotel_id"]
+    assert cache_calls

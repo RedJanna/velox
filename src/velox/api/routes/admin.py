@@ -22,7 +22,7 @@ from velox.api.middleware.auth import (
 )
 from velox.config.constants import HoldStatus, Role
 from velox.config.settings import settings
-from velox.core.hotel_profile_loader import reload_profiles, save_profile_definition
+from velox.core.hotel_profile_loader import cache_profile_definition, reload_profiles, save_profile_definition
 from velox.core.template_engine import reload_templates
 from velox.db.repositories.conversation import ConversationRepository
 from velox.db.repositories.hotel import NotificationPhoneRepository
@@ -426,7 +426,9 @@ async def get_hotel(
         row = await conn.fetchrow("SELECT * FROM hotels WHERE hotel_id = $1", hotel_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Hotel not found")
-    return dict(row)
+    payload = dict(row)
+    payload["profile_json"] = decode_json_object(payload.get("profile_json"))
+    return payload
 
 
 @router.put("/hotels/{hotel_id}/profile")
@@ -453,21 +455,7 @@ async def update_hotel_profile(
     except (ValueError, Exception) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # ── Step 2: persist YAML (non-fatal — DB is the source of truth) ────────
-    profile_path = None
-    try:
-        profile_path = save_profile_definition(body.profile_json)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        logger.warning(
-            "hotel_profile_yaml_write_failed",
-            hotel_id=hotel_id,
-            error=str(exc),
-            error_type=type(exc).__name__,
-        )
-
-    # ── Step 3: persist to DB ────────────────────────────────────────────────
+    # ── Step 2: persist to DB (source of truth) ──────────────────────────────
     try:
         db = request.app.state.db_pool
         async with db.acquire() as conn:
@@ -491,8 +479,22 @@ async def update_hotel_profile(
         logger.exception("hotel_profile_db_update_unexpected_error", hotel_id=hotel_id)
         raise HTTPException(status_code=500, detail="Beklenmeyen bir hata oluştu.") from exc
 
-    # ── Step 4: reload runtime cache ────────────────────────────────────────
-    reload_profiles()
+    # ── Step 3: persist YAML + runtime cache (best effort) ───────────────────
+    profile_path = None
+    try:
+        profile_path = save_profile_definition(body.profile_json)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.warning(
+            "hotel_profile_yaml_write_failed",
+            hotel_id=hotel_id,
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+        # Keep runtime aligned with DB even when file persistence fails.
+        cache_profile_definition(body.profile_json)
+
     return {
         "status": "updated",
         "hotel_id": hotel_id,
@@ -520,18 +522,6 @@ async def _persist_hotel_profile(
     profile_json: dict[str, Any],
 ) -> str:
     """Persist hotel profile to YAML + DB and return profile file name."""
-    profile_path = None
-    try:
-        profile_path = save_profile_definition(profile_json)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        logger.warning(
-            "hotel_profile_yaml_write_failed",
-            hotel_id=hotel_id,
-            error=str(exc),
-            error_type=type(exc).__name__,
-        )
     try:
         result = await conn.execute(
             """
@@ -547,7 +537,20 @@ async def _persist_hotel_profile(
         raise HTTPException(status_code=500, detail="Veritabanı güncellemesi başarısız oldu.") from exc
     if result == "UPDATE 0":
         raise HTTPException(status_code=404, detail="Hotel not found")
-    reload_profiles()
+
+    profile_path = None
+    try:
+        profile_path = save_profile_definition(profile_json)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.warning(
+            "hotel_profile_yaml_write_failed",
+            hotel_id=hotel_id,
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+        cache_profile_definition(profile_json)
     return profile_path.name if profile_path else ""
 
 
