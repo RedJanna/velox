@@ -125,6 +125,8 @@ def test_build_system_prompt_is_compact_and_grounded() -> None:
     assert "FAQ_CONTEXT" in system_prompt
     assert "faq_lookup" in system_prompt
     assert "maps.app.goo.gl/pMiKmhV57YVvAghe6" in system_prompt
+    assert "menu_preview" in system_prompt
+    assert "Meyve Tabagi" in system_prompt
     assert "Standart check-in saatimiz 14:00 itibariyladir." not in system_prompt
     assert len(system_prompt) < 12000
 

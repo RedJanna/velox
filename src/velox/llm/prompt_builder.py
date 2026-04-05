@@ -197,13 +197,13 @@ def _summarize_restaurant(profile: HotelProfile) -> str:
 
     menu = getattr(restaurant, "menu", None)
     menu_summary = "not_configured"
+    menu_preview = ""
     if isinstance(menu, dict) and menu:
-        category_counts = []
-        for category, items in menu.items():
-            if isinstance(items, list) and items:
-                category_counts.append(f"{category}={len(items)}")
+        category_counts, preview_items = _collect_menu_preview(menu)
         if category_counts:
             menu_summary = ", ".join(category_counts)
+        if preview_items:
+            menu_preview = ", ".join(preview_items)
 
     lines = [
         f"- name={restaurant.name}; concept={restaurant.concept}",
@@ -215,8 +215,70 @@ def _summarize_restaurant(profile: HotelProfile) -> str:
         f"- hours={_compact_json(restaurant.hours, max_chars=200)}",
         f"- external_guests_allowed={str(restaurant.external_guests_allowed).lower()}",
         f"- menu_catalogue={menu_summary}",
+        f"- menu_preview={menu_preview}" if menu_preview else "",
     ]
     return _render_section("RESTAURANT_CONTEXT", lines)
+
+
+def _collect_menu_preview(menu: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """Return compact category counts and sample menu items."""
+    category_counts: list[str] = []
+    preview_items: list[str] = []
+
+    for category, items in menu.items():
+        count = _count_menu_items(items)
+        if count > 0:
+            category_counts.append(f"{category}={count}")
+        _append_menu_preview(items, preview_items, limit=12)
+        if len(preview_items) >= 12:
+            break
+    return category_counts, preview_items[:12]
+
+
+def _count_menu_items(value: Any) -> int:
+    """Count likely menu items recursively."""
+    if isinstance(value, str):
+        return 1 if value.strip() else 0
+    if isinstance(value, list):
+        return sum(_count_menu_items(item) for item in value)
+    if isinstance(value, dict):
+        if any(isinstance(value.get(key), str) and str(value.get(key)).strip() for key in ("name", "name_tr", "name_en")):
+            return 1
+        return sum(_count_menu_items(item) for item in value.values())
+    return 0
+
+
+def _append_menu_preview(value: Any, collector: list[str], *, limit: int) -> None:
+    """Append sample menu item names recursively."""
+    if len(collector) >= limit:
+        return
+
+    if isinstance(value, str):
+        normalized = value.strip()
+        if normalized and normalized not in collector:
+            collector.append(normalized)
+        return
+
+    if isinstance(value, list):
+        for item in value:
+            _append_menu_preview(item, collector, limit=limit)
+            if len(collector) >= limit:
+                break
+        return
+
+    if isinstance(value, dict):
+        for key in ("name_tr", "name_en", "name"):
+            candidate = value.get(key)
+            if isinstance(candidate, str):
+                normalized = candidate.strip()
+                if normalized and normalized not in collector:
+                    collector.append(normalized)
+                    if len(collector) >= limit:
+                        return
+        for nested in value.values():
+            _append_menu_preview(nested, collector, limit=limit)
+            if len(collector) >= limit:
+                break
 
 
 def _summarize_payment(profile: HotelProfile) -> str:

@@ -90,6 +90,25 @@ The app will be available at `http://localhost:8001`. Browser requests to `/` re
 
 If the app does not behave as expected, do not start with frontend or prompt assumptions. Start with Docker backend validation: `docker compose ps`, then inspect `app`, `db`, `redis`, related sidecars, health status, logs, env/config, and migration readiness.
 
+### Import Restaurant Menu PDFs Into HotelProfile
+
+You can import local PDF menus into project files and bind them to HotelProfile in one step:
+
+```bash
+PYTHONPATH=src .venv-wsl/bin/python scripts/import_menu_pdfs.py \
+  --hotel-id 21966 \
+  --pdf /absolute/path/alacarte.pdf --category alacarte \
+  --pdf /absolute/path/wines.pdf --category wines \
+  --pdf /absolute/path/snack.pdf --category snack
+```
+
+This flow:
+
+- copies PDFs under `data/menus/hotel_<hotel_id>/`
+- updates `assistant.menu_source_documents`
+- auto-fills `restaurant.menu` catalogue from PDF text
+- preserves existing HotelProfile fields
+
 ### Full Docker Stack
 
 ```bash

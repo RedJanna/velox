@@ -45,6 +45,7 @@ dependencies = [
     "python-multipart>=0.0.18",
     "orjson>=3.10.0",
     "qrcode>=8.0",
+    "pypdf>=5.4.0",
 
     # Security
     "python-jose[cryptography]>=3.3.0",

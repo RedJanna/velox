@@ -165,28 +165,32 @@ def _get_menu_catalogue(profile: Any) -> list[str]:
     if menu is None:
         return []
 
-    if isinstance(menu, dict):
-        all_items: list[str] = []
-        categories = (
-            "breakfast",
-            "lunch",
-            "dinner",
-            "desserts",
-            "beverages",
-            "vegan_options",
-            "gluten_free_options",
-        )
-        for category in categories:
-            category_items = menu.get(category, [])
-            if isinstance(category_items, list):
-                for item in category_items:
-                    if isinstance(item, dict) and "name_tr" in item:
-                        all_items.append(item["name_tr"].lower())
-                    elif isinstance(item, str):
-                        all_items.append(item.lower())
-        return all_items
+    all_items: set[str] = set()
+    _collect_menu_item_names(menu, all_items)
+    return sorted(all_items)
 
-    return []
+
+def _collect_menu_item_names(value: Any, collector: set[str]) -> None:
+    """Collect item names from flexible menu structures recursively."""
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized:
+            collector.add(normalized)
+        return
+
+    if isinstance(value, list):
+        for item in value:
+            _collect_menu_item_names(item, collector)
+        return
+
+    if isinstance(value, dict):
+        preferred_name_keys = ("name_tr", "name_en", "name", "item", "title")
+        for key in preferred_name_keys:
+            candidate = value.get(key)
+            if isinstance(candidate, str) and candidate.strip():
+                collector.add(candidate.strip().lower())
+        for nested in value.values():
+            _collect_menu_item_names(nested, collector)
 
 
 def _validate_items_against_menu(
