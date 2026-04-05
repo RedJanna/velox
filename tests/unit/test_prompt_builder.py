@@ -77,6 +77,14 @@ def _build_profile(hotel_id: int = 21966) -> HotelProfile:
             "summarize_large_price_lists": True,
             "ask_before_full_price_dump": True,
         },
+        assistant={
+            "menu_source_documents": [
+                "https://www.kassandrarestaurant.com/alacarte.pdf",
+                "https://www.kassandrarestaurant.com/wines.pdf",
+                "https://www.kassandrarestaurant.com/snack.pdf",
+            ],
+            "menu_scope_prompt": "[RESTAURANT_MENU_STRICT_MODE] sadece menuden yanit ver [END_RESTAURANT_MENU_STRICT_MODE]",
+        },
     )
 
 
@@ -110,6 +118,9 @@ def test_build_system_prompt_is_compact_and_grounded() -> None:
     assert "VELox runtime core" in system_prompt
     assert "HOTEL_IDENTITY" in system_prompt
     assert "HOTEL_ADMIN_CONTEXT" in system_prompt
+    assert "MENU_SOURCE_DOCUMENTS" in system_prompt
+    assert "MENU_SCOPE_INSTRUCTION_STRICT" in system_prompt
+    assert "alacarte.pdf" in system_prompt
     assert "ROOM_TYPES" in system_prompt
     assert "FAQ_CONTEXT" in system_prompt
     assert "faq_lookup" in system_prompt

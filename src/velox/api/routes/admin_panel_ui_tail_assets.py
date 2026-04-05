@@ -1067,6 +1067,9 @@ function normalizeHotelProfileDraft(rawProfile) {
   draft.hotel_conversational_flow.avoid_repeating_confirmed_facts = Boolean(draft.hotel_conversational_flow.avoid_repeating_confirmed_facts ?? true);
   draft.hotel_conversational_flow.summarize_large_price_lists = Boolean(draft.hotel_conversational_flow.summarize_large_price_lists ?? true);
   draft.hotel_conversational_flow.ask_before_full_price_dump = Boolean(draft.hotel_conversational_flow.ask_before_full_price_dump ?? true);
+  draft.assistant = asObject(draft.assistant);
+  draft.assistant.menu_source_documents = Array.isArray(draft.assistant.menu_source_documents) ? draft.assistant.menu_source_documents : [];
+  draft.assistant.menu_scope_prompt = String(draft.assistant.menu_scope_prompt || '');
   draft.conversation_idle_reset = asObject(draft.conversation_idle_reset);
   draft.conversation_idle_reset.enabled = Boolean(draft.conversation_idle_reset.enabled ?? true);
   draft.conversation_idle_reset.idle_timeout_minutes = Number(draft.conversation_idle_reset.idle_timeout_minutes || 20);
@@ -1757,10 +1760,11 @@ function renderHotelProfileIdleResetSection() {
 
 function renderHotelProfileAssistantSection() {
   const flow = asObject(state.hotelProfileDraft?.hotel_conversational_flow);
+  const assistant = asObject(state.hotelProfileDraft?.assistant);
   return `
     <div class="helper-box">
       <strong>Yapay Zekâ / Konuşma Akışı</strong>
-      <p class="muted">Mesaj uzunluğu, liste sınırı ve fiyat sunum davranışı bu ayarlardan yönetilir.</p>
+      <p class="muted">Mesaj uzunluğu, liste sınırı ve profil bazlı özel yanıt kuralları bu bölümden yönetilir.</p>
     </div>
     <div class="profile-section-grid mt-md">
       ${renderTextField('Yanıt Stili', 'hotel_conversational_flow.style', flow.style || 'concise_premium')}
@@ -1770,6 +1774,8 @@ function renderHotelProfileAssistantSection() {
       ${renderCheckboxField('Onaylanmış Bilgileri Tekrarlama', 'hotel_conversational_flow.avoid_repeating_confirmed_facts', Boolean(flow.avoid_repeating_confirmed_facts))}
       ${renderCheckboxField('Uzun Fiyat Listelerini Özetle', 'hotel_conversational_flow.summarize_large_price_lists', Boolean(flow.summarize_large_price_lists))}
       ${renderCheckboxField('Tam Fiyat Listesini Göstermeden Önce Sor', 'hotel_conversational_flow.ask_before_full_price_dump', Boolean(flow.ask_before_full_price_dump))}
+      ${renderListField('Menü Kaynak Dokümanları', 'assistant.menu_source_documents', assistant.menu_source_documents || [], {full: true, help: 'Restoran menü sorularında referans alınacak kaynak URL listesini satır satır girin.'})}
+      ${renderTextField('Menü Kapsam Talimatı (Strict)', 'assistant.menu_scope_prompt', assistant.menu_scope_prompt || '', {textarea: true, full: true, placeholder: 'Yalnızca tanımlı menü dokümanlarına dayanarak yanıt ver...', help: 'Bu metin sistem promptuna aynen eklenir ve menü yanıtlarını profil bazlı olarak sınırlar.'})}
     </div>
   `;
 }

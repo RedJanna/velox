@@ -113,6 +113,16 @@ def _render_section(title: str, lines: list[str]) -> str:
     return f"{title}:\n" + "\n".join(filtered)
 
 
+def _render_freeform_section(title: str, value: Any, max_chars: int = 2600) -> str:
+    """Render a freeform multi-line section with bounded size."""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if len(text) > max_chars:
+        text = text[: max_chars - 3].rstrip() + "..."
+    return f"{title}:\n{text}"
+
+
 def _summarize_room_types(room_types: list[RoomType]) -> str:
     """Return a compact room-type summary for the prompt."""
     lines: list[str] = []
@@ -291,6 +301,33 @@ def _summarize_admin_profile_context(profile: HotelProfile) -> str:
     return _render_section("HOTEL_ADMIN_CONTEXT", lines)
 
 
+def _summarize_assistant_profile_rules(profile: HotelProfile) -> str:
+    """Return optional admin-defined assistant constraints from profile extras."""
+    extras = profile.model_extra if isinstance(profile.model_extra, dict) else {}
+    assistant = extras.get("assistant")
+    if not isinstance(assistant, dict):
+        return ""
+
+    source_docs = assistant.get("menu_source_documents")
+    source_doc_lines: list[str] = []
+    if isinstance(source_docs, list):
+        for value in source_docs:
+            normalized = str(value or "").strip()
+            if normalized:
+                source_doc_lines.append(f"- {normalized}")
+
+    sections: list[str] = []
+    if source_doc_lines:
+        sections.append(_render_section("MENU_SOURCE_DOCUMENTS", source_doc_lines))
+
+    menu_scope_prompt = assistant.get("menu_scope_prompt")
+    menu_scope_section = _render_freeform_section("MENU_SCOPE_INSTRUCTION_STRICT", menu_scope_prompt)
+    if menu_scope_section:
+        sections.append(menu_scope_section)
+
+    return "\n\n".join(section for section in sections if section)
+
+
 class PromptBuilder:
     """Build system prompt and chat messages for a conversation turn."""
 
@@ -353,6 +390,7 @@ class PromptBuilder:
                 _RUNTIME_POLICY_KERNEL,
                 _render_section("HOTEL_IDENTITY", identity_lines),
                 _summarize_admin_profile_context(profile),
+                _summarize_assistant_profile_rules(profile),
                 _summarize_room_types(profile.room_types),
                 _summarize_board_types(profile.board_types),
                 _summarize_cancellation_rules(profile.cancellation_rules),
