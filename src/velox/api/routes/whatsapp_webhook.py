@@ -3693,7 +3693,12 @@ def _enforce_single_step_collection(response: LLMResponse) -> None:
 
     first_required = required[0]
     response.internal_json.required_questions = [first_required]
-    if len(required) > 1 or not str(response.user_message or "").strip():
+    first_required_key = _canonical_required_question_key(first_required)
+    if (
+        first_required_key == "phone"
+        or len(required) > 1
+        or not str(response.user_message or "").strip()
+    ):
         language = str(response.internal_json.language or "tr").lower()
         response.user_message = _single_field_prompt(language, first_required)
 

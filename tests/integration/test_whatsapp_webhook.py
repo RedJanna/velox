@@ -2515,6 +2515,29 @@ def test_enforce_single_step_collection_reduces_required_questions() -> None:
     assert "çıkış" not in response.user_message.casefold()
 
 
+def test_enforce_single_step_collection_rewrites_single_phone_prompt() -> None:
+    """Phone-only verification step should always use the 1/2 WhatsApp-number template."""
+    response = LLMResponse(
+        user_message="Rezervasyonu ilerletebilmem için lütfen telefon numaranızı paylaşır mısınız?",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="stay_booking_create",
+            state="NEEDS_VERIFICATION",
+            entities={},
+            required_questions=["phone"],
+            handoff={"needed": False, "reason": None},
+            next_step="collect_stay_phone",
+        ),
+    )
+
+    whatsapp_webhook._enforce_single_step_collection(response)
+
+    assert response.internal_json.required_questions == ["phone"]
+    assert "1) Mevcut WhatsApp numaramı kaydet" in response.user_message
+    assert "2) Farklı bir numara paylaşacağım" in response.user_message
+    assert "1 veya 2" in response.user_message
+
+
 def test_suppress_default_year_question_for_stay_quote() -> None:
     """Stay quote flow should remove default year clarification when user did not ask for year."""
     response = LLMResponse(
