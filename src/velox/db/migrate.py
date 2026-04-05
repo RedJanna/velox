@@ -104,6 +104,31 @@ MIGRATION_SIGNATURES = {
             WHERE table_schema = 'public' AND table_name = 'inbound_media'
         )
     """,
+    "021": """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'hotel_facts_versions'
+        )
+    """,
+    "022": """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'hotel_facts_versions'
+              AND column_name = 'source_profile_json'
+        )
+    """,
+    "023": """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'hotel_facts_events'
+              AND column_name = 'metadata_json'
+        )
+    """,
 }
 
 
