@@ -21,6 +21,25 @@ def test_response_validator_blocks_technical_leak() -> None:
     assert "one short message" in validated.user_message.lower()
 
 
+def test_response_validator_allows_google_maps_link() -> None:
+    response = LLMResponse(
+        user_message="Restoran konum linki: https://maps.app.goo.gl/pMiKmhV57YVvAghe6",
+        internal_json=InternalJSON(language="tr"),
+    )
+    validated = validate_guest_response(response, default_language="tr")
+    assert "maps.app.goo.gl" in validated.user_message
+    assert "yardimci olmak istiyorum" not in validated.user_message.lower()
+
+
+def test_response_validator_blocks_non_maps_url() -> None:
+    response = LLMResponse(
+        user_message="Detaylar icin bakin: https://example.com/help-center",
+        internal_json=InternalJSON(language="tr"),
+    )
+    validated = validate_guest_response(response, default_language="tr")
+    assert "yardimci olmak istiyorum" in validated.user_message.lower()
+
+
 def test_response_validator_enforces_out_of_scope_refusal_consistency() -> None:
     response = LLMResponse(
         user_message="Bunu yapamam",

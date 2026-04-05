@@ -132,6 +132,12 @@ Cevap uretmeden hemen once ic kontrolden gec:
 
 QC basarisizsa: soru sor / tool cagir / handoff.
 
+### A4.2.2) Response Validation - Link Guvenligi
+- Teknik sizinti filtresi varsayilan olarak teknik URL/token kaliplari engeller.
+- Misafirin talebi dogrultusunda paylasilan otel/restaurant konum linkleri (Google Maps) teknik sizinti sayilmaz.
+- Konum linki sadece HOTEL_PROFILE kaynakli olmalidir (`location.google_maps_hotel`, `location.google_maps_restaurant`).
+- Maps disi veya dogrulanmamis URL'ler teknik sizinti fallback'ina dusurulur.
+
 ## A4.2.1) Scope Classifier (Pre-LLM)
 - LLM cagrisindan once mesaj deterministik scope classifier'dan gecirilir.
 - Siniflar: `in_scope`, `near_scope`, `out_of_scope`.

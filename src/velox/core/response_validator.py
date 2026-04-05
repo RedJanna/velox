@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from urllib.parse import urlsplit
 
 from velox.core.fallback_response_library import (
     menu_not_available_fallback,
@@ -18,6 +19,14 @@ _TECHNICAL_LEAK_PATTERN = re.compile(
     r"(traceback|exception|stack\s*trace|internal server error|sqlstate|api[_ -]?key|token=|http[s]?://)",
     re.IGNORECASE,
 )
+_URL_PATTERN = re.compile(r"https?://\S+", re.IGNORECASE)
+_ALLOWED_PUBLIC_LINK_HOSTS = {
+    "maps.app.goo.gl",
+    "maps.google.com",
+    "google.com",
+    "www.google.com",
+    "m.google.com",
+}
 _CODE_BLOCK_PATTERN = re.compile(r"```.*?```", re.DOTALL)
 _MULTI_EXCLAMATION_PATTERN = re.compile(r"!{2,}")
 _RUDE_TR_PATTERN = re.compile(r"\b(saçma|sacma|uğraşamam|ugrasamam|bilmiyorum)\b", re.IGNORECASE)
@@ -61,7 +70,7 @@ def validate_guest_response(
         text = response_validation_fallback(language)
         rules_applied.append("empty_message_fallback")
 
-    if _TECHNICAL_LEAK_PATTERN.search(text):
+    if _contains_technical_leak(text):
         text = response_validation_fallback(language)
         rules_applied.append("technical_leak_fallback")
 
@@ -136,6 +145,33 @@ def _replace_commitment_with_handoff(_text: str, language: str) -> str:
     message that routes the request to the appropriate team.
     """
     return order_commitment_fallback(language)
+
+
+def _contains_technical_leak(text: str) -> bool:
+    """Return True when text includes a technical leak that should be blocked."""
+    urls = _URL_PATTERN.findall(text)
+    if not urls:
+        return _TECHNICAL_LEAK_PATTERN.search(text) is not None
+
+    if all(_is_allowed_public_location_link(url) for url in urls):
+        text_without_urls = _URL_PATTERN.sub(" ", text)
+        return _TECHNICAL_LEAK_PATTERN.search(text_without_urls) is not None
+
+    return True
+
+
+def _is_allowed_public_location_link(url: str) -> bool:
+    """Allow only guest-facing Google Maps links in replies."""
+    cleaned = url.strip().rstrip(".,);]}>\"'")
+    parsed = urlsplit(cleaned)
+    host = parsed.netloc.casefold().split("@")[-1].split(":", 1)[0]
+    if host not in _ALLOWED_PUBLIC_LINK_HOSTS:
+        return False
+
+    if host in {"google.com", "www.google.com", "m.google.com"}:
+        return parsed.path.startswith("/maps")
+
+    return True
 
 
 def _is_scope_refusal(text: str, language: str) -> bool:
