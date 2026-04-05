@@ -55,3 +55,31 @@ def test_cache_profile_definition_keeps_dynamic_admin_fields() -> None:
     dumped = cached.model_dump()
     assert dumped["location"]["city"] == "Mugla"
     assert dumped["contacts"]["restaurant"]["role"] == "RESTAURANT"
+
+
+def test_save_profile_definition_succeeds_even_if_other_yaml_is_invalid(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    profiles_dir = tmp_path / "profiles"
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(hotel_profile_loader.settings, "hotel_profiles_dir", str(profiles_dir))
+    hotel_profile_loader._profiles.clear()
+    hotel_profile_loader._profile_sources.clear()
+
+    # Simulate a broken/unrelated YAML file in the same folder.
+    (profiles_dir / "broken.yaml").write_text("foo: [unclosed", encoding="utf-8")
+
+    profile_payload = {
+        "hotel_id": 9020,
+        "hotel_name": {"tr": "Yedek Otel", "en": "Backup Hotel"},
+        "currency_base": "EUR",
+    }
+
+    saved_path = hotel_profile_loader.save_profile_definition(profile_payload)
+
+    assert saved_path == profiles_dir / "backup_hotel.yaml"
+    assert saved_path.exists()
+    cached = hotel_profile_loader.get_profile(9020)
+    assert cached is not None
+    assert cached.hotel_name.en == "Backup Hotel"

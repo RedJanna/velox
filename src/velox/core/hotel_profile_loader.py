@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import tempfile
 import unicodedata
 from pathlib import Path
 from typing import Any
@@ -87,23 +88,37 @@ def cache_profile_definition(
 
 
 def save_profile_definition(profile_data: dict[str, Any]) -> Path:
-    """Persist one hotel profile payload to YAML and refresh in-memory cache."""
+    """Persist one hotel profile payload to YAML and refresh only that cache entry."""
     validated = HotelProfile.model_validate(profile_data)
     hotel_id = validated.hotel_id
     target_path = _profile_sources.get(hotel_id) or _build_profile_path(validated)
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with target_path.open("w", encoding="utf-8") as file_obj:
-        yaml.safe_dump(
-            profile_data,
-            file_obj,
-            allow_unicode=True,
-            sort_keys=False,
-            default_flow_style=False,
-        )
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=str(target_path.parent),
+            prefix=f".{target_path.stem}.",
+            suffix=".tmp",
+            delete=False,
+        ) as file_obj:
+            yaml.safe_dump(
+                profile_data,
+                file_obj,
+                allow_unicode=True,
+                sort_keys=False,
+                default_flow_style=False,
+            )
+            temp_path = Path(file_obj.name)
+        temp_path.replace(target_path)
+    finally:
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
 
     _profile_sources[hotel_id] = target_path
-    reload_profiles()
+    _profiles[hotel_id] = validated
     return target_path
 
 
