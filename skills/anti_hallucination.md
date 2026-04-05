@@ -105,6 +105,10 @@
 
 5. **İnternet varsayımı yapma** — Runtime sırasında LLM internet erişimine sahip değildir. "Web sitesine göre" deme ve `HOTEL_PROFILE` dışında harici URL referansı verme.
 
+6. **Menü/yemek bilgisi uydurma** — Menü, yemek, tatlı, içecek önerisi YALNIZCA `HOTEL_PROFILE.restaurant.menu` kataloğundan verilebilir. Katalog boşsa veya tanımlı değilse: "Güncel menümüz hakkında sizi restoranımız veya resepsiyon ile yönlendirebilirim" de. LLM eğitim verisinden yemek/tatlı/içecek önerisi üretmek **kesinlikle yasaktır**. Bu kural, fiyat için `booking.quote` gerektirmesi ile aynı seviyededir.
+
+7. **Tool'suz fiziksel operasyon taahhüdü verme** — "Hazırlıyorum", "gönderiyorum", "sipariş alıyorum" gibi fiziksel işlem taahhüdü ancak ilgili tool (ör. `room_service.create_order`) başarıyla çağrıldıktan sonra verilebilir. Tool çağrılmadan taahhüt vermek halüsinasyon olarak değerlendirilir ve `PHYSICAL_OPERATION_REQUEST` risk flag'i tetikler.
+
 ## Kalıp Örnekler
 
 ### System prompt birleştirme (`prompt_builder.py`)
@@ -171,6 +175,10 @@ def select_template(
 - QC gate'i atlama; kontrol fail ederse soru sor, tool çağır veya escalate et
 - Uygun şablon varken uzun serbest metin üretme
 - Kesin süre verme; "10 dakika içinde" yerine "en kısa sürede" de
+- `HOTEL_PROFILE.restaurant.menu` kataloğu olmadan menü/yemek/tatlı/içecek önerisi yapmak
+- `room_service.create_order` tool çağrılmadan oda servisi siparişi taahhüt etmek
+- Herhangi bir tool çağrılmadan fiziksel operasyon ("hazırlatıyorum", "gönderiyorum") taahhüdü vermek
+- Menü kataloğunda olmayan ürünleri (LLM eğitim verisinden) önermek
 
 ## Kontrol Listesi
 
@@ -189,3 +197,11 @@ def select_template(
 - [ ] QC gate toplam süresi ≤500ms (logda `qc_duration_ms` alanı var)
 - [ ] QC fail durumunda öncelik sırası uygulanıyor (Security > Escalation > Policy > Source > Intent > Format > Session)
 - [ ] Tek QC check timeout'u tanımlı (500ms) ve `QC_TIMEOUT` flag'i loglanıyor
+- [ ] Menü/yemek/tatlı önerisi yapılmadan önce `HOTEL_PROFILE.restaurant.menu` kataloğu kontrol ediliyor
+- [ ] Menü kataloğu boşsa LLM serbest menü önerisi üretmiyor; misafiri restorana/resepsiyona yönlendiriyor
+- [ ] Oda servisi siparişi `room_service.create_order` tool çağrısı olmadan taahhüt edilmiyor
+- [ ] Fiziksel operasyon taahhüdü ("hazırlatıyorum", "gönderiyorum") tool çağrısı olmadan verilmiyor
+- [ ] `response_validator` toolless commitment pattern'ı yakalıyor ve güvenli handoff mesajına çeviriyor
+- [ ] `vegan` / `vegetarian` anahtar kelimeleri `ALLERGY_ALERT` risk flag'ini tetikliyor
+- [ ] Her sipariş/oda servisi talebi CHEF + OPS rollerine `notify.send` ile bildiriliyor
+- [ ] `PHYSICAL_OPERATION_REQUEST` ve `MENU_HALLUCINATION_RISK` risk flag'leri escalation matrix'te tanımlı

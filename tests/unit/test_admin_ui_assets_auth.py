@@ -318,7 +318,7 @@ def test_admin_panel_save_and_publish_use_loaded_draft_checksum_baseline() -> No
     assert "hotelProfileMode: 'standard'" in ADMIN_PANEL_SCRIPT
     assert "hotelFactsDraftValidation: null" in ADMIN_PANEL_SCRIPT
     assert (
-        "state.hotelProfileLoadedSourceChecksum = responses[1]?.draft_source_profile_checksum || null;"
+        "state.hotelProfileLoadedSourceChecksum = state.hotelFactsStatus?.draft_source_profile_checksum || null;"
         in ADMIN_PANEL_SCRIPT
     )
     assert "state.hotelProfileLoadedDraftSnapshot = refs.hotelProfileEditor.value;" in ADMIN_PANEL_SCRIPT

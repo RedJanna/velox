@@ -18,6 +18,7 @@ from velox.db.repositories.reservation import ReservationRepository
 from velox.models.reservation import BookingAvailabilityRequest, BookingQuoteRequest, StayDraft, StayHold
 from velox.tools.approval import ApprovalRequestTool
 from velox.tools.base import BaseTool
+from velox.tools.season import are_dates_within_hotel_season, out_of_season_response
 
 logger = structlog.get_logger(__name__)
 
@@ -28,6 +29,13 @@ class BookingAvailabilityTool(BaseTool):
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         self.validate_required(kwargs, ["hotel_id", "checkin_date", "checkout_date", "adults"])
         request = BookingAvailabilityRequest.model_validate(kwargs)
+        profile = get_profile(request.hotel_id)
+        if profile is not None and not are_dates_within_hotel_season(
+            profile,
+            (request.checkin_date, request.checkout_date),
+            invalid_event="booking_season_config_invalid",
+        ):
+            return out_of_season_response(profile)
         response = await availability(
             hotel_id=request.hotel_id,
             checkin=request.checkin_date,
@@ -46,6 +54,13 @@ class BookingQuoteTool(BaseTool):
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         self.validate_required(kwargs, ["hotel_id", "checkin_date", "checkout_date", "adults"])
         request = BookingQuoteRequest.model_validate(kwargs)
+        profile = get_profile(request.hotel_id)
+        if profile is not None and not are_dates_within_hotel_season(
+            profile,
+            (request.checkin_date, request.checkout_date),
+            invalid_event="booking_season_config_invalid",
+        ):
+            return out_of_season_response(profile)
         response = await quote(
             hotel_id=request.hotel_id,
             checkin=request.checkin_date,
@@ -82,6 +97,12 @@ class StayCreateHoldTool(BaseTool):
         # Validate and resolve room_type_id against hotel profile
         room_name = ""
         profile = get_profile(hotel_id)
+        if profile is not None and not are_dates_within_hotel_season(
+            profile,
+            (draft.checkin_date, draft.checkout_date),
+            invalid_event="booking_season_config_invalid",
+        ):
+            return out_of_season_response(profile)
         if profile and profile.room_types:
             valid_pms_ids = {rt.pms_room_type_id for rt in profile.room_types}
             internal_id_map = {rt.id: rt for rt in profile.room_types}

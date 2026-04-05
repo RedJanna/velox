@@ -34,3 +34,17 @@ def test_response_validator_enforces_out_of_scope_refusal_consistency() -> None:
     lowered = validated.user_message.lower()
     assert "dogrudan destek saglayamiyorum" in lowered
     assert "otel hizmetlerimizle ilgili" in lowered
+
+
+def test_response_validator_blocks_toolless_reservation_commitment() -> None:
+    response = LLMResponse(
+        user_message="Restoran rezervasyonunuzu olusturuyorum, birazdan tamamliyorum.",
+        internal_json=InternalJSON(language="tr", tool_calls=[]),
+    )
+
+    validated = validate_guest_response(response, default_language="tr")
+
+    lowered = validated.user_message.lower()
+    assert "ilgili ekibimize iletiyorum" in lowered
+    assert "rezervasyonunuzu olusturuyorum" not in lowered
+    assert "toolless_commitment_blocked" in validated.internal_json.entities["response_validator"]["rules"]

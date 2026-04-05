@@ -1,16 +1,19 @@
 """Health and readiness endpoints for container orchestration."""
 
 import asyncio
+from ipaddress import ip_address
 from typing import Any
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from velox.config.settings import settings
 from velox.core.hotel_profile_loader import get_all_profiles
+from velox.utils.metrics import prometheus_content_type, render_metrics
 
 router = APIRouter(prefix="/health", tags=["health"])
+metrics_router = APIRouter(tags=["metrics"])
 
 
 def _result(ok: bool, detail: str, **extra: Any) -> dict[str, Any]:
@@ -18,6 +21,23 @@ def _result(ok: bool, detail: str, **extra: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {"ok": ok, "detail": detail}
     payload.update(extra)
     return payload
+
+
+def _metrics_client_allowed(request: Request) -> bool:
+    """Allow metrics access only from loopback/private client networks by default."""
+    if settings.metrics_allow_public:
+        return True
+
+    client = request.client
+    if client is None or not client.host:
+        return False
+
+    try:
+        client_ip = ip_address(client.host)
+    except ValueError:
+        return False
+
+    return any(client_ip in network for network in settings.metrics_allowed_networks)
 
 
 async def check_db(request: Request) -> dict[str, Any]:
@@ -157,4 +177,18 @@ async def readiness_check(request: Request) -> JSONResponse:
     return JSONResponse(
         content={"status": "ready" if all_ok else "not_ready", "checks": checks},
         status_code=200 if all_ok else 503,
+    )
+
+
+@metrics_router.get("/metrics", response_class=PlainTextResponse, include_in_schema=False)
+async def metrics(request: Request) -> PlainTextResponse:
+    """Expose in-process Prometheus-style counters for runtime observability."""
+    if not _metrics_client_allowed(request):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="metrics_access_denied",
+        )
+    return PlainTextResponse(
+        content=render_metrics(),
+        media_type=prometheus_content_type(),
     )

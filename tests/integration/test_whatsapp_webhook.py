@@ -1,6 +1,7 @@
 """Integration tests for WhatsApp webhook routes."""
 
 import time
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
@@ -11,7 +12,7 @@ from fastapi import FastAPI
 
 from velox.adapters.whatsapp.webhook import IncomingMessage
 from velox.api.routes import whatsapp_webhook
-from velox.config.constants import EscalationLevel, Role
+from velox.config.constants import EscalationLevel, RestaurantReservationMode, Role
 from velox.core.burst_buffer import AggregatedMessage
 from velox.models.conversation import Conversation, InternalJSON, LLMResponse, Message
 from velox.models.escalation import EscalationResult
@@ -98,6 +99,25 @@ class _FakeHandoffConversationRepository:
         return None
 
 
+class _FakeConversationLifecycleRepository:
+    def __init__(self, active_conversation: Conversation | None) -> None:
+        self.active_conversation = active_conversation
+        self.closed_ids: list[str] = []
+        self.created_conversations: list[Conversation] = []
+
+    async def get_active_by_phone(self, hotel_id: int, phone_hash: str) -> Conversation | None:
+        _ = (hotel_id, phone_hash)
+        return self.active_conversation
+
+    async def close(self, conversation_id) -> None:
+        self.closed_ids.append(str(conversation_id))
+
+    async def create(self, conv: Conversation) -> Conversation:
+        conv.id = uuid4()
+        self.created_conversations.append(conv)
+        return conv
+
+
 @pytest.fixture
 async def webhook_client(reset_whatsapp_webhook_state: None) -> httpx.AsyncClient:
     """Build lightweight app exposing only whatsapp webhook routes."""
@@ -110,6 +130,269 @@ async def webhook_client(reset_whatsapp_webhook_state: None) -> httpx.AsyncClien
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
+
+
+@pytest.mark.asyncio
+async def test_create_or_get_conversation_keeps_recent_active_conversation() -> None:
+    incoming = IncomingMessage(
+        message_id="m-recent",
+        phone="905551112233",
+        display_name="Guest",
+        text="Merhaba",
+        timestamp=int(time.time()),
+        message_type="text",
+    )
+    active = Conversation(
+        id=uuid4(),
+        hotel_id=21966,
+        phone_hash="hash",
+        phone_display="905551112233",
+        language="tr",
+        last_message_at=datetime.now(UTC) - timedelta(minutes=5),
+    )
+    repository = _FakeConversationLifecycleRepository(active_conversation=active)
+
+    result = await whatsapp_webhook._create_or_get_conversation(repository, incoming, 21966)
+
+    assert result.id == active.id
+    assert repository.closed_ids == []
+    assert repository.created_conversations == []
+
+
+@pytest.mark.asyncio
+async def test_create_or_get_conversation_resets_after_20_minutes_of_inactivity() -> None:
+    incoming = IncomingMessage(
+        message_id="m-stale",
+        phone="905551112233",
+        display_name="Guest",
+        text="hello",
+        timestamp=int(time.time()),
+        message_type="text",
+    )
+    active = Conversation(
+        id=uuid4(),
+        hotel_id=21966,
+        phone_hash="hash",
+        phone_display="905551112233",
+        language="tr",
+        last_message_at=datetime.now(UTC) - timedelta(minutes=21),
+    )
+    repository = _FakeConversationLifecycleRepository(active_conversation=active)
+
+    result = await whatsapp_webhook._create_or_get_conversation(repository, incoming, 21966)
+
+    assert repository.closed_ids == [str(active.id)]
+    assert len(repository.created_conversations) == 1
+    assert result.id != active.id
+    assert result.hotel_id == 21966
+    assert result.language == "en"
+
+
+# ── Proactive idle-reset (background loop) tests ───────────────────────────
+
+
+class _FakeIdleResetRepository:
+    """Minimal fake that records close() calls and returns canned idle conversations."""
+
+    def __init__(
+        self,
+        idle_conversations: list[Conversation] | None = None,
+        warn_conversations: list[Conversation] | None = None,
+    ) -> None:
+        self._idle = idle_conversations or []
+        self._warn = warn_conversations or []
+        self.closed_ids: list[str] = []
+
+    async def get_idle_after_assistant(self, idle_seconds: int) -> list[Conversation]:
+        _ = idle_seconds
+        return self._idle
+
+    async def get_idle_after_assistant_in_range(
+        self, min_idle_seconds: int, max_idle_seconds: int,
+    ) -> list[Conversation]:
+        _ = (min_idle_seconds, max_idle_seconds)
+        return self._warn
+
+    async def close(self, conversation_id) -> None:
+        self.closed_ids.append(str(conversation_id))
+
+
+class _FakeWhatsAppClient:
+    """Captures send_text_message calls."""
+
+    def __init__(self) -> None:
+        self.sent_messages: list[tuple[str, str]] = []
+
+    async def send_text_message(self, to: str, body: str, *, force: bool = False) -> dict:
+        _ = force
+        self.sent_messages.append((to, body))
+        return {"messages": [{"id": "fake"}]}
+
+
+@pytest.mark.asyncio
+async def test_idle_reset_loop_closes_and_sends_farewell(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The proactive idle-reset loop should close conversations and send
+    a farewell WhatsApp message to the customer."""
+    from velox.core import conversation_idle_reset as idle_mod
+
+    stale_conv = Conversation(
+        id=uuid4(),
+        hotel_id=21966,
+        phone_hash="hash_idle",
+        phone_display="905550001122",
+        language="tr",
+        last_message_at=datetime.now(UTC) - timedelta(minutes=25),
+    )
+    fake_repo = _FakeIdleResetRepository(idle_conversations=[stale_conv])
+    fake_wa = _FakeWhatsAppClient()
+
+    monkeypatch.setattr(idle_mod, "ConversationRepository", lambda: fake_repo)
+    monkeypatch.setattr(idle_mod, "get_whatsapp_client", lambda: fake_wa)
+    monkeypatch.setattr(idle_mod, "get_profile", lambda hid: None)  # use defaults
+
+    call_count = 0
+
+    async def _fake_sleep(seconds: float) -> None:  # noqa: ARG001
+        nonlocal call_count
+        call_count += 1
+        if call_count > 1:
+            raise asyncio.CancelledError
+
+    import asyncio
+
+    monkeypatch.setattr(asyncio, "sleep", _fake_sleep)
+    idle_mod.clear_warned_ids()
+
+    await idle_mod.run_idle_reset_loop()
+
+    assert fake_repo.closed_ids == [str(stale_conv.id)]
+    # Should have sent a farewell ("closed") message
+    assert len(fake_wa.sent_messages) >= 1
+    farewell_phone, farewell_body = fake_wa.sent_messages[-1]
+    assert farewell_phone == "905550001122"
+    assert "kapatılmıştır" in farewell_body.lower() or "closed" in farewell_body.lower()
+
+
+@pytest.mark.asyncio
+async def test_idle_reset_loop_sends_warning_before_close(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The loop should send a warning message when the customer is approaching
+    the idle timeout but hasn't reached it yet."""
+    from velox.core import conversation_idle_reset as idle_mod
+
+    warn_conv = Conversation(
+        id=uuid4(),
+        hotel_id=21966,
+        phone_hash="hash_warn",
+        phone_display="905559998877",
+        language="tr",
+        last_message_at=datetime.now(UTC) - timedelta(minutes=16),
+    )
+    fake_repo = _FakeIdleResetRepository(
+        warn_conversations=[warn_conv],
+        idle_conversations=[],
+    )
+    fake_wa = _FakeWhatsAppClient()
+
+    monkeypatch.setattr(idle_mod, "ConversationRepository", lambda: fake_repo)
+    monkeypatch.setattr(idle_mod, "get_whatsapp_client", lambda: fake_wa)
+    monkeypatch.setattr(idle_mod, "get_profile", lambda hid: None)
+
+    call_count = 0
+
+    async def _fake_sleep(seconds: float) -> None:  # noqa: ARG001
+        nonlocal call_count
+        call_count += 1
+        if call_count > 1:
+            raise asyncio.CancelledError
+
+    import asyncio
+
+    monkeypatch.setattr(asyncio, "sleep", _fake_sleep)
+    idle_mod.clear_warned_ids()
+
+    await idle_mod.run_idle_reset_loop()
+
+    # Should NOT have closed anything
+    assert fake_repo.closed_ids == []
+    # Should have sent a warning message
+    assert len(fake_wa.sent_messages) == 1
+    warn_phone, warn_body = fake_wa.sent_messages[0]
+    assert warn_phone == "905559998877"
+    assert "5 dakika" in warn_body or "5 minutes" in warn_body
+
+
+@pytest.mark.asyncio
+async def test_idle_reset_loop_skips_when_no_stale_conversations(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No conversations should be closed when there are no stale ones."""
+    from velox.core import conversation_idle_reset as idle_mod
+
+    fake_repo = _FakeIdleResetRepository()
+
+    monkeypatch.setattr(idle_mod, "ConversationRepository", lambda: fake_repo)
+    monkeypatch.setattr(idle_mod, "get_profile", lambda hid: None)
+
+    call_count = 0
+
+    async def _fake_sleep(seconds: float) -> None:  # noqa: ARG001
+        nonlocal call_count
+        call_count += 1
+        if call_count > 1:
+            raise asyncio.CancelledError
+
+    import asyncio
+
+    monkeypatch.setattr(asyncio, "sleep", _fake_sleep)
+    idle_mod.clear_warned_ids()
+
+    await idle_mod.run_idle_reset_loop()
+
+    assert fake_repo.closed_ids == []
+
+
+@pytest.mark.asyncio
+async def test_idle_reset_disabled_per_hotel_skips_everything(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When conversation_idle_reset.enabled=False for a hotel, no warning
+    or close should happen."""
+    from velox.core import conversation_idle_reset as idle_mod
+    from velox.models.hotel_profile import ConversationIdleResetConfig, HotelProfile, LocalizedText
+
+    stale_conv = Conversation(
+        id=uuid4(),
+        hotel_id=99999,
+        phone_hash="hash_disabled",
+        phone_display="905551234567",
+        language="tr",
+        last_message_at=datetime.now(UTC) - timedelta(minutes=25),
+    )
+    fake_repo = _FakeIdleResetRepository(idle_conversations=[stale_conv])
+    fake_wa = _FakeWhatsAppClient()
+
+    disabled_profile = HotelProfile(
+        hotel_id=99999,
+        hotel_name=LocalizedText(tr="Test Otel", en="Test Hotel"),
+        conversation_idle_reset=ConversationIdleResetConfig(enabled=False),
+    )
+    monkeypatch.setattr(idle_mod, "ConversationRepository", lambda: fake_repo)
+    monkeypatch.setattr(idle_mod, "get_whatsapp_client", lambda: fake_wa)
+    monkeypatch.setattr(idle_mod, "get_profile", lambda hid: disabled_profile)
+
+    call_count = 0
+
+    async def _fake_sleep(seconds: float) -> None:  # noqa: ARG001
+        nonlocal call_count
+        call_count += 1
+        if call_count > 1:
+            raise asyncio.CancelledError
+
+    import asyncio
+
+    monkeypatch.setattr(asyncio, "sleep", _fake_sleep)
+    idle_mod.clear_warned_ids()
+
+    await idle_mod.run_idle_reset_loop()
+
+    assert fake_repo.closed_ids == []
+    assert fake_wa.sent_messages == []
 
 
 @pytest.mark.asyncio
@@ -382,6 +665,53 @@ def test_stay_hold_submission_detects_embedded_approval_request_id() -> None:
         }
     ]
     assert whatsapp_webhook._executed_stay_hold_submission(executed_calls) is True
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_mirrors_native_executed_calls_into_internal_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Validator/persistence should see the real executed tool calls even when content reports none."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Wifi bilgisi hazir.\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"faq_info","state":"ANSWERED","entities":{},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},'
+            '"next_step":"await_guest_reply"}',
+            [
+                {
+                    "name": "faq_lookup",
+                    "arguments": {"hotel_id": 21966, "query": "wifi"},
+                    "result": {"answer": "Wifi ucretsiz."},
+                }
+            ],
+        )
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    conversation = Conversation(hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="Wifi var mi?",
+        expected_language="tr",
+    )
+
+    assert result.internal_json.tool_calls == [
+        {
+            "name": "faq_lookup",
+            "status": "executed",
+            "arguments": {"hotel_id": 21966, "query": "wifi"},
+            "result": {"answer": "Wifi ucretsiz."},
+        }
+    ]
 
 
 def test_merge_entities_with_context_ignores_null_and_blank_values() -> None:
@@ -776,6 +1106,793 @@ async def test_run_message_pipeline_auto_submits_hold_when_embedded_tool_calls_o
     assert dispatcher.calls[1][1]["conversation_id"] == str(conversation.id)
     assert result.internal_json.state == "PENDING_APPROVAL"
     assert result.internal_json.next_step == "await_admin_approval"
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_restaurant_single_area_prompt_is_suppressed_and_auto_submitted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Single-area restaurant profiles should not block on indoor/outdoor confirmation."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Iciniz mi disiniz mi tercih edersiniz?\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"restaurant_booking_create","state":"NEEDS_VERIFICATION","entities":'
+            '{"date":"2026-08-10","time":"20:00","party_size":4,"guest_name":"Ali Veli","phone":"+905551112233"},'
+            '"required_questions":["area"],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},'
+            '"next_step":"collect_restaurant_area"}',
+            [],
+        )
+
+    class _Dispatcher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append((name, kwargs))
+            if name == "restaurant_availability":
+                assert kwargs["area"] == "outdoor"
+                return {
+                    "available": True,
+                    "options": [{"slot_id": "42", "time": "20:00:00", "area": "outdoor"}],
+                }
+            if name == "restaurant_create_hold":
+                assert kwargs["area"] == "outdoor"
+                return {
+                    "restaurant_hold_id": "R_HOLD_9001",
+                    "status": "PENDING_APPROVAL",
+                    "approval_request_id": "APR_R_9001",
+                }
+            return {"error": "unexpected_tool"}
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    fake_profile = SimpleNamespace(
+        restaurant=SimpleNamespace(area_types=["outdoor"], hours={"dinner": "19:00-23:00"}),
+        season={"open": "04-20", "close": "10-31"},
+    )
+    dispatcher = _Dispatcher()
+    conversation = Conversation(id=uuid4(), hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: fake_profile)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="devam edelim",
+        dispatcher=dispatcher,
+        expected_language="tr",
+    )
+
+    assert [item[0] for item in dispatcher.calls] == ["restaurant_availability", "restaurant_create_hold"]
+    assert result.internal_json.state == "PENDING_APPROVAL"
+    assert result.internal_json.next_step == "await_admin_approval"
+    assert result.internal_json.entities["area"] == "outdoor"
+    assert "Restoran rezervasyon talebinizi aldik" in result.user_message
+    assert [item["name"] for item in result.internal_json.tool_calls] == [
+        "restaurant_availability",
+        "restaurant_create_hold",
+        "approval_request",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_restaurant_auto_submit_sets_confirmed_when_hold_is_finalized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Restaurant fallback should finalize the state when create_hold returns confirmed status."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Rezervasyon talebinizi onayliyorum.\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"restaurant_booking_create","state":"NEEDS_CONFIRMATION","entities":'
+            '{"date":"2026-08-10","time":"20:00","party_size":2,"guest_name":"Ayse Kaya","phone":"+905551110000"},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},'
+            '"next_step":"await_tool_result"}',
+            [],
+        )
+
+    class _Dispatcher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append((name, kwargs))
+            if name == "restaurant_availability":
+                return {
+                    "available": True,
+                    "options": [{"slot_id": "84", "time": "20:00:00", "area": "outdoor"}],
+                }
+            if name == "restaurant_create_hold":
+                return {
+                    "restaurant_hold_id": "R_HOLD_9010",
+                    "status": "ONAYLANDI",
+                }
+            return {"error": "unexpected_tool"}
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    fake_profile = SimpleNamespace(
+        restaurant=SimpleNamespace(area_types=["outdoor"], hours={"dinner": "19:00-23:00"}),
+        season={"open": "04-20", "close": "10-31"},
+    )
+    dispatcher = _Dispatcher()
+    conversation = Conversation(id=uuid4(), hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: fake_profile)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="evet",
+        dispatcher=dispatcher,
+        expected_language="tr",
+    )
+
+    assert [item[0] for item in dispatcher.calls] == ["restaurant_availability", "restaurant_create_hold"]
+    assert result.internal_json.state == "CONFIRMED"
+    assert result.internal_json.next_step == "reservation_confirmed"
+    assert "Restoran rezervasyonunuz onaylandi" in result.user_message
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_restaurant_auto_submit_returns_deterministic_out_of_season_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Out-of-season restaurant fallback should ask for a new date instead of pretending success."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Restoran rezervasyonunuzu olusturuyorum.\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"restaurant_booking_create","state":"READY_FOR_TOOL","entities":'
+            '{"date":"2026-04-01","time":"20:00","party_size":4,"guest_name":"Ali Veli","phone":"+905551112233"},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},'
+            '"next_step":"run_restaurant_availability"}',
+            [],
+        )
+
+    class _Dispatcher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append((name, kwargs))
+            if name == "restaurant_availability":
+                return {
+                    "available": False,
+                    "reason": "OUT_OF_SEASON",
+                    "options": [],
+                    "season": {"open": "04-20", "close": "10-31"},
+                }
+            return {"error": "unexpected_tool"}
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    fake_profile = SimpleNamespace(
+        restaurant=SimpleNamespace(area_types=["outdoor"], hours={"dinner": "19:00-23:00"}),
+        season={"open": "04-20", "close": "10-31"},
+    )
+    dispatcher = _Dispatcher()
+    conversation = Conversation(id=uuid4(), hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: fake_profile)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="1 Nisan icin 4 kisilik restoran rezervasyonu olusturalim",
+        dispatcher=dispatcher,
+        expected_language="tr",
+    )
+
+    assert [item[0] for item in dispatcher.calls] == ["restaurant_availability"]
+    assert result.internal_json.state == "NEEDS_VERIFICATION"
+    assert result.internal_json.required_questions == ["date"]
+    assert result.internal_json.handoff["needed"] is False
+    assert "sezon disinda" in result.user_message.casefold()
+    assert "20 Nisan" in result.user_message
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_restaurant_real_conversation_regression_does_not_block_on_area_before_out_of_season_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Single-area restaurant flow should skip area question and immediately surface season rejection."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Ic mekan mi dis mekan mi tercih edersiniz?\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"restaurant_booking_create","state":"NEEDS_VERIFICATION","entities":'
+            '{"date":"2026-04-01","time":"20:00","party_size":4,"guest_name":"Ali Veli","phone":"+905551112233"},'
+            '"required_questions":["area"],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},'
+            '"next_step":"collect_restaurant_area"}',
+            [],
+        )
+
+    class _Dispatcher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append((name, kwargs))
+            if name == "restaurant_availability":
+                assert kwargs["area"] == "outdoor"
+                return {
+                    "available": False,
+                    "reason": "OUT_OF_SEASON",
+                    "options": [],
+                    "season": {"open": "04-20", "close": "10-31"},
+                }
+            return {"error": "unexpected_tool"}
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    fake_profile = SimpleNamespace(
+        restaurant=SimpleNamespace(area_types=["outdoor"], hours={"dinner": "19:00-23:00"}),
+        season={"open": "04-20", "close": "10-31"},
+    )
+    dispatcher = _Dispatcher()
+    conversation = Conversation(id=uuid4(), hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: fake_profile)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="1 Nisan icin 4 kisilik restoran rezervasyonu istiyorum",
+        dispatcher=dispatcher,
+        expected_language="tr",
+    )
+
+    assert [item[0] for item in dispatcher.calls] == ["restaurant_availability"]
+    assert result.internal_json.state == "NEEDS_VERIFICATION"
+    assert result.internal_json.required_questions == ["date"]
+    assert result.internal_json.entities["area"] == "outdoor"
+    assert "sezon disinda" in result.user_message.casefold()
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_stay_out_of_season_returns_deterministic_date_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stay season rejections should explain the season window and request another date."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Tarihinizi kontrol ediyorum.",
+            [
+                {
+                    "name": "booking_availability",
+                    "arguments": {
+                        "hotel_id": 21966,
+                        "checkin_date": "2026-04-01",
+                        "checkout_date": "2026-04-03",
+                        "adults": 2,
+                    },
+                    "result": {
+                        "available": False,
+                        "reason": "OUT_OF_SEASON",
+                        "season": {"open": "04-20", "close": "10-31"},
+                    },
+                }
+            ],
+        )
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    fake_profile = SimpleNamespace(season={"open": "04-20", "close": "10-31"})
+    conversation = Conversation(id=uuid4(), hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: fake_profile)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="1 Nisan - 3 Nisan icin oda ayirabilir misiniz?",
+        dispatcher=None,
+        expected_language="tr",
+    )
+
+    assert result.internal_json.intent == "stay_availability"
+    assert result.internal_json.state == "NEEDS_VERIFICATION"
+    assert result.internal_json.required_questions == ["checkin_date"]
+    assert result.internal_json.handoff["needed"] is False
+    assert "sezon disinda" in result.user_message.casefold()
+    assert "20 Nisan" in result.user_message
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_transfer_out_of_season_returns_deterministic_date_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Transfer season rejections should ask for another in-season transfer date."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Transfer rezervasyonunu olusturuyorum.",
+            [
+                {
+                    "name": "transfer_create_hold",
+                    "arguments": {
+                        "hotel_id": 21966,
+                        "route": "DALAMAN_AIRPORT_TO_HOTEL",
+                        "date": "2026-04-01",
+                        "time": "12:00",
+                        "pax_count": 2,
+                    },
+                    "result": {
+                        "available": False,
+                        "reason": "OUT_OF_SEASON",
+                        "season": {"open": "04-20", "close": "10-31"},
+                    },
+                }
+            ],
+        )
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    fake_profile = SimpleNamespace(season={"open": "04-20", "close": "10-31"})
+    conversation = Conversation(id=uuid4(), hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: fake_profile)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="1 Nisan icin Dalaman transferi ayirabilir misiniz?",
+        dispatcher=None,
+        expected_language="tr",
+    )
+
+    assert result.internal_json.intent == "transfer_booking_create"
+    assert result.internal_json.state == "NEEDS_VERIFICATION"
+    assert result.internal_json.required_questions == ["date"]
+    assert result.internal_json.handoff["needed"] is False
+    assert "sezon disinda" in result.user_message.casefold()
+    assert "20 Nisan" in result.user_message
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_parser_error_without_tools_returns_safe_retry_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing structured output should not pass through raw reservation promises."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return ("Rezervasyonunuzu olusturuyorum.", [])
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    conversation = Conversation(id=uuid4(), hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="1 Nisan icin rezervasyon olustur",
+        expected_language="tr",
+    )
+
+    assert result.internal_json.state == "NEEDS_VERIFICATION"
+    assert result.internal_json.next_step == "restate_guest_request"
+    assert "STRUCTURED_OUTPUT_ERROR" in result.internal_json.risk_flags
+    assert result.internal_json.entities["response_parser"]["reason"] == "missing_internal_json"
+    assert "tek kisa mesajla" in result.user_message.casefold()
+    assert "olusturuyorum" not in result.user_message.casefold()
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_repairs_structured_output_before_retry_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Parser errors should attempt schema repair before returning the generic retry response."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return ("Talebinizi aldim.", [])
+
+    async def fake_repair_structured_output(**_kwargs: Any) -> dict[str, Any]:
+        return {
+            "user_message": "Talebinizi aldim. Tarih bilgisinizi paylasir misiniz?",
+            "internal_json": {
+                "language": "tr",
+                "intent": "stay_booking_create",
+                "state": "NEEDS_VERIFICATION",
+                "entities": {"source": "repair"},
+                "required_questions": ["checkin_date"],
+                "tool_calls": [],
+                "notifications": [],
+                "handoff": {"needed": False},
+                "risk_flags": [],
+                "escalation": {"level": "L0", "route_to_role": "NONE"},
+                "next_step": "collect_checkin_date",
+            },
+        }
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(
+        run_tool_call_loop=fake_run_tool_call_loop,
+        repair_structured_output=fake_repair_structured_output,
+    )
+    conversation = Conversation(id=uuid4(), hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="1 Nisan icin rezervasyon olustur",
+        expected_language="tr",
+    )
+
+    assert result.internal_json.intent == "stay_booking_create"
+    assert result.internal_json.state == "NEEDS_VERIFICATION"
+    assert result.internal_json.required_questions == ["checkin_date"]
+    assert "STRUCTURED_OUTPUT_ERROR" not in result.internal_json.risk_flags
+    assert result.internal_json.entities["source"] == "repair"
+    assert "scope_classifier" in result.internal_json.entities
+    assert "tek kisa mesajla" not in result.user_message.casefold()
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_clears_stale_response_parser_context_on_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A successful turn should not inherit old response_parser metadata from conversation context."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "10-12 Haziran icin fiyat paylasabilirim.\n"
+            'INTERNAL_JSON: {"language":"tr","intent":"stay_quote","state":"NEEDS_VERIFICATION",'
+            '"entities":{"checkin_date":"2026-06-10","checkout_date":"2026-06-12","adults":2},'
+            '"required_questions":["room_type_id"],"tool_calls":[],"notifications":[],'
+            '"handoff":{"needed":false},"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},'
+            '"next_step":"collect_room_type_id"}',
+            [],
+        )
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    conversation = Conversation(
+        id=uuid4(),
+        hotel_id=21966,
+        phone_hash="hash",
+        language="tr",
+        entities_json={"response_parser": {"reason": "invalid_internal_json", "applied": True}},
+    )
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="10 haziran 12 haziran 2 yetiskin",
+        expected_language="tr",
+    )
+
+    assert result.internal_json.intent == "stay_quote"
+    assert "response_parser" not in result.internal_json.entities
+    assert "scope_classifier" in result.internal_json.entities
+
+
+def test_select_tool_definitions_for_restaurant_turn_returns_restaurant_shortlist() -> None:
+    """Turn-level tool filtering should prefer restaurant tools over unrelated domains."""
+    conversation = Conversation(
+        hotel_id=21966,
+        phone_hash="hash",
+        language="tr",
+        current_intent="restaurant_booking_create",
+    )
+
+    selected = whatsapp_webhook._select_tool_definitions_for_turn(
+        conversation,
+        "1 Nisan aksam yemegi icin masa ayirtmak istiyorum",
+        whatsapp_webhook.get_tool_definitions(),
+    )
+    tool_names = whatsapp_webhook._extract_tool_definition_names(selected)
+
+    assert "faq_lookup" in tool_names
+    assert "restaurant_availability" in tool_names
+    assert "restaurant_create_hold" in tool_names
+    assert "approval_request" in tool_names
+    assert "booking_availability" not in tool_names
+    assert "transfer_get_info" not in tool_names
+    assert "room_service_create_order" not in tool_names
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_clamps_stay_followup_when_llm_drifts_into_restaurant_intent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stay-only date follow-ups must not drift into restaurant intent when no restaurant tools were presented."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Restoran rezervasyonunuzu memnuniyetle oluşturalım.\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"restaurant_booking_create","state":"NEEDS_VERIFICATION","entities":{},'
+            '"required_questions":["time"],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"collect_restaurant_time"}',
+            [],
+        )
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    conversation = Conversation(
+        id=uuid4(),
+        hotel_id=21966,
+        phone_hash="hash",
+        language="tr",
+        messages=[],
+    )
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="10 haziran 12 haziran 2 yetişkin",
+        dispatcher=None,
+        expected_language="tr",
+    )
+
+    assert result.internal_json.intent == "stay_availability"
+    assert result.internal_json.state == "NEEDS_VERIFICATION"
+    assert result.internal_json.required_questions == ["chd_ages"]
+    assert result.internal_json.next_step == "collect_stay_children_or_confirm_none"
+    assert result.internal_json.entities["intent_domain_guard"]["applied"] is True
+    assert result.internal_json.entities["stay_followup_hints"]["date_mentions"] == ["10 Haziran", "12 Haziran"]
+    assert result.internal_json.entities["stay_followup_hints"]["adults"] == 2
+    assert "Konaklama talebinizi not aldım" in result.user_message
+    assert "Çocuk olacaksa yaşlarını paylaşır mısınız?" in result.user_message
+
+
+def test_apply_turn_intent_domain_guard_normalizes_minor_month_typo_to_stay_followup() -> None:
+    """Minor month typos should still trigger the stay-domain guard."""
+
+    response = LLMResponse(
+        user_message="Restoran için hangi saati tercih edersiniz?",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="restaurant_booking_create",
+            state="NEEDS_VERIFICATION",
+            entities={},
+            required_questions=["time"],
+            tool_calls=[],
+            notifications=[],
+            handoff={"needed": False},
+            risk_flags=[],
+            escalation={"level": "L0", "route_to_role": "NONE"},
+            next_step="collect_restaurant_time",
+        ),
+    )
+
+    meta = whatsapp_webhook._apply_turn_intent_domain_guard(
+        response,
+        normalized_text="10 haaziran",
+        tool_names_presented=[
+            "booking_availability",
+            "booking_quote",
+            "stay_create_hold",
+            "handoff_create_ticket",
+            "faq_lookup",
+        ],
+    )
+
+    assert meta is not None
+    assert response.internal_json.intent == "stay_availability"
+    assert response.internal_json.required_questions == ["checkout_date"]
+    assert response.internal_json.next_step == "collect_stay_checkout_date"
+    assert response.internal_json.entities["stay_followup_hints"]["date_mentions"] == ["10 Haziran"]
+    assert "10 Haziran" in response.user_message
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_replays_real_conversation_a71beafc_and_routes_to_season_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Replay the real conversation transcript and ensure the final turn no longer blocks on area."""
+
+    transcript_outputs = iter(
+        [
+            (
+                "Vegan tatlı seçeneklerimizle ilgili memnuniyetle yardımcı olurum.\n"
+                "INTERNAL_JSON: "
+                '{"language":"tr","intent":"menu_inquiry","state":"ANSWERED","entities":{},'
+                '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+                '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"await_guest_reply"}'
+            ),
+            (
+                "Vegan tatlı seçeneklerimizle ilgili güncel bilgiyi restoran ekibimizden memnuniyetle teyit edebilirim.\n"
+                "Hangi tarih ve saatte gelmeyi planlıyorsunuz?\nKaç kişi olacaksınız?\n"
+                "INTERNAL_JSON: "
+                '{"language":"tr","intent":"restaurant_booking_create","state":"NEEDS_VERIFICATION","entities":{},'
+                '"required_questions":["date","time","party_size"],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+                '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"collect_restaurant_date_time_party_size"}'
+            ),
+            (
+                "Teşekkür ederim.\n1 Nisan saat 19:00 için not aldım.\nKaç kişi olacaksınız?\n"
+                "INTERNAL_JSON: "
+                '{"language":"tr","intent":"restaurant_booking_create","state":"NEEDS_VERIFICATION","entities":'
+                '{"date":"2026-04-01","time":"19:00"},'
+                '"required_questions":["party_size"],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+                '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"collect_restaurant_party_size"}'
+            ),
+            (
+                "Teşekkür ederim.\n1 Nisan saat 19:00 için 2 yetişkin olarak not aldım.\n"
+                "Rezervasyonunuzu oluşturabilmem için ad soyadınızı rica edebilir miyim?\n"
+                "INTERNAL_JSON: "
+                '{"language":"tr","intent":"restaurant_booking_create","state":"NEEDS_VERIFICATION","entities":'
+                '{"date":"2026-04-01","time":"19:00","party_size":2},'
+                '"required_questions":["guest_name"],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+                '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"collect_restaurant_guest_name"}'
+            ),
+            (
+                "Teşekkür ederim.\nRezervasyon kaydı için telefon numaranızı rica edebilir miyim?\n"
+                "INTERNAL_JSON: "
+                '{"language":"tr","intent":"restaurant_booking_create","state":"NEEDS_VERIFICATION","entities":'
+                '{"date":"2026-04-01","time":"19:00","party_size":2,"guest_name":"Deneme Deneme"},'
+                '"required_questions":["phone"],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+                '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"collect_restaurant_phone"}'
+            ),
+            (
+                "Teşekkür ederim.\n\n"
+                "1 Nisan saat 19:00 için 2 kişilik restoran rezervasyonunuzu oluşturuyorum.\n"
+                "Vegan tatlı talebinizi de not olarak ekleyeceğim.\n\n"
+                "Rezervasyonunuzu onaylamam için iç mekân mı, dış mekân mı tercih edersiniz?\n"
+                "INTERNAL_JSON: "
+                '{"language":"tr","intent":"restaurant_booking_create","state":"NEEDS_VERIFICATION","entities":'
+                '{"date":"2026-04-01","time":"19:00","party_size":2,"guest_name":"Deneme Deneme","phone":"+905304498453"},'
+                '"required_questions":["area"],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+                '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"collect_restaurant_area"}'
+            ),
+        ]
+    )
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return next(transcript_outputs), []
+
+    class _Dispatcher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append((name, kwargs))
+            if name == "restaurant_availability":
+                return {
+                    "available": False,
+                    "reason": "OUT_OF_SEASON",
+                    "options": [],
+                    "season": {"open": "04-20", "close": "10-31"},
+                }
+            return {"error": "unexpected_tool"}
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    fake_profile = SimpleNamespace(
+        restaurant=SimpleNamespace(area_types=["outdoor"], hours={"dinner": "19:00-23:00"}),
+        season={"open": "04-20", "close": "10-31"},
+    )
+    dispatcher = _Dispatcher()
+    conversation = Conversation(
+        id=uuid4(),
+        hotel_id=21966,
+        phone_hash="hash",
+        language="tr",
+        entities_json={},
+    )
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: fake_profile)
+
+    user_turns = [
+        "Vegan tatlılarınız konusunda yardımcı olur musun ?",
+        "restoran",
+        "1 nisan 19 00",
+        "2 yetişkin",
+        "Deneme Deneme",
+        "+905304498453",
+    ]
+
+    last_result: LLMResponse | None = None
+    for user_text in user_turns:
+        last_result = await whatsapp_webhook._run_message_pipeline(
+            conversation=conversation,
+            normalized_text=user_text,
+            dispatcher=dispatcher,
+            expected_language="tr",
+        )
+        merged_entities = whatsapp_webhook._merge_entities_with_context(
+            conversation.entities_json,
+            last_result.internal_json.entities,
+        )
+        conversation.entities_json = merged_entities
+
+    assert last_result is not None
+    assert [item[0] for item in dispatcher.calls] == ["restaurant_availability"]
+    assert last_result.internal_json.state == "NEEDS_VERIFICATION"
+    assert last_result.internal_json.required_questions == ["date"]
+    assert last_result.internal_json.entities["area"] == "outdoor"
+    assert "sezon disinda" in last_result.user_message.casefold()
+    assert "iç mekân mı, dış mekân mı" not in last_result.user_message.casefold()
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_emits_tool_trace_logs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pipeline should log tool presentation and structured output trace data for diagnostics."""
+
+    logged_events: list[tuple[str, dict[str, Any]]] = []
+
+    class _Logger:
+        def info(self, event: str, **kwargs: Any) -> None:
+            logged_events.append((event, kwargs))
+
+        def warning(self, event: str, **kwargs: Any) -> None:
+            logged_events.append((event, kwargs))
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Wifi bilgisi hazır.\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"faq_info","state":"ANSWERED","entities":{},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"await_guest_reply"}',
+            [],
+        )
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [{"role": "user", "content": "Wifi var mi?"}])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    conversation = Conversation(id=uuid4(), hotel_id=21966, phone_hash="hash", language="tr")
+    tool_defs = [{"type": "function", "function": {"name": "faq_lookup"}}]
+
+    monkeypatch.setattr(whatsapp_webhook, "logger", _Logger())
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: tool_defs)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="Wifi var mi?",
+        expected_language="tr",
+    )
+
+    assert result.internal_json.state == "ANSWERED"
+    event_names = [event for event, _payload in logged_events]
+    assert "llm_tool_trace_start" in event_names
+    assert "llm_tool_trace_result" in event_names
+    assert "llm_structured_output_trace" in event_names
+    start_payload = next(payload for event, payload in logged_events if event == "llm_tool_trace_start")
+    assert start_payload["tool_names"] == ["faq_lookup"]
+    trace_payload = next(payload for event, payload in logged_events if event == "llm_structured_output_trace")
+    assert trace_payload["parsed_intent"] == "faq_info"
+    assert trace_payload["parser_error_reason"] is None
 
 
 @pytest.mark.asyncio
@@ -1726,6 +2843,85 @@ async def test_run_message_pipeline_media_guard_rewrites_profile_unsupported_roo
     assert "Süit" not in result.user_message
     assert result.internal_json.state == "NEEDS_VERIFICATION"
     assert result.internal_json.required_questions == ["checkin_date", "checkout_date", "adults"]
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_restaurant_manual_mode_bypasses_llm_and_forces_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Restaurant requests in MANUEL mode must skip LLM/tool flow and hand off immediately."""
+    llm_called = {"count": 0}
+
+    class _ManualModeSettingsRepo:
+        async def get(self, _hotel_id: int) -> Any:
+            return SimpleNamespace(reservation_mode=RestaurantReservationMode.MANUEL)
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        llm_called["count"] += 1
+        return ("", [])
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    conversation = Conversation(hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "RestaurantSettingsRepository", _ManualModeSettingsRepo)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="Restoran rezervasyonu yapmak istiyorum",
+        expected_language="tr",
+    )
+
+    assert llm_called["count"] == 0
+    assert result.internal_json.intent == "restaurant_booking_create"
+    assert result.internal_json.state == "HANDOFF"
+    assert result.internal_json.handoff["needed"] is True
+    assert result.internal_json.handoff["reason"] == "restaurant_manual_mode"
+    assert "manuel modda" in result.user_message.casefold()
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_restaurant_manual_mode_uses_existing_restaurant_context_without_keyword(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Manual mode should still hand off follow-up turns that continue restaurant intent context."""
+    llm_called = {"count": 0}
+
+    class _ManualModeSettingsRepo:
+        async def get(self, _hotel_id: int) -> Any:
+            return SimpleNamespace(reservation_mode=RestaurantReservationMode.MANUEL)
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        llm_called["count"] += 1
+        return ("", [])
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    conversation = Conversation(
+        hotel_id=21966,
+        phone_hash="hash",
+        language="tr",
+        current_intent="restaurant_booking_create",
+    )
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "RestaurantSettingsRepository", _ManualModeSettingsRepo)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="yarin 20:00 uygun mu",
+        expected_language="tr",
+    )
+
+    assert llm_called["count"] == 0
+    assert result.internal_json.state == "HANDOFF"
+    assert result.internal_json.handoff["needed"] is True
+    assert result.internal_json.handoff["reason"] == "restaurant_manual_mode"
 
 
 @pytest.mark.asyncio

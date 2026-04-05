@@ -128,7 +128,8 @@ def _booking_availability(args: dict[str, Any]) -> dict[str, Any]:
     if not _in_season(checkin) or not _in_season(checkout):
         return {
             "available": False,
-            "reason": "requested_dates_outside_season",
+            "reason": "OUT_OF_SEASON",
+            "suggestion": "request_valid_date",
             "season": {"open": "04-20", "close": "11-10"},
         }
 
@@ -171,8 +172,13 @@ def _booking_quote(args: dict[str, Any]) -> dict[str, Any]:
     adults = args.get("adults", 2)
     nights = _nights(checkin, checkout)
 
-    if not _in_season(checkin):
-        return {"error": "dates_outside_season"}
+    if not _in_season(checkin) or not _in_season(checkout):
+        return {
+            "available": False,
+            "reason": "OUT_OF_SEASON",
+            "suggestion": "request_valid_date",
+            "season": {"open": "04-20", "close": "11-10"},
+        }
 
     offers = []
     for pms_id, base_prices in _ROOM_BASE_PRICES.items():
@@ -332,6 +338,14 @@ def _transfer_get_info(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def _transfer_create_hold(args: dict[str, Any]) -> dict[str, Any]:
+    transfer_date = str(args.get("date") or "")
+    if transfer_date and not _in_season(transfer_date):
+        return {
+            "available": False,
+            "reason": "OUT_OF_SEASON",
+            "suggestion": "request_valid_date",
+            "season": {"open": "04-20", "close": "11-10"},
+        }
     return {
         "status": "HOLD_CREATED",
         "transfer_hold_id": f"THOLD-{_mock_id()}",

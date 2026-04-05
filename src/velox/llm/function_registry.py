@@ -227,6 +227,33 @@ def get_tool_definitions() -> list[dict[str, Any]]:
             },
         ),
         _def(
+            "room_service_create_order",
+            "Create a room-service order request and notify OPS and CHEF.",
+            {
+                "type": "object",
+                "properties": {
+                    "hotel_id": {"type": "integer"},
+                    "room_number": {"type": "string"},
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "quantity": {"type": "integer", "default": 1},
+                                "notes": {"type": "string"},
+                            },
+                            "required": ["name"],
+                        },
+                    },
+                    "guest_name": {"type": "string"},
+                    "phone": {"type": "string"},
+                    "dietary_notes": {"type": "string"},
+                },
+                "required": ["hotel_id", "room_number", "items"],
+            },
+        ),
+        _def(
             "approval_request",
             "Create approval request for stay, restaurant, or transfer.",
             {

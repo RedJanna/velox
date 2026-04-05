@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v5.2 | **Son güncelleme:** 2026-04-03 13:57:37
-> **Değişiklik özeti:** Pre-LLM scope classifier + response validator/fallback kütüphanesi eklendi; kapsam dışı ret akışı deterministikleştirildi.
+> **Sürüm:** v5.3 | **Son güncelleme:** 2026-04-04 11:55:34
+> **Değişiklik özeti:** Structured-output recovery/replay ve Prometheus metrics hattı eklendi; metrics erişimi varsayılan olarak iç ağ ile sınırlandı.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -376,6 +376,8 @@ All secrets, API keys, and configuration must be in environment variables. Never
 | `REDIS_SESSION_TTL_SECONDS` | Redis session TTL (saniye) | `1800` |
 | `SENTRY_DSN` | Sentry error tracking DSN | _(boş = devre dışı)_ |
 | `PROMETHEUS_PORT` | Prometheus metrics port | `9090` |
+| `METRICS_ALLOW_PUBLIC` | `/metrics` endpoint'ini herkese açar; varsayılan olarak kapalı tutulmalıdır | `false` |
+| `METRICS_ALLOWED_CIDRS` | `/metrics` endpoint'ine erişebilecek CIDR allowlist'i | `127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16` |
 | `MEDIA_ANALYSIS_ENABLED` | Inbound image analysis feature flag | `true` |
 | `MEDIA_MAX_BYTES` | Inbound media maksimum dosya boyutu (byte) | `8388608` |
 | `MEDIA_MAX_IMAGE_DIMENSION` | Görsel normalize sonrası max kenar piksel sınırı | `2048` |
@@ -497,7 +499,7 @@ Dosyanın en üstündeki sürüm bloğu, her güncelleme sonrası şu formatta g
 src/velox/
 ├── main.py                    # FastAPI entry point
 ├── config/                    # Settings, constants
-├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses
+├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses, structured-output replay helpers
 ├── llm/                       # OpenAI client, prompt builder, response parser
 ├── tools/                     # Tool implementations (booking, restaurant, etc.)
 ├── adapters/                  # External service clients (Elektraweb, WhatsApp)
@@ -506,5 +508,5 @@ src/velox/
 ├── models/                    # Pydantic data models
 ├── db/                        # Database connection, repositories, migrations
 ├── api/                       # FastAPI routes, middleware, embedded admin/chat-lab UI modules
-└── utils/                     # Logging, i18n, validators
+└── utils/                     # Logging, i18n, validators, lightweight Prometheus metrics helpers
 ```

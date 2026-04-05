@@ -17,10 +17,16 @@ from velox.adapters.elektraweb.endpoints import CHILD_OCCUPANCY_UNVERIFIED
 from velox.adapters.whatsapp.client import WhatsAppSendBlockedError, get_whatsapp_client
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.adapters.whatsapp.webhook import IncomingMessage, WhatsAppWebhook
-from velox.config.constants import CONTEXT_WINDOW_MAX_MESSAGES, SUPPORTED_LANGUAGES
+from velox.config.constants import (
+    CONTEXT_WINDOW_MAX_MESSAGES,
+    SUPPORTED_LANGUAGES,
+    ConversationState,
+    Intent,
+    RestaurantReservationMode,
+)
 from velox.config.settings import settings
 from velox.core.burst_buffer import AggregatedMessage, BufferedMessage, enqueue_or_fallback
-from velox.core.fallback_response_library import out_of_scope_refusal
+from velox.core.fallback_response_library import out_of_scope_refusal, response_validation_fallback
 from velox.core.hotel_profile_loader import get_profile
 from velox.core.media_pipeline import MediaPipelineService
 from velox.core.media_response_policy import build_media_policy_response
@@ -30,6 +36,7 @@ from velox.core.scope_classifier import ScopeDecision, classify_reception_scope
 from velox.core.voice_pipeline import VoicePipelineService
 from velox.core.voice_response_policy import build_voice_policy_response
 from velox.db.repositories.conversation import ConversationRepository
+from velox.db.repositories.restaurant_floor_plan import RestaurantSettingsRepository
 from velox.db.repositories.whatsapp_number import WhatsAppNumberRepository
 from velox.escalation.engine import EscalationEngine
 from velox.llm.client import LLMUnavailableError, get_llm_client
@@ -40,6 +47,11 @@ from velox.models.conversation import Conversation, InternalJSON, LLMResponse, M
 from velox.models.escalation import EscalationResult
 from velox.models.media import InboundMediaItem
 from velox.tools.notification import NotifySendTool, send_admin_whatsapp_alerts
+from velox.utils.metrics import (
+    record_intent_domain_guard,
+    record_structured_output_fallback,
+    record_structured_output_repair_outcome,
+)
 from velox.utils.operation_mode import sync_operation_mode_from_redis
 from velox.utils.privacy import hash_phone
 
@@ -49,6 +61,31 @@ router = APIRouter(prefix="/webhook/whatsapp", tags=["whatsapp"])
 DEDUPE_TTL_SECONDS = 3600
 MAX_TEXT_LENGTH = 4096
 WEBHOOK_MAX_AGE_SECONDS = 300
+CONVERSATION_IDLE_RESET_SECONDS = 20 * 60
+RESTAURANT_MANUAL_MODE_KEYWORDS = (
+    "restoran",
+    "restaurant",
+    "masa",
+    "table",
+    "rezervasyon",
+    "reservation",
+    "menu",
+    "menü",
+    "kahvalti",
+    "kahvaltı",
+    "breakfast",
+    "ogle",
+    "ögle",
+    "öğle",
+    "lunch",
+    "aksam",
+    "akşam",
+    "dinner",
+    "yemek",
+    "meal",
+    "servis",
+    "service",
+)
 
 PAYMENT_DATA_PATTERN = re.compile(
     r"(\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b)|(\bcvv\b)|(\botp\b)",
@@ -63,6 +100,10 @@ PAYMENT_REFERENCE_PATTERN = re.compile(
 )
 EXPLICIT_YEAR_PATTERN = re.compile(r"\b20\d{2}\b")
 YEAR_KEYWORD_PATTERN = re.compile(r"\b(y[ıi]l|year)\b", flags=re.IGNORECASE)
+RESTAURANT_AREA_PROMPT_PATTERN = re.compile(
+    r"(iç\s*mekan|ic\s*mekan|dış\s*mekan|dis\s*mekan|indoor|outdoor|alan tercihi|hangi alan|iç mi dış mı|ic mi dis mi)",
+    flags=re.IGNORECASE,
+)
 
 TR_FREE_CANCEL_NOTE = (
     "Ücretsiz iptal seçeneği ile yapılan rezervasyonlarda girişten 5 gün öncesine kadar "
@@ -632,6 +673,179 @@ def _stay_pending_approval_message(language: str = "tr") -> str:
     )
 
 
+def _restaurant_pending_approval_message(language: str = "tr") -> str:
+    """Guest-facing acknowledgement for restaurant approval flow."""
+    if language == "en":
+        return (
+            "Your restaurant reservation request has been received.\n\n"
+            "We have forwarded it for approval and will inform you as soon as it is confirmed."
+        )
+    if language == "ru":
+        return (
+            "Мы получили ваш запрос на бронирование ресторана.\n\n"
+            "Мы передали его на подтверждение и сообщим вам сразу после одобрения."
+        )
+    return (
+        "Restoran rezervasyon talebinizi aldik.\n\n"
+        "Talebinizi onay icin ilgili birimimize ilettik. Onay geldiginde size hemen bilgi verecegiz."
+    )
+
+
+def _restaurant_confirmed_message(language: str = "tr") -> str:
+    """Guest-facing confirmation after restaurant hold is finalized."""
+    if language == "en":
+        return "Your restaurant reservation has been confirmed and finalized."
+    if language == "ru":
+        return "Ваше бронирование ресторана подтверждено и окончательно оформлено."
+    return "Restoran rezervasyonunuz onaylandi ve kesinlestirildi."
+
+
+def _restaurant_unavailable_message(language: str = "tr") -> str:
+    """Guest-facing prompt when requested restaurant slot is not available."""
+    if language == "en":
+        return (
+            "I could not find availability for that exact time. "
+            "If you want, I can check an alternative time for you."
+        )
+    if language == "ru":
+        return (
+            "На это точное время свободного места не найдено. "
+            "Если хотите, я могу проверить для вас другое время."
+        )
+    return (
+        "Istediginiz saat icin uygun masa bulamadim. "
+        "Dilerseniz alternatif bir saat kontrol edebilirim."
+    )
+
+
+def _format_month_day_label(value: str, language: str) -> str:
+    """Convert MM-DD season values into a readable month-day label."""
+    try:
+        month, day = (int(part) for part in str(value or "").split("-", maxsplit=1))
+        date_value = date(2000, month, day)
+    except (TypeError, ValueError):
+        return str(value or "")
+
+    if language == "en":
+        return date_value.strftime("%B %d")
+
+    tr_months = {
+        1: "Ocak",
+        2: "Subat",
+        3: "Mart",
+        4: "Nisan",
+        5: "Mayis",
+        6: "Haziran",
+        7: "Temmuz",
+        8: "Agustos",
+        9: "Eylul",
+        10: "Ekim",
+        11: "Kasim",
+        12: "Aralik",
+    }
+    if language == "ru":
+        ru_months = {
+            1: "января",
+            2: "февраля",
+            3: "марта",
+            4: "апреля",
+            5: "мая",
+            6: "июня",
+            7: "июля",
+            8: "августа",
+            9: "сентября",
+            10: "октября",
+            11: "ноября",
+            12: "декабря",
+        }
+        return f"{day} {ru_months.get(month, str(month))}"
+    return f"{day} {tr_months.get(month, str(month))}"
+
+
+def _restaurant_season_unavailable_message(language: str, season: dict[str, Any] | None = None) -> str:
+    """Guest-facing message for out-of-season restaurant requests."""
+    season_info = season or {}
+    open_label = _format_month_day_label(str(season_info.get("open") or ""), language)
+    close_label = _format_month_day_label(str(season_info.get("close") or ""), language)
+    if language == "en":
+        window = f"{open_label} - {close_label}" if open_label and close_label else "the active season"
+        return (
+            f"Our restaurant serves guests during {window}. "
+            "This requested date is outside that period. If you want, please share another date within the season."
+        )
+    if language == "ru":
+        window = f"{open_label} - {close_label}" if open_label and close_label else "активный сезон"
+        return (
+            f"Наш ресторан работает в период {window}. "
+            "Запрошенная дата находится вне сезона. При желании укажите другую дату в пределах сезона."
+        )
+    window = f"{open_label} - {close_label}" if open_label and close_label else "sezon donemimiz"
+    return (
+        f"Restoranimiz {window} tarihleri arasinda hizmet vermektedir. "
+        "Sectiginiz tarih sezon disinda kaliyor. Dilerseniz sezon icinde baska bir tarih paylasabilirsiniz."
+    )
+
+
+def _reservation_season_unavailable_message(
+    language: str,
+    season: dict[str, Any] | None,
+    reservation_type: str,
+) -> str:
+    """Guest-facing out-of-season message for stay/transfer reservation flows."""
+    season_info = season or {}
+    open_label = _format_month_day_label(str(season_info.get("open") or ""), language)
+    close_label = _format_month_day_label(str(season_info.get("close") or ""), language)
+    if language == "en":
+        window = f"{open_label} - {close_label}" if open_label and close_label else "the active season"
+        if reservation_type == "transfer":
+            return (
+                f"We accept transfer reservations during {window}. "
+                "This requested date is outside that period. If you want, please share another date within the season."
+            )
+        return (
+            f"We accept stay reservations during {window}. "
+            "This requested date is outside that period. If you want, please share another date within the season."
+        )
+    if language == "ru":
+        window = f"{open_label} - {close_label}" if open_label and close_label else "активный сезон"
+        if reservation_type == "transfer":
+            return (
+                f"Мы принимаем трансферные бронирования в период {window}. "
+                "Запрошенная дата находится вне сезона. При желании укажите другую дату в пределах сезона."
+            )
+        return (
+            f"Мы принимаем бронирование проживания в период {window}. "
+            "Запрошенная дата находится вне сезона. При желании укажите другую дату в пределах сезона."
+        )
+    window = f"{open_label} - {close_label}" if open_label and close_label else "sezon donemimiz"
+    if reservation_type == "transfer":
+        return (
+            f"Transfer rezervasyonlarimizi {window} tarihleri arasinda aliyoruz. "
+            "Sectiginiz tarih sezon disinda kaliyor. Dilerseniz sezon icinde baska bir tarih paylasabilirsiniz."
+        )
+    return (
+        f"Konaklama rezervasyonlarimizi {window} tarihleri arasinda aliyoruz. "
+        "Sectiginiz tarih sezon disinda kaliyor. Dilerseniz sezon icinde baska bir tarih paylasabilirsiniz."
+    )
+
+
+def _restaurant_hours_unavailable_message(language: str, profile: Any | None) -> str:
+    """Guest-facing message for requests outside restaurant operating hours."""
+    hours = getattr(getattr(profile, "restaurant", None), "hours", {}) if profile is not None else {}
+    dinner_hours = str(hours.get("dinner") or "").strip()
+    if language == "en":
+        if dinner_hours:
+            return f"Our dinner service hours are {dinner_hours}. Please share a time within that range."
+        return "The requested time is outside our restaurant operating hours. Please share another time."
+    if language == "ru":
+        if dinner_hours:
+            return f"Часы ужина: {dinner_hours}. Пожалуйста, укажите время в этом диапазоне."
+        return "Запрошенное время находится вне часов работы ресторана. Пожалуйста, укажите другое время."
+    if dinner_hours:
+        return f"Aksam servisi saatlerimiz {dinner_hours}. Bu aralikta bir saat paylasir misiniz?"
+    return "Sectiginiz saat restoran hizmet saatlerimizin disinda kaliyor. Baska bir saat paylasir misiniz?"
+
+
 def _payment_intake_prompt(language: str, missing_fields: list[str]) -> str:
     """Build payment handoff intake question based on missing fields."""
     missing_reference = "reference_id" in missing_fields
@@ -824,6 +1038,283 @@ def _canonical_text(value: str) -> str:
     return re.sub(r"[^a-z0-9çğıöşü]+", "", lowered)
 
 
+def _collapse_repeated_letters(value: str) -> str:
+    """Reduce repeated letters so minor typos like 'haaziran' still match month aliases."""
+    return re.sub(r"(.)\1+", r"\1", str(value or ""))
+
+
+def _normalize_month_token(value: str) -> str:
+    """Map free-form month tokens onto a stable canonical month key."""
+    collapsed = _collapse_repeated_letters(value.casefold())
+    canonical = _canonical_text(collapsed)
+    if canonical in _STAY_MONTH_LABELS:
+        return canonical
+    if canonical in _STAY_MONTH_ALIASES:
+        return _STAY_MONTH_ALIASES[canonical]
+    for alias, month_key in _STAY_MONTH_ALIASES.items():
+        if canonical.startswith(alias) or alias.startswith(canonical):
+            return month_key
+    return ""
+
+
+def _extract_stay_date_mentions(user_text: str) -> list[str]:
+    """Extract coarse day-month mentions to stabilize stay follow-up turns."""
+    mentions: list[str] = []
+
+    for match in _DAY_MONTH_PATTERN.finditer(user_text):
+        day = int(match.group(1))
+        if not 1 <= day <= 31:
+            continue
+        month_key = _normalize_month_token(match.group(2))
+        if not month_key:
+            continue
+        label = f"{day} {_STAY_MONTH_LABELS.get(month_key, month_key.title())}"
+        if label not in mentions:
+            mentions.append(label)
+
+    for match in _NUMERIC_DATE_PATTERN.finditer(user_text):
+        day = int(match.group(1))
+        month = int(match.group(2))
+        if not (1 <= day <= 31 and 1 <= month <= 12):
+            continue
+        label = f"{day:02d}.{month:02d}"
+        if label not in mentions:
+            mentions.append(label)
+
+    return mentions[:2]
+
+
+def _extract_adult_count_hint(user_text: str) -> int:
+    """Extract an explicit adult count when the guest states it directly."""
+    match = _ADULT_COUNT_PATTERN.search(user_text)
+    if not match:
+        return 0
+    return _to_int(match.group(1), 0)
+
+
+def _intent_domain(intent: str) -> str:
+    """Collapse detailed intents onto coarse product domains."""
+    normalized = str(intent or "").strip().lower()
+    if normalized.startswith("stay_"):
+        return "stay"
+    if normalized.startswith("restaurant_"):
+        return "restaurant"
+    if normalized.startswith("transfer_"):
+        return "transfer"
+    if normalized.startswith("room_service_"):
+        return "room_service"
+    return "other"
+
+
+def _build_stay_followup_override_message(
+    language: str,
+    *,
+    date_mentions: list[str],
+    adult_count: int,
+) -> tuple[str, list[str], str]:
+    """Build a deterministic stay follow-up prompt when the model drifts into restaurant intent."""
+    if language == "en":
+        if len(date_mentions) >= 2 and adult_count > 0:
+            return (
+                f"I noted your stay request as {date_mentions[0]} - {date_mentions[1]} for {adult_count} adult(s).\n\n"
+                "If there will be children, please share their ages. If not, you can reply 'no children'.",
+                ["chd_ages"],
+                "collect_stay_children_or_confirm_none",
+            )
+        if len(date_mentions) >= 2:
+            return (
+                f"I noted your requested dates as {date_mentions[0]} - {date_mentions[1]}.\n\n"
+                "How many adults will stay?",
+                ["adults"],
+                "collect_stay_adults",
+            )
+        if len(date_mentions) == 1:
+            return (
+                f"I noted {date_mentions[0]} for your stay request.\n\n"
+                "Please also share your check-out date.",
+                ["checkout_date"],
+                "collect_stay_checkout_date",
+            )
+        return (
+            "For a stay request, please share your check-in date, check-out date, and number of adults.",
+            ["checkin_date"],
+            "collect_stay_checkin_date",
+        )
+
+    if language == "ru":
+        if len(date_mentions) >= 2 and adult_count > 0:
+            return (
+                f"Я зафиксировал(а) ваш запрос на проживание: "
+                f"{date_mentions[0]} - {date_mentions[1]}, {adult_count} взрослый(ых).\n\n"
+                "Если будут дети, укажите их возраст. Если детей нет, можно ответить 'без детей'.",
+                ["chd_ages"],
+                "collect_stay_children_or_confirm_none",
+            )
+        if len(date_mentions) >= 2:
+            return (
+                f"Я зафиксировал(а) ваши даты: {date_mentions[0]} - {date_mentions[1]}.\n\n"
+                "Сколько взрослых будет проживать?",
+                ["adults"],
+                "collect_stay_adults",
+            )
+        if len(date_mentions) == 1:
+            return (
+                f"Я зафиксировал(а) дату {date_mentions[0]}.\n\n"
+                "Пожалуйста, укажите также дату выезда.",
+                ["checkout_date"],
+                "collect_stay_checkout_date",
+            )
+        return (
+            "Для запроса на проживание укажите дату заезда, дату выезда и количество взрослых.",
+            ["checkin_date"],
+            "collect_stay_checkin_date",
+        )
+
+    if len(date_mentions) >= 2 and adult_count > 0:
+        return (
+            f"Konaklama talebinizi not aldım: {date_mentions[0]} - {date_mentions[1]}, {adult_count} yetişkin.\n\n"
+            "Çocuk olacaksa yaşlarını paylaşır mısınız? Çocuk yoksa 'çocuk yok' yazabilirsiniz.",
+            ["chd_ages"],
+            "collect_stay_children_or_confirm_none",
+        )
+    if len(date_mentions) >= 2:
+        return (
+            f"Konaklama tarihinizi {date_mentions[0]} - {date_mentions[1]} olarak not aldım.\n\n"
+            "Kaç yetişkin konaklayacaksınız?",
+            ["adults"],
+            "collect_stay_adults",
+        )
+    if len(date_mentions) == 1:
+        return (
+            f"Konaklama için {date_mentions[0]} tarihini not aldım.\n\n"
+            "Çıkış tarihinizi de paylaşır mısınız?",
+            ["checkout_date"],
+            "collect_stay_checkout_date",
+        )
+    return (
+        "Konaklama talebiniz için giriş tarihi, çıkış tarihi ve yetişkin sayısını paylaşır mısınız?",
+        ["checkin_date"],
+        "collect_stay_checkin_date",
+    )
+
+
+def _restaurant_manual_mode_message(language: str) -> str:
+    """Return guest-facing handoff message when restaurant manual mode is enabled."""
+    if language == "en":
+        return (
+            "Restaurant requests are handled in Manual Mode right now. "
+            "I am connecting you to a live customer representative."
+        )
+    if language == "ru":
+        return (
+            "Запросы по ресторану сейчас обрабатываются в ручном режиме. "
+            "Подключаю вас к живому представителю."
+        )
+    return (
+        "Restoran talepleri su anda Manuel Modda yonetiliyor. "
+        "Sizi canli musteri temsilcisine bagliyorum."
+    )
+
+
+def _is_restaurant_manual_mode_candidate(conversation: Conversation, normalized_text: str) -> bool:
+    """Return True when the turn is clearly related to restaurant flow."""
+    current_intent = str(conversation.current_intent or "").strip().lower()
+    if _intent_domain(current_intent) == "restaurant":
+        return True
+
+    canonical_text = _canonical_text(normalized_text)
+    if any(keyword in canonical_text for keyword in RESTAURANT_MANUAL_MODE_KEYWORDS):
+        return True
+
+    entities = conversation.entities_json if isinstance(conversation.entities_json, dict) else {}
+    last_intent = str(entities.get("last_intent") or "").strip().lower()
+    return _intent_domain(last_intent) == "restaurant"
+
+
+async def _should_force_restaurant_manual_handoff(conversation: Conversation, normalized_text: str) -> bool:
+    """Return True when restaurant manual mode requires immediate human handoff."""
+    if not _is_restaurant_manual_mode_candidate(conversation, normalized_text):
+        return False
+
+    try:
+        settings_repo = RestaurantSettingsRepository()
+        restaurant_settings = await settings_repo.get(conversation.hotel_id)
+    except Exception:
+        logger.warning(
+            "restaurant_settings_lookup_failed",
+            hotel_id=conversation.hotel_id,
+        )
+        return False
+    return restaurant_settings.reservation_mode == RestaurantReservationMode.MANUEL
+
+
+def _apply_turn_intent_domain_guard(
+    response: LLMResponse,
+    *,
+    normalized_text: str,
+    tool_names_presented: list[str],
+) -> dict[str, Any] | None:
+    """Clamp obvious cross-domain drift when the parsed intent contradicts the turn's tool surface."""
+    parsed_intent = str(response.internal_json.intent or "").strip().lower()
+    if _intent_domain(parsed_intent) != "restaurant":
+        return None
+
+    presented_names = {str(name or "").strip() for name in tool_names_presented if str(name or "").strip()}
+    restaurant_domain_tools = _RESTAURANT_TOOL_SHORTLIST - _GENERAL_TOOL_SHORTLIST - {"approval_request"}
+    stay_domain_tools = _STAY_TOOL_SHORTLIST - _GENERAL_TOOL_SHORTLIST - {"approval_request"}
+    has_restaurant_tools = bool(presented_names & restaurant_domain_tools)
+    has_stay_tools = bool(presented_names & stay_domain_tools)
+    if has_restaurant_tools or not has_stay_tools:
+        return None
+
+    canonical_text = _canonical_text(normalized_text)
+    date_mentions = _extract_stay_date_mentions(normalized_text)
+    adult_count = _extract_adult_count_hint(normalized_text)
+    has_restaurant_words = any(
+        token in canonical_text
+        for token in ("restoran", "restaurant", "masa", "table", "aksamyemegi", "dinner", "lunch", "menu")
+    )
+    has_time_of_day = _TIME_OF_DAY_PATTERN.search(normalized_text) is not None
+    looks_like_stay_followup = bool(date_mentions) and not has_restaurant_words and not has_time_of_day
+    if not looks_like_stay_followup:
+        return None
+
+    language = str(response.internal_json.language or "tr").lower()
+    message, required_questions, next_step = _build_stay_followup_override_message(
+        language,
+        date_mentions=date_mentions,
+        adult_count=adult_count,
+    )
+    entities = response.internal_json.entities if isinstance(response.internal_json.entities, dict) else {}
+    override_meta = {
+        "applied": True,
+        "from_intent": parsed_intent,
+        "to_intent": Intent.STAY_AVAILABILITY.value,
+        "reason": "stay_followup_without_restaurant_tools",
+    }
+    entities["intent_domain_guard"] = override_meta
+    stay_hints = (
+        dict(entities.get("stay_followup_hints") or {})
+        if isinstance(entities.get("stay_followup_hints"), dict)
+        else {}
+    )
+    if date_mentions:
+        stay_hints["date_mentions"] = date_mentions
+    if adult_count > 0:
+        stay_hints["adults"] = adult_count
+    if stay_hints:
+        entities["stay_followup_hints"] = stay_hints
+
+    response.user_message = message
+    response.internal_json.intent = Intent.STAY_AVAILABILITY.value
+    response.internal_json.state = ConversationState.NEEDS_VERIFICATION.value
+    response.internal_json.entities = entities
+    response.internal_json.required_questions = required_questions
+    response.internal_json.next_step = next_step
+    response.internal_json.handoff = {"needed": False}
+    return override_meta
+
+
 def _ensure_single_note(text: str, note: str) -> str:
     """Keep at most one note variant; append once if missing."""
     canonical_note = _canonical_text(note)
@@ -857,6 +1348,272 @@ def _loads_tool_payload(value: Any) -> dict[str, Any]:
         if isinstance(loaded, dict):
             return loaded
     return {}
+
+
+def _canonicalize_tool_calls(
+    raw_tool_calls: list[dict[str, Any]] | None,
+    *,
+    default_status: str,
+) -> list[dict[str, Any]]:
+    """Normalize tool call payloads for INTERNAL_JSON and message persistence."""
+    normalized: list[dict[str, Any]] = []
+    for item in raw_tool_calls or []:
+        if not isinstance(item, dict):
+            continue
+        tool_name = str(item.get("name") or item.get("tool") or "").strip()
+        if not tool_name:
+            continue
+
+        arguments = item.get("arguments")
+        if not isinstance(arguments, dict):
+            arguments = item.get("args")
+        if not isinstance(arguments, dict):
+            arguments = _loads_tool_payload(arguments)
+        if not isinstance(arguments, dict):
+            arguments = {}
+
+        normalized_item: dict[str, Any] = {
+            "name": tool_name,
+            "status": str(item.get("status") or default_status).strip() or default_status,
+            "arguments": arguments,
+        }
+
+        if "result" in item:
+            parsed_result = _loads_tool_payload(item.get("result"))
+            normalized_item["result"] = parsed_result if parsed_result else item.get("result")
+
+        normalized.append(normalized_item)
+    return normalized
+
+
+def _extract_tool_definition_names(tools: list[dict[str, Any]] | None) -> list[str]:
+    """Return normalized tool names from OpenAI tool definition payloads."""
+    names: list[str] = []
+    for tool in tools or []:
+        tool_name = ""
+        if isinstance(tool, dict):
+            function_block = tool.get("function")
+            if isinstance(function_block, dict):
+                tool_name = str(function_block.get("name") or "").strip()
+            elif isinstance(tool.get("name"), str):
+                tool_name = str(tool.get("name") or "").strip()
+        if tool_name and tool_name not in names:
+            names.append(tool_name)
+    return names
+
+
+_GENERAL_TOOL_SHORTLIST = {"faq_lookup", "handoff_create_ticket"}
+_STAY_TOOL_SHORTLIST = {
+    "booking_availability",
+    "booking_quote",
+    "stay_create_hold",
+    "booking_get_reservation",
+    "booking_modify",
+    "booking_cancel",
+    "approval_request",
+    "payment_request_prepayment",
+}
+_RESTAURANT_TOOL_SHORTLIST = {
+    "restaurant_availability",
+    "restaurant_create_hold",
+    "restaurant_confirm",
+    "restaurant_modify",
+    "restaurant_cancel",
+    "approval_request",
+}
+_TRANSFER_TOOL_SHORTLIST = {
+    "transfer_get_info",
+    "transfer_create_hold",
+    "transfer_confirm",
+    "transfer_modify",
+    "transfer_cancel",
+    "approval_request",
+}
+_ROOM_SERVICE_TOOL_SHORTLIST = {
+    "room_service_create_order",
+    "notify_send",
+}
+
+_STAY_TOOL_HINTS = (
+    "rezervasyon",
+    "reservation",
+    "booking",
+    "oda",
+    "room",
+    "checkin",
+    "check-in",
+    "checkout",
+    "check-out",
+    "fiyat",
+    "price",
+    "iptal",
+    "cancel",
+)
+_RESTAURANT_TOOL_HINTS = (
+    "restaurant",
+    "restoran",
+    "masa",
+    "table",
+    "kahvalt",
+    "aksam yemegi",
+    "akşam yemeği",
+    "dinner",
+    "lunch",
+    "menu",
+    "menü",
+    "vegan",
+)
+_TRANSFER_TOOL_HINTS = ("transfer", "havaalani", "havaalanı", "airport", "flight", "ucus", "uçuş")
+_ROOM_SERVICE_TOOL_HINTS = ("room service", "oda servisi", "siparis", "sipariş")
+_DAY_MONTH_PATTERN = re.compile(r"\b(\d{1,2})\s*([a-zA-ZçğıöşüÇĞİÖŞÜ]{3,})\b", flags=re.IGNORECASE)
+_NUMERIC_DATE_PATTERN = re.compile(r"\b(\d{1,2})[./-](\d{1,2})(?:[./-](?:\d{2,4}))?\b")
+_ADULT_COUNT_PATTERN = re.compile(
+    r"\b(\d{1,2})\s*(?:yetiskin|yetişkin|adult|adults)\b",
+    flags=re.IGNORECASE,
+)
+_TIME_OF_DAY_PATTERN = re.compile(r"\b(?:saat\s*)?(?:[01]?\d|2[0-3])[:.]([0-5]\d)\b", flags=re.IGNORECASE)
+_STAY_MONTH_LABELS = {
+    "ocak": "Ocak",
+    "subat": "Subat",
+    "mart": "Mart",
+    "nisan": "Nisan",
+    "mayis": "Mayis",
+    "haziran": "Haziran",
+    "temmuz": "Temmuz",
+    "agustos": "Agustos",
+    "eylul": "Eylul",
+    "ekim": "Ekim",
+    "kasim": "Kasim",
+    "aralik": "Aralik",
+    "january": "January",
+    "february": "February",
+    "march": "March",
+    "april": "April",
+    "may": "May",
+    "june": "June",
+    "july": "July",
+    "august": "August",
+    "september": "September",
+    "october": "October",
+    "november": "November",
+    "december": "December",
+}
+_STAY_MONTH_ALIASES = {
+    "oca": "ocak",
+    "ocak": "ocak",
+    "sub": "subat",
+    "suba": "subat",
+    "subat": "subat",
+    "mart": "mart",
+    "nis": "nisan",
+    "nisa": "nisan",
+    "nisan": "nisan",
+    "may": "mayis",
+    "mayi": "mayis",
+    "mayis": "mayis",
+    "haz": "haziran",
+    "hazi": "haziran",
+    "hazir": "haziran",
+    "haziran": "haziran",
+    "tem": "temmuz",
+    "temm": "temmuz",
+    "temmuz": "temmuz",
+    "agu": "agustos",
+    "agus": "agustos",
+    "agusto": "agustos",
+    "agustos": "agustos",
+    "eyl": "eylul",
+    "eylu": "eylul",
+    "eylul": "eylul",
+    "eki": "ekim",
+    "ekim": "ekim",
+    "kas": "kasim",
+    "kasi": "kasim",
+    "kasim": "kasim",
+    "ara": "aralik",
+    "aral": "aralik",
+    "aralik": "aralik",
+    "jan": "january",
+    "janu": "january",
+    "january": "january",
+    "feb": "february",
+    "febr": "february",
+    "february": "february",
+    "mar": "march",
+    "march": "march",
+    "apr": "april",
+    "apri": "april",
+    "april": "april",
+    "jun": "june",
+    "june": "june",
+    "jul": "july",
+    "july": "july",
+    "aug": "august",
+    "augu": "august",
+    "august": "august",
+    "sep": "september",
+    "sept": "september",
+    "september": "september",
+    "oct": "october",
+    "octo": "october",
+    "october": "october",
+    "nov": "november",
+    "nove": "november",
+    "november": "november",
+    "dec": "december",
+    "dece": "december",
+    "december": "december",
+}
+
+
+def _resolve_tool_shortlist_names(conversation: Conversation, normalized_text: str) -> set[str]:
+    """Select the smallest relevant tool subset for the current turn."""
+    text = str(normalized_text or "").casefold()
+    current_intent = str(conversation.current_intent.value if conversation.current_intent else "").casefold()
+
+    shortlist = set(_GENERAL_TOOL_SHORTLIST)
+    if any(token in current_intent for token in ("restaurant", "menu")) or any(
+        token in text for token in _RESTAURANT_TOOL_HINTS
+    ):
+        shortlist.update(_RESTAURANT_TOOL_SHORTLIST)
+    elif "transfer" in current_intent or any(token in text for token in _TRANSFER_TOOL_HINTS):
+        shortlist.update(_TRANSFER_TOOL_SHORTLIST)
+    elif "room_service" in current_intent or any(token in text for token in _ROOM_SERVICE_TOOL_HINTS):
+        shortlist.update(_ROOM_SERVICE_TOOL_SHORTLIST)
+    else:
+        shortlist.update(_STAY_TOOL_SHORTLIST)
+    return shortlist
+
+
+def _select_tool_definitions_for_turn(
+    conversation: Conversation,
+    normalized_text: str,
+    tools: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Filter the global tool list down to the relevant subset for this turn."""
+    shortlist = _resolve_tool_shortlist_names(conversation, normalized_text)
+    selected: list[dict[str, Any]] = []
+    for tool in tools:
+        function_block = tool.get("function") if isinstance(tool, dict) else None
+        tool_name = str(function_block.get("name") or "").strip() if isinstance(function_block, dict) else ""
+        if tool_name and tool_name in shortlist:
+            selected.append(tool)
+    return selected
+
+
+def _sync_response_tool_calls(
+    response: LLMResponse,
+    executed_calls: list[dict[str, Any]] | None,
+) -> None:
+    """Prefer real executed tool calls; otherwise normalize parsed tool intents."""
+    canonical_executed = _canonicalize_tool_calls(executed_calls, default_status="executed")
+    if canonical_executed:
+        response.internal_json.tool_calls = canonical_executed
+        return
+    response.internal_json.tool_calls = _canonicalize_tool_calls(
+        response.internal_json.tool_calls,
+        default_status="planned",
+    )
 
 
 def _merge_entities_with_context(
@@ -1232,8 +1989,10 @@ def _extract_restaurant_capacity_handoff_context(executed_calls: list[dict[str, 
             snapshot = result.get("collected_reservation_context")
             if isinstance(snapshot, dict):
                 availability_snapshot = dict(snapshot)
-            elif isinstance(call.get("args"), dict):
-                args = dict(call.get("args") or {})
+            else:
+                args = _loads_tool_payload(call.get("arguments") or call.get("args"))
+                if not isinstance(args, dict):
+                    args = {}
                 availability_snapshot = {
                     "date": args.get("date"),
                     "time": args.get("time"),
@@ -1266,7 +2025,8 @@ def _build_restaurant_capacity_handoff_response(
 
     if language == "en":
         default_message = (
-            "Our daily restaurant reservation quota is currently full. I am connecting you to a live customer representative now."
+            "Our daily restaurant reservation quota is currently full. "
+            "I am connecting you to a live customer representative now."
             if handoff_reason == "restaurant_daily_capacity_full"
             else "I am connecting you to a live customer representative now."
         )
@@ -1292,6 +2052,298 @@ def _build_restaurant_capacity_handoff_response(
             next_step="handoff_to_restaurant_team",
         ),
     )
+
+
+def _is_out_of_season_tool_result(result: dict[str, Any]) -> bool:
+    """Return True when tool payload indicates season rejection."""
+    return str(result.get("reason") or "").strip().upper() == "OUT_OF_SEASON"
+
+
+def _extract_stay_or_transfer_out_of_season_context(executed_calls: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return context for deterministic stay/transfer season-rejection responses."""
+    tool_intent_map = {
+        "booking_availability": "stay_availability",
+        "booking_quote": "stay_quote",
+        "stay_create_hold": "stay_booking_create",
+        "transfer_create_hold": "transfer_booking_create",
+    }
+    for call in reversed(executed_calls):
+        tool_name = str(call.get("name") or "")
+        intent = tool_intent_map.get(tool_name)
+        if not intent:
+            continue
+
+        result = _loads_tool_payload(call.get("result"))
+        if not _is_out_of_season_tool_result(result):
+            continue
+
+        args = _loads_tool_payload(call.get("arguments") or call.get("args"))
+        if not isinstance(args, dict):
+            args = {}
+
+        reservation_type = "transfer" if tool_name == "transfer_create_hold" else "stay"
+        context: dict[str, Any] = {
+            "intent": intent,
+            "reservation_type": reservation_type,
+        }
+        if reservation_type == "stay":
+            checkin_date = args.get("checkin_date")
+            checkout_date = args.get("checkout_date")
+            if tool_name == "stay_create_hold":
+                draft = args.get("draft")
+                if isinstance(draft, dict):
+                    checkin_date = draft.get("checkin_date", checkin_date)
+                    checkout_date = draft.get("checkout_date", checkout_date)
+            context["checkin_date"] = checkin_date
+            context["checkout_date"] = checkout_date
+            context["required_questions"] = ["checkin_date"]
+            context["next_step"] = "collect_in_season_stay_date"
+        else:
+            context["date"] = args.get("date")
+            context["required_questions"] = ["date"]
+            context["next_step"] = "collect_in_season_transfer_date"
+
+        season = result.get("season")
+        if isinstance(season, dict):
+            context["season"] = {
+                "open": str(season.get("open") or ""),
+                "close": str(season.get("close") or ""),
+            }
+        return context
+    return {}
+
+
+def _build_stay_or_transfer_out_of_season_response(
+    conversation: Conversation,
+    executed_calls: list[dict[str, Any]],
+    language: str,
+) -> LLMResponse | None:
+    """Create deterministic guest response for stay/transfer out-of-season requests."""
+    context = _extract_stay_or_transfer_out_of_season_context(executed_calls)
+    if not context:
+        return None
+
+    entities = _merge_entities_with_context(conversation.entities_json, context)
+    reservation_type = str(context.get("reservation_type") or "stay")
+    profile = get_profile(conversation.hotel_id)
+    season = context.get("season") if isinstance(context.get("season"), dict) else getattr(profile, "season", {})
+    return LLMResponse(
+        user_message=_reservation_season_unavailable_message(
+            language,
+            season if isinstance(season, dict) else {},
+            reservation_type=reservation_type,
+        ),
+        internal_json=InternalJSON(
+            language=language,
+            intent=str(context.get("intent") or "stay_availability"),
+            state="NEEDS_VERIFICATION",
+            entities=entities,
+            required_questions=list(context.get("required_questions") or []),
+            handoff={"needed": False, "reason": None},
+            risk_flags=["DATE_INVALID"],
+            next_step=str(context.get("next_step") or "collect_in_season_date"),
+        ),
+    )
+
+
+def _extract_restaurant_unavailable_context(executed_calls: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return context for deterministic restaurant unavailability responses."""
+    supported_reasons = {"OUT_OF_SEASON", "OUTSIDE_RESTAURANT_HOURS"}
+    for call in reversed(executed_calls):
+        tool_name = str(call.get("name") or "")
+        if tool_name not in {"restaurant_availability", "restaurant_create_hold"}:
+            continue
+
+        result = _loads_tool_payload(call.get("result"))
+        reason = str(result.get("reason") or "").strip().upper()
+        options = result.get("options")
+        available = bool(result.get("available"))
+
+        if reason not in supported_reasons and (available or not isinstance(options, list) or options):
+            continue
+
+        args = _loads_tool_payload(call.get("arguments") or call.get("args"))
+        context: dict[str, Any] = {
+            "reason": reason or "NO_AVAILABILITY_MATCH",
+            "date": args.get("date"),
+            "time": args.get("time"),
+            "party_size": args.get("party_size"),
+            "guest_name": args.get("guest_name"),
+            "phone": args.get("phone"),
+            "area": args.get("area"),
+            "notes": args.get("notes"),
+        }
+        season = result.get("season")
+        if isinstance(season, dict):
+            context["season"] = {
+                "open": str(season.get("open") or ""),
+                "close": str(season.get("close") or ""),
+            }
+        return context
+    return {}
+
+
+def _build_restaurant_unavailable_response(
+    conversation: Conversation,
+    executed_calls: list[dict[str, Any]],
+    language: str,
+) -> LLMResponse | None:
+    """Create deterministic guest response for restaurant season/hours/unavailable cases."""
+    context = _extract_restaurant_unavailable_context(executed_calls)
+    if not context:
+        return None
+
+    entities = _merge_entities_with_context(conversation.entities_json, context)
+    reason = str(context.get("reason") or "").upper()
+    profile = get_profile(conversation.hotel_id)
+    if reason == "OUT_OF_SEASON":
+        season = context.get("season") if isinstance(context.get("season"), dict) else getattr(profile, "season", {})
+        return LLMResponse(
+            user_message=_restaurant_season_unavailable_message(language, season if isinstance(season, dict) else {}),
+            internal_json=InternalJSON(
+                language=language,
+                intent="restaurant_booking_create",
+                state="NEEDS_VERIFICATION",
+                entities=entities,
+                required_questions=["date"],
+                handoff={"needed": False, "reason": None},
+                risk_flags=["DATE_INVALID"],
+                next_step="collect_in_season_restaurant_date",
+            ),
+        )
+    if reason == "OUTSIDE_RESTAURANT_HOURS":
+        return LLMResponse(
+            user_message=_restaurant_hours_unavailable_message(language, profile),
+            internal_json=InternalJSON(
+                language=language,
+                intent="restaurant_booking_create",
+                state="NEEDS_VERIFICATION",
+                entities=entities,
+                required_questions=["time"],
+                handoff={"needed": False, "reason": None},
+                risk_flags=[],
+                next_step="collect_restaurant_time_within_hours",
+            ),
+        )
+    return LLMResponse(
+        user_message=_restaurant_unavailable_message(language),
+        internal_json=InternalJSON(
+            language=language,
+            intent="restaurant_booking_create",
+            state="NEEDS_VERIFICATION",
+            entities=entities,
+            required_questions=["time"],
+            handoff={"needed": False, "reason": None},
+            risk_flags=[],
+            next_step="collect_alternative_restaurant_time",
+        ),
+    )
+
+
+def _build_structured_output_error_response(
+    language: str,
+    reason: str,
+    conversation: Conversation | None = None,
+) -> LLMResponse:
+    """Return a safe retry prompt when the model fails to emit valid INTERNAL_JSON."""
+    normalized_reason = str(reason or "").strip() or "unknown"
+    record_structured_output_fallback(normalized_reason)
+    preserved_entities = (
+        dict(conversation.entities_json)
+        if conversation is not None and isinstance(conversation.entities_json, dict)
+        else {}
+    )
+    preserved_entities = _merge_entities_with_context(
+        preserved_entities,
+        {
+            "response_parser": {
+                "applied": True,
+                "reason": normalized_reason,
+            }
+        },
+    )
+    preserved_state = (
+        str(conversation.current_state or "NEEDS_VERIFICATION")
+        if conversation is not None
+        else "NEEDS_VERIFICATION"
+    )
+    if preserved_state in {"", "GREETING", "HANDOFF", "CLOSED"}:
+        preserved_state = "NEEDS_VERIFICATION"
+    preserved_intent = (
+        str(conversation.current_intent.value if conversation.current_intent else "other")
+        if conversation is not None
+        else "other"
+    )
+    risk_flags = list(conversation.risk_flags) if conversation is not None else []
+    if "STRUCTURED_OUTPUT_ERROR" not in risk_flags:
+        risk_flags.append("STRUCTURED_OUTPUT_ERROR")
+    return LLMResponse(
+        user_message=response_validation_fallback(language),
+        internal_json=InternalJSON(
+            language=language,
+            intent=preserved_intent,
+            state=preserved_state,
+            entities=preserved_entities,
+            required_questions=[],
+            handoff={"needed": False, "reason": None},
+            risk_flags=risk_flags,
+            next_step="restate_guest_request",
+        ),
+    )
+
+
+async def _attempt_structured_output_repair(
+    *,
+    llm_client: Any,
+    raw_content: str,
+    language: str,
+    parser_error_reason: str,
+    conversation: Conversation,
+    executed_calls: list[dict[str, Any]],
+) -> LLMResponse | None:
+    """Try a strict-schema repair pass before falling back to a generic retry prompt."""
+    repair_fn = getattr(llm_client, "repair_structured_output", None)
+    if not callable(repair_fn):
+        return None
+
+    repaired_payload = await repair_fn(
+        raw_content=raw_content,
+        language=language,
+        parser_error_reason=parser_error_reason,
+        current_intent=conversation.current_intent.value if conversation.current_intent else "other",
+        current_state=str(conversation.current_state or "NEEDS_VERIFICATION"),
+        current_entities=conversation.entities_json,
+        executed_calls=executed_calls,
+    )
+    if not isinstance(repaired_payload, dict):
+        return None
+
+    user_message = str(repaired_payload.get("user_message") or "").strip()
+    internal_payload = repaired_payload.get("internal_json")
+    if not user_message or not isinstance(internal_payload, dict):
+        record_structured_output_repair_outcome("missing_fields")
+        logger.warning(
+            "llm_structured_output_repair_missing_fields",
+            has_user_message=bool(user_message),
+            has_internal_json=isinstance(internal_payload, dict),
+        )
+        return None
+
+    try:
+        repaired_internal = ResponseParser.validate_internal_json(internal_payload)
+    except Exception:
+        record_structured_output_repair_outcome("validation_failed")
+        logger.warning("llm_structured_output_repair_validation_failed")
+        return None
+
+    record_structured_output_repair_outcome("applied")
+    logger.info(
+        "llm_structured_output_repair_applied",
+        conversation_id=str(conversation.id) if conversation.id is not None else None,
+        parser_error_reason=parser_error_reason,
+        executed_call_count=len(executed_calls),
+    )
+    return LLMResponse(user_message=user_message, internal_json=repaired_internal)
 
 
 def _is_child_bedding_question(user_text: str, entities: dict[str, Any]) -> bool:
@@ -2071,6 +3123,117 @@ def _suppress_default_year_question(
         )
 
 
+def _normalize_restaurant_area_value(value: Any) -> str:
+    """Normalize restaurant area labels into canonical indoor/outdoor buckets."""
+    normalized = _canonical_text(str(value or ""))
+    if normalized in {"outdoor", "outdoorarea", "dismekan", "acikalan", "acik"}:
+        return "outdoor"
+    if normalized in {"indoor", "indoorarea", "icmekan", "kapalialan", "kapali"}:
+        return "indoor"
+    return normalized
+
+
+def _single_restaurant_area_type(hotel_id: int) -> str:
+    """Return canonical area type only when hotel profile exposes exactly one restaurant area."""
+    profile = get_profile(hotel_id)
+    restaurant = getattr(profile, "restaurant", None)
+    raw_area_types = getattr(restaurant, "area_types", []) if restaurant is not None else []
+    normalized_area_types: list[str] = []
+    for item in raw_area_types or []:
+        normalized = _normalize_restaurant_area_value(item)
+        if normalized and normalized not in normalized_area_types:
+            normalized_area_types.append(normalized)
+    if len(normalized_area_types) == 1:
+        return normalized_area_types[0]
+    return ""
+
+
+def _contains_restaurant_area_prompt(text: str) -> bool:
+    """Detect follow-up prompts that ask the guest to choose indoor/outdoor seating."""
+    if not text:
+        return False
+    if RESTAURANT_AREA_PROMPT_PATTERN.search(text):
+        return True
+    normalized = _normalize_language_text(text)
+    return any(
+        _contains_keyword(normalized, keyword)
+        for keyword in ("alan tercihi", "hangi alan", "teras", "bahce", "garden", "patio")
+    )
+
+
+def _restaurant_missing_required_fields(entities: dict[str, Any]) -> list[str]:
+    """Return missing restaurant reservation fields in collection order."""
+    missing: list[str] = []
+    if not bool(str(entities.get("date") or "").strip()):
+        missing.append("date")
+    if not bool(str(entities.get("time") or "").strip()):
+        missing.append("time")
+    if _to_int(entities.get("party_size"), 0) <= 0:
+        missing.append("party_size")
+    if not bool(str(entities.get("guest_name") or "").strip()):
+        missing.append("guest_name")
+    if not bool(str(entities.get("phone") or "").strip()):
+        missing.append("phone")
+    return missing
+
+
+def _restaurant_tool_progress_message(language: str) -> str:
+    """Guest-facing progress message once restaurant slot checking can begin."""
+    if language == "en":
+        return "I have the necessary details. I am checking restaurant availability now."
+    if language == "ru":
+        return "У меня есть вся необходимая информация. Сейчас проверяю наличие мест в ресторане."
+    return "Gerekli bilgileri aldim. Restoran uygunlugunu simdi kontrol ediyorum."
+
+
+def _suppress_restaurant_area_question(response: LLMResponse, hotel_id: int) -> None:
+    """Do not ask indoor/outdoor when the hotel profile exposes only one restaurant area type."""
+    if str(response.internal_json.intent or "").lower() != "restaurant_booking_create":
+        return
+
+    single_area_type = _single_restaurant_area_type(hotel_id)
+    if not single_area_type:
+        return
+
+    entities = response.internal_json.entities if isinstance(response.internal_json.entities, dict) else {}
+    if not str(entities.get("area") or "").strip():
+        entities["area"] = single_area_type
+        response.internal_json.entities = entities
+
+    original_required = [
+        str(item).strip()
+        for item in response.internal_json.required_questions
+        if isinstance(item, str) and str(item).strip()
+    ]
+    filtered_required = [
+        question
+        for question in original_required
+        if _canonical_required_question_key(question) != "area"
+    ]
+    removed_area_requirement = len(filtered_required) != len(original_required)
+    response.internal_json.required_questions = filtered_required
+
+    current_message = str(response.user_message or "").strip()
+    if not removed_area_requirement and not _contains_restaurant_area_prompt(current_message):
+        return
+
+    language = str(response.internal_json.language or "tr").lower()
+    if filtered_required:
+        response.user_message = _single_field_prompt(language, filtered_required[0])
+        return
+
+    missing_required = _restaurant_missing_required_fields(entities)
+    if missing_required:
+        response.internal_json.required_questions = [missing_required[0]]
+        response.user_message = _single_field_prompt(language, missing_required[0])
+        return
+
+    response.internal_json.required_questions = []
+    response.internal_json.state = "READY_FOR_TOOL"
+    response.internal_json.next_step = "run_restaurant_availability"
+    response.user_message = _restaurant_tool_progress_message(language)
+
+
 def _price_unavailable_message(language: str) -> str:
     """Build user-facing fallback when live quote cannot be retrieved from PMS."""
     if language == "en":
@@ -2146,6 +3309,8 @@ def _canonical_required_question_key(question: str) -> str:
         return "room_distribution"
     if any(token in normalized for token in ("route", "guzergah", "nereden", "nereye")):
         return "route"
+    if any(token in normalized for token in ("area", "alan", "indoor", "outdoor", "icmekan", "dismekan")):
+        return "area"
     if "date" in normalized or "tarih" in normalized:
         return "date"
     if "time" in normalized or "saat" in normalized:
@@ -2172,6 +3337,7 @@ def _single_field_prompt(language: str, required_question: str) -> str:
             "cancel_policy_type": "Hangi iptal politikasıyla devam edelim: İptal edilemez mi, Ücretsiz İptal mi?",
             "room_distribution": "Oda dağılımını nasıl planlayalım? (ör. 3+3 veya 4+2)",
             "route": "Transfer için güzergâhı paylaşır mısınız? (nereden -> nereye)",
+            "area": "Acik alan mi kapali alan mi tercih edersiniz?",
             "date": "Rezervasyon tarihi nedir?",
             "time": "Saat bilgisini paylaşır mısınız?",
             "party_size": "Kaç kişi için rezervasyon yapalım?",
@@ -2188,6 +3354,7 @@ def _single_field_prompt(language: str, required_question: str) -> str:
             "cancel_policy_type": "Which cancellation policy do you prefer: Non-refundable or Free Cancellation?",
             "room_distribution": "How would you like to split the rooms? (e.g. 3+3 or 4+2)",
             "route": "Please share the transfer route. (from -> to)",
+            "area": "Do you prefer indoor or outdoor seating?",
             "date": "What is the reservation date?",
             "time": "Please share the preferred time.",
             "party_size": "How many guests should I reserve for?",
@@ -2204,6 +3371,7 @@ def _single_field_prompt(language: str, required_question: str) -> str:
             "cancel_policy_type": "Какой вариант отмены предпочитаете: невозвратный или бесплатная отмена?",
             "room_distribution": "Как разделим размещение по комнатам? (например, 3+3 или 4+2)",
             "route": "Пожалуйста, укажите маршрут трансфера. (откуда -> куда)",
+            "area": "Вы предпочитаете место в помещении или на открытом воздухе?",
             "date": "Какая дата бронирования?",
             "time": "Пожалуйста, укажите время.",
             "party_size": "На сколько гостей оформить бронь?",
@@ -2296,6 +3464,196 @@ def _should_auto_submit_stay_hold(internal_json: InternalJSON) -> bool:
     return state == "READY_FOR_TOOL"
 
 
+def _restaurant_required_fields_present(entities: dict[str, Any]) -> bool:
+    """Return True when enough restaurant fields exist to call availability/create tools."""
+    return (
+        bool(str(entities.get("date") or "").strip())
+        and bool(str(entities.get("time") or "").strip())
+        and _to_int(entities.get("party_size"), 0) > 0
+        and bool(str(entities.get("guest_name") or "").strip())
+        and bool(str(entities.get("phone") or "").strip())
+    )
+
+
+def _is_affirmative_confirmation(text: str) -> bool:
+    """Return True when the guest explicitly confirms proceeding."""
+    normalized = _normalize_language_text(text)
+    keywords = (
+        "evet",
+        "tamam",
+        "olur",
+        "uygun",
+        "dogru",
+        "onayliyorum",
+        "yes",
+        "ok",
+        "okay",
+        "confirm",
+        "approved",
+        "da",
+        "podtverzhdayu",
+    )
+    return any(_contains_keyword(normalized, keyword) for keyword in keywords)
+
+
+def _should_auto_submit_restaurant_hold(
+    internal_json: InternalJSON,
+    entities: dict[str, Any],
+    normalized_text: str,
+) -> bool:
+    """Return True when parsed response indicates restaurant hold must be submitted now."""
+    if str(internal_json.intent or "").lower() != "restaurant_booking_create":
+        return False
+    if not _restaurant_required_fields_present(entities):
+        return False
+
+    state = str(internal_json.state or "").upper()
+    if state not in {"READY_FOR_TOOL", "TOOL_RUNNING", "NEEDS_CONFIRMATION", "PENDING_APPROVAL"}:
+        return False
+    if state == "NEEDS_CONFIRMATION" and not _is_affirmative_confirmation(normalized_text):
+        return False
+
+    parsed_tool_calls = ResponseParser.extract_tool_calls(internal_json)
+    tool_names = {
+        str(item.get("name") or "").strip()
+        for item in parsed_tool_calls
+        if isinstance(item, dict)
+    }
+    if {"restaurant_availability", "restaurant_create_hold"} & tool_names:
+        return True
+
+    next_step = _canonical_text(str(internal_json.next_step or ""))
+    if not next_step:
+        return state in {"READY_FOR_TOOL", "TOOL_RUNNING", "PENDING_APPROVAL"}
+    if "restaurantcreatehold" in next_step:
+        return True
+    if next_step == "awaittoolresult":
+        return True
+    if "approval" in next_step or "onay" in next_step:
+        return True
+    return state in {"READY_FOR_TOOL", "TOOL_RUNNING", "PENDING_APPROVAL"}
+
+
+def _executed_restaurant_hold_submission(executed_calls: list[dict[str, Any]]) -> bool:
+    """Return True when a restaurant hold was successfully created."""
+    for call in executed_calls:
+        if str(call.get("name") or "") != "restaurant_create_hold":
+            continue
+        result = _loads_tool_payload(call.get("result"))
+        if str(result.get("restaurant_hold_id") or "").strip():
+            return True
+    return False
+
+
+def _select_restaurant_slot_id(entities: dict[str, Any], availability_result: dict[str, Any]) -> str:
+    """Pick a slot id from availability result, preferring any pre-selected slot."""
+    raw_options = availability_result.get("options")
+    if not isinstance(raw_options, list):
+        return ""
+
+    preferred_slot_id = str(entities.get("slot_id") or "").strip()
+    normalized_options = [item for item in raw_options if isinstance(item, dict)]
+    if preferred_slot_id:
+        for item in normalized_options:
+            option_id = str(item.get("slot_id") or "").strip()
+            if option_id == preferred_slot_id:
+                return option_id
+
+    for item in normalized_options:
+        option_id = str(item.get("slot_id") or "").strip()
+        if option_id:
+            return option_id
+    return ""
+
+
+async def _auto_submit_restaurant_hold(
+    conversation: Conversation,
+    entities: dict[str, Any],
+    dispatcher: Any,
+) -> list[dict[str, Any]]:
+    """Fallback: create restaurant hold deterministically when LLM skips tool calls."""
+    date_value = str(entities.get("date") or "").strip()
+    time_value = str(entities.get("time") or "").strip()
+    party_size = _to_int(entities.get("party_size"), 0)
+    guest_name = str(entities.get("guest_name") or "").strip()
+    phone = str(entities.get("phone") or "").strip()
+    if not date_value or not time_value or party_size <= 0 or not guest_name or not phone:
+        return []
+
+    availability_args: dict[str, Any] = {
+        "hotel_id": conversation.hotel_id,
+        "date": date_value,
+        "time": time_value,
+        "party_size": party_size,
+    }
+    if str(entities.get("area") or "").strip():
+        availability_args["area"] = str(entities.get("area") or "").strip()
+    if str(entities.get("notes") or "").strip():
+        availability_args["notes"] = str(entities.get("notes") or "").strip()
+
+    availability_result = await dispatcher.dispatch("restaurant_availability", **availability_args)
+    if not isinstance(availability_result, dict) or availability_result.get("error"):
+        logger.warning("restaurant_hold_auto_submit_availability_failed")
+        return []
+
+    fallback_calls: list[dict[str, Any]] = [
+        {"name": "restaurant_availability", "arguments": availability_args, "result": availability_result},
+    ]
+    if not bool(availability_result.get("available")):
+        return fallback_calls
+
+    selected_slot_id = _select_restaurant_slot_id(entities, availability_result)
+    if not selected_slot_id:
+        logger.warning("restaurant_hold_auto_submit_slot_missing")
+        return fallback_calls
+
+    hold_args: dict[str, Any] = {
+        "hotel_id": conversation.hotel_id,
+        "slot_id": selected_slot_id,
+        "guest_name": guest_name,
+        "phone": phone,
+        "party_size": party_size,
+    }
+    if str(entities.get("area") or "").strip():
+        hold_args["area"] = str(entities.get("area") or "").strip()
+    if "notes" in entities:
+        hold_args["notes"] = str(entities.get("notes") or "")
+    if conversation.id is not None:
+        hold_args["conversation_id"] = str(conversation.id)
+
+    hold_result = await dispatcher.dispatch("restaurant_create_hold", **hold_args)
+    if not isinstance(hold_result, dict) or hold_result.get("error"):
+        logger.warning("restaurant_hold_auto_submit_create_failed")
+        return []
+
+    fallback_calls.append({"name": "restaurant_create_hold", "arguments": hold_args, "result": hold_result})
+    approval_request_id = str(hold_result.get("approval_request_id") or "").strip()
+    if approval_request_id:
+        fallback_calls.append(
+            {
+                "name": "approval_request",
+                "arguments": {
+                    "hotel_id": conversation.hotel_id,
+                    "approval_type": "RESTAURANT",
+                    "reference_id": str(hold_result.get("restaurant_hold_id") or ""),
+                    "required_roles": ["ADMIN", "CHEF"],
+                    "any_of": True,
+                },
+                "result": {
+                    "approval_request_id": approval_request_id,
+                    "status": "REQUESTED",
+                },
+            }
+        )
+
+    logger.info(
+        "restaurant_hold_auto_submitted",
+        hold_id=hold_result.get("restaurant_hold_id"),
+        approval_request_id=approval_request_id or None,
+    )
+    return fallback_calls
+
+
 def _resolve_requested_room_type_id(entities: dict[str, Any], profile: Any | None) -> int:
     """Resolve requested room type id to PMS room_type_id when possible."""
     room_id = _to_int(entities.get("room_type_id"), 0)
@@ -2357,7 +3715,7 @@ def _select_offer_for_stay_hold(
         return True
 
     if cancel_policy_type:
-        candidate_sets = (
+        candidate_sets: tuple[list[dict[str, Any]], ...] = (
             [offer for offer in offers if _matches(offer, check_room=True, check_policy=True)],
             [offer for offer in offers if _matches(offer, check_room=False, check_policy=True)],
         )
@@ -2479,7 +3837,15 @@ async def _auto_submit_stay_hold(
         "cancel_policy_type": cancel_policy_type,
     }
     quote_result = await dispatcher.dispatch("booking_quote", **quote_args)
-    if not isinstance(quote_result, dict) or quote_result.get("error"):
+    if not isinstance(quote_result, dict):
+        logger.warning("stay_hold_auto_submit_quote_failed")
+        return []
+    fallback_calls: list[dict[str, Any]] = [
+        {"name": "booking_quote", "arguments": quote_args, "result": quote_result},
+    ]
+    if _is_out_of_season_tool_result(quote_result):
+        return fallback_calls
+    if quote_result.get("error"):
         logger.warning("stay_hold_auto_submit_quote_failed")
         return []
 
@@ -2512,10 +3878,7 @@ async def _auto_submit_stay_hold(
         logger.warning("stay_hold_auto_submit_create_failed")
         return []
 
-    fallback_calls: list[dict[str, Any]] = [
-        {"name": "booking_quote", "arguments": quote_args, "result": quote_result},
-        {"name": "stay_create_hold", "arguments": hold_args, "result": hold_result},
-    ]
+    fallback_calls.append({"name": "stay_create_hold", "arguments": hold_args, "result": hold_result})
     approval_request_id = str(hold_result.get("approval_request_id") or "").strip()
     if approval_request_id:
         fallback_calls.append(
@@ -2562,7 +3925,9 @@ async def _run_message_pipeline(
         *,
         scope_decision: ScopeDecision | None = None,
         language_override: str | None = None,
+        executed_calls: list[dict[str, Any]] | None = None,
     ) -> LLMResponse:
+        _sync_response_tool_calls(candidate, executed_calls)
         return validate_guest_response(
             candidate,
             default_language=language_override or target_language,
@@ -2619,6 +3984,25 @@ async def _run_message_pipeline(
             scope_decision=scope_result.decision,
         )
 
+    if await _should_force_restaurant_manual_handoff(conversation, normalized_text):
+        existing_entities = conversation.entities_json if isinstance(conversation.entities_json, dict) else {}
+        return _finalize_response(
+            LLMResponse(
+                user_message=_restaurant_manual_mode_message(target_language),
+                internal_json=InternalJSON(
+                    language=target_language,
+                    intent="restaurant_booking_create",
+                    state="HANDOFF",
+                    entities=dict(existing_entities),
+                    required_questions=[],
+                    handoff={"needed": True, "reason": "restaurant_manual_mode"},
+                    risk_flags=[],
+                    next_step="handoff_to_restaurant_team",
+                ),
+            ),
+            scope_decision=scope_result.decision,
+        )
+
     try:
         prompt_builder = get_prompt_builder()
         llm_client = get_llm_client()
@@ -2629,7 +4013,12 @@ async def _run_message_pipeline(
             burst_metadata=burst_metadata,
             reply_context=reply_context,
         )
-        tools = get_tool_definitions()
+        tools = _select_tool_definitions_for_turn(
+            conversation,
+            normalized_text,
+            get_tool_definitions(),
+        )
+        tool_names_presented = _extract_tool_definition_names(tools)
         if dispatcher is not None:
             tool_executor = _build_dispatcher_executor(dispatcher, conversation)
         else:
@@ -2639,11 +4028,30 @@ async def _run_message_pipeline(
 
             tool_executor = _unavailable_executor
 
+        logger.info(
+            "llm_tool_trace_start",
+            conversation_id=str(conversation.id) if conversation.id is not None else None,
+            message_count=len(messages),
+            tool_count=len(tool_names_presented),
+            tool_names=tool_names_presented,
+            user_text_length=len(normalized_text),
+        )
+
         content, executed_calls = await llm_client.run_tool_call_loop(
             messages=messages,
             tools=tools,
             tool_executor=tool_executor,
             max_iterations=5,
+            trace_context={"conversation_id": str(conversation.id) if conversation.id is not None else None},
+        )
+
+        logger.info(
+            "llm_tool_trace_result",
+            conversation_id=str(conversation.id) if conversation.id is not None else None,
+            executed_call_count=len(executed_calls),
+            executed_call_names=[str(call.get("name") or "") for call in executed_calls],
+            content_length=len(content),
+            has_internal_json_marker="INTERNAL_JSON" in content,
         )
 
         if executed_calls:
@@ -2658,6 +4066,7 @@ async def _run_message_pipeline(
             return _finalize_response(
                 _build_child_quote_handoff_response(conversation.hotel_id, executed_calls),
                 scope_decision=scope_result.decision,
+                executed_calls=executed_calls,
             )
 
         restaurant_capacity_handoff = _build_restaurant_capacity_handoff_response(
@@ -2669,9 +4078,46 @@ async def _run_message_pipeline(
             return _finalize_response(
                 restaurant_capacity_handoff,
                 scope_decision=scope_result.decision,
+                executed_calls=executed_calls,
+            )
+        restaurant_unavailable_response = _build_restaurant_unavailable_response(
+            conversation,
+            executed_calls,
+            target_language,
+        )
+        if restaurant_unavailable_response is not None:
+            return _finalize_response(
+                restaurant_unavailable_response,
+                scope_decision=scope_result.decision,
+                executed_calls=executed_calls,
+            )
+        stay_or_transfer_out_of_season = _build_stay_or_transfer_out_of_season_response(
+            conversation,
+            executed_calls,
+            target_language,
+        )
+        if stay_or_transfer_out_of_season is not None:
+            return _finalize_response(
+                stay_or_transfer_out_of_season,
+                scope_decision=scope_result.decision,
+                executed_calls=executed_calls,
             )
 
         parsed = ResponseParser.parse(content)
+        parser_error_reason = ResponseParser.extract_parser_error(parsed.internal_json)
+        if parser_error_reason:
+            repaired_response = await _attempt_structured_output_repair(
+                llm_client=llm_client,
+                raw_content=content,
+                language=target_language,
+                parser_error_reason=parser_error_reason,
+                conversation=conversation,
+                executed_calls=executed_calls,
+            )
+            if repaired_response is not None:
+                parsed = repaired_response
+                parser_error_reason = ""
+
         intent = str(parsed.internal_json.intent or "").lower()
         language = (
             target_language
@@ -2687,7 +4133,73 @@ async def _run_message_pipeline(
             "reason": scope_result.reason,
             "confidence": round(scope_result.confidence, 3),
         }
+        if not parser_error_reason:
+            entities.pop("response_parser", None)
         parsed.internal_json.entities = entities
+        intent_guard_meta = _apply_turn_intent_domain_guard(
+            parsed,
+            normalized_text=normalized_text,
+            tool_names_presented=tool_names_presented,
+        )
+        if intent_guard_meta is not None:
+            intent = str(parsed.internal_json.intent or "").lower()
+            record_intent_domain_guard(
+                str(intent_guard_meta.get("reason") or ""),
+                str(intent_guard_meta.get("from_intent") or ""),
+                str(intent_guard_meta.get("to_intent") or ""),
+            )
+            logger.info(
+                "llm_intent_domain_guard_applied",
+                conversation_id=str(conversation.id) if conversation.id is not None else None,
+                from_intent=intent_guard_meta.get("from_intent"),
+                to_intent=intent_guard_meta.get("to_intent"),
+                reason=intent_guard_meta.get("reason"),
+                tool_names=tool_names_presented,
+            )
+        embedded_tool_names = [
+            str(item.get("name") or "")
+            for item in ResponseParser.extract_tool_calls(parsed.internal_json)
+            if isinstance(item, dict) and str(item.get("name") or "").strip()
+        ]
+        logger.info(
+            "llm_structured_output_trace",
+            conversation_id=str(conversation.id) if conversation.id is not None else None,
+            parser_error_reason=parser_error_reason or None,
+            parsed_intent=intent or None,
+            parsed_state=str(parsed.internal_json.state or "").strip() or None,
+            embedded_tool_call_count=len(embedded_tool_names),
+            embedded_tool_call_names=embedded_tool_names,
+            executed_call_count=len(executed_calls),
+        )
+        if parser_error_reason:
+            logger.warning(
+                "llm_structured_output_parser_error",
+                conversation_id=str(conversation.id) if conversation.id is not None else None,
+                reason=parser_error_reason,
+                has_executed_calls=bool(executed_calls),
+            )
+            if not executed_calls:
+                return _finalize_response(
+                    _build_structured_output_error_response(
+                        language,
+                        parser_error_reason,
+                        conversation,
+                    ),
+                    scope_decision=scope_result.decision,
+                    language_override=language,
+                )
+        _suppress_restaurant_area_question(parsed, conversation.hotel_id)
+        if (
+            not executed_calls
+            and not intent
+            and not str(parsed.internal_json.state or "").strip()
+            and not ResponseParser.extract_tool_calls(parsed.internal_json)
+        ):
+            logger.warning(
+                "llm_structured_output_missing",
+                conversation_id=str(conversation.id) if conversation.id is not None else None,
+                message_length=len(normalized_text),
+            )
         if _has_recent_media_analysis_context(conversation) and _contains_profile_unsupported_room_taxonomy(
             parsed.user_message,
             conversation.hotel_id,
@@ -2702,16 +4214,100 @@ async def _run_message_pipeline(
             )
         if _is_elevator_question(normalized_text):
             parsed.user_message = _build_elevator_reply(conversation.hotel_id, language)
-            return _finalize_response(parsed, scope_decision=scope_result.decision, language_override=language)
+            return _finalize_response(
+                parsed,
+                scope_decision=scope_result.decision,
+                language_override=language,
+                executed_calls=executed_calls,
+            )
         if language == "tr" and _is_payment_method_question(normalized_text):
             parsed.user_message = _build_turkish_payment_methods_reply(conversation.hotel_id)
-            return _finalize_response(parsed, scope_decision=scope_result.decision, language_override=language)
+            return _finalize_response(
+                parsed,
+                scope_decision=scope_result.decision,
+                language_override=language,
+                executed_calls=executed_calls,
+            )
         if language == "tr" and _is_parking_question(normalized_text):
             parsed.user_message = _build_turkish_parking_reply(conversation.hotel_id)
-            return _finalize_response(parsed, scope_decision=scope_result.decision, language_override=language)
+            return _finalize_response(
+                parsed,
+                scope_decision=scope_result.decision,
+                language_override=language,
+                executed_calls=executed_calls,
+            )
         if language == "tr" and _is_child_bedding_question(normalized_text, entities):
             parsed.user_message = _build_turkish_child_bedding_reply(conversation.hotel_id, entities)
-            return _finalize_response(parsed, scope_decision=scope_result.decision, language_override=language)
+            return _finalize_response(
+                parsed,
+                scope_decision=scope_result.decision,
+                language_override=language,
+                executed_calls=executed_calls,
+            )
+        if (
+            dispatcher is not None
+            and not _executed_restaurant_hold_submission(executed_calls)
+            and _should_auto_submit_restaurant_hold(parsed.internal_json, entities, normalized_text)
+        ):
+            fallback_calls = await _auto_submit_restaurant_hold(
+                conversation=conversation,
+                entities=entities,
+                dispatcher=dispatcher,
+            )
+            if fallback_calls:
+                executed_calls.extend(fallback_calls)
+                restaurant_capacity_handoff = _build_restaurant_capacity_handoff_response(
+                    conversation,
+                    executed_calls,
+                    language,
+                )
+                if restaurant_capacity_handoff is not None:
+                    return _finalize_response(
+                        restaurant_capacity_handoff,
+                        scope_decision=scope_result.decision,
+                        language_override=language,
+                        executed_calls=executed_calls,
+                    )
+                restaurant_unavailable_response = _build_restaurant_unavailable_response(
+                    conversation,
+                    executed_calls,
+                    language,
+                )
+                if restaurant_unavailable_response is not None:
+                    return _finalize_response(
+                        restaurant_unavailable_response,
+                        scope_decision=scope_result.decision,
+                        language_override=language,
+                        executed_calls=executed_calls,
+                    )
+            else:
+                logger.warning(
+                    "restaurant_hold_submission_missing_after_ready_for_tool",
+                    conversation_id=str(conversation.id) if conversation.id is not None else None,
+                    state=str(parsed.internal_json.state or ""),
+                    next_step=str(parsed.internal_json.next_step or ""),
+                )
+                return _finalize_response(
+                    LLMResponse(
+                        user_message=(
+                            "Talebinizi aldik ancak restoran rezervasyonunu teknik olarak tamamlayamadik. "
+                            "Ekibimiz sizi manuel olarak en kisa surede bilgilendirecektir."
+                        ),
+                        internal_json=InternalJSON(
+                            language=language,
+                            intent="restaurant_booking_create",
+                            state="HANDOFF",
+                            entities=entities,
+                            required_questions=[],
+                            handoff={"needed": True, "reason": "restaurant_hold_submission_failed"},
+                            risk_flags=["TOOL_ERROR_REPEAT"],
+                            next_step="manual_review_required",
+                        ),
+                    ),
+                    scope_decision=scope_result.decision,
+                    language_override=language,
+                    executed_calls=executed_calls,
+                )
         if (
             dispatcher is not None
             and not _executed_stay_hold_submission(executed_calls)
@@ -2751,7 +4347,20 @@ async def _run_message_pipeline(
                     ),
                     scope_decision=scope_result.decision,
                     language_override=language,
+                    executed_calls=executed_calls,
                 )
+        stay_or_transfer_out_of_season = _build_stay_or_transfer_out_of_season_response(
+            conversation,
+            executed_calls,
+            language,
+        )
+        if stay_or_transfer_out_of_season is not None:
+            return _finalize_response(
+                stay_or_transfer_out_of_season,
+                scope_decision=scope_result.decision,
+                language_override=language,
+                executed_calls=executed_calls,
+            )
         if intent == "stay_quote" and _booking_quote_failed_or_empty(executed_calls):
             risk_flags = list(parsed.internal_json.risk_flags or [])
             if "TOOL_UNAVAILABLE" not in risk_flags:
@@ -2762,7 +4371,12 @@ async def _run_message_pipeline(
             parsed.internal_json.handoff = {"needed": True, "reason": "live_price_unavailable"}
             parsed.internal_json.risk_flags = risk_flags
             parsed.internal_json.next_step = "handoff_to_live_price_team"
-            return _finalize_response(parsed, scope_decision=scope_result.decision, language_override=language)
+            return _finalize_response(
+                parsed,
+                scope_decision=scope_result.decision,
+                language_override=language,
+                executed_calls=executed_calls,
+            )
         if intent == "stay_quote":
             await _backfill_availability_for_quote(
                 conversation=conversation,
@@ -2790,8 +4404,34 @@ async def _run_message_pipeline(
             parsed.user_message = _stay_pending_approval_message(language)
             parsed.internal_json.state = "PENDING_APPROVAL"
             parsed.internal_json.next_step = "await_admin_approval"
+        if _executed_restaurant_hold_submission(executed_calls):
+            last_restaurant_hold = _loads_tool_payload(
+                next(
+                    (
+                        call.get("result")
+                        for call in reversed(executed_calls)
+                        if str(call.get("name") or "") == "restaurant_create_hold"
+                    ),
+                    {},
+                )
+            )
+            approval_request_id = str(last_restaurant_hold.get("approval_request_id") or "").strip()
+            hold_status = str(last_restaurant_hold.get("status") or "").strip().upper()
+            if approval_request_id:
+                parsed.user_message = _restaurant_pending_approval_message(language)
+                parsed.internal_json.state = "PENDING_APPROVAL"
+                parsed.internal_json.next_step = "await_admin_approval"
+            elif hold_status in {"ONAYLANDI", "CONFIRMED"}:
+                parsed.user_message = _restaurant_confirmed_message(language)
+                parsed.internal_json.state = "CONFIRMED"
+                parsed.internal_json.next_step = "reservation_confirmed"
         _enforce_single_step_collection(parsed)
-        return _finalize_response(parsed, scope_decision=scope_result.decision, language_override=language)
+        return _finalize_response(
+            parsed,
+            scope_decision=scope_result.decision,
+            language_override=language,
+            executed_calls=executed_calls,
+        )
     except LLMUnavailableError as llm_err:
         logger.warning("llm_unavailable_fallback", error_detail=str(llm_err)[:500])
         return _finalize_response(
@@ -2883,7 +4523,20 @@ async def _create_or_get_conversation(
     phone_hash = _hash_phone(incoming.phone)
     conversation = await repository.get_active_by_phone(hotel_id, phone_hash)
     if conversation is not None:
-        return conversation
+        last_message_at = conversation.last_message_at
+        if last_message_at.tzinfo is None:
+            last_message_at = last_message_at.replace(tzinfo=UTC)
+        inactivity_seconds = (datetime.now(UTC) - last_message_at).total_seconds()
+        if inactivity_seconds >= CONVERSATION_IDLE_RESET_SECONDS and conversation.id is not None:
+            await repository.close(conversation.id)
+            logger.info(
+                "conversation_auto_reset_after_inactivity",
+                hotel_id=hotel_id,
+                conversation_id=str(conversation.id),
+                inactivity_seconds=int(inactivity_seconds),
+            )
+        else:
+            return conversation
 
     initial_language = _detect_message_language(incoming.text, "tr")
     new_conversation = Conversation(
@@ -3046,6 +4699,9 @@ async def _process_incoming_message(
                 assistant_internal_json["whatsapp_message_id"] = wa_message_id
             if settings.operation_mode == "approval":
                 assistant_internal_json["approval_pending"] = True
+            assistant_tool_calls = assistant_internal_json.get("tool_calls")
+            if not isinstance(assistant_tool_calls, list) or not assistant_tool_calls:
+                assistant_tool_calls = None
 
             assistant_msg = Message(
                 conversation_id=conversation.id,
@@ -3053,9 +4709,26 @@ async def _process_incoming_message(
                 content=reply_text,
                 whatsapp_message_id=wa_message_id,
                 internal_json=assistant_internal_json,
+                tool_calls=assistant_tool_calls,
             )
             await conversation_repository.add_message(assistant_msg)
             conversation.messages.append(assistant_msg)
+            logger.info(
+                "assistant_message_persisted",
+                conversation_id=str(conversation.id),
+                message_part_index=index,
+                message_part_total=len(message_parts),
+                persisted_tool_calls_count=len(assistant_tool_calls or []),
+                persisted_intent=str(assistant_internal_json.get("intent") or "").strip() or None,
+                persisted_state=str(assistant_internal_json.get("state") or "").strip() or None,
+                parser_error_reason=(
+                    assistant_internal_json.get("entities", {})
+                    .get("response_parser", {})
+                    .get("reason")
+                    if isinstance(assistant_internal_json.get("entities"), dict)
+                    else None
+                ),
+            )
 
         escalation_result = EscalationResult()
         if escalation_engine is not None and db_pool is not None and "handoff" in tools and "notify" in tools:
@@ -3650,6 +5323,9 @@ async def _process_burst_aggregated(
                 assistant_internal_json["burst_metadata"] = burst_metadata
             if settings.operation_mode == "approval":
                 assistant_internal_json["approval_pending"] = True
+            assistant_tool_calls = assistant_internal_json.get("tool_calls")
+            if not isinstance(assistant_tool_calls, list) or not assistant_tool_calls:
+                assistant_tool_calls = None
 
             assistant_msg = Message(
                 conversation_id=conversation.id,
@@ -3657,9 +5333,26 @@ async def _process_burst_aggregated(
                 content=reply_text,
                 whatsapp_message_id=wa_message_id,
                 internal_json=assistant_internal_json,
+                tool_calls=assistant_tool_calls,
             )
             await conversation_repository.add_message(assistant_msg)
             conversation.messages.append(assistant_msg)
+            logger.info(
+                "assistant_message_persisted",
+                conversation_id=str(conversation.id),
+                message_part_index=index,
+                message_part_total=len(message_parts),
+                persisted_tool_calls_count=len(assistant_tool_calls or []),
+                persisted_intent=str(assistant_internal_json.get("intent") or "").strip() or None,
+                persisted_state=str(assistant_internal_json.get("state") or "").strip() or None,
+                parser_error_reason=(
+                    assistant_internal_json.get("entities", {})
+                    .get("response_parser", {})
+                    .get("reason")
+                    if isinstance(assistant_internal_json.get("entities"), dict)
+                    else None
+                ),
+            )
 
         # Escalation post-processing
         escalation_result = EscalationResult()

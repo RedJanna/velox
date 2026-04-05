@@ -13,8 +13,8 @@ import structlog
 from velox.adapters.whatsapp.client import WhatsAppSendBlockedError, get_whatsapp_client
 from velox.config.constants import MAX_TOOL_RETRIES, TOOL_RETRY_BACKOFF_SECONDS, HoldStatus
 from velox.config.settings import settings
-from velox.core.hotel_profile_loader import get_profile
 from velox.core.hold_workflow import HoldWorkflowEvent, HoldWorkflowState, apply_hold_transition
+from velox.core.hotel_profile_loader import get_profile
 from velox.core.idempotency import (
     IDEMPOTENCY_NAMESPACE_APPROVAL,
     IDEMPOTENCY_NAMESPACE_CREATE,
@@ -108,9 +108,13 @@ class EventProcessor:
             amount = draft.get("total_price_eur")
             if amount in (None, ""):
                 return None
+            if isinstance(amount, bool):
+                return None
+            if not isinstance(amount, (int, float, str)):
+                return None
             try:
                 value = float(amount)
-            except (TypeError, ValueError):
+            except ValueError:
                 return None
             currency = str(draft.get("currency_display") or "EUR").strip() or "EUR"
             return f"{value:.2f} {currency}"
@@ -390,7 +394,9 @@ class EventProcessor:
                     reservation_found_by_id = bool(
                         reservation_id and readback_reservation_id and readback_reservation_id == reservation_id
                     )
-                    reservation_found_by_voucher = bool(voucher_no and readback_voucher and readback_voucher == voucher_no)
+                    reservation_found_by_voucher = bool(
+                        voucher_no and readback_voucher and readback_voucher == voucher_no
+                    )
 
                 if not (reservation_found_by_id or reservation_found_by_voucher):
                     await conn.execute(

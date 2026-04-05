@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import datetime as _dt
 from datetime import date, datetime, time
-from typing import Any, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from velox.config.constants import HoldStatus, RestaurantReservationMode, RestaurantReservationStatus
+from velox.config.constants import RestaurantReservationMode, RestaurantReservationStatus
 
 
 class RestaurantAvailabilityRequest(BaseModel):
@@ -30,9 +29,9 @@ class RestaurantSlot(BaseModel):
 class RestaurantSlotCreate(BaseModel):
     date_from: date
     date_to: date
-    time: Optional[_dt.time] = None
-    start_time: Optional[_dt.time] = None
-    end_time: Optional[_dt.time] = None
+    time: _dt.time | None = None
+    start_time: _dt.time | None = None
+    end_time: _dt.time | None = None
     interval_minutes: int = Field(default=60, ge=15, le=240)
     total_capacity: int = Field(ge=1)
     reservation_limit: int | None = Field(default=None, ge=1)
@@ -77,10 +76,10 @@ class RestaurantSlotView(BaseModel):
     window_booked_party_size: int | None = None
     min_party_size: int | None = None
     max_party_size: int | None = None
-    window_date_from: date | None = None
-    window_date_to: date | None = None
-    window_start_time: time | None = None
-    window_end_time: time | None = None
+    window_date_from: _dt.date | None = None
+    window_date_to: _dt.date | None = None
+    window_start_time: _dt.time | None = None
+    window_end_time: _dt.time | None = None
 
 
 class RestaurantHold(BaseModel):
@@ -243,7 +242,7 @@ class RestaurantHoldUpdateRequest(BaseModel):
     """Fields editable from the table detail modal and service mode."""
     guest_name: str | None = None
     party_size: int | None = Field(default=None, ge=1)
-    time: Optional[_dt.time] = None
+    time: _dt.time | None = None
     area: str | None = None
     notes: str | None = Field(default=None, max_length=500)
     table_id: str | None = Field(default=None, max_length=64)

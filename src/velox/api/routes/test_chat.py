@@ -1,6 +1,7 @@
 """Chat Lab endpoints and UI for admin-operated testing workflows."""
 
 import asyncio
+import contextlib
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
@@ -22,33 +23,33 @@ from velox.api.routes.test_chat_export import (
 )
 from velox.api.routes.test_chat_ui import TEST_CHAT_HTML
 from velox.api.routes.whatsapp_webhook import (
-    _HandoffToolAdapter,
-    _NotifyToolAdapter,
     _activate_handoff_guard,
     _detect_message_language,
     _extract_user_message_parts,
     _finalize_handoff_transition,
+    _HandoffToolAdapter,
     _hash_phone,
     _is_human_override_active,
     _mask_phone,
     _merge_entities_with_context,
     _normalize_text,
+    _NotifyToolAdapter,
     _run_message_pipeline,
     _should_activate_handoff_lock,
 )
 from velox.config.constants import Role
 from velox.config.settings import settings
+from velox.core.chat_lab_attachments import (
+    ChatLabAttachmentError,
+    ChatLabAttachmentService,
+    serialize_asset_for_client,
+)
 from velox.core.chat_lab_feedback import (
     ChatLabFeedbackError,
     ChatLabFeedbackService,
     ChatLabImportError,
     FeedbackConversationNotFoundError,
     FeedbackMessageNotFoundError,
-)
-from velox.core.chat_lab_attachments import (
-    ChatLabAttachmentError,
-    ChatLabAttachmentService,
-    serialize_asset_for_client,
 )
 from velox.core.chat_lab_metrics import compute_feedback_metrics
 from velox.core.chat_lab_report import ChatLabReportError, ChatLabReportService
@@ -540,6 +541,7 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
                 content=part_text,
                 client_message_id=part_client_message_id,
                 internal_json=part_internal,
+                tool_calls=part_internal.get("tool_calls") or None,
             )
             try:
                 saved_message = await repository.add_message(candidate)
@@ -624,7 +626,10 @@ async def test_chat_reset(request: Request, phone: str = "test_user_123") -> dic
 
 
 @router.post("/chat/upload-asset")
-async def upload_chat_asset(request: Request, file: UploadFile = File(...)) -> dict[str, Any]:
+async def upload_chat_asset(
+    request: Request,
+    file: Annotated[UploadFile, File(...)],
+) -> dict[str, Any]:
     """Upload a Chat Lab attachment and return reusable metadata."""
     if getattr(request.app.state, "db_pool", None) is None:
         raise HTTPException(status_code=503, detail="Database not available")
@@ -734,7 +739,10 @@ async def test_chat_feedback(
     request: Request,
 ) -> ChatLabFeedbackResponse:
     """Persist one admin review for a selected assistant reply."""
-    if body.source_type in {"live_test_chat", "live_conversation"} and getattr(request.app.state, "db_pool", None) is None:
+    if (
+        body.source_type in {"live_test_chat", "live_conversation"}
+        and getattr(request.app.state, "db_pool", None) is None
+    ):
         raise HTTPException(status_code=503, detail="Veritabani kullanilamiyor")
 
     service = ChatLabFeedbackService()
@@ -889,8 +897,9 @@ async def live_feed(request: Request, limit: int = 20) -> dict[str, Any]:
 @router.get("/chat/conversation/{conversation_id}")
 async def get_conversation_detail(request: Request, conversation_id: str) -> dict[str, Any]:
     """Return full conversation with all messages for the detail modal."""
-    import orjson
     from uuid import UUID as _UUID
+
+    import orjson
 
     pool = getattr(request.app.state, "db_pool", None)
     if pool is None:
@@ -984,8 +993,9 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
 @router.post("/chat/reject-message")
 async def reject_and_flag_message(request: Request) -> dict[str, Any]:
     """Reject an assistant message: mark as rejected and ensure send_blocked."""
-    import orjson
     from uuid import UUID as _UUID
+
+    import orjson
 
     body = await request.json()
     conv_id = body.get("conversation_id")
@@ -1045,11 +1055,10 @@ async def reject_and_flag_message(request: Request) -> dict[str, Any]:
 @router.post("/chat/regenerate")
 async def regenerate_assistant_message(request: Request) -> dict[str, Any]:
     """Delete the last assistant message(s) and re-run the LLM pipeline."""
-    import orjson
     from uuid import UUID as _UUID
 
     from velox.adapters.whatsapp.formatter import WhatsAppFormatter as _Fmt
-    from velox.models.conversation import Conversation, Message
+    from velox.models.conversation import Message
 
     body = await request.json()
     conv_id = body.get("conversation_id")
@@ -1076,7 +1085,9 @@ async def regenerate_assistant_message(request: Request) -> dict[str, Any]:
 
         # Find last user message (context for regeneration)
         last_user = await conn.fetchrow(
-            "SELECT content FROM messages WHERE conversation_id = $1 AND role = 'user' ORDER BY created_at DESC LIMIT 1",
+            "SELECT content FROM messages "
+            "WHERE conversation_id = $1 AND role = 'user' "
+            "ORDER BY created_at DESC LIMIT 1",
             conv_uuid,
         )
         if last_user is None:
@@ -1135,6 +1146,7 @@ async def regenerate_assistant_message(request: Request) -> dict[str, Any]:
             role="assistant",
             content=reply_text,
             internal_json=assistant_internal,
+            tool_calls=assistant_internal.get("tool_calls") or None,
         )
         await repo.add_message(assistant_msg)
 
@@ -1166,10 +1178,7 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
     attachment_ids: list[str] = []
     if isinstance(raw_attachments, list):
         for item in raw_attachments:
-            if isinstance(item, dict):
-                candidate = str(item.get("asset_id") or "").strip()
-            else:
-                candidate = str(item or "").strip()
+            candidate = str(item.get("asset_id") or "").strip() if isinstance(item, dict) else str(item or "").strip()
             if candidate:
                 attachment_ids.append(candidate)
     if not conv_id or (not message and not attachment_ids):
@@ -1204,7 +1213,9 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
         phone = str(conv_row["phone_display"] or "")
         if not phone or "*" in phone:
             user_row = await conn.fetchrow(
-                "SELECT internal_json FROM messages WHERE conversation_id = $1 AND role = 'user' ORDER BY created_at DESC LIMIT 1",
+                "SELECT internal_json FROM messages "
+                "WHERE conversation_id = $1 AND role = 'user' "
+                "ORDER BY created_at DESC LIMIT 1",
                 conv_uuid,
             )
             if user_row:
@@ -1214,10 +1225,8 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
                 if isinstance(raw, dict):
                     ij = raw
                 elif isinstance(raw, (str, bytes)):
-                    try:
+                    with contextlib.suppress(Exception):
                         ij = orjson.loads(raw)
-                    except Exception:
-                        pass
                 phone = ij.get("wa_id", "")
         if not phone or "*" in phone:
             raise HTTPException(status_code=400, detail="Gercek telefon numarasi bulunamadi")
@@ -1321,8 +1330,9 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
 @router.post("/chat/approve-message")
 async def approve_and_send_message(request: Request) -> dict[str, Any]:
     """Approve a pending assistant message and send it via WhatsApp."""
-    import orjson
     from uuid import UUID as _UUID
+
+    import orjson
 
     from velox.adapters.whatsapp.client import get_whatsapp_client
 

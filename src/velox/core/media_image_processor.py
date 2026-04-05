@@ -4,21 +4,27 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from io import BytesIO
+from typing import Any
 
 import structlog
 
 logger = structlog.get_logger(__name__)
 
+Image: Any
+ImageOps: Any
 try:
-    from PIL import Image, ImageOps
+    from PIL import Image as _PILImage
+    from PIL import ImageOps as _PILImageOps
+    Image = _PILImage
+    ImageOps = _PILImageOps
 except Exception:  # pragma: no cover - optional dependency
-    Image = None  # type: ignore[assignment]
-    ImageOps = None  # type: ignore[assignment]
+    Image = None
+    ImageOps = None
 
 try:
-    import pillow_heif  # type: ignore[import-not-found]
+    import pillow_heif
 except Exception:  # pragma: no cover - optional dependency
-    pillow_heif = None  # type: ignore[assignment]
+    pillow_heif = None
 
 if pillow_heif is not None:
     try:
@@ -96,4 +102,3 @@ def normalize_image_for_vision(
             reason="IMAGE_NORMALIZE_FAILED",
             transformed=False,
         )
-

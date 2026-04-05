@@ -11,7 +11,6 @@ import structlog
 from pydantic import BaseModel
 
 from velox.config.constants import (
-    HoldStatus,
     RestaurantReservationStatus,
     RiskFlag,
     resolve_table_type,
@@ -32,6 +31,56 @@ ALLERGY_PATTERN = re.compile(
     r"(allerg|alergy|allergy|gluten|lactose|laktoz|peanut|nut|fistik|alerji|vegan|vegetarian)",
     flags=re.IGNORECASE,
 )
+
+
+def _season_window(profile: Any, *, year: int) -> tuple[_dt.date, _dt.date] | None:
+    """Return configured season bounds for the target year when available."""
+    season = getattr(profile, "season", None)
+    if not isinstance(season, dict):
+        return None
+
+    open_value = str(season.get("open") or "").strip()
+    close_value = str(season.get("close") or "").strip()
+    if not open_value or not close_value:
+        return None
+
+    try:
+        open_month, open_day = (int(part) for part in open_value.split("-", maxsplit=1))
+        close_month, close_day = (int(part) for part in close_value.split("-", maxsplit=1))
+        return _dt.date(year, open_month, open_day), _dt.date(year, close_month, close_day)
+    except (TypeError, ValueError):
+        logger.warning(
+            "restaurant_season_config_invalid",
+            season_open=open_value,
+            season_close=close_value,
+        )
+        return None
+
+
+def _is_within_restaurant_season(profile: Any, target_date: _dt.date) -> bool:
+    """Check whether the requested date falls inside the configured hotel season."""
+    bounds = _season_window(profile, year=target_date.year)
+    if bounds is None:
+        return True
+
+    open_date, close_date = bounds
+    if open_date <= close_date:
+        return open_date <= target_date <= close_date
+    return target_date >= open_date or target_date <= close_date
+
+
+def _season_unavailable_response(profile: Any) -> dict[str, Any]:
+    """Return a normalized out-of-season response for restaurant tools."""
+    season = getattr(profile, "season", {}) if profile is not None else {}
+    return {
+        "available": False,
+        "reason": "OUT_OF_SEASON",
+        "suggestion": "request_valid_date",
+        "season": {
+            "open": str(season.get("open") or ""),
+            "close": str(season.get("close") or ""),
+        },
+    }
 
 
 class _RestaurantHoldUpdates(BaseModel):
@@ -57,6 +106,9 @@ class RestaurantAvailabilityTool(BaseTool):
         self.validate_required(kwargs, ["hotel_id", "date", "time", "party_size"])
         request = RestaurantAvailabilityRequest.model_validate(kwargs)
         profile = get_profile(request.hotel_id)
+
+        if not _is_within_restaurant_season(profile, request.date):
+            return _season_unavailable_response(profile)
 
         settings = await self._settings_repository.get(request.hotel_id)
         if request.party_size < settings.min_party_size or request.party_size > settings.max_party_size:
@@ -144,6 +196,8 @@ class RestaurantCreateHoldTool(BaseTool):
         # Daily capacity check
         slot_id = int(kwargs["slot_id"])
         slot_data = await self._restaurant_repository.get_slot_by_id(hotel_id=hotel_id, slot_id=slot_id)
+        if slot_data is not None and not _is_within_restaurant_season(profile, slot_data["date"]):
+            return _season_unavailable_response(profile)
         if slot_data:
             cap = await self._settings_repository.check_daily_capacity(hotel_id, slot_data["date"], party_size)
             if not cap["allowed"]:

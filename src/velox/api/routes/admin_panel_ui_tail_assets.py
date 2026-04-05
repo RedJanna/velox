@@ -179,23 +179,49 @@ async function loadHotelProfileSection() {
     state.hotelFactsVersions = [];
     state.hotelFactsEvents = [];
     state.hotelFactsVersionDetail = null;
+    state.hotelFactsApiUnavailable = false;
     renderHotelProfileMeta();
     if (refs.publishHotelFacts) refs.publishHotelFacts.disabled = true;
     if (refs.saveHotelProfile) refs.saveHotelProfile.disabled = true;
     return;
   }
-  const responses = await Promise.all([
-    apiFetch(`/hotels/${hotelId}`),
+  const hotelDetail = await apiFetch(`/hotels/${hotelId}`);
+  const factsResults = await Promise.allSettled([
     apiFetch(`/hotels/${hotelId}/facts/status`),
     apiFetch(`/hotels/${hotelId}/facts/versions`),
     apiFetch(`/hotels/${hotelId}/facts/events`),
   ]);
-  state.hotelDetail = responses[0];
-  state.hotelFactsStatus = responses[1];
-  state.hotelFactsVersions = Array.isArray(responses[2]?.items) ? responses[2].items : [];
-  state.hotelFactsEvents = Array.isArray(responses[3]?.items) ? responses[3].items : [];
+  const missingFactsApi = factsResults.some(result => (
+    result.status === 'rejected' && Number(result.reason?.status) === 404
+  ));
+  const criticalFactsError = factsResults.find(result => (
+    result.status === 'rejected' && Number(result.reason?.status) !== 404
+  ));
+  if (criticalFactsError?.status === 'rejected') {
+    throw criticalFactsError.reason;
+  }
+
+  state.hotelDetail = hotelDetail;
+  if (missingFactsApi) {
+    state.hotelFactsApiUnavailable = true;
+    state.hotelFactsStatus = buildLegacyHotelFactsStatus(hotelDetail);
+    state.hotelFactsVersions = [];
+    state.hotelFactsEvents = [];
+  } else {
+    state.hotelFactsApiUnavailable = false;
+    const statusResult = factsResults[0];
+    const versionsResult = factsResults[1];
+    const eventsResult = factsResults[2];
+    state.hotelFactsStatus = statusResult.status === 'fulfilled' ? statusResult.value : null;
+    state.hotelFactsVersions = versionsResult.status === 'fulfilled' && Array.isArray(versionsResult.value?.items)
+      ? versionsResult.value.items
+      : [];
+    state.hotelFactsEvents = eventsResult.status === 'fulfilled' && Array.isArray(eventsResult.value?.items)
+      ? eventsResult.value.items
+      : [];
+  }
   state.hotelProfileDraft = normalizeHotelProfileDraft(state.hotelDetail.profile_json || {});
-  state.hotelProfileLoadedSourceChecksum = responses[1]?.draft_source_profile_checksum || null;
+  state.hotelProfileLoadedSourceChecksum = state.hotelFactsStatus?.draft_source_profile_checksum || null;
   state.hotelFactsDraftValidation = buildHotelFactsDraftValidationFromStatus(state.hotelFactsStatus);
   state.hotelProfileFaqActiveIndex = 0;
   syncHotelProfileEditorFromDraft();
@@ -214,6 +240,22 @@ async function loadHotelProfileSection() {
     state.hotelFactsVersionDetail = null;
     renderHotelFactsVersionDetail(null);
   }
+}
+
+function buildLegacyHotelFactsStatus(hotelDetail) {
+  return {
+    state: 'in_sync',
+    current_version: null,
+    published_by: 'legacy_profile_store',
+    published_at: hotelDetail?.updated_at || null,
+    draft_facts_checksum: null,
+    current_facts_checksum: null,
+    draft_source_profile_checksum: null,
+    draft_matches_runtime: true,
+    draft_publishable: true,
+    blockers: [],
+    warnings: [],
+  };
 }
 
 function renderHotelProfileMeta() {
@@ -566,6 +608,7 @@ const HOTEL_PROFILE_SECTIONS = [
   {id: 'restaurant', label: 'Restoran'},
   {id: 'faq', label: 'SSS'},
   {id: 'policies', label: 'Politikalar'},
+  {id: 'idle_reset', label: 'Konuşma Sıfırlama'},
   {id: 'assistant', label: 'Yapay Zekâ Akışı', technicalOnly: true},
 ];
 
@@ -1024,6 +1067,14 @@ function normalizeHotelProfileDraft(rawProfile) {
   draft.hotel_conversational_flow.avoid_repeating_confirmed_facts = Boolean(draft.hotel_conversational_flow.avoid_repeating_confirmed_facts ?? true);
   draft.hotel_conversational_flow.summarize_large_price_lists = Boolean(draft.hotel_conversational_flow.summarize_large_price_lists ?? true);
   draft.hotel_conversational_flow.ask_before_full_price_dump = Boolean(draft.hotel_conversational_flow.ask_before_full_price_dump ?? true);
+  draft.conversation_idle_reset = asObject(draft.conversation_idle_reset);
+  draft.conversation_idle_reset.enabled = Boolean(draft.conversation_idle_reset.enabled ?? true);
+  draft.conversation_idle_reset.idle_timeout_minutes = Number(draft.conversation_idle_reset.idle_timeout_minutes || 20);
+  draft.conversation_idle_reset.warning_before_minutes = Number(draft.conversation_idle_reset.warning_before_minutes || 5);
+  draft.conversation_idle_reset.warning_message_tr = String(draft.conversation_idle_reset.warning_message_tr || '');
+  draft.conversation_idle_reset.warning_message_en = String(draft.conversation_idle_reset.warning_message_en || '');
+  draft.conversation_idle_reset.closed_message_tr = String(draft.conversation_idle_reset.closed_message_tr || '');
+  draft.conversation_idle_reset.closed_message_en = String(draft.conversation_idle_reset.closed_message_en || '');
   if (!draft.hotel_id && state.hotelDetail?.hotel_id) draft.hotel_id = state.hotelDetail.hotel_id;
   return draft;
 }
@@ -1174,6 +1225,8 @@ function renderHotelProfileSectionBody() {
       return renderHotelProfileFaqSection();
     case 'policies':
       return renderHotelProfilePoliciesSection();
+    case 'idle_reset':
+      return renderHotelProfileIdleResetSection();
     case 'assistant':
       return renderHotelProfileAssistantSection();
     default:
@@ -1680,6 +1733,25 @@ function renderPolicyCard(title, description, fieldsHtml) {
         ${fieldsHtml}
       </div>
     </article>
+  `;
+}
+
+function renderHotelProfileIdleResetSection() {
+  const cfg = asObject(state.hotelProfileDraft?.conversation_idle_reset);
+  return `
+    <div class="helper-box">
+      <strong>Konuşma Sıfırlama Ayarları</strong>
+      <p class="muted">Müşteri, botun son yanıtından sonra belirli bir süre içinde yanıt vermezse konuşma otomatik olarak kapatılır. Kapanmadan önce bir uyarı mesajı gönderilir.</p>
+    </div>
+    <div class="profile-section-grid mt-md">
+      ${renderCheckboxField('Otomatik Sıfırlama Aktif', 'conversation_idle_reset.enabled', cfg.enabled ?? true, {help: 'Kapalıyken konuşmalar hiçbir zaman otomatik olarak sıfırlanmaz.'})}
+      ${renderTextField('Zaman Aşımı (dakika)', 'conversation_idle_reset.idle_timeout_minutes', cfg.idle_timeout_minutes ?? 20, {type: 'number', numberKind: 'int', min: 5, max: 1440, help: 'Müşteriden yanıt gelmezse konuşmanın kapatılacağı süre (dakika).'})}
+      ${renderTextField('Uyarı Süresi (dakika)', 'conversation_idle_reset.warning_before_minutes', cfg.warning_before_minutes ?? 5, {type: 'number', numberKind: 'int', min: 1, max: 60, help: 'Kapanmadan kaç dakika önce uyarı mesajı gönderilecek.'})}
+      ${renderTextField('Uyarı Mesajı (TR)', 'conversation_idle_reset.warning_message_tr', cfg.warning_message_tr || '', {textarea: true, full: true, placeholder: 'Uzun süredir yanıt alamadık...', help: 'Türkçe müşterilere gönderilecek uyarı mesajı.'})}
+      ${renderTextField('Uyarı Mesajı (EN)', 'conversation_idle_reset.warning_message_en', cfg.warning_message_en || '', {textarea: true, full: true, placeholder: 'We haven\\'t received a response...', help: 'İngilizce müşterilere gönderilecek uyarı mesajı.'})}
+      ${renderTextField('Kapanış Mesajı (TR)', 'conversation_idle_reset.closed_message_tr', cfg.closed_message_tr || '', {textarea: true, full: true, placeholder: 'Konuşmanız otomatik olarak kapatılmıştır...', help: 'Türkçe müşterilere konuşma kapandığında gönderilecek mesaj.'})}
+      ${renderTextField('Kapanış Mesajı (EN)', 'conversation_idle_reset.closed_message_en', cfg.closed_message_en || '', {textarea: true, full: true, placeholder: 'Your conversation has been automatically closed...', help: 'İngilizce müşterilere konuşma kapandığında gönderilecek mesaj.'})}
+    </div>
   `;
 }
 
@@ -2653,7 +2725,7 @@ function applyHotelProfileSectionSearch() {
 }
 
 function scheduleHotelFactsDraftValidation(options = {}) {
-  if (!state.hotelProfileDraft || !state.selectedHotelId) return;
+  if (!state.hotelProfileDraft || !state.selectedHotelId || state.hotelFactsApiUnavailable) return;
   if (state.hotelFactsDraftValidationHandle) {
     window.clearTimeout(state.hotelFactsDraftValidationHandle);
     state.hotelFactsDraftValidationHandle = null;
@@ -4755,6 +4827,7 @@ function clearClientSession() {
   state.hotelFactsVersions = [];
   state.hotelFactsVersionDetail = null;
   state.hotelFactsVersionDetailRevealTimer = null;
+  state.hotelFactsApiUnavailable = false;
   state.sessionPreferences = null;
   state.stayProfileRoomTypes = [];
   stopAuthKeepAlive();

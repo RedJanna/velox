@@ -263,8 +263,8 @@ class ChatLabFeedbackService:
             raise FeedbackConversationNotFoundError("Conversation ID is required for live conversation feedback.")
         try:
             conv_uuid = UUID(str(payload.conversation_id))
-        except ValueError:
-            raise FeedbackConversationNotFoundError("Invalid conversation ID format.")
+        except ValueError as error:
+            raise FeedbackConversationNotFoundError("Invalid conversation ID format.") from error
 
         conversation = await self._repository.get_by_id(conv_uuid)
         if conversation is None or conversation.id is None:

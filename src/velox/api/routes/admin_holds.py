@@ -8,12 +8,9 @@ from decimal import Decimal
 from typing import Annotated, Any
 from uuid import UUID
 
-import asyncpg
-import orjson
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
-
 import structlog
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from velox.adapters.elektraweb import endpoints as elektraweb
 from velox.api.middleware.auth import TokenData, check_permission, get_current_user
@@ -26,6 +23,7 @@ from velox.config.constants import (
 )
 from velox.core.hotel_profile_loader import get_profile
 from velox.db.database import fetch, fetchrow, fetchval
+from velox.db.repositories.hotel import NotificationPhoneRepository
 from velox.db.repositories.reservation import ReservationRepository
 from velox.db.repositories.restaurant import RestaurantRepository
 from velox.db.repositories.restaurant_floor_plan import (
@@ -34,19 +32,17 @@ from velox.db.repositories.restaurant_floor_plan import (
     RestaurantStatusManager,
 )
 from velox.db.repositories.transfer import TransferRepository
-from velox.models.reservation import StayDraft, StayHold
+from velox.models.reservation import StayHold
 from velox.models.restaurant import (
     FloorPlanCreate,
     FloorPlanUpdate,
     RestaurantHold,
     RestaurantHoldStatusChange,
     RestaurantHoldUpdateRequest,
-    RestaurantSettings,
     RestaurantSettingsUpdate,
 )
 from velox.models.transfer import TransferHold
 from velox.tools.notification import send_admin_whatsapp_alerts, send_whatsapp_to_phone
-from velox.db.repositories.hotel import NotificationPhoneRepository
 from velox.utils.json import decode_json_object
 
 logger = structlog.get_logger(__name__)
@@ -65,6 +61,18 @@ def _effective_hotel(user: TokenData, hotel_id: int | None) -> int | None:
     return user.hotel_id
 
 
+def _safe_int(value: object) -> int:
+    """Convert SQL scalar values to int with safe fallbacks."""
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        return int(value) if value.strip() else 0
+    if isinstance(value, (bytes, bytearray)):
+        decoded = value.decode(errors="ignore").strip()
+        return int(decoded) if decoded else 0
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Stay holds
 # ---------------------------------------------------------------------------
@@ -72,7 +80,6 @@ def _effective_hotel(user: TokenData, hotel_id: int | None) -> int | None:
 
 @router.get("/holds/stay")
 async def list_stay_holds(
-    request: Request,
     user: Annotated[TokenData, Depends(get_current_user)],
     hotel_id: int | None = Query(None),
     status: str | None = Query(None),
@@ -133,7 +140,7 @@ async def list_stay_holds(
         WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
     """
     rows = await fetch(items_query, effective, status, per_page, offset)
-    total = int(await fetchval(count_query, effective, status) or 0)
+    total = _safe_int(await fetchval(count_query, effective, status))
     return {
         "items": [_stay_row_to_dict(dict(r)) for r in rows],
         "total": total,
@@ -265,11 +272,11 @@ async def get_room_types(
 @router.get("/elektraweb/availability")
 async def check_availability(
     user: Annotated[TokenData, Depends(get_current_user)],
-    hotel_id: int = Query(...),
-    checkin: date = Query(...),
-    checkout: date = Query(...),
-    adults: int = Query(1, ge=1),
-    chd_ages: str = Query(""),
+    hotel_id: Annotated[int, Query(...)],
+    checkin: Annotated[date, Query(...)],
+    checkout: Annotated[date, Query(...)],
+    adults: Annotated[int, Query(ge=1)] = 1,
+    chd_ages: Annotated[str, Query()] = "",
 ) -> dict[str, Any]:
     """Proxy Elektraweb availability check for the admin wizard."""
     check_permission(user, "holds:read")
@@ -298,11 +305,11 @@ async def check_availability(
 @router.get("/elektraweb/quote")
 async def get_quote(
     user: Annotated[TokenData, Depends(get_current_user)],
-    hotel_id: int = Query(...),
-    checkin: date = Query(...),
-    checkout: date = Query(...),
-    adults: int = Query(1, ge=1),
-    chd_ages: str = Query(""),
+    hotel_id: Annotated[int, Query(...)],
+    checkin: Annotated[date, Query(...)],
+    checkout: Annotated[date, Query(...)],
+    adults: Annotated[int, Query(ge=1)] = 1,
+    chd_ages: Annotated[str, Query()] = "",
     nationality: str = Query("TR"),
 ) -> dict[str, Any]:
     """Proxy Elektraweb quote for the admin wizard."""
@@ -340,8 +347,8 @@ async def list_restaurant_holds(
     user: Annotated[TokenData, Depends(get_current_user)],
     hotel_id: int | None = Query(None),
     status: str | None = Query(None),
-    date_from: date | None = Query(None),
-    date_to: date | None = Query(None),
+    date_from: Annotated[date | None, Query()] = None,
+    date_to: Annotated[date | None, Query()] = None,
     page: int = Query(1, ge=1),
     per_page: int = Query(30, ge=1, le=100),
 ) -> dict[str, Any]:
@@ -375,7 +382,7 @@ async def list_restaurant_holds(
           AND ($4::date IS NULL OR date <= $4)
     """
     rows = await fetch(items_query, effective, status, date_from, date_to, per_page, offset)
-    total = int(await fetchval(count_query, effective, status, date_from, date_to) or 0)
+    total = _safe_int(await fetchval(count_query, effective, status, date_from, date_to))
     items = []
     for r in rows:
         d = dict(r)
@@ -413,10 +420,15 @@ async def create_restaurant_hold_from_panel(
     if settings.reservation_mode == RestaurantReservationMode.MANUEL:
         raise HTTPException(
             status_code=409,
-            detail="Manuel modda panelden rezervasyon olusturma kapali. Rezervasyonlar webhook/AI akisindan gelmelidir.",
+            detail=(
+                "Manuel modda panelden rezervasyon olusturma kapali. "
+                "Rezervasyonlar webhook/AI akisindan gelmelidir."
+            ),
         )
 
     slot_data = await RestaurantRepository().get_slot_by_id(hotel_id=body.hotel_id, slot_id=body.slot_id)
+    if slot_data is None:
+        raise HTTPException(status_code=404, detail="Secilen restoran slotu bulunamadi.")
     if slot_data:
         cap = await settings_repo.check_daily_capacity(body.hotel_id, slot_data["date"])
         if cap["enabled"] and not cap["allowed"]:
@@ -430,6 +442,8 @@ async def create_restaurant_hold_from_panel(
         hotel_id=body.hotel_id,
         conversation_id=None,
         slot_id=str(body.slot_id),
+        date=slot_data["date"],
+        time=slot_data["time"],
         party_size=body.party_size,
         guest_name=body.guest_name,
         phone=body.phone,
@@ -469,7 +483,12 @@ async def create_restaurant_hold_from_panel(
     except Exception:
         logger.warning("restaurant_hold_notification_failed", hold_id=created.hold_id)
 
-    return {"status": "created", "hold_id": created.hold_id, "table_type": created.table_type, "table_id": created.table_id}
+    return {
+        "status": "created",
+        "hold_id": created.hold_id,
+        "table_type": created.table_type,
+        "table_id": created.table_id,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -505,7 +524,7 @@ async def list_transfer_holds(
         WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
     """
     rows = await fetch(items_query, effective, status, per_page, offset)
-    total = int(await fetchval(count_query, effective, status) or 0)
+    total = _safe_int(await fetchval(count_query, effective, status))
     items = []
     for r in rows:
         d = dict(r)

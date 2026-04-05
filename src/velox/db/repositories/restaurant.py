@@ -5,7 +5,7 @@ from typing import Any
 
 import asyncpg
 
-from velox.config.constants import HoldStatus, RestaurantReservationStatus, resolve_table_type
+from velox.config.constants import HoldStatus, resolve_table_type
 from velox.db.database import execute, fetch, fetchrow, get_pool
 from velox.models.restaurant import (
     RestaurantHold,
@@ -40,7 +40,16 @@ class RestaurantRepository:
             SELECT
                 rs.id AS slot_id,
                 rs.time,
-                GREATEST(0, LEAST(rcw.reservation_limit - rcw.booked_reservations, COALESCE(rcw.total_party_size_limit - rcw.booked_party_size, rcw.reservation_limit - rcw.booked_reservations))) AS capacity_left
+                GREATEST(
+                    0,
+                    LEAST(
+                        rcw.reservation_limit - rcw.booked_reservations,
+                        COALESCE(
+                            rcw.total_party_size_limit - rcw.booked_party_size,
+                            rcw.reservation_limit - rcw.booked_reservations
+                        )
+                    )
+                ) AS capacity_left
             FROM restaurant_slots rs
             LEFT JOIN restaurant_capacity_windows rcw ON rcw.id = rs.capacity_window_id
             WHERE rs.hotel_id = $1
@@ -55,7 +64,8 @@ class RestaurantRepository:
                         AND rs.time BETWEEN rcw.start_time AND rcw.end_time
                         AND $4 BETWEEN rcw.min_party_size AND rcw.max_party_size
                         AND rcw.booked_reservations < rcw.reservation_limit
-                        AND COALESCE(rcw.booked_party_size, 0) + $4 <= COALESCE(rcw.total_party_size_limit, 2147483647)
+                        AND COALESCE(rcw.booked_party_size, 0) + $4 <=
+                            COALESCE(rcw.total_party_size_limit, 2147483647)
                     )
               )
             ORDER BY rs.time ASC, rs.id ASC
@@ -233,7 +243,10 @@ class RestaurantRepository:
             UPDATE restaurant_holds
             SET status = $2::varchar,
                 approved_by = COALESCE($3::varchar, approved_by),
-                approved_at = CASE WHEN $2::varchar IN ('APPROVED', 'CONFIRMED', 'ONAYLANDI') THEN now() ELSE approved_at END,
+                approved_at = CASE
+                    WHEN $2::varchar IN ('APPROVED', 'CONFIRMED', 'ONAYLANDI') THEN now()
+                    ELSE approved_at
+                END,
                 rejected_reason = COALESCE($4::text, rejected_reason),
                 updated_at = now()
             WHERE hold_id = $1
@@ -376,7 +389,13 @@ class RestaurantRepository:
 
                 start_dt = datetime.combine(slot.date_from, start_time)
                 end_dt = datetime.combine(slot.date_from, end_time)
-                step = timedelta(minutes=1 if slot.start_time is not None and slot.end_time is not None else int(slot.interval_minutes or 60))
+                step = timedelta(
+                    minutes=(
+                        1
+                        if slot.start_time is not None and slot.end_time is not None
+                        else int(slot.interval_minutes or 60)
+                    )
+                )
                 slot_times: list[time] = []
                 current_dt = start_dt
                 while current_dt <= end_dt:
@@ -459,7 +478,16 @@ class RestaurantRepository:
                 rs.total_capacity,
                 rs.booked_count,
                 CASE
-                  WHEN rcw.id IS NOT NULL THEN GREATEST(0, LEAST(rcw.reservation_limit - rcw.booked_reservations, COALESCE(rcw.total_party_size_limit - rcw.booked_party_size, rcw.reservation_limit - rcw.booked_reservations)))
+                  WHEN rcw.id IS NOT NULL THEN GREATEST(
+                      0,
+                      LEAST(
+                          rcw.reservation_limit - rcw.booked_reservations,
+                          COALESCE(
+                              rcw.total_party_size_limit - rcw.booked_party_size,
+                              rcw.reservation_limit - rcw.booked_reservations
+                          )
+                      )
+                  )
                   ELSE (rs.total_capacity - rs.booked_count)
                 END AS capacity_left,
                 rs.is_active,
@@ -505,33 +533,38 @@ class RestaurantRepository:
             if invalid_days:
                 raise ValueError("invalid_weekdays")
 
-        params: list[Any] = [hotel_id, date_from, date_to, start_time, end_time]
-        where_parts = [
-            "hotel_id = $1",
-            "date BETWEEN $2 AND $3",
-            "time BETWEEN $4 AND $5",
-        ]
-        if weekdays:
-            weekday_placeholders: list[str] = []
-            for day in weekdays:
-                params.append(int(day))
-                weekday_placeholders.append(f"${len(params)}")
-            where_parts.append(f"EXTRACT(ISODOW FROM date)::int - 1 IN ({', '.join(weekday_placeholders)})")
-        if area:
-            params.append(area)
-            where_parts.append(f"area = ${len(params)}")
-
-        where_sql = " AND ".join(where_parts)
+        weekday_filter: list[int] | None = [int(day) for day in weekdays] if weekdays else None
+        area_filter = area if area else None
         pool = get_pool()
         async with pool.acquire() as conn, conn.transaction():
             deleted_rows = await conn.fetch(
-                f"DELETE FROM restaurant_slots WHERE {where_sql} RETURNING capacity_window_id",
-                *params,
+                """
+                DELETE FROM restaurant_slots
+                WHERE hotel_id = $1
+                  AND date BETWEEN $2 AND $3
+                  AND time BETWEEN $4 AND $5
+                  AND ($6::int[] IS NULL OR EXTRACT(ISODOW FROM date)::int - 1 = ANY($6::int[]))
+                  AND ($7::text IS NULL OR area = $7)
+                RETURNING capacity_window_id
+                """,
+                hotel_id,
+                date_from,
+                date_to,
+                start_time,
+                end_time,
+                weekday_filter,
+                area_filter,
                 timeout=DB_TIMEOUT_SECONDS,
             )
             deleted_count = len(deleted_rows)
             if deleted_count:
-                window_ids = sorted({int(row["capacity_window_id"]) for row in deleted_rows if row["capacity_window_id"] is not None})
+                window_ids = sorted(
+                    {
+                        int(row["capacity_window_id"])
+                        for row in deleted_rows
+                        if row["capacity_window_id"] is not None
+                    }
+                )
                 if window_ids:
                     await conn.execute(
                         """
@@ -555,25 +588,45 @@ class RestaurantRepository:
         )
         if current is None:
             return None
-        if update.max_party_size is not None and update.min_party_size is not None and update.max_party_size < update.min_party_size:
+        if (
+            update.max_party_size is not None
+            and update.min_party_size is not None
+            and update.max_party_size < update.min_party_size
+        ):
             raise ValueError("invalid_party_size_range")
         if update.total_capacity is not None and int(update.total_capacity) < int(current["booked_count"]):
             raise ValueError("total_capacity_below_booked_count")
 
         if current["capacity_window_id"] is not None:
             window = await fetchrow(
-                "SELECT booked_reservations, min_party_size, max_party_size FROM restaurant_capacity_windows WHERE id = $1",
+                "SELECT booked_reservations, min_party_size, max_party_size "
+                "FROM restaurant_capacity_windows WHERE id = $1",
                 int(current["capacity_window_id"]),
             )
             if window is not None:
-                next_min = update.min_party_size if update.min_party_size is not None else int(window["min_party_size"] or 1)
-                next_max = update.max_party_size if update.max_party_size is not None else int(window["max_party_size"] or 8)
+                next_min = (
+                    update.min_party_size
+                    if update.min_party_size is not None
+                    else int(window["min_party_size"] or 1)
+                )
+                next_max = (
+                    update.max_party_size
+                    if update.max_party_size is not None
+                    else int(window["max_party_size"] or 8)
+                )
                 if next_max < next_min:
                     raise ValueError("invalid_party_size_range")
-                if update.reservation_limit is not None and int(update.reservation_limit) < int(window["booked_reservations"] or 0):
+                if (
+                    update.reservation_limit is not None
+                    and int(update.reservation_limit) < int(window["booked_reservations"] or 0)
+                ):
                     raise ValueError("reservation_limit_below_booked_count")
                 if update.total_party_size_limit is not None:
-                    booked_party_size = int((await fetchrow("SELECT booked_party_size FROM restaurant_capacity_windows WHERE id = $1", int(current["capacity_window_id"]))) ["booked_party_size"] or 0)
+                    party_size_row = await fetchrow(
+                        "SELECT booked_party_size FROM restaurant_capacity_windows WHERE id = $1",
+                        int(current["capacity_window_id"]),
+                    )
+                    booked_party_size = int(party_size_row["booked_party_size"] or 0) if party_size_row else 0
                     if int(update.total_party_size_limit) < booked_party_size:
                         raise ValueError("party_size_limit_below_booked_total")
                 await execute(

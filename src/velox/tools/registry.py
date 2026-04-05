@@ -34,6 +34,7 @@ from velox.tools.restaurant import (
     RestaurantCreateHoldTool,
     RestaurantModifyTool,
 )
+from velox.tools.room_service import RoomServiceCreateOrderTool
 from velox.tools.transfer import (
     TransferCancelTool,
     TransferConfirmTool,
@@ -86,6 +87,11 @@ def build_dispatcher() -> ToolDispatcher:
     dispatcher.register("restaurant_confirm", RestaurantConfirmTool(restaurant_repository))
     dispatcher.register("restaurant_modify", RestaurantModifyTool())
     dispatcher.register("restaurant_cancel", RestaurantCancelTool(restaurant_repository))
+
+    dispatcher.register(
+        "room_service_create_order",
+        RoomServiceCreateOrderTool(notification_repository),
+    )
 
     dispatcher.register("transfer_get_info", TransferGetInfoTool())
     dispatcher.register("transfer_create_hold", TransferCreateHoldTool(transfer_repository))

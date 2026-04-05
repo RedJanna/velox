@@ -105,7 +105,7 @@ This starts all four services: **app** (port 8001), **db** (PostgreSQL), **redis
 cp .env.production.example .env.production
 # Fill in real secrets and credentials
 
-# 2. Start production stack (2 app replicas)
+# 2. Start production stack
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 
 # 3. Optional manual migration catch-up
@@ -116,7 +116,7 @@ curl -fsS http://127.0.0.1:8001/api/v1/health
 curl -fsS http://127.0.0.1:8001/api/v1/health/ready
 ```
 
-Production features: 2 app replicas, HTTPS redirect, trusted host middleware, memory limits (DB: 512M, Redis: 256M), JSON logging with rotation.
+Production features: HTTPS redirect, trusted host middleware, memory limits (DB: 512M, Redis: 256M), JSON logging with rotation.
 
 Detailed checklist: `docs/production_deployment.md`
 

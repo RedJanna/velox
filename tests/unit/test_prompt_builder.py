@@ -16,6 +16,45 @@ def _build_profile(hotel_id: int = 21966) -> HotelProfile:
                 "hours": "24/7",
             }
         },
+        room_types=[
+            {
+                "id": 1,
+                "pms_room_type_id": 101,
+                "name": {"tr": "Deluxe Oda", "en": "Deluxe Room"},
+                "max_pax": 3,
+                "size_m2": 28,
+                "bed_type": "double",
+                "view": "garden",
+                "features": ["balcony"],
+                "extra_bed": True,
+                "baby_crib": True,
+                "accessible": False,
+            }
+        ],
+        board_types=[
+            {"id": 1, "code": "BB", "name": {"tr": "Kahvalti", "en": "Breakfast"}}
+        ],
+        restaurant={
+            "name": "Moonlight",
+            "concept": "a_la_carte",
+            "capacity_min": 2,
+            "capacity_max": 40,
+            "area_types": ["outdoor"],
+            "hours": {"dinner": "19:00-23:00"},
+            "menu": {"desserts": [{"name_tr": "Meyve Tabagi"}]},
+        },
+        facility_policies={
+            "check_in": {"time": "14:00"},
+            "wifi": {"available": True},
+        },
+        faq_data=[
+            {
+                "faq_id": "faq_checkin",
+                "topic": "check_in_time",
+                "question_tr": "Check-in saati kac?",
+                "answer_tr": "Standart check-in saatimiz 14:00 itibariyladir.",
+            }
+        ],
         hotel_conversational_flow={
             "style": "concise_premium",
             "max_paragraph_lines": 3,
@@ -46,7 +85,7 @@ def test_build_messages_includes_hotel_conversational_flow_rules() -> None:
     assert "avoid_repeating_confirmed_facts=true" in joined
 
 
-def test_build_system_prompt_includes_reception_scope_prompt() -> None:
+def test_build_system_prompt_is_compact_and_grounded() -> None:
     builder = PromptBuilder(
         hotel_profiles={21966: _build_profile()},
         escalation_matrix=[],
@@ -55,9 +94,13 @@ def test_build_system_prompt_includes_reception_scope_prompt() -> None:
 
     system_prompt = builder.build_system_prompt(21966)
 
-    assert "### RECEPTION_SCOPE_PROMPT" in system_prompt
-    assert "üst segment bir otelin dijital resepsiyonisti" in system_prompt
-    assert "nazikçe sınır koy" in system_prompt
+    assert "VELox runtime core" in system_prompt
+    assert "HOTEL_IDENTITY" in system_prompt
+    assert "ROOM_TYPES" in system_prompt
+    assert "FAQ_CONTEXT" in system_prompt
+    assert "faq_lookup" in system_prompt
+    assert "Standart check-in saatimiz 14:00 itibariyladir." not in system_prompt
+    assert len(system_prompt) < 12000
 
 
 def test_build_messages_falls_back_to_default_conversational_limits_when_profile_missing() -> None:

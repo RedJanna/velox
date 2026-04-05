@@ -1,6 +1,6 @@
 """Sequential and unique ID generation for domain entities."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Final
 
 from velox.db.database import fetchval
@@ -36,9 +36,21 @@ async def next_sequential_id(prefix: str, table: str, column: str) -> str:
     return f"{prefix}{next_num:03d}"
 
 
+def _coerce_int(value: object) -> int:
+    """Best-effort int parser for DB scalar values."""
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        return int(value.strip()) if value.strip() else 0
+    if isinstance(value, (bytes, bytearray)):
+        decoded = value.decode(errors="ignore").strip()
+        return int(decoded) if decoded else 0
+    return 0
+
+
 async def next_reservation_no(hotel_id: int) -> str:
     """Generate the next reservation number in VLX-{hotel_id}-{YYMM}-{seq} format."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     yymm = now.strftime("%y%m")
     prefix = f"VLX-{hotel_id}-{yymm}-"
 
@@ -54,5 +66,5 @@ async def next_reservation_no(hotel_id: int) -> str:
         """,
         prefix,
     )
-    next_seq = (int(max_seq) if max_seq is not None and max_seq != "" else 0) + 1
+    next_seq = _coerce_int(max_seq) + 1
     return f"{prefix}{next_seq:04d}"

@@ -1,79 +1,265 @@
 """System prompt and message assembly for LLM requests."""
 
-from pathlib import Path
 from typing import Any
 
+import orjson
 import structlog
 
 from velox.config.constants import CONTEXT_WINDOW_MAX_MESSAGES
 from velox.core.template_engine import Template
 from velox.models.conversation import Conversation, Message
 from velox.models.escalation import EscalationMatrixEntry
-from velox.models.hotel_profile import HotelProfile
+from velox.models.hotel_profile import (
+    BoardType,
+    CancellationRule,
+    FAQEntry,
+    HotelProfile,
+    RoomType,
+    TransferRouteConfig,
+)
+from velox.utils.metrics import record_prompt_truncation
 
 logger = structlog.get_logger(__name__)
 
-SYSTEM_PROMPT_CHAR_LIMIT = 32000
-MASTER_PROMPT_PATH = "docs/master_prompt_v2.md"
-RECEPTION_SCOPE_PROMPT_PATH = "docs/reception_scope_prompt.md"
-_MASTER_PROMPT_A_SECTION: str | None = None
-_RECEPTION_SCOPE_PROMPT: str | None = None
+SYSTEM_PROMPT_CHAR_LIMIT = 12000
+_MAX_POLICY_CHARS = 240
+_MAX_PROFILE_JSON_CHARS = 420
+_MAX_ROOM_TYPES_IN_PROMPT = 6
+_MAX_TRANSFER_ROUTES_IN_PROMPT = 6
+_MAX_FAQ_TOPICS_IN_PROMPT = 10
+
+_RUNTIME_POLICY_KERNEL = """
+VELox runtime core
+- You are Velox, a hotel WhatsApp receptionist.
+- Help only with hotel stay, reservation, restaurant, transfer, room service,
+  facility, and concierge-nearby topics.
+- Reply in RESPONSE_LANGUAGE_LOCK unless the guest explicitly asks to switch language.
+- Use only TOOL results and HOTEL_CONTEXT below for hotel facts.
+  Do not invent prices, availability, policies, menu items, or facilities.
+- For FAQ-style hotel questions, prefer faq_lookup instead of guessing from memory.
+- Use booking_availability and booking_quote for live stay answers.
+  Never state live availability or price without tool grounding.
+- Ask exactly one missing field per turn during verification.
+- Do not ask card, CVV, OTP, or bank password. Payment collection is always human-assisted.
+- Do not promise a physical action, order, preparation, sending, or finalized
+  reservation unless the matching tool has actually executed.
+- If a request is outside hotel scope, politely redirect to stay, reservation, room, or hotel services.
+- Keep the guest reply concise, premium, and WhatsApp-friendly.
+- SEASON GATE (STRICT): The hotel operates only between the season.open and
+  season.close dates shown in HOTEL_IDENTITY.
+- This applies to ALL reservation types: accommodation, restaurant, transfer,
+  room service, and any other bookable service.
+- If a guest requests any reservation or booking for a date outside the season
+  window, immediately inform them that the hotel is closed on that date, provide
+  the season opening and closing dates, and do NOT proceed with data collection
+  or tool calls for that request.
+""".strip()
+
+_OUTPUT_CONTRACT_PROMPT = """
+Your response must contain exactly two parts.
+Part 1: guest-facing reply in plain text.
+Part 2: a new line with the literal header INTERNAL_JSON: followed by exactly one valid JSON object.
+
+INTERNAL_JSON rules:
+- keys required: language, intent, state, entities, required_questions,
+  tool_calls, notifications, handoff, risk_flags, escalation, next_step
+- entities must be an object
+- required_questions, tool_calls, notifications, risk_flags must be arrays
+- handoff and escalation must be objects
+- do not wrap JSON in markdown or code fences
+- do not add commentary after the JSON object
+""".strip()
 
 
-def _read_static_prompt_text(
-    path_str: str,
-    *,
-    missing_log_event: str,
-    missing_fallback: str,
-) -> str:
-    """Read a checked-in static prompt file with a safe fallback."""
-    prompt_path = Path(path_str)
-    if not prompt_path.exists():
-        logger.warning(missing_log_event, path=str(prompt_path))
-        return missing_fallback
-
-    return prompt_path.read_text(encoding="utf-8").strip()
+def _truncate_text(value: Any, max_chars: int) -> str:
+    """Return a short single-line text representation."""
+    text = str(value or "").strip().replace("\n", " ")
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 3].rstrip() + "..."
 
 
-def _extract_prompt_section(raw_text: str, start_marker: str, end_marker: str) -> str:
-    """Extract a marker-delimited section from a static prompt document."""
-    start_index = raw_text.find(start_marker)
-    end_index = raw_text.find(end_marker)
-
-    if start_index == -1:
-        return raw_text.strip()
-    if end_index == -1 or end_index <= start_index:
-        return raw_text[start_index:].strip()
-    return raw_text[start_index:end_index].strip()
-
-
-def _load_master_prompt_a_section() -> str:
-    """Load runtime A-section from master prompt once per process."""
-    global _MASTER_PROMPT_A_SECTION
-    if _MASTER_PROMPT_A_SECTION is not None:
-        return _MASTER_PROMPT_A_SECTION
-
-    raw_text = _read_static_prompt_text(
-        MASTER_PROMPT_PATH,
-        missing_log_event="master_prompt_file_missing",
-        missing_fallback="Master prompt not found.",
-    )
-    _MASTER_PROMPT_A_SECTION = _extract_prompt_section(raw_text, "# A)", "# B)")
-    return _MASTER_PROMPT_A_SECTION
+def _compact_json(value: Any, max_chars: int = _MAX_PROFILE_JSON_CHARS) -> str:
+    """Serialize a structure compactly for prompt inclusion."""
+    if value in (None, "", [], {}):
+        return ""
+    try:
+        text = orjson.dumps(value).decode()
+    except TypeError:
+        text = str(value)
+    return _truncate_text(text, max_chars)
 
 
-def _load_reception_scope_prompt() -> str:
-    """Load the checked-in reception scope supplement once per process."""
-    global _RECEPTION_SCOPE_PROMPT
-    if _RECEPTION_SCOPE_PROMPT is not None:
-        return _RECEPTION_SCOPE_PROMPT
+def _localized_name(value: Any) -> str:
+    """Return a compact label from localized text objects."""
+    if value is None:
+        return ""
+    tr_name = str(getattr(value, "tr", "") or "").strip()
+    en_name = str(getattr(value, "en", "") or "").strip()
+    return tr_name or en_name
 
-    _RECEPTION_SCOPE_PROMPT = _read_static_prompt_text(
-        RECEPTION_SCOPE_PROMPT_PATH,
-        missing_log_event="reception_scope_prompt_file_missing",
-        missing_fallback="Reception scope prompt not found.",
-    )
-    return _RECEPTION_SCOPE_PROMPT
+
+def _render_section(title: str, lines: list[str]) -> str:
+    """Render a prompt section when there are non-empty lines."""
+    filtered = [line for line in lines if line]
+    if not filtered:
+        return ""
+    return f"{title}:\n" + "\n".join(filtered)
+
+
+def _summarize_room_types(room_types: list[RoomType]) -> str:
+    """Return a compact room-type summary for the prompt."""
+    lines: list[str] = []
+    for room in room_types[:_MAX_ROOM_TYPES_IN_PROMPT]:
+        flags = []
+        if room.extra_bed:
+            flags.append("extra_bed")
+        if room.baby_crib:
+            flags.append("baby_crib")
+        if room.accessible:
+            flags.append("accessible")
+        room_name = _localized_name(room.name) or f"room_{room.id}"
+        flag_text = ",".join(flags) if flags else "standard"
+        lines.append(
+
+                f"- id={room.id}; name={room_name}; max_pax={room.max_pax}; size_m2={room.size_m2}; "
+                f"bed={room.bed_type}; view={room.view}; flags={flag_text}"
+
+        )
+    remaining = len(room_types) - len(lines)
+    if remaining > 0:
+        lines.append(f"- {remaining} more room types available via HOTEL_CONTEXT lookup.")
+    return _render_section("ROOM_TYPES", lines)
+
+
+def _summarize_board_types(board_types: list[BoardType]) -> str:
+    """Return a compact board-type summary."""
+    lines = [
+        f"- code={board.code}; name={_localized_name(board.name) or board.code}"
+        for board in board_types
+    ]
+    return _render_section("BOARD_TYPES", lines)
+
+
+def _summarize_cancellation_rules(rules: dict[str, CancellationRule]) -> str:
+    """Return key cancellation-policy facts."""
+    lines = []
+    for name, rule in rules.items():
+        lines.append(
+
+                f"- {name}: free_cancel_deadline_days={rule.free_cancel_deadline_days}; "
+                f"prepayment_days_before={rule.prepayment_days_before}; "
+                f"prepayment_immediate={str(rule.prepayment_immediate).lower()}; refund={str(rule.refund).lower()}"
+
+        )
+    return _render_section("CANCELLATION_RULES", lines)
+
+
+def _summarize_transfer_routes(routes: list[TransferRouteConfig]) -> str:
+    """Return compact transfer-route guidance."""
+    lines: list[str] = []
+    for route in routes[:_MAX_TRANSFER_ROUTES_IN_PROMPT]:
+        lines.append(
+
+                f"- {route.route_code}: {route.from_location} -> {route.to_location}; "
+                f"price_eur={route.price_eur}; vehicle={route.vehicle_type}; "
+                f"max_pax={route.max_pax}; duration_min={route.duration_min}; "
+                f"baby_seat={str(route.baby_seat).lower()}"
+
+        )
+    remaining = len(routes) - len(lines)
+    if remaining > 0:
+        lines.append(f"- {remaining} more transfer routes configured.")
+    return _render_section("TRANSFER_ROUTES", lines)
+
+
+def _summarize_restaurant(profile: HotelProfile) -> str:
+    """Return compact restaurant context."""
+    restaurant = profile.restaurant
+    if restaurant is None:
+        return ""
+
+    menu = getattr(restaurant, "menu", None)
+    menu_summary = "not_configured"
+    if isinstance(menu, dict) and menu:
+        category_counts = []
+        for category, items in menu.items():
+            if isinstance(items, list) and items:
+                category_counts.append(f"{category}={len(items)}")
+        if category_counts:
+            menu_summary = ", ".join(category_counts)
+
+    lines = [
+        f"- name={restaurant.name}; concept={restaurant.concept}",
+        (
+            f"- capacity_min={restaurant.capacity_min}; capacity_max={restaurant.capacity_max}; "
+            f"max_ai_party_size={restaurant.max_ai_party_size}; late_tolerance_min={restaurant.late_tolerance_min}"
+        ),
+        f"- area_types={restaurant.area_types or []}",
+        f"- hours={_compact_json(restaurant.hours, max_chars=200)}",
+        f"- external_guests_allowed={str(restaurant.external_guests_allowed).lower()}",
+        f"- menu_catalogue={menu_summary}",
+    ]
+    return _render_section("RESTAURANT_CONTEXT", lines)
+
+
+def _summarize_payment(profile: HotelProfile) -> str:
+    """Return compact payment context."""
+    payment = profile.payment or {}
+    if not payment:
+        return ""
+    methods = payment.get("methods") or []
+    lines = [
+        f"- methods={methods}",
+        f"- payment_link_handling={_truncate_text(payment.get('payment_link_handling'), _MAX_POLICY_CHARS)}",
+        f"- mail_order_handling={_truncate_text(payment.get('mail_order_handling'), _MAX_POLICY_CHARS)}",
+    ]
+    return _render_section("PAYMENT_CONTEXT", lines)
+
+
+def _summarize_facility_policies(profile: HotelProfile) -> str:
+    """Return selected facility-policy keys only."""
+    policy_keys = [
+        "check_in",
+        "check_out",
+        "children",
+        "pets",
+        "smoking",
+        "parking",
+        "pool",
+        "wifi",
+        "accessibility",
+        "wellness",
+        "laundry",
+        "room_service",
+    ]
+    lines = []
+    for key in policy_keys:
+        value = profile.facility_policies.get(key)
+        if value in (None, "", [], {}):
+            continue
+        lines.append(f"- {key}={_compact_json(value, max_chars=_MAX_PROFILE_JSON_CHARS)}")
+    return _render_section("FACILITY_POLICIES", lines)
+
+
+def _summarize_faq_topics(faq_entries: list[FAQEntry]) -> str:
+    """Return FAQ metadata only; content stays behind faq_lookup."""
+    if not faq_entries:
+        return ""
+
+    topics: list[str] = []
+    for entry in faq_entries:
+        topic = str(entry.topic or "").strip()
+        if topic and topic not in topics:
+            topics.append(topic)
+        if len(topics) >= _MAX_FAQ_TOPICS_IN_PROMPT:
+            break
+
+    lines = [
+        f"- faq_count={len(faq_entries)}",
+        f"- use faq_lookup for answer retrieval; topics_sample={topics}",
+    ]
+    return _render_section("FAQ_CONTEXT", lines)
 
 
 class PromptBuilder:
@@ -88,8 +274,6 @@ class PromptBuilder:
         self.hotel_profiles = hotel_profiles
         self.escalation_matrix = escalation_matrix
         self.template_library = template_library
-        self.reception_scope_prompt = _load_reception_scope_prompt()
-        self.master_prompt_a = _load_master_prompt_a_section()
 
     def _build_conversational_flow_instruction(self, hotel_id: int) -> str:
         """Build profile-driven brevity constraints for guest-facing responses."""
@@ -120,58 +304,38 @@ class PromptBuilder:
         )
 
     def build_system_prompt(self, hotel_id: int) -> str:
-        """Build complete system prompt from static and dynamic context layers."""
+        """Build a compact runtime prompt with only high-signal hotel context."""
         profile = self.hotel_profiles.get(hotel_id)
         if profile is None:
             logger.warning("prompt_builder_profile_missing", hotel_id=hotel_id)
-            profile_dump: dict[str, Any] = {"hotel_id": hotel_id}
-            facility_policies: dict[str, Any] = {}
-            faq_data: list[dict[str, Any]] = []
+            identity_lines = [f"- hotel_id={hotel_id}"]
+            sections = [_RUNTIME_POLICY_KERNEL, _render_section("HOTEL_IDENTITY", identity_lines)]
         else:
-            profile_dump = profile.model_dump()
-            facility_policies = profile.facility_policies
-            faq_data = [entry.model_dump() for entry in profile.faq_data]
+            identity_lines = [
+                f"- hotel_id={profile.hotel_id}; name={_localized_name(profile.hotel_name)}",
+                (
+                    f"- hotel_type={profile.hotel_type}; timezone={profile.timezone}; "
+                    f"currency_base={profile.currency_base}"
+                ),
+                f"- season={_compact_json(profile.season, max_chars=120)}",
+                f"- contacts={_compact_json(profile.contacts, max_chars=240)}",
+            ]
+            sections = [
+                _RUNTIME_POLICY_KERNEL,
+                _render_section("HOTEL_IDENTITY", identity_lines),
+                _summarize_room_types(profile.room_types),
+                _summarize_board_types(profile.board_types),
+                _summarize_cancellation_rules(profile.cancellation_rules),
+                _summarize_transfer_routes(profile.transfer_routes),
+                _summarize_restaurant(profile),
+                _summarize_payment(profile),
+                _summarize_facility_policies(profile),
+                _summarize_faq_topics(profile.faq_data),
+            ]
 
-        escalation_summary = [
-            {
-                "risk_flag": entry.risk_flag,
-                "level": entry.level.value,
-                "route_to_role": entry.route_to_role.value,
-                "priority": entry.priority.value,
-                "actions": entry.action,
-            }
-            for entry in self.escalation_matrix
-        ]
-
-        template_summary = [
-            {
-                "id": template.id,
-                "intent": template.intent,
-                "state": template.state,
-                "language": template.language,
-            }
-            for template in self.template_library
-        ]
-
-        sections = [
-            "### RECEPTION_SCOPE_PROMPT",
-            self.reception_scope_prompt,
-            "### MASTER_PROMPT_A_SECTION",
-            self.master_prompt_a,
-            "### HOTEL_PROFILE",
-            str(profile_dump),
-            "### FACILITY_POLICIES",
-            str(facility_policies),
-            "### ESCALATION_MATRIX",
-            str(escalation_summary),
-            "### TEMPLATE_LIBRARY",
-            str(template_summary),
-            "### FAQ_DATA",
-            str(faq_data),
-        ]
-        joined_prompt = "\n\n".join(sections)
-
+        joined_prompt = "\n\n".join(section for section in sections if section)
         if len(joined_prompt) > SYSTEM_PROMPT_CHAR_LIMIT:
+            record_prompt_truncation("system_prompt")
             logger.warning(
                 "system_prompt_truncated",
                 hotel_id=hotel_id,
@@ -268,72 +432,7 @@ class PromptBuilder:
             }
         )
         messages.append({"role": "user", "content": new_user_message})
-        messages.append(
-            {
-                "role": "system",
-                "content": (
-                    "Your response MUST have exactly two clearly separated sections.\n"
-                    "Section 1 — the guest-facing reply (plain text, no label needed).\n"
-                    "Section 2 — start on a new line with the literal header INTERNAL_JSON: "
-                    "followed by a single valid JSON object on the same or next line.\n"
-                    "The JSON must include: language, intent, state, entities, "
-                    "required_questions, tool_calls, notifications, handoff, "
-                    "risk_flags, escalation, and next_step.\n"
-                    "Do NOT wrap the JSON in markdown code fences or bold markers.\n\n"
-                    "PRICING RULES:\n"
-                    "- When presenting room prices, ALWAYS show BOTH cancellation "
-                    "policies (FREE_CANCEL and NON_REFUNDABLE) side by side for each "
-                    "room type. NEVER ask the guest which cancellation policy they "
-                    "prefer before showing prices.\n"
-                    "- Always pass the correct 'adults' parameter to booking tools "
-                    "based on what the guest requested. Do NOT default to 2.\n"
-                    "- If the guest did not specify a currency, default to EUR and "
-                    "do not ask a currency question before quoting.\n"
-                    "- For stay quote requests, do NOT ask a default year-confirmation "
-                    "question (e.g., '2026 mi?'). If the guest gives day/month without "
-                    "a year, infer a reasonable upcoming year from context and continue.\n"
-                    "- Ask a year-specific clarification only when the guest explicitly "
-                    "asks about year selection or context is truly ambiguous.\n"
-                    "- If children are included, only show prices when the booking "
-                    "tool result explicitly reflects the requested child occupancy. "
-                    "If the tool ignores the children or returns an occupancy mismatch "
-                    "error, do NOT present adult-only prices.\n"
-                    "- If booking_quote cannot return a live rate (error or no offers), "
-                    "do NOT ask a year question as fallback. Briefly explain that live "
-                    "pricing is unavailable and offer handoff for manual confirmation.\n"
-                    "- In Turkish replies, use cancellation labels exactly as "
-                    "'İptal edilemez' and 'Ücretsiz İptal'.\n"
-                    "- If the response language is Turkish, always use proper Turkish "
-                    "spelling and diacritics (e.g., İ, ı, Ş, ş, Ğ, ğ, Ç, ç, Ö, ö, Ü, ü).\n"
-                    "- For multi-room requests, list only the requested room count "
-                    "and never add extra room blocks not requested by the guest.\n"
-                    "- Keep price lists compact: show up to 5 room-type lines first; "
-                    "if more exist, ask whether the guest wants the full list.\n"
-                    "- Do not add generic statements like 'EUR fiyatlarımız' when "
-                    "the currency is already visible in the listed prices.\n"
-                    "- Mention 'Ön ödeme girişten 7 gün önce planlanır' only if the "
-                    "guest explicitly asks prepayment timing.\n"
-                    "- Add the Turkish stay quote policy notes below only when you are "
-                    "actually presenting a price list from booking_quote. Do not repeat "
-                    "these notes in non-price follow-up messages.\n"
-                    "- For child bedding/extra bed questions, do not assume a single "
-                    "extra bed by default. Use HOTEL_PROFILE child policy and room "
-                    "capacity data exactly as provided.\n"
-                    "- In Turkish stay quote messages, include these notes after the "
-                    "price list:\n"
-                    "  1) Ücretsiz iptal seçeneği ile yapılan rezervasyonlarda "
-                    "girişten 5 gün öncesine kadar iptal olması halinde %100 geri "
-                    "ödeme alabilirsiniz.\n"
-                    "  2) Rezervasyon onayı için iptal edilemez rezervasyonlarda "
-                    "1 gecelik ödeme tahsil edilmektedir. Kalan ödemeyi giriş "
-                    "günündeki güncel döviz kuruna göre TL veya döviz olarak "
-                    "yapabilirsiniz.\n"
-                    "  3) Nazik bilgilendirme: Oda numarası için önceden garanti "
-                    "veremiyoruz; ancak girişiniz sırasında uygunluk doğrultusunda "
-                    "size memnuniyetle yardımcı oluruz."
-                ),
-            }
-        )
+        messages.append({"role": "system", "content": _OUTPUT_CONTRACT_PROMPT})
         return messages
 
     def summarize_old_messages(self, messages: list[Message]) -> str:
@@ -359,7 +458,7 @@ class PromptBuilder:
         unique_intents = list(dict.fromkeys(intents))
         summary_parts = [
             f"message_count={len(messages)}",
-            f"last_user_message={last_user_text or 'n/a'}",
+            f"last_user_message={_truncate_text(last_user_text or 'n/a', 180)}",
             f"intents={unique_intents or ['unknown']}",
             f"entity_keys={sorted(entity_keys)}",
         ]

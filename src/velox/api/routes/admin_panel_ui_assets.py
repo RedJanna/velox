@@ -318,6 +318,7 @@ const state = {
   hotelFactsEvents: [],
   hotelFactsVersionDetail: null,
   hotelFactsVersionDetailRevealTimer: null,
+  hotelFactsApiUnavailable: false,
   restaurantSlots: [],
   systemOverview: null,
   sessionStatus: null,

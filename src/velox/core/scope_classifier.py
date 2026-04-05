@@ -52,6 +52,21 @@ _IN_SCOPE_TERMS = (
     "fatura",
     "payment",
     "odeme",
+    "menü",
+    "menu",
+    "yemek",
+    "kahvaltı",
+    "kahvalti",
+    "akşam yemeği",
+    "aksam yemegi",
+    "oda servisi",
+    "room service",
+    "sipariş",
+    "siparis",
+    "vegan",
+    "alerji",
+    "allergy",
+    "diyet",
 )
 
 _NEAR_SCOPE_TERMS = (

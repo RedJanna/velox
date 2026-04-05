@@ -145,6 +145,33 @@ class HotelConversationalFlow(BaseModel):
     ask_before_full_price_dump: bool = True
 
 
+class ConversationIdleResetConfig(BaseModel):
+    """Per-hotel settings for proactive conversation idle-reset.
+
+    When the bot sends a reply and the customer does not respond within
+    *idle_timeout_minutes*, the conversation is automatically closed.
+    A warning message is sent *warning_before_minutes* before the close.
+    """
+
+    enabled: bool = True
+    idle_timeout_minutes: int = 20
+    warning_before_minutes: int = 5
+    warning_message_tr: str = (
+        "Uzun süredir yanıt alamadık. Konuşmanız 5 dakika içinde otomatik olarak kapanacaktır. "
+        "Devam etmek isterseniz lütfen bir mesaj gönderin."
+    )
+    warning_message_en: str = (
+        "We haven't received a response for a while. Your conversation will be automatically "
+        "closed in 5 minutes. Please send a message if you'd like to continue."
+    )
+    closed_message_tr: str = (
+        "Konuşmanız otomatik olarak kapatılmıştır. Yeni bir konuşma başlatmak için istediğiniz zaman yazabilirsiniz."
+    )
+    closed_message_en: str = (
+        "Your conversation has been automatically closed. Feel free to message us anytime to start a new conversation."
+    )
+
+
 class HotelProfile(BaseModel):
     hotel_id: int
     hotel_name: LocalizedText
@@ -165,3 +192,4 @@ class HotelProfile(BaseModel):
     faq_data: list[FAQEntry] = Field(default_factory=list)
     payment: dict[str, Any] = Field(default_factory=dict)
     hotel_conversational_flow: HotelConversationalFlow = Field(default_factory=HotelConversationalFlow)
+    conversation_idle_reset: ConversationIdleResetConfig = Field(default_factory=ConversationIdleResetConfig)

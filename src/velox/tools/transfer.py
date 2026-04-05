@@ -16,6 +16,7 @@ from velox.db.database import execute, fetchrow
 from velox.db.repositories.transfer import TransferRepository
 from velox.models.transfer import TransferHold, TransferInfoRequest
 from velox.tools.base import BaseTool
+from velox.tools.season import is_within_hotel_season, out_of_season_response
 
 FLIGHT_DELAY_PATTERN = re.compile(
     r"(flight\s*delay|delayed|delay|gecik|r[oö]tar|late\s*flight)",
@@ -92,6 +93,18 @@ class TransferCreateHoldTool(BaseTool):
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         self.validate_required(kwargs, ["hotel_id", "route", "date", "time", "pax_count", "guest_name", "phone"])
         hotel_id = int(kwargs["hotel_id"])
+        profile = get_profile(hotel_id)
+        requested_date = _coerce_date(kwargs.get("date"))
+        if (
+            profile is not None
+            and requested_date is not None
+            and not is_within_hotel_season(
+                profile,
+                requested_date,
+                invalid_event="transfer_season_config_invalid",
+            )
+        ):
+            return out_of_season_response(profile)
         info = await self._info_tool.execute(
             hotel_id=hotel_id,
             route=str(kwargs["route"]),
@@ -261,3 +274,20 @@ def _flight_delay_notification(notes: str | None) -> dict[str, str] | None:
         "to_role": "OPS",
         "reason": "FLIGHT_DELAY_REPORTED",
     }
+
+
+def _coerce_date(value: Any) -> date | None:
+    """Best-effort date coercion for season checks before hold creation."""
+    if isinstance(value, date):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            return date.fromisoformat(text)
+        except ValueError:
+            return None
+    return None

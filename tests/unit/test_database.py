@@ -4,7 +4,9 @@ from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 
+from velox.config.constants import ConversationState
 from velox.db import database
+from velox.db.repositories.conversation import ConversationRepository
 
 
 @pytest.mark.asyncio
@@ -49,3 +51,13 @@ async def test_init_db_pool_raises_after_retry_budget_exhausted(monkeypatch: pyt
 
     assert sleep_mock.await_args_list == [call(1), call(3)]
     assert database._pool is None
+
+
+def test_normalize_conversation_state_maps_legacy_values() -> None:
+    """Legacy conversation state values should not break replay or admin reads."""
+    assert (
+        ConversationRepository._normalize_conversation_state("awaiting_request")
+        == ConversationState.NEEDS_VERIFICATION.value
+    )
+    assert ConversationRepository._normalize_conversation_state("") == ConversationState.GREETING.value
+    assert ConversationRepository._normalize_conversation_state("HANDOFF") == "HANDOFF"

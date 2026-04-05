@@ -127,6 +127,23 @@
   reason_hint: "Hassas veri/PII riski"
 
 # === L1 — Soft ===
+- risk_flag: PHYSICAL_OPERATION_REQUEST
+  level: L1
+  route_to_role: OPS
+  priority: high
+  action: [notify.send]
+  notify_channel: panel
+  user_message_style: calm_premium
+  reason_hint: "Fiziksel operasyon gerektiren talep (siparis, oda servisi, bakim vb.)"
+
+- risk_flag: MENU_HALLUCINATION_RISK
+  level: L1
+  route_to_role: CHEF
+  priority: medium
+  action: [notify.send]
+  notify_channel: panel
+  reason_hint: "Menu/yemek bilgisi talebi — dogrulanmis menu verisi gerekli"
+
 - risk_flag: VIP_REQUEST
   level: L1
   route_to_role: ADMIN
@@ -197,6 +214,13 @@
   priority: low
   action: []
   reason_hint: "Dil fallback (EN)"
+
+- risk_flag: STRUCTURED_OUTPUT_ERROR
+  level: L0
+  route_to_role: NONE
+  priority: low
+  action: []
+  reason_hint: "LLM structured output parse hatasi"
 
 - risk_flag: RESERVATION_ID_MISSING
   level: L0

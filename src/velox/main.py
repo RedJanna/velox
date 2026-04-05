@@ -2,7 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncIterator, Awaitable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from time import perf_counter
 from typing import cast
 
@@ -178,14 +178,21 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         name="restaurant_noshow_checker",
     )
 
+    # Start proactive idle-reset checker (warning + close)
+    from velox.core.conversation_idle_reset import run_idle_reset_loop
+
+    idle_reset_task = asyncio.create_task(
+        run_idle_reset_loop(),
+        name="conversation_idle_reset",
+    )
+
     yield
 
-    # Cancel the no-show background task
-    noshow_task.cancel()
-    try:
-        await noshow_task
-    except asyncio.CancelledError:
-        pass
+    # Cancel background tasks
+    for task in (noshow_task, idle_reset_task):
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
     await close_db_pool()
     await close_elektraweb_client()
     await close_whatsapp_client()
@@ -208,6 +215,7 @@ if settings.app_env == "production":
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
 app.add_middleware(RateLimitMiddleware)
 app.include_router(health.router, prefix="/api/v1")
+app.include_router(health.metrics_router)
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(admin_holds.router, prefix="/api/v1")
 app.include_router(admin_portal.router, prefix="/api/v1")

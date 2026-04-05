@@ -86,14 +86,21 @@ def _failure_message(language: str) -> str:
 
 def _empty_message(language: str) -> str:
     if language == "tr":
-        return "Sesli mesajinizi aldim fakat net bir icerik ayiklayamadim. Kisa bir yazili mesaj gonderebilir misiniz?"
-    return "I received your voice message, but I could not extract a clear request. Could you send a short written message?"
+        return (
+            "Sesli mesajinizi aldim fakat net bir icerik ayiklayamadim. "
+            "Kisa bir yazili mesaj gonderebilir misiniz?"
+        )
+    return (
+        "I received your voice message, but I could not extract a clear request. "
+        "Could you send a short written message?"
+    )
 
 
 def _low_confidence_message(language: str) -> str:
     if language == "tr":
         return (
-            "Sesli mesajinizi aldim, ancak yanlis yonlendirme yapmamak icin bir noktayi yazili olarak netlestirmenizi rica edecegim. "
+            "Sesli mesajinizi aldim, ancak yanlis yonlendirme yapmamak icin "
+            "bir noktayi yazili olarak netlestirmenizi rica edecegim. "
             "Lutfen talebinizi kisa bir mesajla paylasir misiniz?"
         )
     return (

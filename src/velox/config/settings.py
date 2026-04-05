@@ -2,6 +2,7 @@
 
 # ruff: noqa: S104, S105
 
+from ipaddress import IPv4Network, IPv6Network, ip_network
 from urllib.parse import urlsplit
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -54,6 +55,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     redis_session_ttl_seconds: int = 1800
     redis_rate_limit_ttl_seconds: int = 60
+    metrics_allow_public: bool = False
+    metrics_allowed_cidrs: str = "127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 
     # OpenAI
     openai_api_key: str = ""
@@ -137,6 +140,15 @@ class Settings(BaseSettings):
             for item in self.media_supported_mime_types.split(",")
             if item.strip()
         ]
+
+    @property
+    def metrics_allowed_networks(self) -> tuple[IPv4Network | IPv6Network, ...]:
+        """Normalized private/public CIDR allowlist for the metrics endpoint."""
+        return tuple(
+            ip_network(item.strip(), strict=False)
+            for item in self.metrics_allowed_cidrs.split(",")
+            if item.strip()
+        )
 
     # Paths
     hotel_profiles_dir: str = "data/hotel_profiles"

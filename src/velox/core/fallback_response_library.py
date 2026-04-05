@@ -39,3 +39,44 @@ def out_of_scope_refusal(language: str) -> str:
         "Bu konuda dogrudan destek saglayamiyorum; ancak konaklamaniz, rezervasyonunuz, "
         "odaniz veya otel hizmetlerimizle ilgili memnuniyetle yardimci olabilirim."
     )
+
+
+def menu_not_available_fallback(language: str) -> str:
+    """Return safe fallback when menu catalogue is not configured."""
+    lang = (language or "tr").lower()
+    if lang == "en":
+        return (
+            "I'd love to help with menu options! Our current menu details are best "
+            "confirmed directly with our restaurant team. Would you like me to forward "
+            "your request to them, or would you prefer to contact them directly?"
+        )
+    if lang == "ru":
+        return (
+            "С удовольствием помогу с меню! Актуальные блюда лучше уточнить "
+            "непосредственно у команды нашего ресторана. Хотите, чтобы я передал "
+            "ваш запрос, или предпочитаете связаться с ними напрямую?"
+        )
+    return (
+        "Menu konusunda size yardimci olmak isterim! Guncel menumuz hakkinda "
+        "en dogru bilgiyi restoranımız veya resepsiyon ekibimizden alabilirsiniz. "
+        "Dilerseniz talebinizi onlara hemen iletebilirim."
+    )
+
+
+def order_commitment_fallback(language: str) -> str:
+    """Return safe fallback when an order commitment is made without tool backing."""
+    lang = (language or "tr").lower()
+    if lang == "en":
+        return (
+            "I'm forwarding your request to our team right away. "
+            "They will take care of it and get back to you as soon as possible."
+        )
+    if lang == "ru":
+        return (
+            "Я передаю ваш запрос нашей команде. "
+            "Они позаботятся об этом и свяжутся с вами в ближайшее время."
+        )
+    return (
+        "Talebinizi hemen ilgili ekibimize iletiyorum. "
+        "En kisa surede sizinle ilgileneceklerdir."
+    )

@@ -13,7 +13,6 @@ from velox.config.constants import (
     RESTAURANT_STATUS_TRANSITIONS,
     RestaurantReservationMode,
     RestaurantReservationStatus,
-    resolve_table_type,
 )
 from velox.db.database import execute, fetch, fetchrow, fetchval, get_pool
 from velox.models.restaurant import (
@@ -27,6 +26,18 @@ from velox.models.restaurant import (
 logger = structlog.get_logger(__name__)
 
 DB_TIMEOUT_SECONDS = 5
+
+
+def _safe_int(value: object) -> int:
+    """Convert DB scalar values to int with tolerant fallbacks."""
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        return int(value) if value.strip() else 0
+    if isinstance(value, (bytes, bytearray)):
+        decoded = value.decode(errors="ignore").strip()
+        return int(decoded) if decoded else 0
+    return 0
 
 
 class FloorPlanRepository:
@@ -170,7 +181,7 @@ class FloorPlanRepository:
                 plan_id,
                 timeout=DB_TIMEOUT_SECONDS,
             )
-        return result == "DELETE 1"
+        return str(result) == "DELETE 1"
 
     async def activate_plan(self, hotel_id: int, plan_id: UUID) -> bool:
         """Set a plan as active, deactivating others."""
@@ -189,7 +200,7 @@ class FloorPlanRepository:
                 plan_id,
                 timeout=DB_TIMEOUT_SECONDS,
             )
-        return result == "UPDATE 1"
+        return str(result) == "UPDATE 1"
 
     # ------------------------------------------------------------------
     # Table sync
@@ -343,7 +354,7 @@ class FloorPlanRepository:
         self,
         hotel_id: int,
         target_date: date,
-        target_time: time,
+        _target_time: time,
         table_type: str,
     ) -> str | None:
         """Find a free table of given type for a date+time slot."""
@@ -386,10 +397,7 @@ class FloorPlanRepository:
         import orjson
 
         raw_layout = row["layout_data"]
-        if isinstance(raw_layout, str):
-            layout_dict = orjson.loads(raw_layout)
-        else:
-            layout_dict = raw_layout
+        layout_dict = orjson.loads(raw_layout) if isinstance(raw_layout, str) else raw_layout
 
         return FloorPlan(
             id=row["id"],
@@ -416,7 +424,9 @@ class RestaurantSettingsRepository:
             return RestaurantSettings(hotel_id=hotel_id)
         return RestaurantSettings(
             hotel_id=row["hotel_id"],
-            reservation_mode=RestaurantReservationMode(row.get("reservation_mode") or RestaurantReservationMode.AI_RESTAURAN.value),
+            reservation_mode=RestaurantReservationMode(
+                row.get("reservation_mode") or RestaurantReservationMode.AI_RESTAURAN.value
+            ),
             daily_max_reservations_enabled=row["daily_max_reservations_enabled"],
             daily_max_reservations_count=row["daily_max_reservations_count"],
             daily_max_party_size_enabled=row.get("daily_max_party_size_enabled") or False,
@@ -474,9 +484,13 @@ class RestaurantSettingsRepository:
             settings.service_mode_main_plan_id,
             settings.service_mode_pool_plan_id,
         )
+        if row is None:
+            raise RuntimeError("Failed to upsert restaurant settings.")
         return RestaurantSettings(
             hotel_id=row["hotel_id"],
-            reservation_mode=RestaurantReservationMode(row.get("reservation_mode") or RestaurantReservationMode.AI_RESTAURAN.value),
+            reservation_mode=RestaurantReservationMode(
+                row.get("reservation_mode") or RestaurantReservationMode.AI_RESTAURAN.value
+            ),
             daily_max_reservations_enabled=row["daily_max_reservations_enabled"],
             daily_max_reservations_count=row["daily_max_reservations_count"],
             daily_max_party_size_enabled=row.get("daily_max_party_size_enabled") or False,
@@ -493,7 +507,7 @@ class RestaurantSettingsRepository:
         """Check if daily reservation-count and total-party-size limits allow a new reservation."""
         settings = await self.get(hotel_id)
 
-        count = int(
+        count = _safe_int(
             await fetchval(
                 """
                 SELECT COUNT(*) FROM restaurant_holds
@@ -503,9 +517,8 @@ class RestaurantSettingsRepository:
                 hotel_id,
                 target_date,
             )
-            or 0
         )
-        total_party_size = int(
+        total_party_size = _safe_int(
             await fetchval(
                 """
                 SELECT COALESCE(SUM(party_size), 0) FROM restaurant_holds
@@ -515,10 +528,13 @@ class RestaurantSettingsRepository:
                 hotel_id,
                 target_date,
             )
-            or 0
         )
-        reservation_allowed = (not settings.daily_max_reservations_enabled) or (count < settings.daily_max_reservations_count)
-        party_allowed = (not settings.daily_max_party_size_enabled) or ((total_party_size + max(0, new_party_size)) <= settings.daily_max_party_size_count)
+        reservation_allowed = (not settings.daily_max_reservations_enabled) or (
+            count < settings.daily_max_reservations_count
+        )
+        party_allowed = (not settings.daily_max_party_size_enabled) or (
+            (total_party_size + max(0, new_party_size)) <= settings.daily_max_party_size_count
+        )
         return {
             "allowed": reservation_allowed and party_allowed,
             "reservation_allowed": reservation_allowed,
@@ -558,33 +574,51 @@ class RestaurantStatusManager:
                 f"invalid_transition:{current_status}->{new_status}"
             )
 
-        update_parts = ["status = $2", "updated_at = now()"]
-        params: list[Any] = [hold_id, new_status]
-
-        if new_status == RestaurantReservationStatus.GELDI:
-            update_parts.append(f"arrived_at = now()")
-            update_parts.append("rejected_reason = NULL")
-        elif new_status == RestaurantReservationStatus.GELMEDI:
-            update_parts.append(f"no_show_at = now()")
-            update_parts.append(f"table_id = NULL")
-            update_parts.append("rejected_reason = NULL")
-        elif new_status == RestaurantReservationStatus.IPTAL:
-            update_parts.append(f"table_id = NULL")
-            if reason:
-                update_parts.append(f"rejected_reason = ${len(params) + 1}")
-                params.append(reason)
-            else:
-                update_parts.append("rejected_reason = NULL")
-        elif new_status == RestaurantReservationStatus.ONAYLANDI:
-            update_parts.append(f"approved_by = ${len(params) + 1}")
-            update_parts.append(f"approved_at = now()")
-            update_parts.append("rejected_reason = NULL")
-            params.append(actor)
-
-        set_clause = ", ".join(update_parts)
+        cancelled_statuses = (
+            RestaurantReservationStatus.GELMEDI,
+            RestaurantReservationStatus.IPTAL,
+        )
+        clear_table = new_status in cancelled_statuses
+        rejected_reason_value = reason if new_status == RestaurantReservationStatus.IPTAL else None
+        approved_by_value = actor if new_status == RestaurantReservationStatus.ONAYLANDI else None
         await execute(
-            f"UPDATE restaurant_holds SET {set_clause} WHERE hold_id = $1",
-            *params,
+            """
+            UPDATE restaurant_holds
+            SET
+                status = $2,
+                updated_at = now(),
+                arrived_at = CASE
+                    WHEN $2 = 'GELDI' THEN now()
+                    ELSE arrived_at
+                END,
+                no_show_at = CASE
+                    WHEN $2 = 'GELMEDI' THEN now()
+                    ELSE no_show_at
+                END,
+                table_id = CASE
+                    WHEN $3 THEN NULL
+                    ELSE table_id
+                END,
+                approved_by = CASE
+                    WHEN $2 = 'ONAYLANDI' THEN $4
+                    ELSE approved_by
+                END,
+                approved_at = CASE
+                    WHEN $2 = 'ONAYLANDI' THEN now()
+                    ELSE approved_at
+                END,
+                rejected_reason = CASE
+                    WHEN $2 IN ('GELDI', 'GELMEDI', 'ONAYLANDI') THEN NULL
+                    WHEN $2 = 'IPTAL' THEN $5
+                    ELSE rejected_reason
+                END
+            WHERE hold_id = $1
+            """,
+            hold_id,
+            new_status,
+            clear_table,
+            approved_by_value,
+            rejected_reason_value,
         )
 
         # Restore slot capacity on IPTAL or GELMEDI

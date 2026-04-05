@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import time
-from typing import Any
+from typing import Any, Literal
 
 import structlog
 from openai import APIConnectionError, APITimeoutError, AsyncOpenAI, RateLimitError
@@ -16,7 +17,7 @@ logger = structlog.get_logger(__name__)
 
 TRANSCRIPTION_TIMEOUT_SECONDS = 25.0
 TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe"
-TRANSCRIPTION_RESPONSE_FORMAT = "json"
+TRANSCRIPTION_RESPONSE_FORMAT: Literal["json"] = "json"
 TRANSCRIPTION_RETRY_BACKOFF_SECONDS = (1.0, 3.0, 5.0)
 TRANSCRIPTION_MAX_ATTEMPTS = 3
 
@@ -53,13 +54,15 @@ class TranscriptionClient:
         for attempt in range(1, TRANSCRIPTION_MAX_ATTEMPTS + 1):
             started_at = time.perf_counter()
             try:
-                response = await self._client.audio.transcriptions.create(
-                    model=self._model,
-                    file=buffer,
-                    prompt=prompt[:400] if prompt else None,
-                    response_format=TRANSCRIPTION_RESPONSE_FORMAT,
-                    timeout=TRANSCRIPTION_TIMEOUT_SECONDS,
-                )
+                request_payload: dict[str, Any] = {
+                    "model": self._model,
+                    "file": buffer,
+                    "response_format": TRANSCRIPTION_RESPONSE_FORMAT,
+                    "timeout": TRANSCRIPTION_TIMEOUT_SECONDS,
+                }
+                if prompt:
+                    request_payload["prompt"] = prompt[:400]
+                response = await self._client.audio.transcriptions.create(**request_payload)
                 duration_ms = int((time.perf_counter() - started_at) * 1000)
                 payload = response.model_dump() if hasattr(response, "model_dump") else {"text": str(response)}
                 logger.info(
@@ -108,9 +111,9 @@ class TranscriptionClient:
 
             if attempt < TRANSCRIPTION_MAX_ATTEMPTS:
                 buffer.seek(0)
-                backoff = TRANSCRIPTION_RETRY_BACKOFF_SECONDS[min(attempt - 1, len(TRANSCRIPTION_RETRY_BACKOFF_SECONDS) - 1)]
-                import asyncio
-
+                backoff = TRANSCRIPTION_RETRY_BACKOFF_SECONDS[
+                    min(attempt - 1, len(TRANSCRIPTION_RETRY_BACKOFF_SECONDS) - 1)
+                ]
                 await asyncio.sleep(backoff)
 
         raise TranscriptionUnavailableError("Audio transcription unavailable") from last_error
@@ -135,10 +138,9 @@ def _estimate_confidence(payload: dict[str, Any]) -> float:
         if not isinstance(segment, dict):
             continue
         logprob = segment.get("avg_logprob")
-        try:
-            numeric = float(logprob)
-        except (TypeError, ValueError):
+        if logprob in (None, ""):
             continue
+        numeric = _safe_float(logprob)
         confidence = max(0.0, min(1.0, 1.0 + (numeric / 5.0)))
         values.append(confidence)
 

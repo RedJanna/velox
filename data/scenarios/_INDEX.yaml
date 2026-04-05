@@ -1,7 +1,7 @@
 # ============================================================
 # VELOX SENARYO MASTER INDEX
 # ============================================================
-# Toplam: 48 senaryo
+# Toplam: 49 senaryo
 # Her senaryo ayri bir YAML dosyasinda tanimlanir.
 # Dosya adi formati: S{NNN}_{kisa_ad}.yaml
 #
@@ -149,6 +149,13 @@ restaurant_scenarios:
     name: "Restoran - Kahvalti Saati Sorgusu"
     description: "Misafir kahvalti saatlerini soruyor, FAQ yaniti donmeli"
     intent: "faq_info"
+    status: "[x]"
+
+  - code: "S049"
+    file: "S049_restaurant_vegan_menu_order.yaml"
+    name: "Restoran - Vegan Menu Sorgusu ve Siparis Guardrail"
+    description: "Menu katalogu tanimli degilken vegan menu ve siparis talebi — hallucination ve bildirim guardrail testi"
+    intent: "menu_inquiry"
     status: "[x]"
 
 # ──────────────────────────────────────────────────────────

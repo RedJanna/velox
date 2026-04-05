@@ -109,10 +109,13 @@ class ChatLabAttachmentService:
 
         if declared_mime and declared_mime not in allowed_mimes:
             raise ChatLabAttachmentError("Dosya tipi dogrulamasi basarisiz.")
-        if guessed_mime and guessed_mime not in allowed_mimes:
+        if (
+            guessed_mime
+            and guessed_mime not in allowed_mimes
             # Docx files are zip containers; keep extension as the trust anchor there.
-            if not (extension == ".docx" and guessed_mime == "application/zip"):
-                raise ChatLabAttachmentError("Dosya icerigi ile tipi uyusmuyor.")
+            and not (extension == ".docx" and guessed_mime == "application/zip")
+        ):
+            raise ChatLabAttachmentError("Dosya icerigi ile tipi uyusmuyor.")
 
         if extension == ".txt" and not self._is_probably_text(file_bytes):
             raise ChatLabAttachmentError("Metin dosyasi UTF-8 degil veya gecersiz.")

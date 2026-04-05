@@ -185,3 +185,77 @@ async def test_multi_turn_flow_greeting_to_hold_with_tool_calls(mock_openai: Asy
         "booking_quote",
         "stay_create_hold",
     ]
+
+
+@pytest.mark.asyncio
+async def test_run_tool_call_loop_emits_iteration_trace_logs(
+    mock_openai: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LLM client should log raw tool-call trace data for each iteration."""
+
+    logged_events: list[tuple[str, dict[str, Any]]] = []
+
+    class _Logger:
+        def info(self, event: str, **kwargs: Any) -> None:
+            logged_events.append((event, kwargs))
+
+        def warning(self, event: str, **kwargs: Any) -> None:
+            logged_events.append((event, kwargs))
+
+    mock_openai.chat.completions.create.side_effect = [
+        _FakeOpenAIResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "",
+                            "tool_calls": [
+                                {
+                                    "id": "tc-r1",
+                                    "type": "function",
+                                    "function": {"name": "restaurant_availability", "arguments": '{"party_size":2}'},
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "usage": {},
+            }
+        ),
+        _FakeOpenAIResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "Kontrol tamam.\nINTERNAL_JSON: {\"language\":\"tr\",\"intent\":\"restaurant_booking_create\",\"state\":\"ANSWERED\",\"entities\":{},\"required_questions\":[],\"tool_calls\":[],\"notifications\":[],\"handoff\":{\"needed\":false},\"risk_flags\":[],\"escalation\":{\"level\":\"L0\",\"route_to_role\":\"NONE\"},\"next_step\":\"await_guest_reply\"}",
+                            "tool_calls": [],
+                        }
+                    }
+                ],
+                "usage": {},
+            }
+        ),
+    ]
+    tool_executor = AsyncMock(return_value='{"available":true}')
+    client = LLMClient(settings)
+    client.client = mock_openai
+    monkeypatch.setattr("velox.llm.client.logger", _Logger())
+
+    content, executed = await client.run_tool_call_loop(
+        messages=[{"role": "user", "content": "Restoran uygun mu?"}],
+        tools=[{"type": "function", "function": {"name": "restaurant_availability"}}],
+        tool_executor=tool_executor,
+        trace_context={"conversation_id": "conv-123"},
+    )
+
+    assert "Kontrol tamam" in content
+    assert [item["name"] for item in executed] == ["restaurant_availability"]
+    event_names = [event for event, _payload in logged_events]
+    assert "llm_tool_loop_started" in event_names
+    assert "llm_tool_iteration_response" in event_names
+    assert "llm_tool_call_executed" in event_names
+    assert "llm_tool_loop_completed" in event_names
+    iteration_payload = next(payload for event, payload in logged_events if event == "llm_tool_iteration_response")
+    assert iteration_payload["conversation_id"] == "conv-123"
+    assert "restaurant_availability" in iteration_payload["raw_tool_call_names"]

@@ -1,11 +1,13 @@
 """Admin panel REST API routes."""
 
+import contextlib
 from datetime import UTC, date, datetime
 from typing import Annotated, Any
 from uuid import UUID, uuid4
 
 import asyncpg
 import orjson
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field, field_validator
 
@@ -54,6 +56,7 @@ from velox.utils.privacy import hash_phone
 from velox.utils.totp import verify_totp_code
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+logger = structlog.get_logger(__name__)
 
 ALLOWED_HOLD_TYPES = {"stay", "restaurant", "transfer"}
 HOLD_TABLES = {
@@ -433,28 +436,68 @@ async def update_hotel_profile(
     request: Request,
     user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
 ) -> dict[str, Any]:
-    """Update hotel profile JSON, persist YAML, and refresh runtime cache."""
+    """Update hotel profile JSON, persist YAML, and refresh runtime cache.
+
+    Error handling guarantees:
+    - 400 → profile JSON fails Pydantic validation
+    - 404 → hotel not found in DB
+    - 500 → unexpected error (logged server-side, safe message returned)
+    YAML write failure is logged but does NOT block the DB save so that the
+    runtime state always stays consistent even when the file layer has issues.
+    """
     _ = user
+
+    # ── Step 1: validate profile shape (returns 400 on bad data) ────────────
+    try:
+        HotelProfile.model_validate(body.profile_json)
+    except (ValueError, Exception) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # ── Step 2: persist YAML (non-fatal — DB is the source of truth) ────────
+    profile_path = None
     try:
         profile_path = save_profile_definition(body.profile_json)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    db = request.app.state.db_pool
-    async with db.acquire() as conn:
-        result = await conn.execute(
-            """
-            UPDATE hotels
-            SET profile_json = $1, updated_at = now()
-            WHERE hotel_id = $2
-            """,
-            body.profile_json,
-            hotel_id,
+    except Exception as exc:
+        logger.warning(
+            "hotel_profile_yaml_write_failed",
+            hotel_id=hotel_id,
+            error=str(exc),
+            error_type=type(exc).__name__,
         )
-    if result == "UPDATE 0":
-        raise HTTPException(status_code=404, detail="Hotel not found")
+
+    # ── Step 3: persist to DB ────────────────────────────────────────────────
+    try:
+        db = request.app.state.db_pool
+        async with db.acquire() as conn:
+            result = await conn.execute(
+                """
+                UPDATE hotels
+                SET profile_json = $1, updated_at = now()
+                WHERE hotel_id = $2
+                """,
+                orjson.dumps(body.profile_json).decode(),
+                hotel_id,
+            )
+        if result == "UPDATE 0":
+            raise HTTPException(status_code=404, detail="Hotel not found")
+    except HTTPException:
+        raise
+    except asyncpg.PostgresError as exc:
+        logger.exception("hotel_profile_db_update_failed", hotel_id=hotel_id)
+        raise HTTPException(status_code=500, detail="Veritabanı güncellemesi başarısız oldu.") from exc
+    except Exception as exc:
+        logger.exception("hotel_profile_db_update_unexpected_error", hotel_id=hotel_id)
+        raise HTTPException(status_code=500, detail="Beklenmeyen bir hata oluştu.") from exc
+
+    # ── Step 4: reload runtime cache ────────────────────────────────────────
     reload_profiles()
-    return {"status": "updated", "hotel_id": hotel_id, "profile_path": profile_path.name}
+    return {
+        "status": "updated",
+        "hotel_id": hotel_id,
+        "profile_path": profile_path.name if profile_path else None,
+    }
 
 
 async def _load_hotel_profile(
@@ -477,20 +520,35 @@ async def _persist_hotel_profile(
     profile_json: dict[str, Any],
 ) -> str:
     """Persist hotel profile to YAML + DB and return profile file name."""
-    profile_path = save_profile_definition(profile_json)
-    result = await conn.execute(
-        """
-        UPDATE hotels
-        SET profile_json = $1, updated_at = now()
-        WHERE hotel_id = $2
-        """,
-        profile_json,
-        hotel_id,
-    )
+    profile_path = None
+    try:
+        profile_path = save_profile_definition(profile_json)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.warning(
+            "hotel_profile_yaml_write_failed",
+            hotel_id=hotel_id,
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+    try:
+        result = await conn.execute(
+            """
+            UPDATE hotels
+            SET profile_json = $1, updated_at = now()
+            WHERE hotel_id = $2
+            """,
+            orjson.dumps(profile_json).decode(),
+            hotel_id,
+        )
+    except asyncpg.PostgresError as exc:
+        logger.exception("hotel_profile_db_update_failed", hotel_id=hotel_id)
+        raise HTTPException(status_code=500, detail="Veritabanı güncellemesi başarısız oldu.") from exc
     if result == "UPDATE 0":
         raise HTTPException(status_code=404, detail="Hotel not found")
     reload_profiles()
-    return profile_path.name
+    return profile_path.name if profile_path else ""
 
 
 def _ensure_faq_integrity(faq_items: list[FAQEntry]) -> tuple[list[FAQEntry], bool]:
@@ -1072,10 +1130,8 @@ async def reset_conversation(
                 conversation_id,
             )
         if phone_hash_row is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await redis_client.delete(f"velox:human_override:{phone_hash_row['phone_hash']}")
-            except Exception:
-                pass
     return {"status": "reset", "conversation_id": str(conversation_id)}
 
 
@@ -1221,8 +1277,13 @@ async def toggle_human_override(
                 await redis_client.set(redis_key, "1")
             else:
                 await redis_client.delete(redis_key)
-        except Exception:
-            pass  # Best-effort; DB is the source of truth
+        except Exception as error:
+            logger.warning(
+                "human_override_cache_sync_failed",
+                conversation_id=str(conversation_id),
+                enabled=enable,
+                error=str(error),
+            )
 
     import structlog
     structlog.get_logger(__name__).info(
@@ -1271,10 +1332,8 @@ async def reset_conversation_by_phone(
 
     redis_client = getattr(request.app.state, "redis", None)
     if redis_client is not None:
-        try:
+        with contextlib.suppress(Exception):
             await redis_client.delete(f"velox:human_override:{phone_hash}")
-        except Exception:
-            pass
 
     return {
         "status": "reset",
@@ -1591,19 +1650,25 @@ async def approve_hold(
                     f"(current: {current_status})"
                 ),
             )
-        if hold_type == "stay" and current_status == HoldStatus.MANUAL_REVIEW.value:
+        if (
+            hold_type == "stay"
+            and current_status == HoldStatus.MANUAL_REVIEW.value
+            and not (force and user.role == Role.ADMIN)
+        ):
             # Admin force-retry bypasses the uncertain PMS state guard
-            if not (force and user.role == Role.ADMIN):
-                manual_review_reason = str(row.get("manual_review_reason") or "")
-                create_was_uncertain = manual_review_reason in {
-                    "create_missing_identifiers",
-                    "create_unverified_after_readback",
-                }
-                if row.get("pms_reservation_id") or row.get("voucher_no") or create_was_uncertain:
-                    raise HTTPException(
-                        status_code=409,
-                        detail="Stay hold already reached an uncertain PMS create state; manual review is required instead of retry.",
-                    )
+            manual_review_reason = str(row.get("manual_review_reason") or "")
+            create_was_uncertain = manual_review_reason in {
+                "create_missing_identifiers",
+                "create_unverified_after_readback",
+            }
+            if row.get("pms_reservation_id") or row.get("voucher_no") or create_was_uncertain:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Stay hold already reached an uncertain PMS create state; "
+                        "manual review is required instead of retry."
+                    ),
+                )
         if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
             raise HTTPException(status_code=403, detail="Access denied")
         effective_hotel_id = int(row["hotel_id"])

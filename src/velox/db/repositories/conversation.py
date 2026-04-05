@@ -10,6 +10,7 @@ import asyncpg
 import orjson
 import structlog
 
+from velox.config.constants import ConversationState
 from velox.config.settings import settings
 from velox.db.database import execute, fetch, fetchrow
 from velox.models.conversation import Conversation, Message
@@ -19,6 +20,9 @@ logger = structlog.get_logger(__name__)
 
 _TRANSCRIPT_SCHEMA_VERSION = "chat_lab_import.v1"
 _TRANSCRIPT_WRITE_LOCK = asyncio.Lock()
+_LEGACY_STATE_ALIASES = {
+    "awaiting_request": ConversationState.NEEDS_VERIFICATION.value,
+}
 
 
 class ConversationRepository:
@@ -156,6 +160,64 @@ class ConversationRepository:
             conversation_id,
         )
 
+    async def get_idle_after_assistant(self, idle_seconds: int) -> list[Conversation]:
+        """Return active conversations whose last message is from the assistant
+        and that message was sent more than *idle_seconds* ago.
+
+        This powers the proactive idle-reset: if the bot replied and the
+        customer never responded within the timeout, the conversation should
+        be closed automatically.
+        """
+        rows = await fetch(
+            """
+            SELECT c.*
+            FROM conversations c
+            JOIN LATERAL (
+                SELECT role, created_at
+                FROM messages
+                WHERE conversation_id = c.id
+                ORDER BY created_at DESC
+                LIMIT 1
+            ) last_msg ON true
+            WHERE c.is_active = true
+              AND last_msg.role = 'assistant'
+              AND last_msg.created_at < now() - make_interval(secs => $1)
+            """,
+            idle_seconds,
+        )
+        return [self._row_to_conversation(row) for row in rows]
+
+    async def get_idle_after_assistant_in_range(
+        self, min_idle_seconds: int, max_idle_seconds: int,
+    ) -> list[Conversation]:
+        """Return active conversations whose last message is from the assistant
+        and that message was sent between *min_idle_seconds* and
+        *max_idle_seconds* ago.
+
+        Used to identify conversations that should receive an inactivity
+        warning before being closed.
+        """
+        rows = await fetch(
+            """
+            SELECT c.*
+            FROM conversations c
+            JOIN LATERAL (
+                SELECT role, created_at
+                FROM messages
+                WHERE conversation_id = c.id
+                ORDER BY created_at DESC
+                LIMIT 1
+            ) last_msg ON true
+            WHERE c.is_active = true
+              AND last_msg.role = 'assistant'
+              AND last_msg.created_at < now() - make_interval(secs => $1)
+              AND last_msg.created_at >= now() - make_interval(secs => $2)
+            """,
+            min_idle_seconds,
+            max_idle_seconds,
+        )
+        return [self._row_to_conversation(row) for row in rows]
+
     async def update_language(self, conversation_id: UUID, language: str) -> None:
         """Update conversation language preference."""
         await execute(
@@ -180,11 +242,10 @@ class ConversationRepository:
 
         pool = get_pool()
         results: list[Message] = []
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                for msg in messages:
-                    row = await conn.fetchrow(
-                        """
+        async with pool.acquire() as conn, conn.transaction():
+            for msg in messages:
+                row = await conn.fetchrow(
+                    """
                         INSERT INTO messages (
                             conversation_id,
                             role,
@@ -198,27 +259,27 @@ class ConversationRepository:
                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                         RETURNING id, created_at
                         """,
-                        msg.conversation_id,
-                        msg.role,
-                        msg.content,
-                        msg.client_message_id,
-                        self._resolve_whatsapp_message_id(msg),
-                        self._resolve_reply_to_whatsapp_message_id(msg),
-                        orjson.dumps(msg.internal_json).decode() if msg.internal_json else None,
-                        orjson.dumps(msg.tool_calls).decode() if msg.tool_calls else None,
-                    )
-                    if row is None:
-                        raise RuntimeError("Failed to create message in batch.")
-                    msg.id = row["id"]
-                    msg.created_at = row["created_at"]
-                    results.append(msg)
-
-                # Single timestamp update for the conversation
-                conversation_id = messages[0].conversation_id
-                await conn.execute(
-                    "UPDATE conversations SET last_message_at = now(), updated_at = now() WHERE id = $1",
-                    conversation_id,
+                    msg.conversation_id,
+                    msg.role,
+                    msg.content,
+                    msg.client_message_id,
+                    self._resolve_whatsapp_message_id(msg),
+                    self._resolve_reply_to_whatsapp_message_id(msg),
+                    orjson.dumps(msg.internal_json).decode() if msg.internal_json else None,
+                    orjson.dumps(msg.tool_calls).decode() if msg.tool_calls else None,
                 )
+                if row is None:
+                    raise RuntimeError("Failed to create message in batch.")
+                msg.id = row["id"]
+                msg.created_at = row["created_at"]
+                results.append(msg)
+
+            # Single timestamp update for the conversation
+            conversation_id = messages[0].conversation_id
+            await conn.execute(
+                "UPDATE conversations SET last_message_at = now(), updated_at = now() WHERE id = $1",
+                conversation_id,
+            )
         # Best-effort transcript export after commit
         if results:
             await self._safe_export_conversation_transcript(results[0].conversation_id)
@@ -404,7 +465,7 @@ class ConversationRepository:
             phone_hash=row["phone_hash"],
             phone_display=row["phone_display"],
             language=row["language"],
-            current_state=row["current_state"],
+            current_state=ConversationRepository._normalize_conversation_state(row["current_state"]),
             current_intent=row["current_intent"],
             entities_json=orjson.loads(row["entities_json"]) if row["entities_json"] else {},
             risk_flags=list(row["risk_flags"]) if row["risk_flags"] else [],
@@ -412,6 +473,14 @@ class ConversationRepository:
             last_message_at=row["last_message_at"],
             created_at=row["created_at"],
         )
+
+    @staticmethod
+    def _normalize_conversation_state(value: Any) -> str:
+        """Map legacy or empty DB state values onto the current enum set."""
+        state = str(value or "").strip()
+        if not state:
+            return ConversationState.GREETING.value
+        return _LEGACY_STATE_ALIASES.get(state.lower(), state)
 
     @staticmethod
     def _row_to_message(row: asyncpg.Record) -> Message:

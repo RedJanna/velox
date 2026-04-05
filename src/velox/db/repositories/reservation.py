@@ -19,12 +19,14 @@ class ReservationRepository:
     async def create_hold(self, hold: StayHold) -> StayHold:
         """Insert a new stay hold."""
         hold.hold_id = await next_sequential_id("S_HOLD_", "stay_holds", "hold_id")
-        reservation_no = await next_reservation_no(hold.hotel_id)
+        reservation_no: str | None = await next_reservation_no(hold.hotel_id)
 
         try:
             row = await fetchrow(
                 """
-                INSERT INTO stay_holds (hold_id, hotel_id, conversation_id, draft_json, status, workflow_state, reservation_no)
+                INSERT INTO stay_holds (
+                    hold_id, hotel_id, conversation_id, draft_json, status, workflow_state, reservation_no
+                )
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING id, created_at, updated_at
                 """,

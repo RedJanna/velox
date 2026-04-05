@@ -92,7 +92,28 @@ RISK_PATTERNS: dict[RiskFlag, list[re.Pattern[str]]] = {
         re.compile(
             (
                 r"\b(alerji|allergy|allergic|gl[uü]ten|lakto|lactose|f[ıi]st[ıi]k|peanut|yumurta\s*alerji|"
-                r"egg\s*allergy|[cç][oö]lyak|celiac)\b"
+                r"egg\s*allergy|[cç][oö]lyak|celiac|vegan|vegetarian|vejetaryen|vejeteryan)\b"
+            ),
+            re.IGNORECASE,
+        ),
+    ],
+    RiskFlag.PHYSICAL_OPERATION_REQUEST: [
+        re.compile(
+            (
+                r"\b(sipari[sş]|order|room\s*service|oda\s*servis[i]?)\b"
+            ),
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"(istiyorum|g[oö]nder|odama|odamıza|hazırla|hazirla|getir|deliver|prepare|servis\s*yap|g[oö]nderilsin)",
+            re.IGNORECASE,
+        ),
+    ],
+    RiskFlag.MENU_HALLUCINATION_RISK: [
+        re.compile(
+            (
+                r"\b(men[uü]|menu|yemek\s*listesi|ne\s*var|neler\s*var|yemek\s*[oö]ner|"
+                r"tatl[ıi]\s*[cç]e[sş]it|i[cç]ecek\s*listesi|food\s*list|dish|course)\b"
             ),
             re.IGNORECASE,
         ),

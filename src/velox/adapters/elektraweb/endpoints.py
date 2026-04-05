@@ -1,8 +1,8 @@
 """Elektraweb API endpoint methods — typed wrappers around the HTTP client."""
 
+import re
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-import re
 from typing import Any
 
 import httpx
@@ -366,10 +366,7 @@ def _parse_reservation_lookup_response(
         items = [item for item in normalized if isinstance(item, dict)]
     elif isinstance(normalized, dict):
         data = normalized.get("data")
-        if isinstance(data, list):
-            items = [item for item in data if isinstance(item, dict)]
-        else:
-            items = [normalized]
+        items = [item for item in data if isinstance(item, dict)] if isinstance(data, list) else [normalized]
 
     reservation_id_str = str(reservation_id or "").strip()
     voucher_no_str = str(voucher_no or "").strip()
@@ -613,7 +610,10 @@ def _select_offer_for_cancel_policy(draft: dict[str, Any], offers: list[BookingO
 def _money_matches_offer(draft: dict[str, Any], offer: BookingOffer) -> bool:
     """Compare total against live offer price using a small tolerance."""
     expected_total = _safe_float(draft.get("total_price_eur", draft.get("total_price")))
-    return any(abs(expected_total - candidate) < 0.01 for candidate in (float(offer.discounted_price), float(offer.price)))
+    return any(
+        abs(expected_total - candidate) < 0.01
+        for candidate in (float(offer.discounted_price), float(offer.price))
+    )
 
 
 def _offer_total_for_create(offer: BookingOffer) -> str:
@@ -951,7 +951,7 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
                             f"Room type changed during offer refresh: "
                             f"{original_room_type_id} -> {refreshed_room_type_id}. "
                             f"Reservation creation aborted to prevent wrong room type booking."
-                        )
+                        ) from error
                     logger.info("elektraweb_create_reservation_retry_refreshed_offer", hotel_id=hotel_id, path=path)
                     try:
                         expected_total = None
@@ -985,7 +985,9 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
                                     return parse_reservation_create(raw)
                                 except Exception as second_retry_error:
                                     if isinstance(second_retry_error, httpx.HTTPStatusError):
-                                        last_expected_total = _extract_expected_total_from_price_mismatch(second_retry_error)
+                                        last_expected_total = _extract_expected_total_from_price_mismatch(
+                                            second_retry_error
+                                        )
                                         if last_expected_total is not None and last_expected_total != expected_total:
                                             final_price_payload = _with_price_override(
                                                 second_refresh_payload,
@@ -1119,8 +1121,8 @@ async def get_reservation(
             if method == "POST":
                 raw = await client.post(path, json_body=body)
             else:
-                params: dict[str, str] | None = {"voucherNo": voucher_no} if voucher_no else None
-                raw = await client.get(path, params=params)
+                query_params: dict[str, str] | None = {"voucherNo": voucher_no} if voucher_no else None
+                raw = await client.get(path, params=query_params)
             return parse_reservation_detail(raw)
         except Exception as error:
             logger.warning("elektraweb_get_reservation_path_failed", path=path, error=str(error))
