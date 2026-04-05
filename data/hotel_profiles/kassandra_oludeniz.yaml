@@ -1,7 +1,7 @@
 pms: elektraweb
 season:
   open: 04-20
-  close: 11-10
+  close: 11-30
 payment:
   methods:
   - BANK_TRANSFER
@@ -25,18 +25,26 @@ payment:
   payment_link_handling: human_handoff
 contacts:
   reception:
+    name: Yağmur
+    role: RECEPTION
     email: info@kassandraoludeniz.com
-    hours: 24/7
+    hours: 08:00-16:00
     phone: '+905332503277'
   restaurant:
+    name: Suat
+    role: RESTAURANT
     email: info@kassandraoludeniz.com
-    hours: 08:00-22:00
+    hours: 12:00-22:00
     phone: '+905332503277'
   housekeeping:
+    name: Yağmur
+    role: HOUSEKEEPING
     email: info@kassandraoludeniz.com
     hours: 08:00-16:00
     phone: '+905332503277'
   escalation_admin:
+    name: Ömer
+    role: OTHER
     email: gonenomeralperen@gmail.com
     hours: 24/7
     phone: '+905304498453'
@@ -1225,7 +1233,20 @@ faq_data:
   question_variants_zh:
   - 有无障碍房间吗？
 hotel_id: 21966
+location:
+  city: Muğla
+  address: Ölüdeniz Mahallesi 224 Sk. No:12
+  country: Türkiye
+  district: Fethiye
+  google_maps_hotel: https://maps.app.goo.gl/YhDZEnhxzfnB1WgeA
+  google_maps_restaurant: https://maps.app.goo.gl/pMiKmhV57YVvAghe6
 timezone: Europe/Istanbul
+highlights:
+- beachside
+- central_location
+- excellent_reviews
+- pool_jacuzzi
+- family_friendly
 hotel_name:
   en: Kassandra Oludeniz
   tr: Kassandra Oludeniz
@@ -1298,6 +1319,7 @@ room_types:
   bed_type: king
   features:
   - jacuzzi
+  - rooftop
   baby_crib: false
   extra_bed: false
   accessible: false
@@ -1342,10 +1364,11 @@ room_types:
   size_m2: 40
   bed_type: king
   features:
-  - jacuzzi
   - quiet
   - modern
   - honeymoon_recommended
+  - jacuzzi
+  - spacious
   baby_crib: true
   extra_bed: true
   accessible: false
@@ -1355,7 +1378,38 @@ board_types:
   code: BB
   name:
     en: Bed & Breakfast
-    tr: Oda Kahvalti
+    tr: Oda + Kahvaltı
+  breakfast_type: acik_buyfe
+  breakfast_hours: 08:00-10:30
+description:
+  en: Located in the unique natural beauty and peaceful atmosphere of Ölüdeniz, Fethiye,
+    Kassandra Boutique Hotel offers its guests a comfortable, warm, and enjoyable
+    holiday experience. With its elegantly designed rooms featuring modern touches,
+    relaxing garden, and friendly hospitality, the hotel stands out as an ideal choice
+    for those who want to unwind and explore the stunning surroundings. Thanks to
+    its convenient location near Ölüdeniz Beach and other popular attractions, Kassandra
+    Boutique Hotel adds comfort, peace, and charm to your Fethiye getaway.
+  tr: Ölüdeniz’in eşsiz doğası ve huzurlu atmosferi içinde konumlanan Kassandra Butik
+    Otel, misafirlerine konforlu, samimi ve keyifli bir tatil deneyimi sunar. Modern
+    detaylarla zarif biçimde tasarlanmış odaları, dinlendirici bahçesi ve sıcak hizmet
+    anlayışıyla öne çıkan otel, hem dinlenmek hem de bölgenin doğal güzelliklerini
+    keşfetmek isteyenler için ideal bir konaklama seçeneğidir. Ölüdeniz Plajı’na ve
+    çevredeki popüler noktalara yakın konumuyla avantaj sağlayan Kassandra Butik Otel,
+    Fethiye tatilinize huzur ve ayrıcalık katar.
+operational:
+  tool_error_fallback: Sizler daha sağlıklı bilgi için resepsiyona yönlendiriyorum.
+room_common:
+  balcony: true
+  amenities:
+  - klima
+  - minibar (ucretsiz su)
+  - TV (Digiturk)
+  - kasa
+  - sac kurutma makinesi
+  - banyo urunleri
+  - su isitici
+  - self-servis su/kahve/bitki cayi
+  daily_cleaning: true
 rate_mapping:
   FREE_CANCEL:
     rate_code_id: 183666
@@ -1365,7 +1419,7 @@ rate_mapping:
     rate_type_id: 24171
 currency_base: EUR
 transfer_routes:
-- max_pax: 7
+- max_pax: 6
   baby_seat: true
   price_eur: 75
   route_code: DALAMAN_AIRPORT_TO_HOTEL
@@ -1375,9 +1429,9 @@ transfer_routes:
   from_location: Dalaman Havalimani
   oversize_vehicle:
     type: Sprinter
-    min_pax: 8
+    min_pax: 14
     price_eur: 100
-- max_pax: 7
+- max_pax: 6
   baby_seat: true
   price_eur: 75
   route_code: HOTEL_TO_DALAMAN_AIRPORT
@@ -1387,9 +1441,9 @@ transfer_routes:
   from_location: Kassandra Oludeniz
   oversize_vehicle:
     type: Sprinter
-    min_pax: 8
+    min_pax: 14
     price_eur: 100
-- max_pax: 7
+- max_pax: 6
   baby_seat: true
   price_eur: 220
   route_code: ANTALYA_AIRPORT_TO_HOTEL
@@ -1398,7 +1452,7 @@ transfer_routes:
   vehicle_type: Vito
   from_location: Antalya Havalimani
   oversize_vehicle: null
-- max_pax: 7
+- max_pax: 6
   baby_seat: true
   price_eur: 220
   route_code: HOTEL_TO_ANTALYA_AIRPORT
@@ -1509,7 +1563,7 @@ cancellation_rules:
   FREE_CANCEL:
     refund: true
     exception_refund: null
-    prepayment_amount: 1_night
+    prepayment_amount: ''
     prepayment_immediate: false
     exception_days_before: null
     refund_after_deadline: false
@@ -1545,12 +1599,3 @@ hotel_conversational_flow:
   ask_before_full_price_dump: true
   summarize_large_price_lists: true
   avoid_repeating_confirmed_facts: true
-description:
-  tr: ''
-  en: ''
-location:
-  google_maps_hotel: https://maps.app.goo.gl/61FzMo3fxpzSHJTZ9
-room_common:
-  amenities: []
-operational: {}
-highlights: []
