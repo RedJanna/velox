@@ -24,6 +24,7 @@ from velox.tools.booking import (
 )
 from velox.tools.crm import CRMLogTool
 from velox.tools.faq import FAQLookupTool
+from velox.tools.hotel_info import HotelInfoLookupTool
 from velox.tools.handoff import HandoffCreateTicketTool
 from velox.tools.notification import NotifySendTool
 from velox.tools.payment import PaymentRequestPrepaymentTool
@@ -108,6 +109,7 @@ def build_dispatcher() -> ToolDispatcher:
     dispatcher.register("handoff_create_ticket", HandoffCreateTicketTool(ticket_repository, notification_repository))
     dispatcher.register("crm_log", CRMLogTool(crm_repository))
     dispatcher.register("faq_lookup", FAQLookupTool())
+    dispatcher.register("hotel_info_lookup", HotelInfoLookupTool())
 
     return dispatcher
 

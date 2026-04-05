@@ -55,6 +55,19 @@ def _build_profile(hotel_id: int = 21966) -> HotelProfile:
                 "answer_tr": "Standart check-in saatimiz 14:00 itibariyladir.",
             }
         ],
+        location={
+            "country": "Türkiye",
+            "city": "Muğla",
+            "district": "Fethiye",
+            "address": "Ölüdeniz Mahallesi 224 Sk. No:12",
+            "google_maps_hotel": "https://maps.app.goo.gl/YhDZEnhxzfnB1WgeA",
+            "google_maps_restaurant": "https://maps.app.goo.gl/pMiKmhV57YVvAghe6",
+        },
+        description={
+            "tr": "Otel aciklamasi tr",
+            "en": "Hotel description en",
+        },
+        highlights=["beachside", "family_friendly"],
         hotel_conversational_flow={
             "style": "concise_premium",
             "max_paragraph_lines": 3,
@@ -96,9 +109,11 @@ def test_build_system_prompt_is_compact_and_grounded() -> None:
 
     assert "VELox runtime core" in system_prompt
     assert "HOTEL_IDENTITY" in system_prompt
+    assert "HOTEL_ADMIN_CONTEXT" in system_prompt
     assert "ROOM_TYPES" in system_prompt
     assert "FAQ_CONTEXT" in system_prompt
     assert "faq_lookup" in system_prompt
+    assert "maps.app.goo.gl/pMiKmhV57YVvAghe6" in system_prompt
     assert "Standart check-in saatimiz 14:00 itibariyladir." not in system_prompt
     assert len(system_prompt) < 12000
 

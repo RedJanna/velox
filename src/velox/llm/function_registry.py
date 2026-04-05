@@ -430,4 +430,24 @@ def get_tool_definitions() -> list[dict[str, Any]]:
                 "required": ["hotel_id", "query", "language"],
             },
         ),
+        _def(
+            "hotel_info_lookup",
+            (
+                "Look up static hotel information from HOTEL_PROFILE "
+                "(location links, address, contacts, description, highlights)."
+            ),
+            {
+                "type": "object",
+                "properties": {
+                    "hotel_id": {"type": "integer"},
+                    "query": {"type": "string"},
+                    "language": {
+                        "type": "string",
+                        "enum": [language.upper() for language in SUPPORTED_LANGUAGES],
+                        "default": "EN",
+                    },
+                },
+                "required": ["hotel_id", "query", "language"],
+            },
+        ),
     ]

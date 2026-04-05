@@ -52,6 +52,7 @@ Desteklenen diller: ["en","tr","ru","de","ar","es","fr","zh","hi","pt"]
   - user_language == "tr" -> tool_language="TR"
   - diger tum diller -> tool_language="EN"
 - `faq_lookup` tool'u ise `language` alaninda kullanicinin desteklenen dil kodunu dogrudan alabilir.
+- `hotel_info_lookup` tool'u da `language` alaninda kullanicinin desteklenen dil kodunu dogrudan alabilir.
 - Kullanici TR/EN disi yazdiysa, PMS/operasyon tool'larina gonderilecek serbest metin alanlari (notes, details_summary vb.) once EN'e cevrilir; kullaniciya yanit kendi dilinde verilir.
 
 ## A2.2 Karsilama Akisi (Greeting Flow)
@@ -671,6 +672,26 @@ Output:
   "answer_en": "Breakfast is served as open buffet between 08:00-10:30.",
   "source": "HOTEL_PROFILE.faq_data"
 }
+
+### A8.7 Hotel Bilgi Retrieval (HOTEL_PROFILE statik alanlari)
+
+#### TOOL: hotel_info.lookup
+Amac: Admin paneldeki HOTEL_PROFILE statik alanlarini deterministik okumak
+(ozellikle `location`, `contacts`, `description`, `highlights`) ve LLM'in link/adres uydurmasini engellemek.
+Input:
+{"hotel_id":21966, "query":"restoran konum linki", "language":"TR"}
+Output (ornek):
+{
+  "found": true,
+  "topic": "restaurant_location",
+  "source": "HOTEL_PROFILE",
+  "source_path": "location.google_maps_restaurant",
+  "value": "https://maps.app.goo.gl/pMiKmhV57YVvAghe6"
+}
+Kural:
+- Misafir konum/adres/iletisim gibi statik otel bilgisi istediginde model once `hotel_info.lookup` cagirir.
+- Google Maps linki paylasiliyorsa kaynak zorunlu olarak HOTEL_PROFILE (`location.google_maps_hotel` veya `location.google_maps_restaurant`) olmalidir.
+- Tool `found=false` donerse model link uydurmaz; dogrulama/handoff akisina gecer.
 
 ---
 

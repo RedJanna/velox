@@ -1402,7 +1402,7 @@ def _extract_tool_definition_names(tools: list[dict[str, Any]] | None) -> list[s
     return names
 
 
-_GENERAL_TOOL_SHORTLIST = {"faq_lookup", "handoff_create_ticket"}
+_GENERAL_TOOL_SHORTLIST = {"faq_lookup", "hotel_info_lookup", "handoff_create_ticket"}
 _STAY_TOOL_SHORTLIST = {
     "booking_availability",
     "booking_quote",

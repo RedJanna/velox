@@ -37,6 +37,8 @@ VELox runtime core
 - Use only TOOL results and HOTEL_CONTEXT below for hotel facts.
   Do not invent prices, availability, policies, menu items, or facilities.
 - For FAQ-style hotel questions, prefer faq_lookup instead of guessing from memory.
+- For static hotel-info questions (location, map links, address, contacts),
+  call hotel_info_lookup before answering.
 - Use booking_availability and booking_quote for live stay answers.
   Never state live availability or price without tool grounding.
 - Ask exactly one missing field per turn during verification.
@@ -262,6 +264,29 @@ def _summarize_faq_topics(faq_entries: list[FAQEntry]) -> str:
     return _render_section("FAQ_CONTEXT", lines)
 
 
+def _summarize_admin_profile_context(profile: HotelProfile) -> str:
+    """Return compact context for admin-managed extra profile fields."""
+    extras = profile.model_extra if isinstance(profile.model_extra, dict) else {}
+    if not extras:
+        return ""
+
+    keys = (
+        "location",
+        "description",
+        "highlights",
+        "nearby_places",
+        "operational",
+        "room_common",
+    )
+    lines: list[str] = []
+    for key in keys:
+        value = extras.get(key)
+        if value in (None, "", [], {}):
+            continue
+        lines.append(f"- {key}={_compact_json(value, max_chars=360)}")
+    return _render_section("HOTEL_ADMIN_CONTEXT", lines)
+
+
 class PromptBuilder:
     """Build system prompt and chat messages for a conversation turn."""
 
@@ -323,6 +348,7 @@ class PromptBuilder:
             sections = [
                 _RUNTIME_POLICY_KERNEL,
                 _render_section("HOTEL_IDENTITY", identity_lines),
+                _summarize_admin_profile_context(profile),
                 _summarize_room_types(profile.room_types),
                 _summarize_board_types(profile.board_types),
                 _summarize_cancellation_rules(profile.cancellation_rules),
