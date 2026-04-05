@@ -123,6 +123,7 @@ PHONE_CHOICE_DIFFERENT_VALUES = {
     "farklı",
     "different",
 }
+PHONE_PLACEHOLDER_VALUES = {"whatsappnumberconfirmed", "whatsappnumber"}
 RESTAURANT_AREA_PROMPT_PATTERN = re.compile(
     r"(iç\s*mekan|ic\s*mekan|dış\s*mekan|dis\s*mekan|indoor|outdoor|alan tercihi|hangi alan|iç mi dış mı|ic mi dis mi)",
     flags=re.IGNORECASE,
@@ -3498,10 +3499,14 @@ def _normalize_phone_for_collection(phone: str) -> str:
 def _parse_phone_collection_choice(user_text: str) -> str:
     """Return parsed phone-choice action from guest reply."""
     canonical = _canonical_text(user_text)
-    if canonical in PHONE_CHOICE_USE_CURRENT_VALUES:
-        return "use_current"
     if canonical in PHONE_CHOICE_DIFFERENT_VALUES:
         return "share_different"
+    if canonical in PHONE_CHOICE_USE_CURRENT_VALUES:
+        return "use_current"
+    if any(token in canonical for token in ("farkli", "farklı", "different")):
+        return "share_different"
+    if any(token in canonical for token in ("mevcut", "current", "whatsapp")):
+        return "use_current"
     return ""
 
 
@@ -3517,6 +3522,119 @@ def _response_requests_phone(response: LLMResponse) -> bool:
 
     next_step = _canonical_text(str(response.internal_json.next_step or ""))
     return "phone" in next_step or "telefon" in next_step
+
+
+def _contains_phone_prompt_indicator(text: str) -> bool:
+    """Return True when text likely asks the guest for a phone number."""
+    if not text:
+        return False
+    lowered = text.casefold()
+    return "telefon" in lowered or "phone" in lowered or "whatsapp" in lowered
+
+
+def _sanitize_phone_entity(
+    entities: dict[str, Any],
+    *,
+    current_whatsapp_phone: str | None,
+) -> dict[str, Any]:
+    """Normalize phone entity and replace placeholders with current WhatsApp number."""
+    raw_phone = str(entities.get("phone") or "").strip()
+    if not raw_phone:
+        return entities
+
+    canonical = _canonical_text(raw_phone)
+    if canonical in PHONE_PLACEHOLDER_VALUES:
+        normalized = _normalize_phone_for_collection(current_whatsapp_phone or "")
+        if normalized:
+            entities["phone"] = normalized
+            entities["phone_source"] = "whatsapp_current_number"
+        else:
+            entities.pop("phone", None)
+        return entities
+
+    normalized = _normalize_phone_for_collection(raw_phone)
+    if normalized:
+        entities["phone"] = normalized
+        return entities
+
+    entities.pop("phone", None)
+    return entities
+
+
+def _force_stay_intent_when_hold_ready(
+    response: LLMResponse,
+    *,
+    conversation: Conversation,
+    entities: dict[str, Any],
+) -> None:
+    """Clamp stay intent/state when hold creation is clearly next."""
+    current_intent = str(response.internal_json.intent or "").lower().strip()
+    if current_intent == "stay_booking_create":
+        return
+
+    next_step = _canonical_text(str(response.internal_json.next_step or ""))
+    if "staycreatehold" not in next_step:
+        return
+
+    has_dates = bool(str(entities.get("checkin_date") or "").strip()) and bool(
+        str(entities.get("checkout_date") or "").strip()
+    )
+    has_adults = _to_int(entities.get("adults"), 0) > 0
+    has_guest = bool(str(entities.get("guest_name") or "").strip())
+    has_phone = bool(str(entities.get("phone") or "").strip())
+    has_context_intent = str(conversation.current_intent or "").lower().startswith("stay_")
+
+    if not (has_context_intent or (has_dates and has_adults and has_guest and has_phone)):
+        return
+
+    response.internal_json.intent = "stay_booking_create"
+    if str(response.internal_json.state or "").upper() == "NEEDS_VERIFICATION":
+        required = [
+            str(item).strip()
+            for item in response.internal_json.required_questions
+            if isinstance(item, str) and str(item).strip()
+        ]
+        if not required:
+            response.internal_json.state = "READY_FOR_TOOL"
+
+
+def _enforce_phone_collection_prompt(response: LLMResponse) -> None:
+    """Ensure phone collection uses the WhatsApp-number choice template."""
+    if str(response.internal_json.state or "").upper() == "HANDOFF":
+        return
+    if not _response_requests_phone(response):
+        return
+
+    entities = response.internal_json.entities if isinstance(response.internal_json.entities, dict) else {}
+    if str(entities.get("phone") or "").strip():
+        return
+
+    language = str(response.internal_json.language or "tr").lower()
+    current_message = str(response.user_message or "").strip()
+    if current_message == _different_phone_followup_message(language):
+        return
+    if current_message == _phone_saved_message(language):
+        return
+
+    required = [
+        str(item).strip()
+        for item in response.internal_json.required_questions
+        if isinstance(item, str) and str(item).strip()
+    ]
+    has_phone_required = any(_canonical_required_question_key(item) == "phone" for item in required)
+    next_step = _canonical_text(str(response.internal_json.next_step or ""))
+    next_step_mentions_phone = "phone" in next_step or "telefon" in next_step
+
+    if has_phone_required:
+        if len(required) > 1 and not _contains_phone_prompt_indicator(current_message):
+            return
+    else:
+        if not (next_step_mentions_phone and _contains_phone_prompt_indicator(current_message)):
+            return
+
+    response.user_message = _phone_collection_prompt(language)
+    if not has_phone_required:
+        response.internal_json.required_questions = ["phone", *required]
 
 
 def _inject_phone_choice_signal(
@@ -4431,11 +4549,18 @@ async def _run_message_pipeline(
         }
         if not parser_error_reason:
             entities.pop("response_parser", None)
+        entities = _sanitize_phone_entity(entities, current_whatsapp_phone=current_whatsapp_phone)
         parsed.internal_json.entities = entities
         _apply_phone_collection_choice_override(
             parsed,
             user_text=original_user_text,
             current_whatsapp_phone=current_whatsapp_phone,
+        )
+        entities = parsed.internal_json.entities if isinstance(parsed.internal_json.entities, dict) else {}
+        _force_stay_intent_when_hold_ready(
+            parsed,
+            conversation=conversation,
+            entities=entities,
         )
 
         current_year = _current_reservation_year()
@@ -4748,6 +4873,7 @@ async def _run_message_pipeline(
                 parsed.internal_json.state = "CONFIRMED"
                 parsed.internal_json.next_step = "reservation_confirmed"
         _enforce_single_step_collection(parsed)
+        _enforce_phone_collection_prompt(parsed)
         return _finalize_response(
             parsed,
             scope_decision=scope_result.decision,

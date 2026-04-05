@@ -2538,6 +2538,27 @@ def test_enforce_single_step_collection_rewrites_single_phone_prompt() -> None:
     assert "1 veya 2" in response.user_message
 
 
+def test_enforce_phone_collection_prompt_overrides_non_verification_state() -> None:
+    """Phone collection should always use the WhatsApp-number choice template."""
+    response = LLMResponse(
+        user_message="Rezervasyonu ilerletebilmem için lütfen telefon numaranızı paylaşır mısınız?",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="stay_booking_create",
+            state="INTENT_DETECTED",
+            entities={},
+            required_questions=["phone"],
+            handoff={"needed": False, "reason": None},
+            next_step="collect_stay_phone",
+        ),
+    )
+
+    whatsapp_webhook._enforce_phone_collection_prompt(response)
+
+    assert "1) Mevcut WhatsApp numaramı kaydet" in response.user_message
+    assert "2) Farklı bir numara paylaşacağım" in response.user_message
+
+
 def test_suppress_default_year_question_for_stay_quote() -> None:
     """Stay quote flow should remove default year clarification when user did not ask for year."""
     response = LLMResponse(
@@ -2637,6 +2658,56 @@ def test_apply_phone_collection_choice_override_requests_different_number() -> N
 
     assert response.internal_json.required_questions == ["phone"]
     assert "farklı telefon numarasını" in response.user_message.casefold()
+
+
+def test_parse_phone_collection_choice_accepts_phrase() -> None:
+    """Free-form confirmation phrases should map to option 1 or 2."""
+    assert whatsapp_webhook._parse_phone_collection_choice("Mevcut WhatsApp numaramı kaydet") == "use_current"
+    assert whatsapp_webhook._parse_phone_collection_choice("Farklı bir numara paylaşacağım") == "share_different"
+
+
+def test_sanitize_phone_entity_replaces_placeholder() -> None:
+    """Placeholder phone values should be replaced with current WhatsApp number."""
+    entities = {"phone": "WHATSAPP_NUMBER_CONFIRMED"}
+    result = whatsapp_webhook._sanitize_phone_entity(
+        entities,
+        current_whatsapp_phone="905551112233",
+    )
+    assert result["phone"] == "+905551112233"
+    assert result["phone_source"] == "whatsapp_current_number"
+
+
+def test_force_stay_intent_when_hold_ready() -> None:
+    """Stay hold next_step should clamp intent/state when data is ready."""
+    response = LLMResponse(
+        user_message="Talebinizi aldim.",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="other",
+            state="NEEDS_VERIFICATION",
+            entities={},
+            required_questions=[],
+            handoff={"needed": False, "reason": None},
+            next_step="stay_create_hold",
+        ),
+    )
+    conversation = Conversation(hotel_id=21966, phone_hash="hash", current_intent="stay_booking_create")
+    entities = {
+        "checkin_date": "2026-10-01",
+        "checkout_date": "2026-10-06",
+        "adults": 2,
+        "guest_name": "Ali Veli",
+        "phone": "+905551112233",
+    }
+
+    whatsapp_webhook._force_stay_intent_when_hold_ready(
+        response,
+        conversation=conversation,
+        entities=entities,
+    )
+
+    assert response.internal_json.intent == "stay_booking_create"
+    assert response.internal_json.state == "READY_FOR_TOOL"
 
 
 def test_extract_non_current_year_returns_requested_year(monkeypatch: pytest.MonkeyPatch) -> None:

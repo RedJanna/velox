@@ -239,6 +239,8 @@ Opsiyonel alanlar (sorulabilir ama zorunlu degil):
   - 1) Mevcut WhatsApp numarasini kaydet
   - 2) Farkli numara paylas
   Misafir secimi `1` veya `2` olarak yazar.
+- `stay_create_hold` adimi netlesmis ve gerekli alanlar tam ise backend intent'i `stay_booking_create` olarak clamp eder ve `READY_FOR_TOOL` state'ine gecirir.
+- "WHATSAPP_NUMBER_CONFIRMED" gibi placeholder degerler gercek numaraya normalize edilir; numara yoksa alan bos kabul edilir.
 
 ### A5.1.2 Rezervasyon Oncesi Teyit Adimi
 Tum zorunlu bilgiler toplandiktan sonra, `stay_create_hold` cagirilmadan ONCE misafire asagidaki ozet gosterilmeli ve ACIK TEYIT alinmalidir:
