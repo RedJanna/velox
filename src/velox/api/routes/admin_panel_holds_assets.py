@@ -8,6 +8,11 @@ ADMIN_HOLDS_STYLE = """\
 .holds-tab:hover{background:var(--surface);color:var(--ink)}
 .holds-tab.is-active{background:var(--surface);color:var(--ink);box-shadow:0 -2px 0 var(--accent) inset}
 .holds-panel{animation:holdsFadeIn .15s ease}
+.holds-panel table tbody tr[data-open-hold]{cursor:pointer}
+.holds-panel table tbody tr[data-open-hold]:hover{background:rgba(15,61,61,.05)}
+.hold-detail-button{background:rgba(15,61,61,.08);border:1px solid rgba(15,61,61,.18);color:var(--accent);font-weight:700;padding:7px 12px;border-radius:10px;transition:all .15s ease;cursor:pointer}
+.hold-detail-button:hover{background:rgba(15,61,61,.15);color:var(--accent-2)}
+.hold-detail-button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @keyframes holdsFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 .filter-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .filter-chip{padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);transition:all .15s}
@@ -257,7 +262,7 @@ function renderStayHoldRows(items) {
   return items.map(function(item) {
     var isSelected = String(item.hold_id) === String(state.selectedStayHoldId);
     return '<tr class="' + (isSelected ? 'is-selected' : '') + '" data-open-hold="' + escapeHtml(item.hold_id) + '">'
-      + '<td><button class="inline-button secondary" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayini ac') + '">Detay</button></td>'
+      + '<td><button class="inline-button hold-detail-button" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayini ac') + '">Detay</button></td>'
       + '<td><span class="rez-no-cell">' + escapeHtml(item.reservation_no || '-') + '</span></td>'
       + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Hotel ' + escapeHtml(String(item.hotel_id)) + '</span></div></td>'
       + '<td><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span></td>'
@@ -679,7 +684,7 @@ function renderRestaurantHoldRows(items) {
     var requestTags = detectSpecialRequestTags(item.notes);
     var requestTagHtml = requestTags.length ? '<div class="inline-flex-center" style="flex-wrap:wrap">' + requestTags.map(function(tag){ return '<span class="pill info">' + escapeHtml(tag) + '</span>'; }).join('') + '</div>' : '';
     return '<tr class="' + (isSelected ? 'is-selected ' : '') + (hasSpecialRequest ? 'has-special-request' : '') + '" data-open-hold="' + escapeHtml(item.hold_id) + '">'
-      + '<td><button class="inline-button secondary" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayini ac') + '">Detay</button></td>'
+      + '<td><button class="inline-button hold-detail-button" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayini ac') + '">Detay</button></td>'
       + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Hotel ' + escapeHtml(String(item.hotel_id)) + '</span>' + (hasSpecialRequest ? '<span class="pill warn">Ozel Istek Var</span>' : '') + requestTagHtml + '</div></td>'
       + '<td><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span></td>'
       + '<td>' + escapeHtml(item.guest_name || '-') + '</td>'
@@ -786,7 +791,7 @@ function renderTransferHoldRows(items) {
   return items.map(function(item) {
     var isSelected = String(item.hold_id) === String(state.selectedTransferHoldId);
     return '<tr class="' + (isSelected ? 'is-selected' : '') + '" data-open-hold="' + escapeHtml(item.hold_id) + '">'
-      + '<td><button class="inline-button secondary" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayini ac') + '">Detay</button></td>'
+      + '<td><button class="inline-button hold-detail-button" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayini ac') + '">Detay</button></td>'
       + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Hotel ' + escapeHtml(String(item.hotel_id)) + '</span></div></td>'
       + '<td><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span></td>'
       + '<td>' + escapeHtml(item.guest_name || '-') + '</td>'
@@ -956,8 +961,9 @@ function handleHoldsModuleClick(target) {
     return true;
   }
   // Hold selection (route to correct module based on prefix)
-  if (target.dataset.openHold) {
-    var hid = target.dataset.openHold;
+  var holdTrigger = target.closest ? target.closest('[data-open-hold]') : null;
+  if (holdTrigger && holdTrigger.dataset.openHold) {
+    var hid = holdTrigger.dataset.openHold;
     if (hid.startsWith('S_HOLD_')) selectStayHold(hid);
     else if (hid.startsWith('R_HOLD_')) selectRestaurantHold(hid);
     else if (hid.startsWith('TR_HOLD_')) selectTransferHold(hid);
