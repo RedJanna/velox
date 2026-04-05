@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -31,11 +32,30 @@ class _AcquireContext:
 
 
 class _TransactionContext:
+    def __init__(self, connection: _FakeConnection) -> None:
+        self._connection = connection
+        self._snapshot: dict[str, object] | None = None
+
     async def __aenter__(self) -> _TransactionContext:
+        self._snapshot = {
+            "hotels": deepcopy(self._connection.hotels),
+            "facts_versions": deepcopy(self._connection.facts_versions),
+            "facts_events": deepcopy(self._connection.facts_events),
+            "facts_current": deepcopy(self._connection.facts_current),
+            "last_profile_json_raw": self._connection.last_profile_json_raw,
+            "last_profile_json_decoded": deepcopy(self._connection.last_profile_json_decoded),
+        }
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> bool:
-        _ = (exc_type, exc, tb)
+        _ = (exc, tb)
+        if exc_type is not None and self._snapshot is not None:
+            self._connection.hotels = deepcopy(self._snapshot["hotels"])
+            self._connection.facts_versions = deepcopy(self._snapshot["facts_versions"])
+            self._connection.facts_events = deepcopy(self._snapshot["facts_events"])
+            self._connection.facts_current = deepcopy(self._snapshot["facts_current"])
+            self._connection.last_profile_json_raw = self._snapshot["last_profile_json_raw"]  # type: ignore[assignment]
+            self._connection.last_profile_json_decoded = deepcopy(self._snapshot["last_profile_json_decoded"])
         return False
 
 
@@ -51,7 +71,7 @@ class _FakeConnection:
         self.last_profile_json_decoded: dict[str, object] | None = None
 
     def transaction(self) -> _TransactionContext:
-        return _TransactionContext()
+        return _TransactionContext(self)
 
     async def execute(self, query: str, *args: object) -> str:
         if "UPDATE hotels" in query and "SET profile_json = $1" in query:
@@ -297,22 +317,18 @@ async def test_get_hotel_decodes_profile_json_string(
     assert payload["profile_json"]["location"]["city"] == "Mugla"
 
 
-async def test_update_hotel_profile_updates_db_even_if_yaml_write_fails(
+async def test_update_hotel_profile_rolls_back_db_if_yaml_write_fails(
     admin_hotel_client: tuple[httpx.AsyncClient, _FakeConnection, str],
     sample_profile_payload: dict[str, object],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client, connection, token = admin_hotel_client
-    cache_calls: list[dict[str, object]] = []
+    original_profile_json = connection.hotels[21966]["profile_json"]
 
     def _raise_yaml_error(_payload: dict[str, object]) -> Path:
         raise OSError("disk read-only")
 
-    def _cache(payload: dict[str, object]) -> None:
-        cache_calls.append(payload)
-
     monkeypatch.setattr(admin, "save_profile_definition", _raise_yaml_error)
-    monkeypatch.setattr(admin, "cache_profile_definition", _cache)
 
     response = await client.put(
         "/api/v1/admin/hotels/21966/profile",
@@ -320,10 +336,9 @@ async def test_update_hotel_profile_updates_db_even_if_yaml_write_fails(
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 200
-    assert connection.last_profile_json_decoded is not None
-    assert connection.last_profile_json_decoded["hotel_id"] == sample_profile_payload["hotel_id"]
-    assert cache_calls
+    assert response.status_code == 500
+    assert "geri alındı" in response.json()["detail"]
+    assert connection.hotels[21966]["profile_json"] == original_profile_json
 
 
 async def test_update_hotel_profile_rejects_hotel_id_mismatch(

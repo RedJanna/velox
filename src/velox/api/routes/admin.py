@@ -23,7 +23,7 @@ from velox.api.middleware.auth import (
 )
 from velox.config.constants import HoldStatus, Role
 from velox.config.settings import settings
-from velox.core.hotel_profile_loader import cache_profile_definition, reload_profiles, save_profile_definition
+from velox.core.hotel_profile_loader import reload_profiles, save_profile_definition
 from velox.core.template_engine import reload_templates
 from velox.db.repositories.conversation import ConversationRepository
 from velox.db.repositories.hotel import NotificationPhoneRepository
@@ -639,19 +639,19 @@ async def update_hotel_profile(
     request: Request,
     user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
 ) -> dict[str, Any]:
-    """Update hotel profile JSON, persist YAML, and refresh runtime cache.
+    """Update hotel profile JSON and persist YAML atomically.
 
     Error handling guarantees:
     - 400 → profile JSON fails Pydantic validation
     - 404 → hotel not found in DB
     - 500 → unexpected error (logged server-side, safe message returned)
-    YAML write failure is logged but does NOT block the DB save so that the
-    runtime state always stays consistent even when the file layer has issues.
+    - YAML write failure rolls back DB changes in the same request
     """
     validation: dict[str, Any] | None = None
     facts_status: dict[str, Any] | None = None
+    profile_path = None
 
-    # ── Step 2: persist to DB (source of truth, conflict-aware) ─────────────
+    # Persist to DB + YAML in one transactional flow.
     try:
         db = request.app.state.db_pool
         async with db.acquire() as conn:
@@ -794,6 +794,21 @@ async def update_hotel_profile(
                             event_type=HOTEL_FACTS_EVENT_DRAFT_SAVE,
                             error_type=type(exc).__name__,
                         )
+                # Keep file storage strict: DB update is rolled back if YAML write fails.
+                try:
+                    profile_path = save_profile_definition(body.profile_json)
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+                except Exception as exc:
+                    logger.exception(
+                        "hotel_profile_yaml_write_failed",
+                        hotel_id=hotel_id,
+                        error_type=type(exc).__name__,
+                    )
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Profil YAML dosyasına yazılamadı; değişiklikler geri alındı.",
+                    ) from exc
     except HTTPException:
         raise
     except asyncpg.PostgresError as exc:
@@ -802,22 +817,6 @@ async def update_hotel_profile(
     except Exception as exc:
         logger.exception("hotel_profile_db_update_unexpected_error", hotel_id=hotel_id)
         raise HTTPException(status_code=500, detail="Beklenmeyen bir hata oluştu.") from exc
-
-    # ── Step 3: persist YAML + runtime cache (best effort) ───────────────────
-    profile_path = None
-    try:
-        profile_path = save_profile_definition(body.profile_json)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        logger.warning(
-            "hotel_profile_yaml_write_failed",
-            hotel_id=hotel_id,
-            error=str(exc),
-            error_type=type(exc).__name__,
-        )
-        # Keep runtime aligned with DB even when file persistence fails.
-        cache_profile_definition(body.profile_json)
 
     return {
         "status": "updated",
@@ -1322,37 +1321,40 @@ async def _persist_hotel_profile(
     hotel_id: int,
     profile_json: dict[str, Any],
 ) -> str:
-    """Persist hotel profile to YAML + DB and return profile file name."""
+    """Persist hotel profile to DB + YAML atomically and return profile file name."""
     try:
-        result = await conn.execute(
-            """
-            UPDATE hotels
-            SET profile_json = $1, updated_at = now()
-            WHERE hotel_id = $2
-            """,
-            orjson.dumps(profile_json).decode(),
-            hotel_id,
-        )
+        async with conn.transaction():
+            result = await conn.execute(
+                """
+                UPDATE hotels
+                SET profile_json = $1, updated_at = now()
+                WHERE hotel_id = $2
+                """,
+                orjson.dumps(profile_json).decode(),
+                hotel_id,
+            )
+            if result == "UPDATE 0":
+                raise HTTPException(status_code=404, detail="Hotel not found")
+
+            try:
+                profile_path = save_profile_definition(profile_json)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            except Exception as exc:
+                logger.exception(
+                    "hotel_profile_yaml_write_failed",
+                    hotel_id=hotel_id,
+                    error_type=type(exc).__name__,
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail="Profil YAML dosyasına yazılamadı; değişiklikler geri alındı.",
+                ) from exc
     except asyncpg.PostgresError as exc:
         logger.exception("hotel_profile_db_update_failed", hotel_id=hotel_id)
         raise HTTPException(status_code=500, detail="Veritabanı güncellemesi başarısız oldu.") from exc
-    if result == "UPDATE 0":
-        raise HTTPException(status_code=404, detail="Hotel not found")
 
-    profile_path = None
-    try:
-        profile_path = save_profile_definition(profile_json)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        logger.warning(
-            "hotel_profile_yaml_write_failed",
-            hotel_id=hotel_id,
-            error=str(exc),
-            error_type=type(exc).__name__,
-        )
-        cache_profile_definition(profile_json)
-    return profile_path.name if profile_path else ""
+    return profile_path.name
 
 
 def _ensure_faq_integrity(faq_items: list[FAQEntry]) -> tuple[list[FAQEntry], bool]:
