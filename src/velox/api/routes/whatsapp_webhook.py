@@ -5150,9 +5150,10 @@ def _should_send_direct_admin_handoff_notify(
     escalation_result: EscalationResult | None = None,
     ticket_ensured: bool = True,
 ) -> bool:
-    """ADMIN must be notified unless the ensured handoff ticket already routes to ADMIN."""
-    if assigned_role == "ADMIN" and ticket_ensured:
-        return False
+    """ADMIN must be notified unless escalation already guarantees an ADMIN notify action."""
+    _ = assigned_role
+    if not ticket_ensured:
+        return True
     if escalation_result is None:
         return True
     return not (

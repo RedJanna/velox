@@ -2733,7 +2733,7 @@ def test_fallback_handoff_assignment_defaults_to_admin() -> None:
     )
 
     assert whatsapp_webhook._resolve_handoff_assignment_role(response, None) == "ADMIN"
-    assert whatsapp_webhook._should_send_direct_admin_handoff_notify("ADMIN", None) is False
+    assert whatsapp_webhook._should_send_direct_admin_handoff_notify("ADMIN", None) is True
 
 
 def test_admin_notify_required_if_admin_ticket_could_not_be_ensured() -> None:
