@@ -1850,6 +1850,96 @@ async def list_conversations(
     }
 
 
+@router.get("/conversations/ids")
+async def list_conversation_ids(
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+    hotel_id: int | None = Query(None),
+    status_filter: str | None = Query(None, alias="status"),
+    active_only: bool = Query(False),
+    date_from: date | None = Query(None),  # noqa: B008
+    date_to: date | None = Query(None),  # noqa: B008
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    """Return conversation IDs for bulk selection with filters applied."""
+    check_permission(user, "conversations:read")
+    db = request.app.state.db_pool
+    effective_hotel_id = hotel_id if user.role == Role.ADMIN else user.hotel_id
+
+    async with db.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT c.id
+            FROM conversations c
+            LEFT JOIN LATERAL (
+                SELECT m.internal_json->>'state' AS last_state
+                FROM messages m
+                WHERE m.conversation_id = c.id
+                  AND m.role = 'assistant'
+                ORDER BY m.created_at DESC
+                LIMIT 1
+            ) assistant_meta ON true
+            WHERE ($1::int IS NULL OR c.hotel_id = $1)
+              AND (
+                    $2::text IS NULL
+                    OR COALESCE(NULLIF(c.current_state, ''), assistant_meta.last_state, 'GREETING') = $2
+                  )
+              AND ($3::date IS NULL OR c.created_at::date >= $3)
+              AND ($4::date IS NULL OR c.created_at::date <= $4)
+              AND ($5::bool IS FALSE OR c.is_active = true)
+            ORDER BY c.last_message_at DESC
+            LIMIT $6 OFFSET $7
+            """,
+            effective_hotel_id,
+            status_filter,
+            date_from,
+            date_to,
+            active_only,
+            limit,
+            offset,
+        )
+        total = int(
+            await conn.fetchval(
+                """
+                SELECT COUNT(*) FROM conversations c
+                WHERE ($1::int IS NULL OR c.hotel_id = $1)
+                  AND (
+                        $2::text IS NULL
+                        OR COALESCE(
+                            NULLIF(c.current_state, ''),
+                            (
+                                SELECT m.internal_json->>'state'
+                                FROM messages m
+                                WHERE m.conversation_id = c.id
+                                  AND m.role = 'assistant'
+                                ORDER BY m.created_at DESC
+                                LIMIT 1
+                            ),
+                            'GREETING'
+                        ) = $2
+                      )
+                  AND ($3::date IS NULL OR c.created_at::date >= $3)
+                  AND ($4::date IS NULL OR c.created_at::date <= $4)
+                  AND ($5::bool IS FALSE OR c.is_active = true)
+                """,
+                effective_hotel_id,
+                status_filter,
+                date_from,
+                date_to,
+                active_only,
+            )
+            or 0
+        )
+
+    return {
+        "items": [str(row["id"]) for row in rows],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
 @router.get("/conversations/{conversation_id}")
 async def get_conversation(
     conversation_id: UUID,

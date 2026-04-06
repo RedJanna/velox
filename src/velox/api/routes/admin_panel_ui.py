@@ -275,6 +275,7 @@ def render_admin_panel_html() -> str:
                   <button class="action-button warn action-button-sm" data-bulk-action="reset">Sıfırla</button>
                   <button class="action-button secondary action-button-sm" data-bulk-action="human-on">İnsan Devrine Al</button>
                   <button class="action-button secondary action-button-sm" data-bulk-action="human-off">Yapay Zekâ Moduna Al</button>
+                  <button class="action-button secondary action-button-sm" data-bulk-action="select-filtered">Filtredeki Tümünü Seç</button>
                   <button class="action-button secondary action-button-sm" data-bulk-action="clear">Seçimi Temizle</button>
                 </div>
               </div>

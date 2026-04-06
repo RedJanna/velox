@@ -398,6 +398,7 @@ function bindEvents() {
   refs.logoutButton?.addEventListener('click', logout);
   refs.conversationFilters?.addEventListener('submit', event => {
     event.preventDefault();
+    clearConversationSelection();
     loadConversations();
   });
   refs.conversationTableBody?.addEventListener('change', onConversationSelectionChange);
@@ -1120,13 +1121,7 @@ function renderQueue(items, renderItem, emptyLabel) {
 }
 
 async function loadConversations() {
-  const form = new FormData(refs.conversationFilters);
-  const params = new URLSearchParams();
-  if (state.me?.role === 'ADMIN' && state.selectedHotelId) params.set('hotel_id', state.selectedHotelId);
-  if (form.get('active_only')) params.set('active_only', 'true');
-  if (form.get('status')) params.set('status', String(form.get('status')));
-  if (form.get('date_from')) params.set('date_from', String(form.get('date_from')));
-  if (form.get('date_to')) params.set('date_to', String(form.get('date_to')));
+  const params = buildConversationParams();
   const response = await apiFetch(`/conversations?${params.toString()}`);
   state.conversations = response.items || [];
   syncConversationSelection();
@@ -1137,6 +1132,17 @@ async function loadConversations() {
     refs.conversationDetail.innerHTML = '<div class="empty-state"><p>Seçili konuşma yok.</p></div>';
   }
   updateConversationBulkBar();
+}
+
+function buildConversationParams() {
+  const form = new FormData(refs.conversationFilters);
+  const params = new URLSearchParams();
+  if (state.me?.role === 'ADMIN' && state.selectedHotelId) params.set('hotel_id', state.selectedHotelId);
+  if (form.get('active_only')) params.set('active_only', 'true');
+  if (form.get('status')) params.set('status', String(form.get('status')));
+  if (form.get('date_from')) params.set('date_from', String(form.get('date_from')));
+  if (form.get('date_to')) params.set('date_to', String(form.get('date_to')));
+  return params;
 }
 
 function renderConversationRows(items) {
@@ -1249,14 +1255,19 @@ function onConversationSelectAllChange() {
 }
 
 async function runConversationBulkAction(action) {
-  const conversationIds = Array.from(state.selectedConversationIds);
-  if (!conversationIds.length) {
-    notify('Seçili konuşma yok.', 'warn');
+  if (action === 'clear') {
+    clearConversationSelection();
     return;
   }
 
-  if (action === 'clear') {
-    clearConversationSelection();
+  if (action === 'select-filtered') {
+    await selectFilteredConversations();
+    return;
+  }
+
+  const conversationIds = Array.from(state.selectedConversationIds);
+  if (!conversationIds.length) {
+    notify('Seçili konuşma yok.', 'warn');
     return;
   }
 
@@ -1291,6 +1302,31 @@ async function runConversationBulkAction(action) {
     loadConversations();
   } catch (error) {
     notify(error.message || 'Toplu işlem başarısız.', 'error');
+  }
+}
+
+async function selectFilteredConversations() {
+  const params = buildConversationParams();
+  params.set('limit', '1000');
+  try {
+    const response = await apiFetch(`/conversations/ids?${params.toString()}`);
+    const ids = response.items || [];
+    state.selectedConversationIds = new Set(ids.map(String));
+    refs.conversationTableBody?.querySelectorAll('[data-select-conversation]').forEach(input => {
+      const convId = String(input.dataset.selectConversation || '');
+      const checked = state.selectedConversationIds.has(convId);
+      input.checked = checked;
+      const row = input.closest('tr');
+      if (row) row.classList.toggle('is-selected', checked);
+    });
+    updateConversationBulkBar();
+    if (response.total > ids.length) {
+      notify(`Filtredeki ilk ${ids.length} konuşma seçildi (toplam ${response.total}).`, 'warn');
+    } else {
+      notify(`Filtredeki ${ids.length} konuşma seçildi.`, 'success');
+    }
+  } catch (error) {
+    notify(error.message || 'Filtrede seçim başarısız.', 'error');
   }
 }
 
