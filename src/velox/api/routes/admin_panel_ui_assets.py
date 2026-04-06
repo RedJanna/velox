@@ -525,7 +525,7 @@ function bindDelegatedEvents() {
       const convId = target.dataset.deactivateConversation;
       if (!confirm('Bu konuşmayı pasife almak istediğinize emin misiniz?')) return;
       try {
-        await apiFetch(`/conversations/${convId}/reset`, {method: 'POST'});
+        await apiFetch(`/conversations/${convId}/deactivate`, {method: 'POST'});
         notify('Konuşma pasife alındı.', 'success');
         loadConversations();
       } catch (error) {

@@ -1971,7 +1971,7 @@ async def bulk_deactivate_conversations(
         status = await conn.execute(
             """
             UPDATE conversations
-            SET is_active = false, current_state = 'CLOSED', updated_at = now()
+            SET is_active = false, updated_at = now()
             WHERE id = ANY($1::uuid[])
             """,
             conversation_ids,
@@ -2125,6 +2125,42 @@ async def reset_conversation(
             with contextlib.suppress(Exception):
                 await redis_client.delete(f"velox:human_override:{phone_hash_row['phone_hash']}")
     return {"status": "reset", "conversation_id": str(conversation_id)}
+
+
+@router.post("/conversations/{conversation_id}/deactivate")
+async def deactivate_conversation(
+    conversation_id: UUID,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Deactivate a conversation without resetting its state."""
+    check_permission(user, "conversations:read")
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, hotel_id, is_active, phone_hash FROM conversations WHERE id = $1",
+            conversation_id,
+        )
+        if row is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        if not row["is_active"]:
+            return {"status": "already_closed", "conversation_id": str(conversation_id)}
+        await conn.execute(
+            """
+            UPDATE conversations
+            SET is_active = false, updated_at = now()
+            WHERE id = $1
+            """,
+            conversation_id,
+        )
+
+    redis_client = getattr(request.app.state, "redis", None)
+    if redis_client is not None and row["phone_hash"]:
+        with contextlib.suppress(Exception):
+            await redis_client.delete(f"velox:human_override:{row['phone_hash']}")
+    return {"status": "deactivated", "conversation_id": str(conversation_id)}
 
 
 @router.post("/conversations/{conversation_id}/messages/{message_id}/send")
