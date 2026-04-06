@@ -99,6 +99,9 @@ class RestaurantHold(BaseModel):
     approved_by: str | None = None
     approved_at: datetime | None = None
     rejected_reason: str | None = None
+    archived_at: datetime | None = None
+    archived_by: str | None = None
+    archived_reason: str | None = None
     table_id: str | None = None
     table_type: str | None = None
     arrived_at: datetime | None = None

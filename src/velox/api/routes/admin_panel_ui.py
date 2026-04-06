@@ -306,13 +306,19 @@ def render_admin_panel_html() -> str:
                   <button class="inline-button primary" data-stay-toggle-create aria-label="Yeni konaklama rezervasyonu oluştur">Yeni Rezervasyon</button>
                 </div>
                 <form id="stayHoldFilters" class="toolbar">
+                  <div class="filter-chips" id="stayArchiveChips">
+                    <button class="filter-chip is-active" type="button" data-stay-archive="active" aria-label="Aktif konaklama kayıtları">Aktif</button>
+                    <button class="filter-chip" type="button" data-stay-archive="archived" aria-label="Arşiv konaklama kayıtları">Arşiv</button>
+                  </div>
                   <div class="filter-chips" id="stayStatusChips"></div>
+                  <button class="inline-button secondary" type="button" data-stay-select-all aria-label="Tüm görünen konaklama kayıtlarını seç">Seç</button>
+                  <button class="inline-button danger" type="button" data-stay-bulk-archive aria-label="Seçili konaklama kayıtlarını arşive taşı">Toplu Temizle</button>
                   <input name="reservation_no" placeholder="Rez. No ile ara" aria-label="Rezervasyon numarası araması">
                   <button class="primary" type="submit">Ara</button>
                 </form>
                 <div class="table-shell">
                   <table class="holds-table"><thead><tr>
-                    <th>Aç</th><th>Rez. No</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Tarih</th><th>Tutar</th>
+                    <th class="table-select">Seç</th><th>Aç</th><th>Rez. No</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Tarih</th><th>Tutar</th>
                   </tr></thead><tbody id="stayHoldTableBody"></tbody></table>
                 </div>
               </article>
@@ -383,12 +389,18 @@ def render_admin_panel_html() -> str:
                   <button class="inline-button primary" data-transfer-toggle-create aria-label="Yeni transfer talebi oluştur">Yeni Transfer</button>
                 </div>
                 <form id="transferHoldFilters" class="toolbar">
+                  <div class="filter-chips" id="transferArchiveChips">
+                    <button class="filter-chip is-active" type="button" data-transfer-archive="active" aria-label="Aktif transfer kayıtları">Aktif</button>
+                    <button class="filter-chip" type="button" data-transfer-archive="archived" aria-label="Arşiv transfer kayıtları">Arşiv</button>
+                  </div>
                   <div class="filter-chips" id="transferStatusChips"></div>
+                  <button class="inline-button secondary" type="button" data-transfer-select-all aria-label="Tüm görünen transfer kayıtlarını seç">Seç</button>
+                  <button class="inline-button danger" type="button" data-transfer-bulk-archive aria-label="Seçili transfer kayıtlarını arşive taşı">Toplu Temizle</button>
                   <button class="primary" type="submit">Filtrele</button>
                 </form>
                 <div class="table-shell">
                   <table class="holds-table"><thead><tr>
-                    <th>Aç</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Güzergâh</th><th>Tarih</th>
+                    <th class="table-select">Seç</th><th>Aç</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Güzergâh</th><th>Tarih</th>
                   </tr></thead><tbody id="transferHoldTableBody"></tbody></table>
                 </div>
               </article>

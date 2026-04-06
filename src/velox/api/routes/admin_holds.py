@@ -84,6 +84,7 @@ async def list_stay_holds(
     hotel_id: int | None = Query(None),
     status: str | None = Query(None),
     reservation_no: str | None = Query(None),
+    archived: bool = Query(False),
     page: int = Query(1, ge=1),
     per_page: int = Query(30, ge=1, le=100),
 ) -> dict[str, Any]:
@@ -92,10 +93,12 @@ async def list_stay_holds(
     effective = _effective_hotel(user, hotel_id)
     offset = (page - 1) * per_page
 
+    archived_clause = "sh.archived_at IS NOT NULL" if archived else "sh.archived_at IS NULL"
+
     # If searching by reservation_no, do a direct lookup.
     if reservation_no and reservation_no.strip():
         row = await fetchrow(
-            """
+            f"""
             SELECT sh.*, ar.decided_at AS approval_decided_at
             FROM stay_holds sh
             LEFT JOIN LATERAL (
@@ -104,6 +107,7 @@ async def list_stay_holds(
                 ORDER BY created_at DESC LIMIT 1
             ) ar ON true
             WHERE sh.reservation_no = $1
+              AND {archived_clause}
             """,
             reservation_no.strip(),
         )
@@ -114,7 +118,7 @@ async def list_stay_holds(
             return {"items": [], "total": 0, "page": 1, "per_page": per_page}
         return {"items": [item], "total": 1, "page": 1, "per_page": per_page}
 
-    items_query = """
+    items_query = f"""
         SELECT sh.*,
             ar.decided_at AS approval_decided_at,
             pr.created_at AS payment_requested_at
@@ -132,12 +136,15 @@ async def list_stay_holds(
         ) pr ON true
         WHERE ($1::int IS NULL OR sh.hotel_id = $1)
           AND ($2::text IS NULL OR sh.status = $2)
+          AND {archived_clause}
         ORDER BY sh.created_at DESC
         LIMIT $3 OFFSET $4
     """
-    count_query = """
+    count_query = f"""
         SELECT COUNT(*) FROM stay_holds
-        WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
+        WHERE ($1::int IS NULL OR hotel_id = $1)
+          AND ($2::text IS NULL OR status = $2)
+          AND {archived_clause}
     """
     rows = await fetch(items_query, effective, status, per_page, offset)
     total = _safe_int(await fetchval(count_query, effective, status))
@@ -349,6 +356,7 @@ async def list_restaurant_holds(
     status: str | None = Query(None),
     date_from: Annotated[date | None, Query()] = None,
     date_to: Annotated[date | None, Query()] = None,
+    archived: bool = Query(False),
     page: int = Query(1, ge=1),
     per_page: int = Query(30, ge=1, le=100),
 ) -> dict[str, Any]:
@@ -359,27 +367,31 @@ async def list_restaurant_holds(
     if date_from and date_to and date_to < date_from:
         raise HTTPException(status_code=400, detail="date_to must be >= date_from")
 
-    items_query = """
+    archived_clause = "archived_at IS NOT NULL" if archived else "archived_at IS NULL"
+
+    items_query = f"""
         SELECT hold_id, hotel_id, conversation_id, slot_id, date, time,
                party_size, guest_name, phone, area, notes, status,
                approved_by, approved_at, rejected_reason,
                table_id, table_type,
                arrived_at, no_show_at, extended_minutes,
-               created_at
+               created_at, archived_at, archived_by, archived_reason
         FROM restaurant_holds
         WHERE ($1::int IS NULL OR hotel_id = $1)
           AND ($2::text IS NULL OR status = $2)
           AND ($3::date IS NULL OR date >= $3)
           AND ($4::date IS NULL OR date <= $4)
+          AND {archived_clause}
         ORDER BY date ASC, time ASC, created_at DESC
         LIMIT $5 OFFSET $6
     """
-    count_query = """
+    count_query = f"""
         SELECT COUNT(*) FROM restaurant_holds
         WHERE ($1::int IS NULL OR hotel_id = $1)
           AND ($2::text IS NULL OR status = $2)
           AND ($3::date IS NULL OR date >= $3)
           AND ($4::date IS NULL OR date <= $4)
+          AND {archived_clause}
     """
     rows = await fetch(items_query, effective, status, date_from, date_to, per_page, offset)
     total = _safe_int(await fetchval(count_query, effective, status, date_from, date_to))
@@ -501,6 +513,7 @@ async def list_transfer_holds(
     user: Annotated[TokenData, Depends(get_current_user)],
     hotel_id: int | None = Query(None),
     status: str | None = Query(None),
+    archived: bool = Query(False),
     page: int = Query(1, ge=1),
     per_page: int = Query(30, ge=1, le=100),
 ) -> dict[str, Any]:
@@ -509,19 +522,26 @@ async def list_transfer_holds(
     effective = _effective_hotel(user, hotel_id)
     offset = (page - 1) * per_page
 
-    items_query = """
+    archived_clause = "archived_at IS NOT NULL" if archived else "archived_at IS NULL"
+
+    items_query = f"""
         SELECT hold_id, hotel_id, conversation_id, route, date, time,
                pax_count, guest_name, phone, flight_no, vehicle_type,
                baby_seat, price_eur, notes, status,
-               approved_by, approved_at, rejected_reason, created_at
+               approved_by, approved_at, rejected_reason, created_at,
+               archived_at, archived_by, archived_reason
         FROM transfer_holds
-        WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
+        WHERE ($1::int IS NULL OR hotel_id = $1)
+          AND ($2::text IS NULL OR status = $2)
+          AND {archived_clause}
         ORDER BY created_at DESC
         LIMIT $3 OFFSET $4
     """
-    count_query = """
+    count_query = f"""
         SELECT COUNT(*) FROM transfer_holds
-        WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
+        WHERE ($1::int IS NULL OR hotel_id = $1)
+          AND ($2::text IS NULL OR status = $2)
+          AND {archived_clause}
     """
     rows = await fetch(items_query, effective, status, per_page, offset)
     total = _safe_int(await fetchval(count_query, effective, status))

@@ -250,9 +250,9 @@ async def admin_dashboard_overview(
                       AND m.created_at >= now() - interval '24 hours'
                 ) AS messages_last_24h,
                 (
-                    (SELECT COUNT(*) FROM stay_holds WHERE ($1::int IS NULL OR hotel_id = $1) AND status = 'PENDING_APPROVAL') +
-                    (SELECT COUNT(*) FROM restaurant_holds WHERE ($1::int IS NULL OR hotel_id = $1) AND status = 'PENDING_APPROVAL') +
-                    (SELECT COUNT(*) FROM transfer_holds WHERE ($1::int IS NULL OR hotel_id = $1) AND status = 'PENDING_APPROVAL')
+                    (SELECT COUNT(*) FROM stay_holds WHERE ($1::int IS NULL OR hotel_id = $1) AND status = 'PENDING_APPROVAL' AND archived_at IS NULL) +
+                    (SELECT COUNT(*) FROM restaurant_holds WHERE ($1::int IS NULL OR hotel_id = $1) AND status = 'PENDING_APPROVAL' AND archived_at IS NULL) +
+                    (SELECT COUNT(*) FROM transfer_holds WHERE ($1::int IS NULL OR hotel_id = $1) AND status = 'PENDING_APPROVAL' AND archived_at IS NULL)
                 ) AS pending_holds,
                 (
                     SELECT COUNT(*) FROM tickets
@@ -310,13 +310,13 @@ async def admin_dashboard_overview(
             """
             SELECT * FROM (
                 SELECT hold_id, hotel_id, status, created_at, 'stay' AS hold_type FROM stay_holds
-                WHERE ($1::int IS NULL OR hotel_id = $1) AND status = 'PENDING_APPROVAL'
+                WHERE ($1::int IS NULL OR hotel_id = $1) AND status = 'PENDING_APPROVAL' AND archived_at IS NULL
                 UNION ALL
                 SELECT hold_id, hotel_id, status, created_at, 'restaurant' AS hold_type FROM restaurant_holds
-                WHERE ($1::int IS NULL OR hotel_id = $1) AND status = 'PENDING_APPROVAL'
+                WHERE ($1::int IS NULL OR hotel_id = $1) AND status = 'PENDING_APPROVAL' AND archived_at IS NULL
                 UNION ALL
                 SELECT hold_id, hotel_id, status, created_at, 'transfer' AS hold_type FROM transfer_holds
-                WHERE ($1::int IS NULL OR hotel_id = $1) AND status = 'PENDING_APPROVAL'
+                WHERE ($1::int IS NULL OR hotel_id = $1) AND status = 'PENDING_APPROVAL' AND archived_at IS NULL
             ) pending
             ORDER BY created_at DESC
             LIMIT 5

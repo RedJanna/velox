@@ -13,6 +13,9 @@ ADMIN_HOLDS_STYLE = """\
 .hold-detail-button{background:rgba(15,61,61,.08);border:1px solid rgba(15,61,61,.18);color:var(--accent);font-weight:700;padding:7px 12px;border-radius:10px;transition:all .15s ease;cursor:pointer}
 .hold-detail-button:hover{background:rgba(15,61,61,.15);color:var(--accent-2)}
 .hold-detail-button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.holds-table .table-select{width:44px}
+.hold-select-box{width:16px;height:16px;accent-color:var(--accent,#e7bf5f);cursor:pointer}
+.hold-select-box:disabled{cursor:not-allowed;opacity:.5}
 @keyframes holdsFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 .filter-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .filter-chip{padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);transition:all .15s}
@@ -70,8 +73,9 @@ const STATUS_LABELS_TR = {
   'IPTAL': 'Iptal',
   'DEGISIKLIK_UYGULA': 'Degisiklik Uygula',
 };
-const STAY_STATUS_KEYS = ['', 'PENDING_APPROVAL', 'PMS_PENDING', 'PMS_CREATED', 'PAYMENT_PENDING', 'PAYMENT_EXPIRED', 'MANUAL_REVIEW', 'PMS_FAILED', 'APPROVED', 'CONFIRMED', 'REJECTED'];
-const SIMPLE_STATUS_KEYS = ['', 'PENDING_APPROVAL', 'APPROVED', 'CONFIRMED', 'REJECTED'];
+const STAY_STATUS_KEYS = ['', 'PENDING_APPROVAL', 'PMS_PENDING', 'PMS_CREATED', 'PAYMENT_PENDING', 'PAYMENT_EXPIRED', 'MANUAL_REVIEW', 'PMS_FAILED', 'APPROVED', 'CONFIRMED'];
+const SIMPLE_STATUS_KEYS = ['', 'PENDING_APPROVAL', 'APPROVED', 'CONFIRMED'];
+const ARCHIVE_SCOPE_LABELS = {active: 'Aktif', archived: 'Arsiv'};
 const RESTAURANT_STATUS_KEYS = ['', 'BEKLEMEDE', 'ONAYLANDI', 'GELDI', 'GELMEDI', 'IPTAL', 'DEGISIKLIK_UYGULA'];
 
 function holdStatusLabel(status) {
@@ -237,11 +241,78 @@ function renderStatusChips(containerId, keys, currentFilter, dataPrefix) {
   }).join('');
 }
 
+function renderArchiveChips(containerId, isArchived, dataPrefix) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const activeKey = isArchived ? 'archived' : 'active';
+  container.innerHTML = ['active', 'archived'].map(function(key) {
+    const label = ARCHIVE_SCOPE_LABELS[key] || key;
+    return '<button type="button" class="filter-chip ' + (key === activeKey ? 'is-active' : '') + '" data-' + dataPrefix + '-archive="' + key + '" aria-label="' + escapeHtml(label + ' filtresi') + '">' + escapeHtml(label) + '</button>';
+  }).join('');
+}
+
+function isStayArchivable(item) {
+  const status = String(item?.status || '').toUpperCase();
+  return ['PENDING_APPROVAL', 'PAYMENT_PENDING'].includes(status);
+}
+
+function isTransferArchivable(item) {
+  const status = String(item?.status || '').toUpperCase();
+  return status === 'PENDING_APPROVAL';
+}
+
+function pruneStaySelection() {
+  if (state.stayArchiveMode) {
+    state.selectedStayHoldIds = new Set();
+    return;
+  }
+  const allowed = new Set((state.stayHolds || []).filter(isStayArchivable).map(function(item) { return String(item.hold_id); }));
+  state.selectedStayHoldIds = new Set([...state.selectedStayHoldIds].filter(function(id) { return allowed.has(String(id)); }));
+}
+
+function pruneTransferSelection() {
+  if (state.transferArchiveMode) {
+    state.selectedTransferHoldIds = new Set();
+    return;
+  }
+  const allowed = new Set((state.transferHolds || []).filter(isTransferArchivable).map(function(item) { return String(item.hold_id); }));
+  state.selectedTransferHoldIds = new Set([...state.selectedTransferHoldIds].filter(function(id) { return allowed.has(String(id)); }));
+}
+
+function syncStayBulkActions() {
+  const selectBtn = document.querySelector('[data-stay-select-all]');
+  const bulkBtn = document.querySelector('[data-stay-bulk-archive]');
+  const selectable = (state.stayHolds || []).filter(isStayArchivable).map(function(item) { return String(item.hold_id); });
+  const allSelected = selectable.length > 0 && selectable.every(function(id) { return state.selectedStayHoldIds.has(id); });
+  if (selectBtn) {
+    selectBtn.textContent = allSelected ? 'Secimi Kaldir' : 'Sec';
+    selectBtn.disabled = state.stayArchiveMode || selectable.length === 0;
+  }
+  if (bulkBtn) {
+    bulkBtn.disabled = state.stayArchiveMode || state.selectedStayHoldIds.size === 0;
+  }
+}
+
+function syncTransferBulkActions() {
+  const selectBtn = document.querySelector('[data-transfer-select-all]');
+  const bulkBtn = document.querySelector('[data-transfer-bulk-archive]');
+  const selectable = (state.transferHolds || []).filter(isTransferArchivable).map(function(item) { return String(item.hold_id); });
+  const allSelected = selectable.length > 0 && selectable.every(function(id) { return state.selectedTransferHoldIds.has(id); });
+  if (selectBtn) {
+    selectBtn.textContent = allSelected ? 'Secimi Kaldir' : 'Sec';
+    selectBtn.disabled = state.transferArchiveMode || selectable.length === 0;
+  }
+  if (bulkBtn) {
+    bulkBtn.disabled = state.transferArchiveMode || state.selectedTransferHoldIds.size === 0;
+  }
+}
+
 async function loadStayHolds() {
   const hotelId = state.selectedHotelId;
   const params = new URLSearchParams();
   if (state.me?.role === 'ADMIN' && hotelId) params.set('hotel_id', hotelId);
-  if (state.stayStatusFilter) params.set('status', state.stayStatusFilter);
+  if (state.stayArchiveMode) params.set('archived', 'true');
+  if (state.stayStatusFilter && !state.stayArchiveMode) params.set('status', state.stayStatusFilter);
 
   const resNoInput = document.querySelector('#stayHoldFilters input[name="reservation_no"]');
   const resNoValue = resNoInput ? resNoInput.value.trim() : '';
@@ -249,19 +320,26 @@ async function loadStayHolds() {
 
   const response = await apiFetch('/holds/stay?' + params.toString());
   state.stayHolds = response.items || [];
+  pruneStaySelection();
   const selectedExists = state.stayHolds.some(function(i) { return String(i.hold_id) === String(state.selectedStayHoldId); });
   if (!selectedExists) state.selectedStayHoldId = state.stayHolds.length ? String(state.stayHolds[0].hold_id) : '';
   state.selectedStayHold = state.stayHolds.find(function(i) { return String(i.hold_id) === String(state.selectedStayHoldId); }) || null;
-  renderStatusChips('stayStatusChips', STAY_STATUS_KEYS, state.stayStatusFilter, 'stay');
+  renderArchiveChips('stayArchiveChips', state.stayArchiveMode, 'stay');
+  renderStatusChips('stayStatusChips', state.stayArchiveMode ? [] : STAY_STATUS_KEYS, state.stayStatusFilter, 'stay');
   refs.stayHoldTableBody.innerHTML = renderStayHoldRows(state.stayHolds);
   renderStayHoldDetail(state.selectedStayHold);
+  syncStayBulkActions();
 }
 
 function renderStayHoldRows(items) {
-  if (!items.length) return '<tr><td colspan="7"><div class="empty-state"><p>Konaklama kaydı bulunamadı.</p></div></td></tr>';
+  if (!items.length) return '<tr><td colspan="8"><div class="empty-state"><p>Konaklama kaydı bulunamadı.</p></div></td></tr>';
   return items.map(function(item) {
     var isSelected = String(item.hold_id) === String(state.selectedStayHoldId);
+    var holdId = String(item.hold_id || '');
+    var isSelectable = !state.stayArchiveMode && isStayArchivable(item);
+    var isChecked = state.selectedStayHoldIds.has(holdId);
     return '<tr class="' + (isSelected ? 'is-selected' : '') + '" data-open-hold="' + escapeHtml(item.hold_id) + '">'
+      + '<td class="table-select"><input type="checkbox" class="hold-select-box" data-hold-select="stay" data-hold-id="' + escapeHtml(holdId) + '" ' + (isChecked ? 'checked' : '') + (isSelectable ? '' : ' disabled') + ' aria-label="' + escapeHtml(holdId + ' sec') + '"></td>'
       + '<td><button class="inline-button hold-detail-button" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayini ac') + '">Detay</button></td>'
       + '<td><span class="rez-no-cell">' + escapeHtml(item.reservation_no || '-') + '</span></td>'
       + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Hotel ' + escapeHtml(String(item.hotel_id)) + '</span></div></td>'
@@ -775,22 +853,30 @@ async function loadTransferHolds() {
   var hotelId = state.selectedHotelId;
   var params = new URLSearchParams();
   if (state.me?.role === 'ADMIN' && hotelId) params.set('hotel_id', hotelId);
-  if (state.transferStatusFilter) params.set('status', state.transferStatusFilter);
+  if (state.transferArchiveMode) params.set('archived', 'true');
+  if (state.transferStatusFilter && !state.transferArchiveMode) params.set('status', state.transferStatusFilter);
   var response = await apiFetch('/holds/transfer?' + params.toString());
   state.transferHolds = response.items || [];
+  pruneTransferSelection();
   var selectedExists = state.transferHolds.some(function(i) { return String(i.hold_id) === String(state.selectedTransferHoldId); });
   if (!selectedExists) state.selectedTransferHoldId = state.transferHolds.length ? String(state.transferHolds[0].hold_id) : '';
   state.selectedTransferHold = state.transferHolds.find(function(i) { return String(i.hold_id) === String(state.selectedTransferHoldId); }) || null;
-  renderStatusChips('transferStatusChips', SIMPLE_STATUS_KEYS, state.transferStatusFilter, 'transfer');
+  renderArchiveChips('transferArchiveChips', state.transferArchiveMode, 'transfer');
+  renderStatusChips('transferStatusChips', state.transferArchiveMode ? [] : SIMPLE_STATUS_KEYS, state.transferStatusFilter, 'transfer');
   refs.transferHoldTableBody.innerHTML = renderTransferHoldRows(state.transferHolds);
   renderTransferHoldDetail(state.selectedTransferHold);
+  syncTransferBulkActions();
 }
 
 function renderTransferHoldRows(items) {
-  if (!items.length) return '<tr><td colspan="6"><div class="empty-state"><p>Transfer kaydı bulunamadı.</p></div></td></tr>';
+  if (!items.length) return '<tr><td colspan="7"><div class="empty-state"><p>Transfer kaydı bulunamadı.</p></div></td></tr>';
   return items.map(function(item) {
     var isSelected = String(item.hold_id) === String(state.selectedTransferHoldId);
+    var holdId = String(item.hold_id || '');
+    var isSelectable = !state.transferArchiveMode && isTransferArchivable(item);
+    var isChecked = state.selectedTransferHoldIds.has(holdId);
     return '<tr class="' + (isSelected ? 'is-selected' : '') + '" data-open-hold="' + escapeHtml(item.hold_id) + '">'
+      + '<td class="table-select"><input type="checkbox" class="hold-select-box" data-hold-select="transfer" data-hold-id="' + escapeHtml(holdId) + '" ' + (isChecked ? 'checked' : '') + (isSelectable ? '' : ' disabled') + ' aria-label="' + escapeHtml(holdId + ' sec') + '"></td>'
       + '<td><button class="inline-button hold-detail-button" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayini ac') + '">Detay</button></td>'
       + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Hotel ' + escapeHtml(String(item.hotel_id)) + '</span></div></td>'
       + '<td><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span></td>'
@@ -868,6 +954,72 @@ async function submitTransferHold(event) {
     loadDashboard();
   } catch (error) {
     notify(error.message, 'error');
+  }
+}
+
+function toggleHoldSelection(holdType, holdId, checked) {
+  if (!holdId) return;
+  if (holdType === 'stay') {
+    if (checked) state.selectedStayHoldIds.add(String(holdId));
+    else state.selectedStayHoldIds.delete(String(holdId));
+    refs.stayHoldTableBody.innerHTML = renderStayHoldRows(state.stayHolds);
+    syncStayBulkActions();
+    return;
+  }
+  if (holdType === 'transfer') {
+    if (checked) state.selectedTransferHoldIds.add(String(holdId));
+    else state.selectedTransferHoldIds.delete(String(holdId));
+    refs.transferHoldTableBody.innerHTML = renderTransferHoldRows(state.transferHolds);
+    syncTransferBulkActions();
+  }
+}
+
+function toggleSelectAllStay() {
+  const selectable = (state.stayHolds || []).filter(isStayArchivable).map(function(item) { return String(item.hold_id); });
+  const allSelected = selectable.length > 0 && selectable.every(function(id) { return state.selectedStayHoldIds.has(id); });
+  state.selectedStayHoldIds = allSelected ? new Set() : new Set(selectable);
+  refs.stayHoldTableBody.innerHTML = renderStayHoldRows(state.stayHolds);
+  syncStayBulkActions();
+}
+
+function toggleSelectAllTransfer() {
+  const selectable = (state.transferHolds || []).filter(isTransferArchivable).map(function(item) { return String(item.hold_id); });
+  const allSelected = selectable.length > 0 && selectable.every(function(id) { return state.selectedTransferHoldIds.has(id); });
+  state.selectedTransferHoldIds = allSelected ? new Set() : new Set(selectable);
+  refs.transferHoldTableBody.innerHTML = renderTransferHoldRows(state.transferHolds);
+  syncTransferBulkActions();
+}
+
+async function bulkArchiveSelected(holdType) {
+  if (holdType === 'stay' && state.stayArchiveMode) { notify('Arsiv gorunumunde toplu islem yapilamaz.', 'warn'); return; }
+  if (holdType === 'transfer' && state.transferArchiveMode) { notify('Arsiv gorunumunde toplu islem yapilamaz.', 'warn'); return; }
+  const ids = holdType === 'stay'
+    ? Array.from(state.selectedStayHoldIds)
+    : Array.from(state.selectedTransferHoldIds);
+  if (!ids.length) { notify('Secili kayit yok.', 'warn'); return; }
+  const ok = window.confirm('Secili kayitlar arsive tasinacak. Emin misiniz?');
+  if (!ok) return;
+  try {
+    const result = await apiFetch('/holds/archive', {
+      method: 'POST',
+      body: {hold_ids: ids, reason: 'bulk_archive'},
+    });
+    const archivedCount = (result.archived || []).length;
+    const failedCount = (result.failed || []).length;
+    const skippedCount = (result.skipped || []).length;
+    if (archivedCount) notify(archivedCount + ' kayit arsive tasindi.', 'success');
+    if (skippedCount) notify(skippedCount + ' kayit zaten arsivdeydi.', 'warn');
+    if (failedCount) notify(failedCount + ' kayit tasinamadi.', 'error');
+    if (holdType === 'stay') {
+      state.selectedStayHoldIds = new Set();
+      loadStayHolds();
+    } else {
+      state.selectedTransferHoldIds = new Set();
+      loadTransferHolds();
+    }
+    loadDashboard();
+  } catch (error) {
+    notify(error.message || 'Toplu arsivleme basarisiz.', 'error');
   }
 }
 
@@ -958,6 +1110,43 @@ function handleHoldsModuleClick(target) {
   }
   if (target.hasAttribute('data-transfer-toggle-create')) {
     toggleTransferCreatePanel();
+    return true;
+  }
+  // Archive toggles
+  if (target.dataset.stayArchive !== undefined) {
+    state.stayArchiveMode = target.dataset.stayArchive === 'archived';
+    state.stayStatusFilter = '';
+    state.selectedStayHoldIds = new Set();
+    loadStayHolds();
+    return true;
+  }
+  if (target.dataset.transferArchive !== undefined) {
+    state.transferArchiveMode = target.dataset.transferArchive === 'archived';
+    state.transferStatusFilter = '';
+    state.selectedTransferHoldIds = new Set();
+    loadTransferHolds();
+    return true;
+  }
+  if (target.hasAttribute('data-stay-select-all')) {
+    toggleSelectAllStay();
+    return true;
+  }
+  if (target.hasAttribute('data-transfer-select-all')) {
+    toggleSelectAllTransfer();
+    return true;
+  }
+  if (target.hasAttribute('data-stay-bulk-archive')) {
+    bulkArchiveSelected('stay');
+    return true;
+  }
+  if (target.hasAttribute('data-transfer-bulk-archive')) {
+    bulkArchiveSelected('transfer');
+    return true;
+  }
+  // Hold selection (checkbox)
+  var selectToggle = target.closest ? target.closest('[data-hold-select]') : null;
+  if (selectToggle && selectToggle.dataset.holdId) {
+    toggleHoldSelection(selectToggle.dataset.holdSelect, selectToggle.dataset.holdId, !!selectToggle.checked);
     return true;
   }
   // Hold selection (route to correct module based on prefix)

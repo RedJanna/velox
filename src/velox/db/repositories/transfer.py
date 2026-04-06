@@ -152,5 +152,8 @@ class TransferRepository:
             approved_by=row["approved_by"],
             approved_at=row["approved_at"],
             rejected_reason=row["rejected_reason"],
+            archived_at=row.get("archived_at", None),
+            archived_by=row.get("archived_by", None),
+            archived_reason=row.get("archived_reason", None),
             created_at=row["created_at"],
         )

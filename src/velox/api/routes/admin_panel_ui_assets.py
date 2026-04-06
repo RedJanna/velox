@@ -49,7 +49,7 @@ button,input,select,textarea{font:inherit}
 .sidebar-button.secondary,.toolbar button.secondary,.inline-button.secondary{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.1)}
 .sidebar-button.primary,.toolbar button.primary,.inline-button.primary,.action-button.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff}
 .sidebar-button.warn,.action-button.warn{background:#fff4db;color:#7c4b06}
-.sidebar-button.danger,.action-button.danger{background:#fde7e5;color:var(--danger)}
+.sidebar-button.danger,.action-button.danger,.inline-button.danger{background:#fde7e5;color:var(--danger)}
 .action-button.secondary{background:#eef2f7;color:#334155;border:1px solid var(--line)}
 .action-button.secondary.is-active{background:linear-gradient(135deg,#102033,#1f3554);color:#fff;border-color:#102033}
 .action-button:disabled{opacity:.55;cursor:not-allowed}
@@ -290,18 +290,22 @@ const state = {
   conversationDetail: null,
   selectedConversationIds: new Set(),
   stayHolds: [],
+  selectedStayHoldIds: new Set(),
   selectedStayHoldId: '',
   restaurantHolds: [],
   selectedRestaurantHoldId: '',
   restaurantDateFrom: '',
   restaurantDateTo: '',
   transferHolds: [],
+  selectedTransferHoldIds: new Set(),
   selectedTransferHoldId: '',
   activeHoldsTab: 'stay',
   stayStatusFilter: '',
   restaurantStatusFilter: '',
   restaurantMode: 'AI_RESTAURAN',
   transferStatusFilter: '',
+  stayArchiveMode: false,
+  transferArchiveMode: false,
   stayDraft: {},
   stayWizardStep: 1,
   stayWizardUseExisting: false,
@@ -406,9 +410,7 @@ function bindEvents() {
   refs.conversationSelectAll?.addEventListener('change', onConversationSelectAllChange);
   refs.stayHoldFilters?.addEventListener('submit', event => {
     event.preventDefault();
-    const resNo = new FormData(refs.stayHoldFilters).get('reservation_no');
-    if (resNo && resNo.trim()) { lookupStayReservationNo(resNo.trim()); }
-    else { loadStayHolds(); }
+    loadStayHolds();
   });
   refs.restaurantHoldFilters?.addEventListener('submit', event => {
     event.preventDefault();

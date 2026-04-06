@@ -177,6 +177,11 @@ class RejectRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
+class ArchiveHoldsRequest(BaseModel):
+    hold_ids: list[str] = Field(min_length=1, max_length=100)
+    reason: str = Field(default="bulk_archive", min_length=1, max_length=400)
+
+
 class TicketUpdate(BaseModel):
     status: str | None = None
     assigned_to_role: str | None = None
@@ -2468,6 +2473,7 @@ async def list_holds(
     hotel_id: int | None = Query(None),
     hold_type: str | None = Query(None, description="stay, restaurant, or transfer"),
     status_filter: str | None = Query(None, alias="status"),
+    archived: bool = Query(False),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ) -> dict[str, Any]:
@@ -2481,7 +2487,11 @@ async def list_holds(
     db = request.app.state.db_pool
     effective_hotel_id = hotel_id if user.role == Role.ADMIN else user.hotel_id
     offset = (page - 1) * per_page
-    queries = _build_unified_hold_queries(hold_type=hold_type, include_stay_workflow=True)
+    queries = _build_unified_hold_queries(
+        hold_type=hold_type,
+        include_stay_workflow=True,
+        archived=archived,
+    )
 
     async with db.acquire() as conn:
         try:
@@ -2501,7 +2511,11 @@ async def list_holds(
                 or 0
             )
         except asyncpg.UndefinedColumnError:
-            legacy_queries = _build_unified_hold_queries(hold_type=hold_type, include_stay_workflow=False)
+            legacy_queries = _build_unified_hold_queries(
+                hold_type=hold_type,
+                include_stay_workflow=False,
+                archived=archived,
+            )
             rows = await conn.fetch(
                 legacy_queries.items_query,
                 effective_hotel_id,
@@ -2538,10 +2552,18 @@ def _normalize_unified_hold_row(row: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow: bool) -> _UnifiedHoldQueries:
+def _build_unified_hold_queries(
+    *,
+    hold_type: str | None,
+    include_stay_workflow: bool,
+    archived: bool,
+) -> _UnifiedHoldQueries:
     """Return SQL queries for paginated unified hold listing."""
+    stay_archived_clause = "sh.archived_at IS NOT NULL" if archived else "sh.archived_at IS NULL"
+    restaurant_archived_clause = "archived_at IS NOT NULL" if archived else "archived_at IS NULL"
+    transfer_archived_clause = "archived_at IS NOT NULL" if archived else "archived_at IS NULL"
     stay_select = (
-        """
+        f"""
         SELECT sh.hold_id, 'stay' AS type, sh.hotel_id, sh.status,
                sh.workflow_state, sh.draft_json::jsonb AS draft_json, sh.expires_at,
                sh.pms_create_started_at, sh.pms_create_completed_at, sh.manual_review_reason,
@@ -2591,10 +2613,12 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
             ORDER BY msg.created_at DESC
             LIMIT 1
         ) AS failure_meta ON true
-        WHERE ($1::int IS NULL OR sh.hotel_id = $1) AND ($2::text IS NULL OR sh.status = $2)
+        WHERE ($1::int IS NULL OR sh.hotel_id = $1)
+          AND ($2::text IS NULL OR sh.status = $2)
+          AND {stay_archived_clause}
         """
         if include_stay_workflow
-        else """
+        else f"""
         SELECT sh.hold_id, 'stay' AS type, sh.hotel_id, sh.status,
                NULL::text AS workflow_state, sh.draft_json::jsonb AS draft_json, NULL::timestamptz AS expires_at,
                 NULL::timestamptz AS pms_create_started_at, NULL::timestamptz AS pms_create_completed_at,
@@ -2645,10 +2669,12 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
             ORDER BY msg.created_at DESC
             LIMIT 1
         ) AS failure_meta ON true
-        WHERE ($1::int IS NULL OR sh.hotel_id = $1) AND ($2::text IS NULL OR sh.status = $2)
+        WHERE ($1::int IS NULL OR sh.hotel_id = $1)
+          AND ($2::text IS NULL OR sh.status = $2)
+          AND {stay_archived_clause}
         """
     )
-    restaurant_select = """
+    restaurant_select = f"""
         SELECT hold_id, 'restaurant' AS type, hotel_id, status,
                NULL::text AS workflow_state,
                jsonb_build_object(
@@ -2666,9 +2692,11 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
                NULL::text AS last_failed_tool, NULL::text AS last_failed_error_type,
                created_at, conversation_id
         FROM restaurant_holds
-        WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
+        WHERE ($1::int IS NULL OR hotel_id = $1)
+          AND ($2::text IS NULL OR status = $2)
+          AND {restaurant_archived_clause}
     """
-    transfer_select = """
+    transfer_select = f"""
         SELECT hold_id, 'transfer' AS type, hotel_id, status,
                NULL::text AS workflow_state,
                jsonb_build_object(
@@ -2687,7 +2715,9 @@ def _build_unified_hold_queries(*, hold_type: str | None, include_stay_workflow:
                NULL::text AS last_failed_tool, NULL::text AS last_failed_error_type,
                created_at, conversation_id
         FROM transfer_holds
-        WHERE ($1::int IS NULL OR hotel_id = $1) AND ($2::text IS NULL OR status = $2)
+        WHERE ($1::int IS NULL OR hotel_id = $1)
+          AND ($2::text IS NULL OR status = $2)
+          AND {transfer_archived_clause}
     """
 
     parts: list[str] = []
@@ -2849,7 +2879,13 @@ async def reject_hold(
             hold_type=hold_type,
         )
         # Rejection reason should still be persisted on hold row.
-        await _update_hold_rejection(conn, hold_type, hold_id, body.reason)
+        await _update_hold_rejection(
+            conn,
+            hold_type,
+            hold_id,
+            body.reason,
+            user.display_name or user.username,
+        )
 
     event_processor = getattr(request.app.state, "event_processor", None)
     if event_processor is None:
@@ -2864,6 +2900,92 @@ async def reject_hold(
     )
     result = await event_processor.process_approval_event(event)
     return {"status": "rejected", "hold_id": hold_id, "reason": body.reason, "result": result}
+
+
+@router.post("/holds/archive")
+async def archive_holds(
+    body: ArchiveHoldsRequest,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Archive holds in bulk using the rejection flow."""
+    check_permission(user, "holds:reject")
+    event_processor = getattr(request.app.state, "event_processor", None)
+    if event_processor is None:
+        raise HTTPException(status_code=503, detail="Event processor unavailable")
+
+    db = request.app.state.db_pool
+    archived_by = user.display_name or user.username
+    archived: list[str] = []
+    skipped: list[dict[str, str]] = []
+    failed: list[dict[str, str]] = []
+
+    for hold_id in body.hold_ids:
+        try:
+            _table, hold_type = _resolve_hold_target(hold_id)
+        except HTTPException as exc:
+            failed.append({"hold_id": hold_id, "reason": exc.detail})
+            continue
+
+        async with db.acquire() as conn:
+            row = await _fetch_hold_row(conn, hold_type, hold_id)
+            if row is None:
+                failed.append({"hold_id": hold_id, "reason": "Hold not found"})
+                continue
+            if row.get("archived_at"):
+                skipped.append({"hold_id": hold_id, "reason": "Already archived"})
+                continue
+            if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
+                failed.append({"hold_id": hold_id, "reason": "Access denied"})
+                continue
+
+            current_status = str(row["status"])
+            allowed_statuses = {
+                HoldStatus.PENDING_APPROVAL.value,
+                HoldStatus.PAYMENT_PENDING.value,
+            }
+            if hold_type == "transfer":
+                allowed_statuses = {HoldStatus.PENDING_APPROVAL.value}
+            if hold_type == "restaurant":
+                allowed_statuses = {HoldStatus.PENDING_APPROVAL.value}
+            if current_status not in allowed_statuses:
+                failed.append(
+                    {
+                        "hold_id": hold_id,
+                        "reason": f"Cannot archive status {current_status}",
+                    }
+                )
+                continue
+
+            approval_request_id = await _ensure_approval_request(
+                conn=conn,
+                hotel_id=int(row["hotel_id"]),
+                hold_id=hold_id,
+                hold_type=hold_type,
+            )
+            await _update_hold_rejection(
+                conn,
+                hold_type,
+                hold_id,
+                body.reason,
+                archived_by,
+            )
+
+        event = ApprovalEvent(
+            hotel_id=int(row["hotel_id"]),
+            approval_request_id=approval_request_id,
+            approved=False,
+            approved_by_role=user.role.value,
+            timestamp=datetime.now(UTC),
+        )
+        try:
+            await event_processor.process_approval_event(event)
+            archived.append(hold_id)
+        except Exception as exc:
+            logger.warning("bulk_archive_event_failed", hold_id=hold_id, error=str(exc))
+            failed.append({"hold_id": hold_id, "reason": "Event processing failed"})
+
+    return {"status": "completed", "archived": archived, "skipped": skipped, "failed": failed}
 
 
 @router.get("/tickets")
@@ -3059,16 +3181,29 @@ async def _update_hold_approval(conn: Any, hold_type: str, hold_id: str, usernam
     )
 
 
-async def _update_hold_rejection(conn: Any, hold_type: str, hold_id: str, reason: str) -> None:
+async def _update_hold_rejection(
+    conn: Any,
+    hold_type: str,
+    hold_id: str,
+    reason: str,
+    archived_by: str | None,
+) -> None:
     """Reject one hold row using a static query per hold type."""
     if hold_type == "stay":
         await conn.execute(
             """
             UPDATE stay_holds
-            SET status = $1, rejected_reason = $2, updated_at = now()
-            WHERE hold_id = $3
+            SET status = $1,
+                rejected_reason = $2,
+                archived_at = COALESCE(archived_at, now()),
+                archived_by = $3,
+                archived_reason = $4,
+                updated_at = now()
+            WHERE hold_id = $5
             """,
             HoldStatus.REJECTED.value,
+            reason,
+            archived_by,
             reason,
             hold_id,
         )
@@ -3077,10 +3212,17 @@ async def _update_hold_rejection(conn: Any, hold_type: str, hold_id: str, reason
         await conn.execute(
             """
             UPDATE restaurant_holds
-            SET status = $1, rejected_reason = $2, updated_at = now()
-            WHERE hold_id = $3
+            SET status = $1,
+                rejected_reason = $2,
+                archived_at = COALESCE(archived_at, now()),
+                archived_by = $3,
+                archived_reason = $4,
+                updated_at = now()
+            WHERE hold_id = $5
             """,
             HoldStatus.REJECTED.value,
+            reason,
+            archived_by,
             reason,
             hold_id,
         )
@@ -3088,10 +3230,17 @@ async def _update_hold_rejection(conn: Any, hold_type: str, hold_id: str, reason
     await conn.execute(
         """
         UPDATE transfer_holds
-        SET status = $1, rejected_reason = $2, updated_at = now()
-        WHERE hold_id = $3
+        SET status = $1,
+            rejected_reason = $2,
+            archived_at = COALESCE(archived_at, now()),
+            archived_by = $3,
+            archived_reason = $4,
+            updated_at = now()
+        WHERE hold_id = $5
         """,
         HoldStatus.REJECTED.value,
+        reason,
+        archived_by,
         reason,
         hold_id,
     )

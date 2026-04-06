@@ -50,4 +50,7 @@ class TransferHold(BaseModel):
     approved_by: str | None = None
     approved_at: datetime | None = None
     rejected_reason: str | None = None
+    archived_at: datetime | None = None
+    archived_by: str | None = None
+    archived_reason: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)

@@ -102,6 +102,9 @@ class StayHold(BaseModel):
     approved_by: str | None = None
     approved_at: datetime | None = None
     rejected_reason: str | None = None
+    archived_at: datetime | None = None
+    archived_by: str | None = None
+    archived_reason: str | None = None
     workflow_state: str | None = None
     expires_at: datetime | None = None
     pms_create_started_at: datetime | None = None
