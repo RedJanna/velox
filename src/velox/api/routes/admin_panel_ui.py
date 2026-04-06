@@ -262,9 +262,25 @@ def render_admin_panel_html() -> str:
                 <input name="date_to" type="date" aria-label="Bitiş tarihi">
                 <button class="primary" type="submit">Filtrele</button>
               </form>
+              <div id="conversationBulkBar" class="bulk-bar" hidden>
+                <div class="bulk-left">
+                  <label class="toolbar-check bulk-check">
+                    <input id="conversationSelectAll" type="checkbox" aria-label="Tüm konuşmaları seç">
+                    Bu listeyi seç
+                  </label>
+                  <span id="conversationSelectionCount" class="bulk-count">0 seçili</span>
+                </div>
+                <div class="bulk-actions">
+                  <button class="action-button danger action-button-sm" data-bulk-action="deactivate">Pasife Al</button>
+                  <button class="action-button warn action-button-sm" data-bulk-action="reset">Sıfırla</button>
+                  <button class="action-button secondary action-button-sm" data-bulk-action="human-on">İnsan Devrine Al</button>
+                  <button class="action-button secondary action-button-sm" data-bulk-action="human-off">Yapay Zekâ Moduna Al</button>
+                  <button class="action-button secondary action-button-sm" data-bulk-action="clear">Seçimi Temizle</button>
+                </div>
+              </div>
               <div class="table-shell">
                 <table>
-                  <thead><tr><th>Kullanıcı</th><th>Durum</th><th>Niyet</th><th>Risk</th><th>Mesaj</th><th>İşlem</th></tr></thead>
+                  <thead><tr><th class="table-select">Seç</th><th>Kullanıcı</th><th>Durum</th><th>Niyet</th><th>Risk</th><th>Mesaj</th><th>İşlem</th></tr></thead>
                   <tbody id="conversationTableBody"></tbody>
                 </table>
               </div>

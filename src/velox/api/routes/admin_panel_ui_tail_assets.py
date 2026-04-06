@@ -4854,6 +4854,7 @@ function clearClientSession() {
   state.bootstrapPending = null;
   state.dashboard = null;
   state.conversationDetail = null;
+  state.selectedConversationIds = new Set();
   state.faqs = [];
   state.faqDetail = null;
   state.hotelProfileLoadedSourceChecksum = null;

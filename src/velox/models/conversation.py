@@ -57,3 +57,13 @@ class LLMResponse(BaseModel):
     """Parsed LLM response with both parts."""
     user_message: str
     internal_json: InternalJSON
+
+
+class ConversationBulkActionRequest(BaseModel):
+    """Bulk action payload for conversation operations."""
+    conversation_ids: list[UUID] = Field(min_length=1, max_length=200)
+
+
+class ConversationBulkOverrideRequest(ConversationBulkActionRequest):
+    """Bulk human override toggle payload."""
+    enable: bool

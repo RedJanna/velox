@@ -114,6 +114,13 @@ button,input,select,textarea{font:inherit}
 .toolbar input,.toolbar select{padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--surface)}
 .toolbar-check{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
 .toolbar-check input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent,#e7bf5f)}
+.bulk-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:18px;border:1px dashed var(--line-strong);background:var(--surface-2);margin-bottom:12px}
+.bulk-left{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.bulk-count{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.bulk-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bulk-check{padding:6px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line)}
+.table-select{width:52px;text-align:center}
+.row-select{width:18px;height:18px;accent-color:var(--accent)}
 .action-cell{display:flex;gap:6px;align-items:center}
 .pill-closed{display:inline-block;padding:4px 10px;border-radius:10px;font-size:12px;background:#6b7280;color:#fff}
 .table-shell{border:1px solid var(--line);border-radius:22px;overflow:hidden;background:var(--surface)}
@@ -280,6 +287,7 @@ const state = {
   dashboard: null,
   conversations: [],
   conversationDetail: null,
+  selectedConversationIds: new Set(),
   stayHolds: [],
   selectedStayHoldId: '',
   restaurantHolds: [],
@@ -351,7 +359,7 @@ function bindRefs() {
     'totpRecovery','totpRecoveryForm','trustedSessionBanner','loginOtpField','rememberDeviceToggle',
     'loginRememberOptions','loginVerificationOptions','loginSessionOptions',
     'otpSetup','otpSecret','otpUri','otpQrImage','otpVerifyForm','otpVerifyHint','currentUser','currentRole','hotelScope','hotelSelect','nav','pageTitle','pageLead',
-    'dashboardCards','dashboardQueues','conversationFilters','conversationTableBody','conversationDetail',
+    'dashboardCards','dashboardQueues','conversationFilters','conversationBulkBar','conversationSelectAll','conversationSelectionCount','conversationTableBody','conversationDetail',
     'stayHoldFilters','stayHoldTableBody','stayHoldDetail','stayHoldCreatePanel','stayWizardSteps','stayWizardBody','stayStatusChips',
     'restaurantHoldFilters','restaurantHoldTableBody','restaurantHoldDetail','restaurantHoldCreatePanel','restaurantCreateForm','restaurantStatusChips','restaurantDateFrom','restaurantDateTo',
     'transferHoldFilters','transferHoldTableBody','transferHoldDetail','transferHoldCreatePanel','transferCreateForm','transferStatusChips',
@@ -392,6 +400,8 @@ function bindEvents() {
     event.preventDefault();
     loadConversations();
   });
+  refs.conversationTableBody?.addEventListener('change', onConversationSelectionChange);
+  refs.conversationSelectAll?.addEventListener('change', onConversationSelectAllChange);
   refs.stayHoldFilters?.addEventListener('submit', event => {
     event.preventDefault();
     const resNo = new FormData(refs.stayHoldFilters).get('reservation_no');
@@ -496,8 +506,13 @@ function bindDelegatedEvents() {
     // Holds module events (tabs, wizards, filters, create toggles, hold selection)
     if (typeof handleHoldsModuleClick === 'function' && handleHoldsModuleClick(event.target)) return;
 
-    const target = event.target.closest('[data-open-conversation],[data-deactivate-conversation],[data-approve-hold],[data-reject-hold],[data-save-ticket],[data-facts-version-detail],[data-facts-version-rollback],[data-facts-conflict-restore-draft],[data-facts-conflict-dismiss]');
+    const target = event.target.closest('[data-bulk-action],[data-open-conversation],[data-deactivate-conversation],[data-approve-hold],[data-reject-hold],[data-save-ticket],[data-facts-version-detail],[data-facts-version-rollback],[data-facts-conflict-restore-draft],[data-facts-conflict-dismiss]');
     if (!target) return;
+
+    if (target.dataset.bulkAction) {
+      runConversationBulkAction(target.dataset.bulkAction);
+      return;
+    }
 
     // Conversation detail
     if (target.dataset.openConversation) {
@@ -1114,20 +1129,23 @@ async function loadConversations() {
   if (form.get('date_to')) params.set('date_to', String(form.get('date_to')));
   const response = await apiFetch(`/conversations?${params.toString()}`);
   state.conversations = response.items || [];
+  syncConversationSelection();
   refs.conversationTableBody.innerHTML = renderConversationRows(state.conversations);
   if (state.conversations.length && !state.conversationDetail) {
     loadConversationDetail(state.conversations[0].id);
   } else if (!state.conversations.length) {
     refs.conversationDetail.innerHTML = '<div class="empty-state"><p>Seçili konuşma yok.</p></div>';
   }
+  updateConversationBulkBar();
 }
 
 function renderConversationRows(items) {
   if (!items.length) {
-    return `<tr><td colspan="6"><div class="empty-state"><p>Filtreye uygun konuşma bulunamadı.</p></div></td></tr>`;
+    return `<tr><td colspan="7"><div class="empty-state"><p>Filtreye uygun konuşma bulunamadı.</p></div></td></tr>`;
   }
   return items.map(item => `
-    <tr>
+    <tr class="${state.selectedConversationIds.has(String(item.id)) ? 'is-selected' : ''}" data-conversation-row="${escapeHtml(item.id)}">
+      <td class="table-select"><input class="row-select" type="checkbox" data-select-conversation="${escapeHtml(item.id)}" ${state.selectedConversationIds.has(String(item.id)) ? 'checked' : ''} aria-label="Konuşmayı seç"></td>
       <td><div class="stack"><strong>${escapeHtml(item.phone_display || 'Maskeli kullanıcı')}</strong><span class="muted mono">${escapeHtml(item.id)}</span></div></td>
       <td><span class="pill open">${escapeHtml(formatConversationState(item.current_state || '-'))}</span>${item.human_override ? ' <span class="pill pill-warning" title="İnsan devri aktif">👤</span>' : ''}</td>
       <td>${escapeHtml(resolveConversationIntent(item, []))}</td>
@@ -1139,6 +1157,141 @@ function renderConversationRows(items) {
       </td>
     </tr>
   `).join('');
+}
+
+function syncConversationSelection() {
+  const allowed = new Set((state.conversations || []).map(item => String(item.id)));
+  for (const id of state.selectedConversationIds) {
+    if (!allowed.has(id)) state.selectedConversationIds.delete(id);
+  }
+}
+
+function updateConversationBulkBar() {
+  const selectedCount = state.selectedConversationIds.size;
+  const hasItems = (state.conversations || []).length > 0;
+  if (refs.conversationBulkBar) refs.conversationBulkBar.hidden = !hasItems;
+  if (refs.conversationSelectionCount) refs.conversationSelectionCount.textContent = `${selectedCount} seçili`;
+
+  if (refs.conversationBulkBar) {
+    const disableActions = selectedCount === 0;
+    refs.conversationBulkBar.querySelectorAll('button[data-bulk-action]').forEach(button => {
+      button.disabled = disableActions;
+    });
+  }
+
+  if (refs.conversationSelectAll) {
+    const total = (state.conversations || []).length;
+    if (!total) {
+      refs.conversationSelectAll.checked = false;
+      refs.conversationSelectAll.indeterminate = false;
+      refs.conversationSelectAll.disabled = true;
+    } else {
+      refs.conversationSelectAll.disabled = false;
+      if (selectedCount === 0) {
+        refs.conversationSelectAll.checked = false;
+        refs.conversationSelectAll.indeterminate = false;
+      } else if (selectedCount === total) {
+        refs.conversationSelectAll.checked = true;
+        refs.conversationSelectAll.indeterminate = false;
+      } else {
+        refs.conversationSelectAll.checked = false;
+        refs.conversationSelectAll.indeterminate = true;
+      }
+    }
+  }
+}
+
+function clearConversationSelection() {
+  state.selectedConversationIds.clear();
+  updateConversationBulkBar();
+  if (refs.conversationTableBody) {
+    refs.conversationTableBody.querySelectorAll('[data-select-conversation]').forEach(input => {
+      input.checked = false;
+      const row = input.closest('tr');
+      if (row) row.classList.remove('is-selected');
+    });
+  }
+}
+
+function toggleConversationSelection(conversationId, shouldSelect) {
+  if (shouldSelect) state.selectedConversationIds.add(conversationId);
+  else state.selectedConversationIds.delete(conversationId);
+  updateConversationBulkBar();
+}
+
+function onConversationSelectionChange(event) {
+  const target = event.target;
+  if (!target || !target.matches('[data-select-conversation]')) return;
+  const convId = String(target.dataset.selectConversation || '');
+  if (!convId) return;
+  toggleConversationSelection(convId, target.checked);
+  const row = target.closest('tr');
+  if (row) row.classList.toggle('is-selected', target.checked);
+}
+
+function onConversationSelectAllChange() {
+  if (!refs.conversationSelectAll) return;
+  const checked = refs.conversationSelectAll.checked;
+  const items = state.conversations || [];
+  items.forEach(item => {
+    const convId = String(item.id);
+    if (checked) state.selectedConversationIds.add(convId);
+    else state.selectedConversationIds.delete(convId);
+  });
+  if (refs.conversationTableBody) {
+    refs.conversationTableBody.querySelectorAll('[data-select-conversation]').forEach(input => {
+      input.checked = checked;
+      const row = input.closest('tr');
+      if (row) row.classList.toggle('is-selected', checked);
+    });
+  }
+  updateConversationBulkBar();
+}
+
+async function runConversationBulkAction(action) {
+  const conversationIds = Array.from(state.selectedConversationIds);
+  if (!conversationIds.length) {
+    notify('Seçili konuşma yok.', 'warn');
+    return;
+  }
+
+  if (action === 'clear') {
+    clearConversationSelection();
+    return;
+  }
+
+  let confirmMessage = '';
+  let endpoint = '';
+  let body = null;
+
+  if (action === 'deactivate') {
+    confirmMessage = `Seçili ${conversationIds.length} konuşmayı pasife almak istediğinize emin misiniz?`;
+    endpoint = '/conversations/bulk/deactivate';
+    body = {conversation_ids: conversationIds};
+  } else if (action === 'reset') {
+    confirmMessage = `Seçili ${conversationIds.length} konuşmayı sıfırlamak istediğinize emin misiniz?`;
+    endpoint = '/conversations/bulk/reset';
+    body = {conversation_ids: conversationIds};
+  } else if (action === 'human-on') {
+    confirmMessage = `Seçili ${conversationIds.length} konuşmayı insan devrine almak istediğinize emin misiniz?`;
+    endpoint = '/conversations/bulk/human-override';
+    body = {conversation_ids: conversationIds, enable: true};
+  } else if (action === 'human-off') {
+    confirmMessage = `Seçili ${conversationIds.length} konuşmayı yapay zekâ moduna almak istediğinize emin misiniz?`;
+    endpoint = '/conversations/bulk/human-override';
+    body = {conversation_ids: conversationIds, enable: false};
+  }
+
+  if (!endpoint) return;
+  if (!confirm(confirmMessage)) return;
+  try {
+    await apiFetch(endpoint, {method: 'POST', body});
+    notify('Toplu işlem tamamlandı.', 'success');
+    clearConversationSelection();
+    loadConversations();
+  } catch (error) {
+    notify(error.message || 'Toplu işlem başarısız.', 'error');
+  }
 }
 
 // Event delegation: conversation table clicks handled by container listener (see bindDelegatedEvents)

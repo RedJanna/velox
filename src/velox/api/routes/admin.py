@@ -30,6 +30,7 @@ from velox.db.repositories.hotel import NotificationPhoneRepository
 from velox.db.repositories.restaurant import RestaurantRepository
 from velox.db.repositories.transfer import TransferRepository
 from velox.escalation.matrix import reload_matrix
+from velox.models.conversation import ConversationBulkActionRequest, ConversationBulkOverrideRequest
 from velox.models.hotel_profile import FAQEntry, FAQStatus, HotelProfile
 from velox.models.restaurant import RestaurantSlotBulkDeleteRequest, RestaurantSlotCreate, RestaurantSlotUpdate
 from velox.models.webhook_events import ApprovalEvent
@@ -1764,7 +1765,7 @@ async def list_conversations(
     async with db.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT c.id, c.hotel_id, c.phone_display, c.language,
+            SELECT c.id, c.hotel_id, c.phone_display, c.language, c.human_override,
                    COALESCE(NULLIF(c.current_state, ''), assistant_meta.last_state, 'GREETING') AS current_state,
                    COALESCE(NULLIF(c.current_intent, ''), assistant_meta.last_intent) AS current_intent,
                    c.risk_flags, c.is_active, c.last_message_at, c.created_at,
@@ -1903,6 +1904,191 @@ async def get_conversation(
     conversation_payload.pop("resolved_state", None)
     conversation_payload.pop("resolved_intent", None)
     return {"conversation": conversation_payload, "messages": [dict(row) for row in messages]}
+
+
+def _dedupe_conversation_ids(conversation_ids: list[UUID]) -> list[UUID]:
+    """Return unique conversation ids preserving input order."""
+    seen: set[UUID] = set()
+    unique: list[UUID] = []
+    for conv_id in conversation_ids:
+        if conv_id in seen:
+            continue
+        seen.add(conv_id)
+        unique.append(conv_id)
+    return unique
+
+
+def _parse_update_count(status: str) -> int:
+    """Parse asyncpg execute row count string like 'UPDATE 3'."""
+    try:
+        return int(status.split()[-1])
+    except (ValueError, IndexError):
+        return 0
+
+
+async def _fetch_bulk_conversations(
+    conn: asyncpg.Connection,
+    conversation_ids: list[UUID],
+) -> list[asyncpg.Record]:
+    """Fetch bulk conversation metadata for authorization and Redis sync."""
+    if not conversation_ids:
+        return []
+    return await conn.fetch(
+        """
+        SELECT id, hotel_id, phone_hash, is_active
+        FROM conversations
+        WHERE id = ANY($1::uuid[])
+        """,
+        conversation_ids,
+    )
+
+
+def _assert_bulk_conversation_access(user: TokenData, rows: list[asyncpg.Record]) -> None:
+    """Raise 403 when any conversation belongs to a different hotel."""
+    if user.role == Role.ADMIN:
+        return
+    for row in rows:
+        if int(row["hotel_id"]) != user.hotel_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+
+@router.post("/conversations/bulk/deactivate")
+async def bulk_deactivate_conversations(
+    request: Request,
+    body: ConversationBulkActionRequest,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Deactivate multiple conversations at once."""
+    check_permission(user, "conversations:read")
+    conversation_ids = _dedupe_conversation_ids(body.conversation_ids)
+    requested_ids = [str(conv_id) for conv_id in conversation_ids]
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        rows = await _fetch_bulk_conversations(conn, conversation_ids)
+        _assert_bulk_conversation_access(user, rows)
+        if not rows:
+            return {"status": "no_match", "requested": len(requested_ids), "missing_ids": requested_ids}
+        status = await conn.execute(
+            """
+            UPDATE conversations
+            SET is_active = false, current_state = 'CLOSED', updated_at = now()
+            WHERE id = ANY($1::uuid[])
+            """,
+            conversation_ids,
+        )
+    updated_count = _parse_update_count(status)
+    redis_client = getattr(request.app.state, "redis", None)
+    if redis_client is not None:
+        keys = [f"velox:human_override:{row['phone_hash']}" for row in rows if row["phone_hash"]]
+        if keys:
+            with contextlib.suppress(Exception):
+                await redis_client.delete(*keys)
+
+    found_ids = {str(row["id"]) for row in rows}
+    missing_ids = [conv_id for conv_id in requested_ids if conv_id not in found_ids]
+    return {
+        "status": "deactivated",
+        "requested": len(requested_ids),
+        "matched": len(rows),
+        "updated": updated_count,
+        "missing_ids": missing_ids,
+    }
+
+
+@router.post("/conversations/bulk/reset")
+async def bulk_reset_conversations(
+    request: Request,
+    body: ConversationBulkActionRequest,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Reset multiple conversations at once (close and clear active session)."""
+    check_permission(user, "conversations:read")
+    conversation_ids = _dedupe_conversation_ids(body.conversation_ids)
+    requested_ids = [str(conv_id) for conv_id in conversation_ids]
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        rows = await _fetch_bulk_conversations(conn, conversation_ids)
+        _assert_bulk_conversation_access(user, rows)
+        if not rows:
+            return {"status": "no_match", "requested": len(requested_ids), "missing_ids": requested_ids}
+        status = await conn.execute(
+            """
+            UPDATE conversations
+            SET is_active = false, current_state = 'CLOSED', updated_at = now()
+            WHERE id = ANY($1::uuid[])
+            """,
+            conversation_ids,
+        )
+    updated_count = _parse_update_count(status)
+    redis_client = getattr(request.app.state, "redis", None)
+    if redis_client is not None:
+        keys = [f"velox:human_override:{row['phone_hash']}" for row in rows if row["phone_hash"]]
+        if keys:
+            with contextlib.suppress(Exception):
+                await redis_client.delete(*keys)
+
+    found_ids = {str(row["id"]) for row in rows}
+    missing_ids = [conv_id for conv_id in requested_ids if conv_id not in found_ids]
+    return {
+        "status": "reset",
+        "requested": len(requested_ids),
+        "matched": len(rows),
+        "updated": updated_count,
+        "missing_ids": missing_ids,
+    }
+
+
+@router.post("/conversations/bulk/human-override")
+async def bulk_toggle_human_override(
+    request: Request,
+    body: ConversationBulkOverrideRequest,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Enable or disable human override for multiple conversations."""
+    check_permission(user, "conversations:read")
+    conversation_ids = _dedupe_conversation_ids(body.conversation_ids)
+    requested_ids = [str(conv_id) for conv_id in conversation_ids]
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        rows = await _fetch_bulk_conversations(conn, conversation_ids)
+        _assert_bulk_conversation_access(user, rows)
+        if not rows:
+            return {"status": "no_match", "requested": len(requested_ids), "missing_ids": requested_ids}
+        active_ids = [row["id"] for row in rows if row["is_active"]]
+        status = "UPDATE 0"
+        if active_ids:
+            status = await conn.execute(
+                """
+                UPDATE conversations
+                SET human_override = $2, updated_at = now()
+                WHERE id = ANY($1::uuid[]) AND is_active = true
+                """,
+                active_ids,
+                body.enable,
+            )
+    updated_count = _parse_update_count(status)
+    redis_client = getattr(request.app.state, "redis", None)
+    if redis_client is not None:
+        keys = [f"velox:human_override:{row['phone_hash']}" for row in rows if row["phone_hash"] and row["is_active"]]
+        if keys:
+            with contextlib.suppress(Exception):
+                if body.enable:
+                    for key in keys:
+                        await redis_client.set(key, "1")
+                else:
+                    await redis_client.delete(*keys)
+
+    found_ids = {str(row["id"]) for row in rows}
+    missing_ids = [conv_id for conv_id in requested_ids if conv_id not in found_ids]
+    skipped_inactive = [str(row["id"]) for row in rows if not row["is_active"]]
+    return {
+        "status": "human_override_enabled" if body.enable else "human_override_disabled",
+        "requested": len(requested_ids),
+        "matched": len(rows),
+        "updated": updated_count,
+        "missing_ids": missing_ids,
+        "skipped_inactive": skipped_inactive,
+    }
 
 
 @router.post("/conversations/{conversation_id}/reset")
