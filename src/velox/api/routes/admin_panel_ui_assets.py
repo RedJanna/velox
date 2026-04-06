@@ -286,6 +286,7 @@ const state = {
   currentView: (window.location.hash || '#dashboard').replace('#', ''),
   dashboard: null,
   conversations: [],
+  conversationsTotal: 0,
   conversationDetail: null,
   selectedConversationIds: new Set(),
   stayHolds: [],
@@ -1124,6 +1125,7 @@ async function loadConversations() {
   const params = buildConversationParams();
   const response = await apiFetch(`/conversations?${params.toString()}`);
   state.conversations = response.items || [];
+  state.conversationsTotal = Number(response.total || 0);
   syncConversationSelection();
   refs.conversationTableBody.innerHTML = renderConversationRows(state.conversations);
   if (state.conversations.length && !state.conversationDetail) {
@@ -1176,7 +1178,9 @@ function updateConversationBulkBar() {
   const selectedCount = state.selectedConversationIds.size;
   const hasItems = (state.conversations || []).length > 0;
   if (refs.conversationBulkBar) refs.conversationBulkBar.hidden = !hasItems;
-  if (refs.conversationSelectionCount) refs.conversationSelectionCount.textContent = `${selectedCount} seçili`;
+  if (refs.conversationSelectionCount) {
+    refs.conversationSelectionCount.textContent = `${selectedCount} seçili · bu sayfa ${state.conversations.length} · filtre toplamı ${state.conversationsTotal || 0}`;
+  }
 
   if (refs.conversationBulkBar) {
     const disableActions = selectedCount === 0;
