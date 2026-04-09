@@ -132,7 +132,7 @@ async def test_restaurant_create_hold_daily_capacity_full_returns_handoff_contex
         "guest_name": "Ali Veli",
         "phone": "+905551112233",
         "area": "outdoor",
-        "notes": "Window side if possible",
+        "notes": "Misafirimiz şu notu iletti: Window side if possible.",
     }
 
 

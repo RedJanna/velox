@@ -363,6 +363,8 @@ function renderStayHoldDetail(item) {
     refs.stayHoldDetail.innerHTML = '<div class="empty-state"><p>Detay icin listeden bir kayit secin.</p></div>';
     return;
   }
+  var stayNotes = holdDraftField(item, 'notes', '');
+  var hasSpecialRequest = hasMeaningfulSpecialRequest(stayNotes);
   refs.stayHoldDetail.innerHTML = '<div class="module-header"><div>'
     + '<h3>' + escapeHtml(String(item.hold_id || 'Hold')) + '</h3>'
     + '<p class="rez-no-hero">' + escapeHtml(item.reservation_no || '-') + '</p>'
@@ -375,6 +377,7 @@ function renderStayHoldDetail(item) {
     + formatHoldSummaryDetailCell('Toplam', holdDraftField(item, 'total_price_eur', '-') + ' EUR')
     + formatHoldSummaryDetailCell('Politika', holdDraftField(item, 'cancel_policy_type', '-'))
     + formatHoldSummaryDetailCell('Telefon', holdDraftField(item, 'phone', '-'))
+    + formatHoldSummaryDetailCell('Notlar', hasSpecialRequest ? stayNotes : '-')
     + '</div>'
     + '<div class="helper-box"><strong>Teknik Durum</strong>' + formatHoldTechnicalState(item) + '</div>'
     + '<div class="helper-box mt-md"><strong>Islem Zaman Cizelgesi</strong>' + formatHoldTimeline(item) + '</div>'
@@ -899,6 +902,7 @@ function renderTransferHoldDetail(item) {
     refs.transferHoldDetail.innerHTML = '<div class="empty-state"><p>Detay icin listeden bir kayit secin.</p></div>';
     return;
   }
+  var hasSpecialRequest = hasMeaningfulSpecialRequest(item.notes);
   refs.transferHoldDetail.innerHTML = '<div class="module-header"><div>'
     + '<h3>' + escapeHtml(String(item.hold_id || 'Hold')) + '</h3>'
     + '<p class="muted">TRANSFER · Hotel ' + escapeHtml(String(item.hotel_id || '-')) + '</p>'
@@ -912,6 +916,7 @@ function renderTransferHoldDetail(item) {
     + formatHoldSummaryDetailCell('Arac', item.vehicle_type || '-')
     + formatHoldSummaryDetailCell('Fiyat', (item.price_eur ? item.price_eur + ' EUR' : '-'))
     + formatHoldSummaryDetailCell('Telefon', item.phone || '-')
+    + formatHoldSummaryDetailCell('Notlar', hasSpecialRequest ? (item.notes || '-') : '-')
     + '</div>'
     + '<div class="dialog-actions hold-detail-actions mt-lg">'
     + '<button class="action-button primary" data-approve-hold="' + escapeHtml(item.hold_id) + '" ' + (String(item.status).toUpperCase() === 'PENDING_APPROVAL' ? '' : 'disabled') + '>Onayla</button>'

@@ -43,6 +43,7 @@ from velox.models.restaurant import (
 )
 from velox.models.transfer import TransferHold
 from velox.tools.notification import send_admin_whatsapp_alerts, send_whatsapp_to_phone
+from velox.utils.customer_notes import format_customer_visible_note
 from velox.utils.json import decode_json_object
 
 logger = structlog.get_logger(__name__)
@@ -219,6 +220,7 @@ async def create_stay_hold_from_panel(
     if user.role != Role.ADMIN and body.hotel_id != user.hotel_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
+    formatted_notes = format_customer_visible_note(body.notes)
     draft = {
         "guest_name": body.guest_name,
         "phone": body.phone,
@@ -237,7 +239,7 @@ async def create_stay_hold_from_panel(
         "cancel_policy_type": body.cancel_policy_type,
         "room_type_name": body.room_type_name,
         "board_type_name": body.board_type_name,
-        "notes": body.notes,
+        "notes": formatted_notes,
     }
     hold = StayHold(
         hold_id="",
@@ -425,6 +427,7 @@ async def create_restaurant_hold_from_panel(
     check_permission(user, "holds:approve")
     if user.role != Role.ADMIN and body.hotel_id != user.hotel_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    formatted_notes = format_customer_visible_note(body.notes)
 
     # Daily capacity check
     settings_repo = RestaurantSettingsRepository()
@@ -460,7 +463,7 @@ async def create_restaurant_hold_from_panel(
         guest_name=body.guest_name,
         phone=body.phone,
         area=body.area,
-        notes=body.notes,
+        notes=formatted_notes or None,
         status=RestaurantReservationStatus.BEKLEMEDE,
     )
     repo = RestaurantRepository()
@@ -475,7 +478,7 @@ async def create_restaurant_hold_from_panel(
         f"Kisi: {body.party_size}\n"
         f"Tarih: {slot_info.get('date', '-')} {slot_info.get('time', '')}\n"
         f"Alan: {body.area or '-'}\n"
-        f"Not: {body.notes or '-'}"
+        f"Not: {formatted_notes or '-'}"
     )
     try:
         # Admin notification
@@ -580,6 +583,7 @@ async def create_transfer_hold_from_panel(
     check_permission(user, "holds:approve")
     if user.role != Role.ADMIN and body.hotel_id != user.hotel_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    formatted_notes = format_customer_visible_note(body.notes)
 
     hold = TransferHold(
         hold_id="",
@@ -595,7 +599,7 @@ async def create_transfer_hold_from_panel(
         vehicle_type=body.vehicle_type,
         baby_seat=body.baby_seat,
         price_eur=body.price_eur,
-        notes=body.notes,
+        notes=formatted_notes or None,
         status=HoldStatus.PENDING_APPROVAL,
     )
     repo = TransferRepository()
@@ -856,6 +860,10 @@ async def update_restaurant_hold(
         if conflict is not None:
             raise HTTPException(status_code=409, detail="Ayni masa/saat icin baska rezervasyon var")
 
+    normalized_notes = body.notes
+    if body.notes is not None:
+        normalized_notes = format_customer_visible_note(body.notes) or None
+
     await fetchrow(
         """
         UPDATE restaurant_holds
@@ -879,7 +887,7 @@ async def update_restaurant_hold(
         body.party_size,
         body.time,
         body.area,
-        body.notes,
+        normalized_notes,
         table_type_update,
         table_id_update,
         clear_table_assignment,

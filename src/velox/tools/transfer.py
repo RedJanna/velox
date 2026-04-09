@@ -17,6 +17,7 @@ from velox.db.repositories.transfer import TransferRepository
 from velox.models.transfer import TransferHold, TransferInfoRequest
 from velox.tools.base import BaseTool
 from velox.tools.season import is_within_hotel_season, out_of_season_response
+from velox.utils.customer_notes import format_customer_visible_note
 
 FLIGHT_DELAY_PATTERN = re.compile(
     r"(flight\s*delay|delayed|delay|gecik|r[oö]tar|late\s*flight)",
@@ -93,6 +94,7 @@ class TransferCreateHoldTool(BaseTool):
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         self.validate_required(kwargs, ["hotel_id", "route", "date", "time", "pax_count", "guest_name", "phone"])
         hotel_id = int(kwargs["hotel_id"])
+        formatted_notes = format_customer_visible_note(str(kwargs["notes"]) if kwargs.get("notes") else "")
         profile = get_profile(hotel_id)
         requested_date = _coerce_date(kwargs.get("date"))
         if (
@@ -134,7 +136,7 @@ class TransferCreateHoldTool(BaseTool):
             vehicle_type=str(info.get("vehicle_type", "")),
             baby_seat=bool(kwargs.get("baby_seat", False)),
             price_eur=Decimal(str(info["price_eur"])),
-            notes=str(kwargs["notes"]) if kwargs.get("notes") else None,
+            notes=formatted_notes or None,
         )
         created = await self._transfer_repository.create_hold(hold)
         result: dict[str, Any] = {

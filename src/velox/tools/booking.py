@@ -19,6 +19,7 @@ from velox.models.reservation import BookingAvailabilityRequest, BookingQuoteReq
 from velox.tools.approval import ApprovalRequestTool
 from velox.tools.base import BaseTool
 from velox.tools.season import are_dates_within_hotel_season, out_of_season_response
+from velox.utils.customer_notes import format_customer_visible_note
 
 logger = structlog.get_logger(__name__)
 
@@ -92,6 +93,7 @@ class StayCreateHoldTool(BaseTool):
         self.validate_required(kwargs, ["hotel_id", "draft"])
 
         draft = StayDraft.model_validate(kwargs["draft"])
+        draft.notes = format_customer_visible_note(draft.notes)
         hotel_id = int(kwargs["hotel_id"])
 
         # Validate and resolve room_type_id against hotel profile

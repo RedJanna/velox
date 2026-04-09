@@ -24,6 +24,7 @@ from velox.models.restaurant import RestaurantAvailabilityRequest, RestaurantHol
 from velox.tools.approval import ApprovalRequestTool
 from velox.tools.base import BaseTool
 from velox.tools.notification import NotifySendTool, send_admin_whatsapp_alerts, send_whatsapp_to_phone
+from velox.utils.customer_notes import format_customer_visible_note
 
 logger = structlog.get_logger(__name__)
 
@@ -179,6 +180,7 @@ class RestaurantCreateHoldTool(BaseTool):
         self.validate_required(kwargs, ["hotel_id", "slot_id", "guest_name", "phone", "party_size"])
         hotel_id = int(kwargs["hotel_id"])
         party_size = int(kwargs["party_size"])
+        formatted_notes = format_customer_visible_note(str(kwargs["notes"]) if kwargs.get("notes") else "")
         profile = get_profile(hotel_id)
 
         settings = await self._settings_repository.get(hotel_id)
@@ -217,7 +219,7 @@ class RestaurantCreateHoldTool(BaseTool):
                         "guest_name": str(kwargs["guest_name"]),
                         "phone": str(kwargs["phone"]),
                         "area": str(kwargs["area"]) if kwargs.get("area") else slot_data.get("area"),
-                        "notes": str(kwargs["notes"]) if kwargs.get("notes") else None,
+                        "notes": formatted_notes or None,
                     },
                 }
 
@@ -249,7 +251,7 @@ class RestaurantCreateHoldTool(BaseTool):
                     "guest_name": str(kwargs["guest_name"]),
                     "phone": str(kwargs["phone"]),
                     "area": str(kwargs["area"]) if kwargs.get("area") else slot_data.get("area"),
-                    "notes": str(kwargs["notes"]) if kwargs.get("notes") else None,
+                    "notes": formatted_notes or None,
                 },
             }
 
@@ -268,7 +270,7 @@ class RestaurantCreateHoldTool(BaseTool):
                     "guest_name": str(kwargs["guest_name"]),
                     "phone": str(kwargs["phone"]),
                     "area": str(kwargs["area"]) if kwargs.get("area") else slot_data.get("area"),
-                    "notes": str(kwargs["notes"]) if kwargs.get("notes") else None,
+                    "notes": formatted_notes or None,
                 },
             }
         if not _is_within_restaurant_hours(profile, slot_data["time"]):
@@ -301,7 +303,7 @@ class RestaurantCreateHoldTool(BaseTool):
                 guest_name=str(kwargs["guest_name"]),
                 phone=str(kwargs["phone"]),
                 area=str(kwargs["area"]) if kwargs.get("area") else None,
-                notes=str(kwargs["notes"]) if kwargs.get("notes") else None,
+                notes=formatted_notes or None,
                 status=RestaurantReservationStatus.BEKLEMEDE,
             )
             created = await self._restaurant_repository.create_hold(hold)

@@ -236,6 +236,7 @@ Opsiyonel alanlar (sorulabilir ama zorunlu degil):
 - Tum veriler sistem formatina normalize edilir (tarih ISO, telefon E.164, isim bosluk normalizasyonu).
 - Cocuk yaslari verildiyse cocuk sayisi otomatik hesaplanir; ayrica sorulmaz.
 - PMS cocuk-yetiskin siniri geregi 12 yas ve uzeri cocuklar TOOL cagrilarinda yetiskin kabul edilir; bu normalizasyon MISAFIRE soylenmez ve misafir mesajlarinda orijinal kisi/yas bilgisi korunur.
+- Rezervasyon kartinda gorunecek `notes` alani ham/operasyonel ifade olarak kaydedilmaz; varsa tek cumle, profesyonel ve misafir-gorunur (Premium-Sicaklik) formatta normalize edilerek saklanir.
 - Yanit dili Turkce ise yazim kurallarina uyulur; Turkce karakterler dogru kullanilir (İ, ı, Ş, ş, Ğ, ğ, Ç, ç, Ö, ö, Ü, ü).
 - Tum rezervasyon turlerinde (konaklama/restoran/transfer) tarih toplarken yil ayri bir soru olarak sorulmaz; varsayilan yil sistemin guncel yilidir.
 - Misafir acikca guncel yildan farkli bir yil belirtirse otomatik akis durdurulur ve insan devri yapilir.
@@ -469,7 +470,7 @@ Input:
     "guest_name": "Ad Soyad",               // ZORUNLU
     "phone": "+90...",                       // ZORUNLU (E.164)
     "cancel_policy_type": "FREE_CANCEL",     // ZORUNLU (FREE_CANCEL | NON_REFUNDABLE)
-    "notes": "Deniz manzarali oda tercihi",  // ZORUNLU (bos string gonderilebilir)
+    "notes": "Misafirimiz su notu iletti: Deniz manzarali oda tercihi.",  // ZORUNLU (bos string gonderilebilir)
     "email?": "...",                         // opsiyonel
     "nationality?": "TR"                     // opsiyonel (varsayilan: dile gore)
   }
@@ -539,7 +540,7 @@ Kural: Talep edilen tarih `HOTEL_PROFILE.season.open` ile `HOTEL_PROFILE.season.
 
 #### TOOL: restaurant.create_hold
 Input:
-{"hotel_id":21966, "slot_id":"SLOT_1", "guest_name":"...", "phone":"+90...", "party_size":4, "notes?":"..."}
+{"hotel_id":21966, "slot_id":"SLOT_1", "guest_name":"...", "phone":"+90...", "party_size":4, "notes?":"Misafirimiz su notu iletti: Pencere kenari masa tercihi."}
 Output:
 {"restaurant_hold_id":"R_HOLD_...", "status":"PENDING_APPROVAL", "summary":"..."}
 Kural: Secilen slot sezon disi bir tarihe aitse tool yeni hold acmaz; `OUT_OF_SEASON` doner.
@@ -627,7 +628,7 @@ Input:
   "phone": "+90...",
   "flight_no?": "...",
   "baby_seat?": false,
-  "notes?": "..."
+  "notes?": "Misafirimiz su notu iletti: Ucus gecikmesi nedeniyle 20 dakika gecis olabilir."
 }
 Output:
 {"transfer_hold_id":"TR_HOLD_...", "status":"PENDING_APPROVAL", "summary":"..."}
