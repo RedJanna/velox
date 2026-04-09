@@ -801,6 +801,16 @@ TRANSFER:
   - Doluluk durumuna gore admin karar verir
   - LLM kesin soz vermez; "talebinizi iletiyorum" der
 
+### A9.8 Stay Quote Tutarlilik Kurali (Availability/Price Drift Guard)
+- `stay_quote` akisi fiyat metni olustururken once `booking_availability` sonucundaki sellable oda tiplerini filtreler.
+- `booking_availability` sonucu satir/eligible bilgiyle doluysa ve sellable oda yoksa, kullaniciya "müsait degil" mesaji verilir.
+- `booking_availability` sonucu tamamen bos donmusse (provider drift: availability bos ama price dolu), yanit dogrudan "müsait degil"e dusmez.
+- Bu durumda `booking_quote` offers icindeki oda-tipleri fallback filtre olarak kullanilir:
+  - `stop_sell=true` veya `room_to_sell<=0` olan offer'lar dislanir.
+  - Sellable offer varsa fiyat mesaji devam eder.
+  - Sellable offer yoksa "müsait degil" mesaji verilir.
+- Amaç: provider endpoint tutarsizliginda yanlis negatif "müsait degil" yanitini engellemek.
+
 ---
 
 ## A10) Webhook Varsayimi (Backend)

@@ -1787,6 +1787,23 @@ def _has_booking_availability_call(executed_calls: list[dict[str, Any]]) -> bool
     return any(str(call.get("name") or "") == "booking_availability" for call in executed_calls)
 
 
+def _has_nonempty_availability_inventory(executed_calls: list[dict[str, Any]]) -> bool:
+    """Return True when availability call returned any row/derived inventory signal."""
+    for call in executed_calls:
+        if str(call.get("name") or "") != "booking_availability":
+            continue
+        result = _loads_tool_payload(call.get("result"))
+        rows = result.get("rows")
+        if isinstance(rows, list) and rows:
+            return True
+        derived = result.get("derived")
+        if isinstance(derived, dict):
+            eligible_ids = derived.get("eligible_room_type_ids")
+            if isinstance(eligible_ids, list) and eligible_ids:
+                return True
+    return False
+
+
 def _latest_booking_quote_args(executed_calls: list[dict[str, Any]]) -> dict[str, Any]:
     """Return latest booking_quote arguments as dict."""
     for call in reversed(executed_calls):
@@ -1867,6 +1884,51 @@ def _filter_quote_payloads_by_available_room_types(
             }
         )
     return filtered_payloads
+
+
+def _extract_quote_fallback_room_type_ids(payloads: list[dict[str, Any]]) -> list[int]:
+    """Derive room type ids from quote offers when availability rows are empty."""
+    explicit_sellable_ids: list[int] = []
+    implicit_offer_ids: list[int] = []
+    seen_explicit: set[int] = set()
+    seen_implicit: set[int] = set()
+
+    for payload in payloads:
+        offers = payload.get("offers")
+        if not isinstance(offers, list):
+            continue
+        for offer in offers:
+            if not isinstance(offer, dict):
+                continue
+            room_type_id = int(offer.get("room_type_id", 0) or 0)
+            if room_type_id <= 0:
+                continue
+
+            stop_sell_raw = offer.get("stop_sell")
+            room_to_sell_raw = offer.get("room_to_sell")
+            has_stop_sell = stop_sell_raw is not None
+            has_room_to_sell = room_to_sell_raw is not None
+
+            if has_stop_sell and bool(stop_sell_raw):
+                continue
+            if has_room_to_sell and int(room_to_sell_raw or 0) <= 0:
+                continue
+
+            if has_stop_sell or has_room_to_sell:
+                if room_type_id in seen_explicit:
+                    continue
+                seen_explicit.add(room_type_id)
+                explicit_sellable_ids.append(room_type_id)
+                continue
+
+            if room_type_id in seen_implicit:
+                continue
+            seen_implicit.add(room_type_id)
+            implicit_offer_ids.append(room_type_id)
+
+    if explicit_sellable_ids:
+        return explicit_sellable_ids
+    return implicit_offer_ids
 
 
 def _extract_requested_occupancy(executed_calls: list[dict[str, Any]]) -> dict[str, Any]:
@@ -3003,11 +3065,17 @@ def _build_deterministic_turkish_stay_quote_messages(
         if not offers:
             return []
         payloads = [{"arguments": {}, "offers": offers}]
+    has_availability_call = _has_booking_availability_call(executed_calls)
     available_room_type_ids = _extract_available_room_type_ids(executed_calls)
-    if _has_booking_availability_call(executed_calls) and not available_room_type_ids:
-        return [TR_NO_AVAILABLE_ROOM_FOR_QUOTE]
+    if has_availability_call and not available_room_type_ids:
+        if _has_nonempty_availability_inventory(executed_calls):
+            return [TR_NO_AVAILABLE_ROOM_FOR_QUOTE]
+        quote_fallback_room_type_ids = _extract_quote_fallback_room_type_ids(payloads)
+        if not quote_fallback_room_type_ids:
+            return [TR_NO_AVAILABLE_ROOM_FOR_QUOTE]
+        available_room_type_ids = quote_fallback_room_type_ids
     payloads = _filter_quote_payloads_by_available_room_types(payloads, available_room_type_ids)
-    if not payloads and _has_booking_availability_call(executed_calls):
+    if not payloads and has_availability_call:
         return [TR_NO_AVAILABLE_ROOM_FOR_QUOTE]
     grouped_payloads = _group_quote_payloads(payloads)
 
