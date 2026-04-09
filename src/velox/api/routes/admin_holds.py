@@ -142,7 +142,7 @@ async def list_stay_holds(
         LIMIT $3 OFFSET $4
     """
     count_query = f"""
-        SELECT COUNT(*) FROM stay_holds
+        SELECT COUNT(*) FROM stay_holds sh
         WHERE ($1::int IS NULL OR hotel_id = $1)
           AND ($2::text IS NULL OR status = $2)
           AND {archived_clause}
