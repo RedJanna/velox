@@ -262,6 +262,33 @@ async def test_quote_normalizes_teen_children_into_adults(monkeypatch: pytest.Mo
 
 
 @pytest.mark.asyncio
+async def test_availability_normalizes_teen_children_into_adults(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Availability should mirror quote occupancy normalization for teen children."""
+    mock_client = AsyncMock()
+    mock_client.get.return_value = {
+        "available": True,
+        "rows": [{"date": "2026-08-20", "room-type-id": 66, "room-to-sell": 2}],
+    }
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+
+    result = await endpoints.availability(
+        hotel_id=21966,
+        checkin=date(2026, 8, 20),
+        checkout=date(2026, 8, 22),
+        adults=2,
+        chd_ages=[12, 11],
+        currency="EUR",
+    )
+
+    assert result.available is True
+    _, kwargs = mock_client.get.await_args
+    params = kwargs["params"]
+    assert params["adult"] == 3
+    assert params["chdCount"] == 1
+    assert params["childage"] == "11"
+
+
+@pytest.mark.asyncio
 async def test_quote_raises_when_child_occupancy_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
     """Child quote requests must fail if PMS returns adult-only occupancy."""
     mock_client = AsyncMock()

@@ -181,10 +181,13 @@ async def availability(
     """Check room availability for given dates."""
     client = get_elektraweb_client()
     normalized_chd_count, normalized_chd_ages = _normalize_children_for_pms(chd_count, chd_ages)
+    requested_children = _requested_child_count(chd_count, chd_ages)
+    adult_equivalent_children = max(requested_children - normalized_chd_count, 0)
+    normalized_adults = adults + adult_equivalent_children
     params: dict[str, str | int] = {
         "fromdate": checkin.isoformat(),
         "todate": checkout.isoformat(),
-        "adult": adults,
+        "adult": normalized_adults,
         "currency": currency,
     }
     _apply_child_quote_params(params, normalized_chd_count, normalized_chd_ages)
