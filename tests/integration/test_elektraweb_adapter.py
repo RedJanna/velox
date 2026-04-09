@@ -855,6 +855,78 @@ async def test_create_reservation_retries_with_refreshed_offer_on_agency_error(
     assert refreshed_payload["board-type-id"] == 44512
 
 
+@pytest.mark.asyncio
+async def test_create_reservation_retry_success_also_syncs_notes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Notes must still be synced when booking create succeeds only after refreshed retry."""
+    mock_client = AsyncMock()
+    request = httpx.Request("POST", "https://bookingapi.elektraweb.com/hotel/21966/createReservation")
+    agency_error = httpx.HTTPStatusError(
+        "agency-not-found",
+        request=request,
+        response=httpx.Response(
+            400,
+            json={"success": False, "message": "Agency Not Found"},
+            request=request,
+        ),
+    )
+    mock_client.post.side_effect = [agency_error, {"reservation-id": "RSV-2", "voucher-no": "V-2"}, {"success": True}]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    monkeypatch.setattr(
+        endpoints,
+        "_refresh_offer_identifiers",
+        AsyncMock(
+            return_value={
+                "guest_name": "Test User",
+                "phone": "+905301112233",
+                "checkin_date": "2026-10-01",
+                "checkout_date": "2026-10-03",
+                "adults": 2,
+                "chd_ages": [],
+                "room_type_id": 396097,
+                "board_type_id": 44512,
+                "rate_type_id": 24171,
+                "rate_code_id": 183666,
+                "price_agency_id": 247664,
+                "total_price_eur": "140.0",
+                "currency_display": "EUR",
+                "cancel_policy_type": "NON_REFUNDABLE",
+                "notes": "Misafirimiz şu notu iletti: Geç check-in yapacaktır.",
+            }
+        ),
+    )
+
+    result = await endpoints.create_reservation(
+        21966,
+        {
+            "guest_name": "Test User",
+            "phone": "+905301112233",
+            "checkin_date": "2026-10-01",
+            "checkout_date": "2026-10-03",
+            "adults": 2,
+            "chd_ages": [],
+            "room_type_id": 396097,
+            "board_type_id": 2,
+            "rate_type_id": 11,
+            "rate_code_id": 102,
+            "price_agency_id": 777,
+            "total_price_eur": "140.0",
+            "currency_display": "EUR",
+            "cancel_policy_type": "NON_REFUNDABLE",
+            "notes": "Misafirimiz şu notu iletti: Geç check-in yapacaktır.",
+        },
+    )
+
+    assert result.reservation_id == "RSV-2"
+    assert mock_client.post.await_count == 3
+    notes_call = mock_client.post.await_args_list[2]
+    assert notes_call.args[0] == "/hotel/21966/updateReservation"
+    assert notes_call.kwargs["json_body"]["reservationId"] == "RSV-2"
+    assert notes_call.kwargs["json_body"]["voucherNo"] == "V-2"
+    assert notes_call.kwargs["json_body"]["notes"] == "Misafirimiz şu notu iletti: Geç check-in yapacaktır."
+
+
 def test_create_reservation_refresh_detector_accepts_price_mismatch_errors() -> None:
     """400 price mismatch responses should trigger quote refresh retry path."""
     request = httpx.Request("POST", "https://bookingapi.elektraweb.com/hotel/21966/createReservation")
@@ -1057,6 +1129,126 @@ async def test_create_reservation_uses_second_refresh_after_price_mismatch(
     assert mock_client.post.await_count == 3
     second_refresh_payload = mock_client.post.await_args_list[2].kwargs["json_body"]
     assert second_refresh_payload["total-price"] == 357.0
+
+
+@pytest.mark.asyncio
+async def test_create_reservation_second_refresh_success_also_syncs_notes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Second-refresh success path must also write customer-visible notes to Elektra."""
+    mock_client = AsyncMock()
+    request = httpx.Request("POST", "https://bookingapi.elektraweb.com/hotel/21966/createReservation")
+    agency_error = httpx.HTTPStatusError(
+        "agency-not-found",
+        request=request,
+        response=httpx.Response(400, json={"success": False, "message": "Agency Not Found"}, request=request),
+    )
+    price_error = httpx.HTTPStatusError(
+        "price-mismatch",
+        request=request,
+        response=httpx.Response(
+            400,
+            json={"success": False, "message": "You price quote 504 EUR is wrong, it must be 357 EUR"},
+            request=request,
+        ),
+    )
+    mock_client.post.side_effect = [
+        agency_error,
+        price_error,
+        {"reservation-id": "RSV-SECOND", "voucher-no": "V-SECOND"},
+        {"success": True},
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    monkeypatch.setattr(
+        endpoints,
+        "_refresh_offer_identifiers",
+        AsyncMock(
+            side_effect=[
+                {
+                    "guest_name": "Test User",
+                    "phone": "+905301112233",
+                    "checkin_date": "2026-10-01",
+                    "checkout_date": "2026-10-03",
+                    "adults": 2,
+                    "chd_ages": [12, 11],
+                    "room_type_id": 396095,
+                    "board_type_id": 44512,
+                    "rate_type_id": 24170,
+                    "rate_code_id": 183666,
+                    "price_agency_id": 247664,
+                    "total_price_eur": "504.0",
+                    "currency_display": "EUR",
+                    "cancel_policy_type": "FREE_CANCEL",
+                    "notes": "Misafirimiz şu notu iletti: Sessiz oda rica ediyor.",
+                },
+                {
+                    "guest_name": "Test User",
+                    "phone": "+905301112233",
+                    "checkin_date": "2026-10-01",
+                    "checkout_date": "2026-10-03",
+                    "adults": 2,
+                    "chd_ages": [12, 11],
+                    "room_type_id": 396095,
+                    "board_type_id": 44512,
+                    "rate_type_id": 24170,
+                    "rate_code_id": 183666,
+                    "price_agency_id": 247664,
+                    "total_price_eur": "504.0",
+                    "currency_display": "EUR",
+                    "cancel_policy_type": "FREE_CANCEL",
+                    "notes": "Misafirimiz şu notu iletti: Sessiz oda rica ediyor.",
+                },
+                {
+                    "guest_name": "Test User",
+                    "phone": "+905301112233",
+                    "checkin_date": "2026-10-01",
+                    "checkout_date": "2026-10-03",
+                    "adults": 2,
+                    "chd_ages": [12, 11],
+                    "room_type_id": 396095,
+                    "board_type_id": 44512,
+                    "rate_type_id": 24178,
+                    "rate_code_id": 183666,
+                    "price_agency_id": 247664,
+                    "total_price_eur": "999.0",
+                    "currency_display": "EUR",
+                    "cancel_policy_type": "FREE_CANCEL",
+                    "pms_adult_count": 3,
+                    "pms_child_count": 1,
+                    "notes": "Misafirimiz şu notu iletti: Sessiz oda rica ediyor.",
+                },
+            ]
+        ),
+    )
+
+    result = await endpoints.create_reservation(
+        21966,
+        {
+            "guest_name": "Test User",
+            "phone": "+905301112233",
+            "checkin_date": "2026-10-01",
+            "checkout_date": "2026-10-03",
+            "adults": 2,
+            "chd_ages": [12, 11],
+            "room_type_id": 396095,
+            "board_type_id": 2,
+            "rate_type_id": 10,
+            "rate_code_id": 101,
+            "price_agency_id": 777,
+            "total_price_eur": "1501.5",
+            "currency_display": "EUR",
+            "cancel_policy_type": "FREE_CANCEL",
+            "notes": "Misafirimiz şu notu iletti: Sessiz oda rica ediyor.",
+        },
+    )
+
+    assert result.reservation_id == "RSV-SECOND"
+    assert mock_client.post.await_count == 4
+    notes_call = mock_client.post.await_args_list[3]
+    assert notes_call.args[0] == "/hotel/21966/updateReservation"
+    assert notes_call.kwargs["json_body"]["reservationId"] == "RSV-SECOND"
+    assert notes_call.kwargs["json_body"]["voucherNo"] == "V-SECOND"
+    assert notes_call.kwargs["json_body"]["notes"] == "Misafirimiz şu notu iletti: Sessiz oda rica ediyor."
 
 
 @pytest.mark.asyncio

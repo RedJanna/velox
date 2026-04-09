@@ -3939,6 +3939,50 @@ def _should_auto_submit_stay_hold(internal_json: InternalJSON) -> bool:
     return state == "READY_FOR_TOOL"
 
 
+def _stay_hold_fields_present(entities: dict[str, Any]) -> bool:
+    """Return True when minimum fields exist to build stay hold draft via quote fallback."""
+    return (
+        bool(str(entities.get("checkin_date") or "").strip())
+        and bool(str(entities.get("checkout_date") or "").strip())
+        and _to_int(entities.get("adults"), 0) > 0
+        and bool(str(entities.get("guest_name") or "").strip())
+        and bool(str(entities.get("phone") or "").strip())
+    )
+
+
+def _should_auto_submit_stay_hold_from_handoff(
+    internal_json: InternalJSON,
+    entities: dict[str, Any],
+) -> bool:
+    """Return True for recoverable stay handoff cases caused by missing live rate identifiers."""
+    if str(internal_json.state or "").upper() != "HANDOFF":
+        return False
+    if not _stay_hold_fields_present(entities):
+        return False
+
+    handoff = internal_json.handoff if isinstance(internal_json.handoff, dict) else {}
+    if not bool(handoff.get("needed", True)):
+        return False
+
+    reason_text = _canonical_text(
+        f"{handoff.get('reason') or ''} {internal_json.next_step or ''} {internal_json.intent or ''}"
+    )
+    if "livepriceunavailable" in reason_text or "stayholdsubmissionfailed" in reason_text:
+        return False
+
+    has_rate_identifier_signal = any(
+        token in reason_text
+        for token in (
+            "rateidentifier",
+            "ratetypeid",
+            "ratecodeid",
+            "priceagencyid",
+        )
+    )
+    has_stay_hold_signal = "staycreatehold" in reason_text or "pmsgrounding" in reason_text
+    return has_rate_identifier_signal and has_stay_hold_signal
+
+
 def _restaurant_required_fields_present(entities: dict[str, Any]) -> bool:
     """Return True when enough restaurant fields exist to call availability/create tools."""
     return (
@@ -4826,7 +4870,10 @@ async def _run_message_pipeline(
         if (
             dispatcher is not None
             and not _executed_stay_hold_submission(executed_calls)
-            and _should_auto_submit_stay_hold(parsed.internal_json)
+            and (
+                _should_auto_submit_stay_hold(parsed.internal_json)
+                or _should_auto_submit_stay_hold_from_handoff(parsed.internal_json, entities)
+            )
         ):
             fallback_calls = await _auto_submit_stay_hold(
                 conversation=conversation,

@@ -1170,6 +1170,96 @@ async def test_run_message_pipeline_auto_submits_hold_when_embedded_tool_calls_o
 
 
 @pytest.mark.asyncio
+async def test_run_message_pipeline_auto_submits_hold_from_recoverable_rate_identifier_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recoverable handoff for missing rate identifiers should still auto-submit stay hold."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Talebinizi aldim.\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"other","state":"HANDOFF","entities":'
+            '{"checkin_date":"2026-10-01","checkout_date":"2026-10-06","adults":2,"chd_count":0,'
+            '"chd_ages":[],"room_type_id":3,"board_type_id":2,"currency":"EUR",'
+            '"cancel_policy_type":"FREE_CANCEL","guest_name":"Udeneme UUdeneme",'
+            '"phone":"+905304498453","nationality":"TR",'
+            '"notes":"Misafirimiz şu notu iletti: 1 adet ekstra yastik rica ediyor."},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":true,'
+            '"reason":"Rate identifiers (rate_type_id, rate_code_id, price_agency_id) not available to create stay_create_hold safely without PMS grounding."},'
+            '"risk_flags":["VIP_REQUEST"],"escalation":{"level":"L2","route_to_role":"ADMIN"},'
+            '"next_step":"handoff_to_admin"}',
+            [],
+        )
+
+    class _Dispatcher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append((name, kwargs))
+            if name == "booking_quote":
+                return {
+                    "offers": [
+                        {
+                            "room_type_id": 396096,
+                            "board_type_id": 2,
+                            "rate_type_id": 24178,
+                            "rate_code_id": 301002,
+                            "price_agency_id": 12,
+                            "currency_code": "EUR",
+                            "price": "710",
+                            "discounted_price": "710",
+                            "rate_type": "Ucretsiz Iptal",
+                            "cancel_possible": True,
+                        }
+                    ]
+                }
+            if name == "stay_create_hold":
+                draft = kwargs.get("draft", {})
+                assert draft.get("room_type_id") == 396096
+                assert draft.get("notes") == "Misafirimiz şu notu iletti: 1 adet ekstra yastik rica ediyor."
+                return {
+                    "stay_hold_id": "S_HOLD_9971",
+                    "status": "PENDING_APPROVAL",
+                    "approval_request_id": "APR_9971",
+                    "approval_status": "REQUESTED",
+                }
+            return {"error": "unexpected_tool"}
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    fake_profile = SimpleNamespace(
+        room_types=[
+            SimpleNamespace(
+                id=3,
+                pms_room_type_id=396096,
+                name=SimpleNamespace(tr="Premium", en="Premium"),
+            )
+        ],
+        rate_mapping={},
+    )
+    dispatcher = _Dispatcher()
+    conversation = Conversation(hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: fake_profile)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="premium oda icin rezervasyon olustur",
+        dispatcher=dispatcher,
+        expected_language="tr",
+    )
+
+    assert [item[0] for item in dispatcher.calls] == ["booking_quote", "stay_create_hold"]
+    assert result.internal_json.state == "PENDING_APPROVAL"
+    assert result.internal_json.next_step == "await_admin_approval"
+
+
+@pytest.mark.asyncio
 async def test_run_message_pipeline_restaurant_single_area_prompt_is_suppressed_and_auto_submitted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

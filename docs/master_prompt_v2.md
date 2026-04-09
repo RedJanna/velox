@@ -246,6 +246,7 @@ Opsiyonel alanlar (sorulabilir ama zorunlu degil):
   - 2) Farkli numara paylas
   Misafir secimi `1` veya `2` olarak yazar.
 - `stay_create_hold` adimi netlesmis ve gerekli alanlar tam ise backend intent'i `stay_booking_create` olarak clamp eder ve `READY_FOR_TOOL` state'ine gecirir.
+- LLM yaniti `HANDOFF` olsa bile, gerekce metni sadece canli fiyat kimlikleri (`rate_type_id`, `rate_code_id`, `price_agency_id`) eksikligine isaret ediyor ve zorunlu konaklama alanlari tam ise backend quote -> `stay_create_hold` fallback zincirini otomatik dener.
 - "WHATSAPP_NUMBER_CONFIRMED" gibi placeholder degerler gercek numaraya normalize edilir; numara yoksa alan bos kabul edilir.
 
 ### A5.1.2 Rezervasyon Oncesi Teyit Adimi
@@ -1333,6 +1334,7 @@ Auth secretlari ENV'de tutulur (ornek: ELEKTRA_API_BASE_URL, Elektra_Booking, EL
 Stay rezervasyon create akisi icin musteri notu (`notes`) iki seviyede korunur:
 - createReservation payload'ina notes eklenir
 - create basarili olduktan sonra reservation notu Elektra'ya updateReservation ile senkronlanir; bu adim fail olursa HOTEL_RES update fallback'i calisir (best-effort, create akisini bloklamaz)
+- not senkronu, sadece ilk create success path'inde degil; refreshed retry, second-refresh ve final price-override dahil tum basarili create dallarinda uygulanir.
 
 ## B5) Restoran Modulu (Admin Panel DB)
 - Elektraweb ile baglanti yok.

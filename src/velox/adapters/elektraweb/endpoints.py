@@ -949,6 +949,25 @@ async def _sync_reservation_notes_best_effort(
         )
 
 
+async def _parse_create_response_and_sync_notes(
+    client: ElektrawebClient,
+    *,
+    hotel_id: int,
+    raw_response: Any,
+    draft: dict[str, Any],
+) -> ReservationResponse:
+    """Parse create response and sync customer-visible notes for every successful create path."""
+    parsed = parse_reservation_create(raw_response)
+    await _sync_reservation_notes_best_effort(
+        client,
+        hotel_id=hotel_id,
+        reservation_id=str(parsed.reservation_id or ""),
+        voucher_no=str(parsed.voucher_no or ""),
+        notes=str(draft.get("notes") or ""),
+    )
+    return parsed
+
+
 async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> ReservationResponse:
     """Create reservation in Elektraweb with booking API primary and HotelAdvisor fallback."""
     client = get_elektraweb_client()
@@ -1000,15 +1019,12 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
         try:
             logger.info("elektraweb_create_reservation_attempt", hotel_id=hotel_id, path=path)
             raw = await client.post(path, json_body=booking_api_payload)
-            parsed = parse_reservation_create(raw)
-            await _sync_reservation_notes_best_effort(
+            return await _parse_create_response_and_sync_notes(
                 client,
                 hotel_id=hotel_id,
-                reservation_id=str(parsed.reservation_id or ""),
-                voucher_no=str(parsed.voucher_no or ""),
-                notes=str(draft.get("notes") or ""),
+                raw_response=raw,
+                draft=draft,
             )
-            return parsed
         except httpx.HTTPStatusError as error:
             logger.warning("elektraweb_create_reservation_path_failed", path=path, error=str(error))
             last_error = error
@@ -1041,7 +1057,12 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
                             path,
                             json_body=_build_booking_api_create_payload(hotel_id, refreshed_draft),
                         )
-                        return parse_reservation_create(raw)
+                        return await _parse_create_response_and_sync_notes(
+                            client,
+                            hotel_id=hotel_id,
+                            raw_response=raw,
+                            draft=refreshed_draft,
+                        )
                     except Exception as retry_error:  # pragma: no cover - exercised via integration tests
                         if isinstance(retry_error, httpx.HTTPStatusError):
                             expected_total = _extract_expected_total_from_price_mismatch(retry_error)
@@ -1064,7 +1085,12 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
                                         path,
                                         json_body=_build_booking_api_create_payload(hotel_id, second_refresh_payload),
                                     )
-                                    return parse_reservation_create(raw)
+                                    return await _parse_create_response_and_sync_notes(
+                                        client,
+                                        hotel_id=hotel_id,
+                                        raw_response=raw,
+                                        draft=second_refresh_payload,
+                                    )
                                 except Exception as second_retry_error:
                                     if isinstance(second_retry_error, httpx.HTTPStatusError):
                                         last_expected_total = _extract_expected_total_from_price_mismatch(
@@ -1089,7 +1115,12 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
                                                         final_price_payload,
                                                     ),
                                                 )
-                                                return parse_reservation_create(raw)
+                                                return await _parse_create_response_and_sync_notes(
+                                                    client,
+                                                    hotel_id=hotel_id,
+                                                    raw_response=raw,
+                                                    draft=final_price_payload,
+                                                )
                                             except Exception as final_retry_error:
                                                 logger.warning(
                                                     "elektraweb_create_reservation_retry_price_override_failed",
@@ -1130,14 +1161,14 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
                     await client.post("/Execute/SP_HOTELRESGUEST_SAVE", json_body=guest_payload)
                 except Exception as guest_error:
                     logger.warning("elektraweb_guest_save_failed", hotel_id=hotel_id, error=str(guest_error))
-            await _sync_reservation_notes_best_effort(
-                client,
-                hotel_id=hotel_id,
-                reservation_id=str(parsed.reservation_id or ""),
-                voucher_no=str(parsed.voucher_no or ""),
-                notes=str(draft.get("notes") or ""),
-            )
-            return parsed
+        await _sync_reservation_notes_best_effort(
+            client,
+            hotel_id=hotel_id,
+            reservation_id=str(parsed.reservation_id or ""),
+            voucher_no=str(parsed.voucher_no or ""),
+            notes=str(draft.get("notes") or ""),
+        )
+        return parsed
     except Exception as error:
         logger.warning("elektraweb_create_reservation_path_failed", path="/Insert/HOTEL_RES", error=str(error))
         last_error = error
