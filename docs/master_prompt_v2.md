@@ -1330,6 +1330,9 @@ Ek HotelAdvisor uclari (destekleyici isler/odeme/pax sync):
 
 Adapter ham endpointleri uygulama tool contractina map eder.
 Auth secretlari ENV'de tutulur (ornek: ELEKTRA_API_BASE_URL, Elektra_Booking, ELEKTRA_HOTEL_ID).
+Stay rezervasyon create akisi icin musteri notu (`notes`) iki seviyede korunur:
+- createReservation payload'ina notes eklenir
+- create basarili olduktan sonra reservation notu Elektra'ya updateReservation ile senkronlanir; bu adim fail olursa HOTEL_RES update fallback'i calisir (best-effort, create akisini bloklamaz)
 
 ## B5) Restoran Modulu (Admin Panel DB)
 - Elektraweb ile baglanti yok.

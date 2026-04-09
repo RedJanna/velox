@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 import structlog
 
-from velox.adapters.elektraweb.client import get_elektraweb_client
+from velox.adapters.elektraweb.client import ElektrawebClient, get_elektraweb_client
 from velox.adapters.elektraweb.mapper import (
     AvailabilityResponse,
     BookingOffer,
@@ -878,6 +878,77 @@ def _build_hoteladvisor_guest_payload(
     }
 
 
+async def _sync_reservation_notes_best_effort(
+    client: ElektrawebClient,
+    *,
+    hotel_id: int,
+    reservation_id: str,
+    voucher_no: str,
+    notes: str,
+) -> None:
+    """Write customer note to Elektra reservation notes area without blocking create flow."""
+    clean_notes = str(notes or "").strip()
+    if not clean_notes:
+        return
+
+    update_body: dict[str, Any] = {"notes": clean_notes}
+    if reservation_id:
+        update_body["reservationId"] = reservation_id
+    if voucher_no:
+        update_body["voucherNo"] = voucher_no
+
+    if "reservationId" in update_body or "voucherNo" in update_body:
+        try:
+            await client.post(f"/hotel/{hotel_id}/updateReservation", json_body=update_body)
+            logger.info(
+                "elektraweb_reservation_notes_synced",
+                hotel_id=hotel_id,
+                reservation_id=reservation_id,
+                voucher_no=voucher_no,
+                mode="booking_api_update",
+            )
+            return
+        except Exception as error:
+            logger.warning(
+                "elektraweb_reservation_notes_sync_failed",
+                hotel_id=hotel_id,
+                reservation_id=reservation_id,
+                voucher_no=voucher_no,
+                mode="booking_api_update",
+                error=str(error),
+            )
+
+    update_row: dict[str, object] = {"HOTELID": str(hotel_id), "NOTES": clean_notes}
+    if reservation_id:
+        update_row["ID"] = reservation_id
+    elif voucher_no:
+        update_row["VOUCHERNO"] = voucher_no
+    else:
+        return
+
+    try:
+        await client.post(
+            "/Update/HOTEL_RES",
+            json_body={"Action": "Update", "Object": "HOTEL_RES", "Row": update_row},
+        )
+        logger.info(
+            "elektraweb_reservation_notes_synced",
+            hotel_id=hotel_id,
+            reservation_id=reservation_id,
+            voucher_no=voucher_no,
+            mode="hoteladvisor_update",
+        )
+    except Exception as error:
+        logger.warning(
+            "elektraweb_reservation_notes_sync_failed",
+            hotel_id=hotel_id,
+            reservation_id=reservation_id,
+            voucher_no=voucher_no,
+            mode="hoteladvisor_update",
+            error=str(error),
+        )
+
+
 async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> ReservationResponse:
     """Create reservation in Elektraweb with booking API primary and HotelAdvisor fallback."""
     client = get_elektraweb_client()
@@ -929,7 +1000,15 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
         try:
             logger.info("elektraweb_create_reservation_attempt", hotel_id=hotel_id, path=path)
             raw = await client.post(path, json_body=booking_api_payload)
-            return parse_reservation_create(raw)
+            parsed = parse_reservation_create(raw)
+            await _sync_reservation_notes_best_effort(
+                client,
+                hotel_id=hotel_id,
+                reservation_id=str(parsed.reservation_id or ""),
+                voucher_no=str(parsed.voucher_no or ""),
+                notes=str(draft.get("notes") or ""),
+            )
+            return parsed
         except httpx.HTTPStatusError as error:
             logger.warning("elektraweb_create_reservation_path_failed", path=path, error=str(error))
             last_error = error
@@ -1051,6 +1130,13 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
                     await client.post("/Execute/SP_HOTELRESGUEST_SAVE", json_body=guest_payload)
                 except Exception as guest_error:
                     logger.warning("elektraweb_guest_save_failed", hotel_id=hotel_id, error=str(guest_error))
+            await _sync_reservation_notes_best_effort(
+                client,
+                hotel_id=hotel_id,
+                reservation_id=str(parsed.reservation_id or ""),
+                voucher_no=str(parsed.voucher_no or ""),
+                notes=str(draft.get("notes") or ""),
+            )
             return parsed
     except Exception as error:
         logger.warning("elektraweb_create_reservation_path_failed", path="/Insert/HOTEL_RES", error=str(error))

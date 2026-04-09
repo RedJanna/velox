@@ -645,6 +645,91 @@ async def test_create_reservation_uses_explicit_extra_guest_names_when_provided(
 
 
 @pytest.mark.asyncio
+async def test_create_reservation_syncs_notes_via_update_reservation(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When draft contains notes, adapter should write them to reservation notes after create."""
+    mock_client = AsyncMock()
+    mock_client.post.side_effect = [
+        {"reservation-id": "RSV-1", "voucher-no": "V-1"},
+        {"success": True},
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    monkeypatch.setattr(endpoints, "_refresh_offer_identifiers", AsyncMock(return_value=None))
+
+    draft = {
+        "guest_name": "Test User",
+        "phone": "+905301112233",
+        "checkin_date": "2026-10-01",
+        "checkout_date": "2026-10-03",
+        "adults": 2,
+        "chd_ages": [],
+        "room_type_id": 396097,
+        "board_type_id": 2,
+        "rate_type_id": 11,
+        "rate_code_id": 102,
+        "price_agency_id": 777,
+        "total_price_eur": "140.0",
+        "currency_display": "EUR",
+        "notes": "Misafirimiz şu notu iletti: Üst kat sakin oda rica ediyor.",
+    }
+
+    result = await endpoints.create_reservation(21966, draft)
+
+    assert result.reservation_id == "RSV-1"
+    assert mock_client.post.await_count == 2
+    create_call = mock_client.post.await_args_list[0]
+    notes_call = mock_client.post.await_args_list[1]
+    assert create_call.kwargs["json_body"]["notes"] == draft["notes"]
+    assert notes_call.args[0] == "/hotel/21966/updateReservation"
+    assert notes_call.kwargs["json_body"]["reservationId"] == "RSV-1"
+    assert notes_call.kwargs["json_body"]["voucherNo"] == "V-1"
+    assert notes_call.kwargs["json_body"]["notes"] == draft["notes"]
+
+
+@pytest.mark.asyncio
+async def test_create_reservation_notes_fallbacks_to_hoteladvisor_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If booking update endpoint fails, notes sync should fallback to HOTEL_RES update."""
+    mock_client = AsyncMock()
+    mock_client.post.side_effect = [
+        {"reservation-id": "RSV-1", "voucher-no": "V-1"},
+        RuntimeError("updateReservation failed"),
+        {"success": True},
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    monkeypatch.setattr(endpoints, "_refresh_offer_identifiers", AsyncMock(return_value=None))
+
+    draft = {
+        "guest_name": "Test User",
+        "phone": "+905301112233",
+        "checkin_date": "2026-10-01",
+        "checkout_date": "2026-10-03",
+        "adults": 2,
+        "chd_ages": [],
+        "room_type_id": 396097,
+        "board_type_id": 2,
+        "rate_type_id": 11,
+        "rate_code_id": 102,
+        "price_agency_id": 777,
+        "total_price_eur": "140.0",
+        "currency_display": "EUR",
+        "notes": "Misafirimiz şu notu iletti: Bebek arabası için geniş alan rica ediyor.",
+    }
+
+    _ = await endpoints.create_reservation(21966, draft)
+
+    assert mock_client.post.await_count == 3
+    fallback_call = mock_client.post.await_args_list[2]
+    assert fallback_call.args[0] == "/Update/HOTEL_RES"
+    payload = fallback_call.kwargs["json_body"]
+    assert payload["Action"] == "Update"
+    assert payload["Object"] == "HOTEL_RES"
+    assert payload["Row"]["HOTELID"] == "21966"
+    assert payload["Row"]["ID"] == "RSV-1"
+    assert payload["Row"]["NOTES"] == draft["notes"]
+
+
+@pytest.mark.asyncio
 async def test_get_reservation_uses_reservation_list_window_and_filters_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -821,7 +906,7 @@ async def test_create_reservation_agency_error_without_refresh_falls_back_to_hot
         ),
     )
 
-    async def _post(path: str, json_body: dict[str, object]) -> dict[str, object]:
+    async def _post(path: str, _json_body: dict[str, object]) -> dict[str, object]:
         if path in {
             "/hotel/21966/createReservation",
             "/hotel/21966/reservation/create",
