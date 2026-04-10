@@ -3961,9 +3961,6 @@ def _should_auto_submit_stay_hold_from_handoff(
         return False
 
     handoff = internal_json.handoff if isinstance(internal_json.handoff, dict) else {}
-    if not bool(handoff.get("needed", True)):
-        return False
-
     reason_text = _canonical_text(
         f"{handoff.get('reason') or ''} {internal_json.next_step or ''} {internal_json.intent or ''}"
     )
@@ -3980,6 +3977,21 @@ def _should_auto_submit_stay_hold_from_handoff(
         )
     )
     has_stay_hold_signal = "staycreatehold" in reason_text or "pmsgrounding" in reason_text
+    has_room_type_mapping_signal = (
+        "roomtypes" in reason_text
+        and "sistemid" in reason_text
+        and "otomatikhold" in reason_text
+        and ("olusturulamiyor" in reason_text or "oluşturulamıyor" in reason_text)
+    )
+    has_room_type_hint = bool(
+        _canonical_text(
+            str(entities.get("room_type") or entities.get("room_name") or entities.get("room_type_name") or "")
+        )
+    )
+
+    # Some model outputs set handoff.needed=false while still emitting a recoverable mapping reason.
+    if has_room_type_mapping_signal and has_room_type_hint:
+        return True
     return has_rate_identifier_signal and has_stay_hold_signal
 
 
@@ -4187,7 +4199,9 @@ def _resolve_requested_room_type_id(entities: dict[str, Any], profile: Any | Non
     if room_id > 0:
         return room_id
 
-    requested_name = _canonical_text(str(entities.get("room_type") or entities.get("room_name") or ""))
+    requested_name = _canonical_text(
+        str(entities.get("room_type") or entities.get("room_name") or entities.get("room_type_name") or "")
+    )
     if not requested_name or profile is None:
         return 0
 
@@ -4294,6 +4308,8 @@ def _build_stay_draft_from_offer(
 
     chd_ages: list[int] = []
     raw_chd_ages = entities.get("chd_ages")
+    if not isinstance(raw_chd_ages, list):
+        raw_chd_ages = entities.get("child_ages")
     if isinstance(raw_chd_ages, list):
         for age in raw_chd_ages:
             normalized_age = _to_int(age, -1)
@@ -4343,13 +4359,16 @@ async def _auto_submit_stay_hold(
     if quote_language not in {"TR", "EN"}:
         quote_language = "TR"
 
+    raw_quote_chd_ages = entities.get("chd_ages")
+    if not isinstance(raw_quote_chd_ages, list):
+        raw_quote_chd_ages = entities.get("child_ages")
     quote_args: dict[str, Any] = {
         "hotel_id": conversation.hotel_id,
         "checkin_date": checkin_date,
         "checkout_date": checkout_date,
         "adults": adults,
-        "chd_count": _to_int(entities.get("chd_count"), 0),
-        "chd_ages": entities.get("chd_ages") if isinstance(entities.get("chd_ages"), list) else [],
+        "chd_count": _to_int(entities.get("chd_count"), _to_int(entities.get("children"), 0)),
+        "chd_ages": raw_quote_chd_ages if isinstance(raw_quote_chd_ages, list) else [],
         "currency": str(entities.get("currency") or "EUR").upper(),
         "language": quote_language,
         "nationality": str(entities.get("nationality") or "TR").upper(),

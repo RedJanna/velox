@@ -824,6 +824,8 @@ async def test_run_message_pipeline_auto_submits_hold_when_next_step_requires_it
         async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
             self.calls.append((name, kwargs))
             if name == "booking_quote":
+                assert kwargs.get("chd_count") == 2
+                assert kwargs.get("chd_ages") == [12, 11]
                 return {
                     "offers": [
                         {
@@ -1250,6 +1252,95 @@ async def test_run_message_pipeline_auto_submits_hold_from_recoverable_rate_iden
     result = await whatsapp_webhook._run_message_pipeline(
         conversation=conversation,
         normalized_text="premium oda icin rezervasyon olustur",
+        dispatcher=dispatcher,
+        expected_language="tr",
+    )
+
+    assert [item[0] for item in dispatcher.calls] == ["booking_quote", "stay_create_hold"]
+    assert result.internal_json.state == "PENDING_APPROVAL"
+    assert result.internal_json.next_step == "await_admin_approval"
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_auto_submits_hold_from_room_type_mapping_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recoverable handoff for missing ROOM_TYPES system id should still auto-submit stay hold."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Talebinizi aldim.\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"other","state":"HANDOFF","entities":'
+            '{"checkin_date":"2026-10-01","checkout_date":"2026-10-06","adults":2,"children":2,'
+            '"child_ages":[12,11],"room_type_name":"Premium - Jakuzili","currency":"EUR",'
+            '"cancel_policy_type":"FREE_CANCEL","guest_name":"Udeneme UUdeneme",'
+            '"phone":"+905304498453","nationality":"TR","email":"gonenomeralperen@gmail.com","notes":"yok"},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false,'
+            '"reason":"Premium oda tipi ROOM_TYPES listesinde sistem ID bilgisi bulunmuyor, otomatik hold oluşturulamıyor."},'
+            '"risk_flags":["VIP_REQUEST"],"escalation":{"level":"L2","route_to_role":"ADMIN"},'
+            '"next_step":"Satis ekibi manuel rezervasyon taslagi olusturacak."}',
+            [],
+        )
+
+    class _Dispatcher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append((name, kwargs))
+            if name == "booking_quote":
+                return {
+                    "offers": [
+                        {
+                            "room_type_id": 396096,
+                            "board_type_id": 2,
+                            "rate_type_id": 24178,
+                            "rate_code_id": 301002,
+                            "price_agency_id": 12,
+                            "currency_code": "EUR",
+                            "price": "710",
+                            "discounted_price": "710",
+                            "rate_type": "Ucretsiz Iptal",
+                            "cancel_possible": True,
+                        }
+                    ]
+                }
+            if name == "stay_create_hold":
+                draft = kwargs.get("draft", {})
+                assert draft.get("room_type_id") == 396096
+                assert draft.get("guest_name") == "Udeneme UUdeneme"
+                return {
+                    "stay_hold_id": "S_HOLD_9972",
+                    "status": "PENDING_APPROVAL",
+                    "approval_request_id": "APR_9972",
+                    "approval_status": "REQUESTED",
+                }
+            return {"error": "unexpected_tool"}
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    fake_profile = SimpleNamespace(
+        room_types=[
+            SimpleNamespace(
+                id=3,
+                pms_room_type_id=396096,
+                name=SimpleNamespace(tr="Premium - Jakuzili", en="Premium - Jakuzi"),
+            )
+        ],
+        rate_mapping={},
+    )
+    dispatcher = _Dispatcher()
+    conversation = Conversation(hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: fake_profile)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="rezervasyonu olustur",
         dispatcher=dispatcher,
         expected_language="tr",
     )
