@@ -6,6 +6,9 @@
    cp .env.production.example .env.production
    ```
 2. Fill all required secrets in `.env.production`.
+   Elektra visible reservation-card sync for `Voucher No` and `Notlar` requires Generic API access as well:
+   `ELEKTRA_GENERIC_API_BASE_URL`, `ELEKTRA_GENERIC_TENANT`, `ELEKTRA_GENERIC_USERCODE`, `ELEKTRA_GENERIC_PASSWORD`.
+   `ELEKTRA_GENERIC_LOGIN_TOKEN` is only an operational fallback and should not be treated as permanent because the token expires.
 3. Ensure `.env.production` is not committed (already ignored by `.gitignore`).
 
 ## 2. Build and Start Stack
@@ -69,6 +72,7 @@ GitHub Actions workflow: `.github/workflows/ci.yml`
 - [ ] Hotel profile YAML loaded
 - [ ] WhatsApp webhook URL configured in Meta Business Manager
 - [ ] Elektraweb API credentials validated
+- [ ] Elektra Generic API credentials validated for reservation-card voucher/note sync
 - [ ] OpenAI API key active with sufficient quota
 - [ ] Redis running and accessible
 - [ ] Health check returns 200

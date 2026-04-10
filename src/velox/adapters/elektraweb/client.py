@@ -1,8 +1,8 @@
-"""Elektraweb PMS HTTP client with JWT authentication and retry logic."""
+"""Elektraweb PMS HTTP client with booking and generic API auth support."""
 
 import asyncio
 import os
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -15,7 +15,6 @@ logger = structlog.get_logger(__name__)
 REQUEST_TIMEOUT = 10.0
 MAX_RETRIES = 3
 RETRY_BACKOFF = [1, 3, 5]
-FALLBACK_BASE_URL = "https://4001.hoteladvisor.net"
 ACTION_OBJECT_PATH_PREFIXES = ("/Insert/", "/Update/", "/Select/", "/Execute/", "/Function/")
 
 
@@ -25,13 +24,20 @@ class ElektrawebClient:
     def __init__(self) -> None:
         configured_base_url = settings.elektra_api_base_url.strip()
         self._base_url = (configured_base_url or "https://bookingapi.elektraweb.com").rstrip("/")
-        self._base_urls = self._build_base_urls(self._base_url)
+        configured_generic_base_url = settings.elektra_generic_api_base_url.strip()
+        self._generic_base_url = (configured_generic_base_url or "https://4001.hoteladvisor.net").rstrip("/")
+        self._base_urls = self._build_base_urls(self._base_url, self._generic_base_url)
         self._api_key = settings.elektra_api_key.strip()
         legacy_booking_key = "Elektra_Booking"
         legacy_booking = os.getenv(legacy_booking_key, "").strip()
         self._raw_booking_credential = legacy_booking or os.getenv("ELEKTRA_BOOKING", "").strip()
-        self._token: str | None = None
-        self._token_expires_at: datetime | None = None
+        self._generic_login_token_override = settings.elektra_generic_login_token.strip()
+        self._generic_login_token_override_disabled = False
+        self._generic_tenant = settings.elektra_generic_tenant.strip()
+        self._generic_usercode = settings.elektra_generic_usercode.strip()
+        self._generic_password = settings.elektra_generic_password.strip()
+        self._tokens: dict[str, str | None] = {}
+        self._token_expires_at: dict[str, datetime | None] = {}
         self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -51,12 +57,12 @@ class ElektrawebClient:
             self._client = None
 
     @staticmethod
-    def _build_base_urls(primary_base_url: str) -> list[str]:
+    def _build_base_urls(primary_base_url: str, generic_base_url: str) -> list[str]:
         """Build ordered base URLs for failover: primary then fallback."""
         urls = [primary_base_url.rstrip("/")]
-        fallback = FALLBACK_BASE_URL.rstrip("/")
-        if fallback not in urls:
-            urls.append(fallback)
+        normalized_generic = generic_base_url.rstrip("/")
+        if normalized_generic not in urls:
+            urls.append(normalized_generic)
         return urls
 
     async def _switch_base_url(self, base_url: str) -> None:
@@ -67,13 +73,21 @@ class ElektrawebClient:
 
         await self.close()
         self._base_url = normalized
-        self._token = None
-        self._token_expires_at = None
 
-    async def _authenticate(self) -> str:
-        """Authenticate with Elektraweb API and get JWT token."""
+    def _is_generic_base_url(self, base_url: str) -> bool:
+        """Return True when base URL targets HotelAdvisor generic data API."""
+        return base_url.rstrip("/") == self._generic_base_url
+
+    def _base_urls_for_path(self, path: str) -> list[str]:
+        """Select candidate base URLs for the given path."""
+        if path.startswith(ACTION_OBJECT_PATH_PREFIXES):
+            return [self._generic_base_url]
+        return list(self._base_urls)
+
+    async def _authenticate_booking_api(self) -> str:
+        """Authenticate with booking API and get JWT token."""
         client = await self._get_client()
-        logger.info("elektraweb_auth_start")
+        logger.info("elektraweb_auth_start", auth_mode="booking_api", base_url=self._base_url)
         candidates = self._build_auth_candidates()
         last_response: httpx.Response | None = None
 
@@ -102,18 +116,100 @@ class ElektrawebClient:
                             last_response = response
                             continue
 
-                        self._token = token
+                        self._tokens[self._base_url] = token
                         expires_in = int(data.get("expiresIn", 3600))
-                        self._token_expires_at = datetime.now() + timedelta(seconds=expires_in - 60)
-                        logger.info("elektraweb_auth_success", expires_in=expires_in, path=login_path)
-                        return self._token
+                        self._token_expires_at[self._base_url] = datetime.now(UTC) + timedelta(
+                            seconds=expires_in - 60
+                        )
+                        logger.info(
+                            "elektraweb_auth_success",
+                            auth_mode="booking_api",
+                            expires_in=expires_in,
+                            path=login_path,
+                            base_url=self._base_url,
+                        )
+                        return token
             except Exception as error:
-                logger.warning("elektraweb_auth_attempt_failed", error_type=type(error).__name__)
+                logger.warning(
+                    "elektraweb_auth_attempt_failed",
+                    auth_mode="booking_api",
+                    error_type=type(error).__name__,
+                    base_url=self._base_url,
+                )
 
         status_code = last_response.status_code if last_response is not None else None
         body_preview = (last_response.text[:300] if last_response is not None else "")
-        logger.error("elektraweb_auth_failed", status_code=status_code, body_preview=body_preview)
+        logger.error(
+            "elektraweb_auth_failed",
+            auth_mode="booking_api",
+            status_code=status_code,
+            body_preview=body_preview,
+            base_url=self._base_url,
+        )
         raise RuntimeError("Elektraweb authentication failed. Check ELEKTRA_API_KEY/Elektra_Booking credentials.")
+
+    async def _authenticate_generic_api(self) -> str:
+        """Authenticate with HotelAdvisor generic API and get LoginToken."""
+        if self._generic_login_token_override and not self._generic_login_token_override_disabled:
+            logger.info("elektraweb_auth_success", auth_mode="generic_override", base_url=self._base_url)
+            self._tokens[self._base_url] = self._generic_login_token_override
+            self._token_expires_at[self._base_url] = datetime.now(UTC).replace(
+                hour=23,
+                minute=55,
+                second=0,
+                microsecond=0,
+            )
+            return self._generic_login_token_override
+
+        if not self._generic_tenant or not self._generic_usercode or not self._generic_password:
+            logger.error(
+                "elektraweb_generic_auth_missing_credentials",
+                base_url=self._base_url,
+                has_token_override=bool(self._generic_login_token_override),
+                has_tenant=bool(self._generic_tenant),
+                has_usercode=bool(self._generic_usercode),
+                has_password=bool(self._generic_password),
+            )
+            raise RuntimeError(
+                "Elektra generic API credentials missing. "
+                "Set ELEKTRA_GENERIC_TENANT, ELEKTRA_GENERIC_USERCODE, ELEKTRA_GENERIC_PASSWORD "
+                "or ELEKTRA_GENERIC_LOGIN_TOKEN."
+            )
+
+        client = await self._get_client()
+        logger.info("elektraweb_auth_start", auth_mode="generic_api", base_url=self._base_url)
+        response = await client.post(
+            "/",
+            json={
+                "Action": "Login",
+                "Tenant": self._generic_tenant,
+                "Usercode": self._generic_usercode,
+                "Password": self._generic_password,
+            },
+            headers={"Content-Type": "application/json"},
+        )
+        response.raise_for_status()
+        data = response.json()
+        token = str(data.get("LoginToken") or "")
+        if data.get("Success") is not True or not token:
+            logger.error(
+                "elektraweb_auth_failed",
+                auth_mode="generic_api",
+                status_code=response.status_code,
+                body_preview=response.text[:300],
+                base_url=self._base_url,
+            )
+            raise RuntimeError("Elektra generic API authentication failed.")
+
+        self._tokens[self._base_url] = token
+        self._token_expires_at[self._base_url] = datetime.now(UTC).replace(
+            hour=23,
+            minute=55,
+            second=0,
+            microsecond=0,
+        )
+        logger.info("elektraweb_auth_success", auth_mode="generic_api", base_url=self._base_url)
+        return token
 
     def _build_auth_candidates(self) -> list[str]:
         """Build possible credential shapes accepted by Elektra login endpoint."""
@@ -134,18 +230,23 @@ class ElektrawebClient:
                 deduped.append(value)
         return deduped
 
-    async def _get_token(self) -> str:
-        """Get a valid token, refreshing it when expired or missing."""
-        if self._token is None or (
-            self._token_expires_at is not None and datetime.now() >= self._token_expires_at
-        ):
-            return await self._authenticate()
-        return self._token
+    async def _get_token(self, base_url: str) -> str:
+        """Get a valid token for the current host, refreshing it when expired or missing."""
+        token = self._tokens.get(base_url)
+        expires_at = self._token_expires_at.get(base_url)
+        if token is None or (expires_at is not None and datetime.now(UTC) >= expires_at):
+            if self._is_generic_base_url(base_url):
+                return await self._authenticate_generic_api()
+            return await self._authenticate_booking_api()
+        return token
 
-    @staticmethod
-    def _auth_headers(token: str) -> dict[str, str]:
-        """Build authorization headers."""
-        return {"Authorization": f"Bearer {token}"}
+    def _clear_token(self, base_url: str) -> None:
+        """Clear cached token state for the given base URL."""
+        self._tokens[base_url] = None
+        self._token_expires_at[base_url] = None
+        if self._is_generic_base_url(base_url) and self._generic_login_token_override:
+            self._generic_login_token_override_disabled = True
+            logger.warning("elektraweb_generic_override_token_disabled", base_url=base_url)
 
     async def request(
         self,
@@ -157,8 +258,9 @@ class ElektrawebClient:
     ) -> dict[str, Any]:
         """Make an authenticated request with retries and token refresh."""
         last_error: Exception | None = None
+        base_urls = self._base_urls_for_path(path)
 
-        for base_index, base_url in enumerate(self._base_urls, start=1):
+        for base_index, base_url in enumerate(base_urls, start=1):
             await self._switch_base_url(base_url)
             client = await self._get_client()
             logger.info(
@@ -171,8 +273,8 @@ class ElektrawebClient:
 
             for attempt in range(MAX_RETRIES):
                 try:
-                    token = await self._get_token()
-                    request_headers = self._auth_headers(token)
+                    token = await self._get_token(self._base_url)
+                    request_headers = {"Authorization": f"Bearer {token}"}
                     request_json = json_body
                     if isinstance(request_json, dict) and path.startswith(ACTION_OBJECT_PATH_PREFIXES):
                         if "LoginToken" not in request_json:
@@ -189,8 +291,7 @@ class ElektrawebClient:
 
                     if response.status_code == 401:
                         logger.warning("elektraweb_unauthorized_refreshing_token", path=path, attempt=attempt + 1)
-                        self._token = None
-                        self._token_expires_at = None
+                        self._clear_token(self._base_url)
                         continue
 
                     response.raise_for_status()
@@ -264,7 +365,7 @@ class ElektrawebClient:
             "elektraweb_request_exhausted",
             path=path,
             max_retries=MAX_RETRIES,
-            base_urls=self._base_urls,
+                    base_urls=base_urls,
         )
         if last_error is not None:
             raise last_error

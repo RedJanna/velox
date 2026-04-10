@@ -87,6 +87,11 @@ class Settings(BaseSettings):
     elektra_api_base_url: str = ""
     elektra_api_key: str = ""
     elektra_hotel_id: int = 21966
+    elektra_generic_api_base_url: str = "https://4001.hoteladvisor.net"
+    elektra_generic_login_token: str = ""
+    elektra_generic_tenant: str = ""
+    elektra_generic_usercode: str = ""
+    elektra_generic_password: str = ""
 
     # Admin
     admin_jwt_secret: str = "change-me-in-production"

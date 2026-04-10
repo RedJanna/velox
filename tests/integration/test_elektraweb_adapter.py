@@ -443,6 +443,83 @@ async def test_auth_token_refresh_on_401(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 @pytest.mark.asyncio
+async def test_action_object_path_uses_generic_api_login_and_login_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Generic action paths must authenticate against HotelAdvisor root login and inject LoginToken."""
+    client = ElektrawebClient()
+    client._generic_tenant = "21966"
+    client._generic_usercode = "pmsuser"
+    client._generic_password = "test-password"  # noqa: S105
+    http = AsyncMock()
+    http.post.return_value = _response(200, {"Success": True, "LoginToken": "generic-token"})
+    http.request.return_value = _response(200, {"Success": True, "Row": {"ID": 1}})
+    monkeypatch.setattr(client, "_get_client", AsyncMock(return_value=http))
+
+    result = await client.post(
+        "/Update/HOTEL_RES",
+        json_body={"Action": "Update", "Object": "HOTEL_RES", "Row": {"ID": "1"}},
+    )
+
+    assert result["Success"] is True
+    assert client._base_url == client._generic_base_url
+    login_call = http.post.await_args
+    assert login_call.args[0] == "/"
+    assert login_call.kwargs["json"] == {
+        "Action": "Login",
+        "Tenant": "21966",
+        "Usercode": "pmsuser",
+        "Password": "test-password",
+    }
+    request_call = http.request.await_args
+    assert request_call.args[1] == "/Update/HOTEL_RES"
+    assert request_call.kwargs["headers"] == {"Content-Type": "application/json"}
+    assert request_call.kwargs["json"]["LoginToken"] == "generic-token"
+
+
+@pytest.mark.asyncio
+async def test_action_object_path_can_use_generic_token_override_without_login(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When a generic LoginToken override exists, action paths should skip login and reuse it."""
+    client = ElektrawebClient()
+    client._generic_login_token_override = "test-login-token"  # noqa: S105
+    http = AsyncMock()
+    http.request.return_value = _response(200, {"Success": True, "Row": {"ID": 1}})
+    monkeypatch.setattr(client, "_get_client", AsyncMock(return_value=http))
+
+    result = await client.post(
+        "/Function/FN_RESFIXNOTE",
+        json_body={"Action": "Function", "Object": "FN_RESFIXNOTE", "Parameters": {"RESID": 1, "HOTELID": 21966}},
+    )
+
+    assert result["Success"] is True
+    http.post.assert_not_awaited()
+    request_call = http.request.await_args
+    assert request_call.kwargs["json"]["LoginToken"] == "test-login-token"
+
+
+@pytest.mark.asyncio
+async def test_action_object_path_raises_clear_error_when_generic_credentials_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing HotelAdvisor credentials must fail with a clear runtime error instead of opaque auth noise."""
+    client = ElektrawebClient()
+    client._generic_login_token_override = ""
+    client._generic_tenant = ""
+    client._generic_usercode = ""
+    client._generic_password = ""
+    http = AsyncMock()
+    monkeypatch.setattr(client, "_get_client", AsyncMock(return_value=http))
+
+    with pytest.raises(RuntimeError, match="ELEKTRA_GENERIC_TENANT"):
+        await client.post(
+            "/Insert/RES_NOTE",
+            json_body={"Action": "Insert", "Object": "RES_NOTE", "Row": []},
+        )
+
+
+@pytest.mark.asyncio
 async def test_retry_logic_on_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     """Timeout should retry and eventually return successful payload."""
     client = ElektrawebClient()

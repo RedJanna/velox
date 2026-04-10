@@ -1330,7 +1330,7 @@ Ek HotelAdvisor uclari (destekleyici isler/odeme/pax sync):
 - Execute/SP_HOTELRESGUEST_SAVE
 
 Adapter ham endpointleri uygulama tool contractina map eder.
-Auth secretlari ENV'de tutulur (ornek: ELEKTRA_API_BASE_URL, Elektra_Booking, ELEKTRA_HOTEL_ID).
+Auth secretlari ENV'de tutulur (ornek: ELEKTRA_API_BASE_URL, Elektra_Booking, ELEKTRA_HOTEL_ID, ELEKTRA_GENERIC_TENANT, ELEKTRA_GENERIC_USERCODE, ELEKTRA_GENERIC_PASSWORD).
 Stay rezervasyon create akisi icin musteri notu (`notes`) iki seviyede korunur:
 - createReservation payload'ina notes eklenir
 - create basarili olduktan sonra Elektra rezervasyon kartindaki gorunur not alanlari `Function/FN_RESFIXNOTE` ile slotlari okunup `Insert/RES_NOTE` ile doldurulur; bu adim best-effort'tur ve create akisini bloklamaz

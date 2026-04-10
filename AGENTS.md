@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v5.3 | **Son güncelleme:** 2026-04-04 11:55:34
-> **Değişiklik özeti:** Structured-output recovery/replay ve Prometheus metrics hattı eklendi; metrics erişimi varsayılan olarak iç ağ ile sınırlandı.
+> **Sürüm:** v5.4 | **Son güncelleme:** 2026-04-10 09:15:00
+> **Değişiklik özeti:** Elektra Generic API kimlik bilgileri ve rezervasyon karti voucher/not senkronu icin gereken env degiskenleri eklendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -362,6 +362,9 @@ All secrets, API keys, and configuration must be in environment variables. Never
 | `PHONE_HASH_SALT` | Telefon numarası hash'leme için salt (rainbow table koruması) | `random-32-char-string` | Manuel üret |
 | `ELEKTRA_API_BASE_URL` | Elektraweb PMS API base URL | `https://api.elektraweb.com` | Elektraweb |
 | `ELEKTRA_API_KEY` | Elektraweb API anahtarı | `***` | Elektraweb |
+| `ELEKTRA_GENERIC_TENANT` | Elektra Generic API tenant değeri | `21966` | Elektraweb |
+| `ELEKTRA_GENERIC_USERCODE` | Elektra Generic API kullanıcı kodu | `***` | Elektraweb |
+| `ELEKTRA_GENERIC_PASSWORD` | Elektra Generic API şifresi | `***` | Elektraweb |
 | `ADMIN_JWT_SECRET` | Admin panel JWT imzalama anahtarı | `random-64-char-string` | Manuel üret |
 | `ADMIN_WEBHOOK_SECRET` | Admin webhook HMAC secret | `***` | Manuel üret |
 
@@ -383,6 +386,8 @@ All secrets, API keys, and configuration must be in environment variables. Never
 | `MEDIA_MAX_IMAGE_DIMENSION` | Görsel normalize sonrası max kenar piksel sınırı | `2048` |
 | `MEDIA_RETENTION_HOURS` | Medya analiz kaydı saklama süresi (saat) | `24` |
 | `MEDIA_SUPPORTED_MIME_TYPES` | Desteklenen inbound image mime listesi (virgüllü) | `image/jpeg,image/jpg,image/png,image/webp,image/tiff,image/heic,image/heif` |
+| `ELEKTRA_GENERIC_API_BASE_URL` | Elektra Generic API base URL | `https://4001.hoteladvisor.net` |
+| `ELEKTRA_GENERIC_LOGIN_TOKEN` | Günlük geçerli Generic API token override; sadece geçici operasyonel fallback olarak kullanılmalıdır | _(boş = devre dışı)_ |
 
 > **Kural:** Yeni bir ENV değişkeni eklendiğinde bu tabloyu güncelle ve `.env.example` dosyasına da ekle.
 
