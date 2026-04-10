@@ -645,11 +645,21 @@ async def test_create_reservation_uses_explicit_extra_guest_names_when_provided(
 
 
 @pytest.mark.asyncio
-async def test_create_reservation_syncs_notes_via_update_reservation(monkeypatch: pytest.MonkeyPatch) -> None:
-    """When draft contains notes, adapter should write them to reservation notes after create."""
+async def test_create_reservation_syncs_voucher_and_res_note_rows_from_har_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Create flow should fill HOTEL_RES.VOUCHERNO and visible RES_NOTE rows per HAR contract."""
     mock_client = AsyncMock()
     mock_client.post.side_effect = [
-        {"reservation-id": "RSV-1", "voucher-no": "V-1"},
+        {"reservation-id": "RSV-1", "voucher-no": "V-IGNORED"},
+        {"success": True},
+        [
+            [
+                {"RESID": 83236510, "NOTETYPEID": 1001, "UNIQUENOTETYPEID": 1, "NOTES": None},
+                {"RESID": 83236510, "NOTETYPEID": 1002, "UNIQUENOTETYPEID": 2, "NOTES": None},
+                {"RESID": 83236510, "NOTETYPEID": 1003, "UNIQUENOTETYPEID": 3, "NOTES": None},
+            ]
+        ],
         {"success": True},
     ]
     monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
@@ -669,31 +679,44 @@ async def test_create_reservation_syncs_notes_via_update_reservation(monkeypatch
         "price_agency_id": 777,
         "total_price_eur": "140.0",
         "currency_display": "EUR",
+        "reservation_no": "VLX-21966-2604-0004",
         "notes": "Misafirimiz şu notu iletti: Üst kat sakin oda rica ediyor.",
     }
 
     result = await endpoints.create_reservation(21966, draft)
 
     assert result.reservation_id == "RSV-1"
-    assert mock_client.post.await_count == 2
+    assert result.voucher_no == "VLX-21966-2604-0004"
+    assert mock_client.post.await_count == 4
     create_call = mock_client.post.await_args_list[0]
-    notes_call = mock_client.post.await_args_list[1]
+    voucher_call = mock_client.post.await_args_list[1]
+    slots_call = mock_client.post.await_args_list[2]
+    notes_call = mock_client.post.await_args_list[3]
     assert create_call.kwargs["json_body"]["notes"] == draft["notes"]
-    assert notes_call.args[0] == "/hotel/21966/updateReservation"
-    assert notes_call.kwargs["json_body"]["reservationId"] == "RSV-1"
-    assert notes_call.kwargs["json_body"]["voucherNo"] == "V-1"
-    assert notes_call.kwargs["json_body"]["notes"] == draft["notes"]
+    assert voucher_call.args[0] == "/Update/HOTEL_RES"
+    assert voucher_call.kwargs["json_body"]["Row"]["ID"] == "RSV-1"
+    assert voucher_call.kwargs["json_body"]["Row"]["HOTELID"] == 21966
+    assert voucher_call.kwargs["json_body"]["Row"]["VOUCHERNO"] == "VLX-21966-2604-0004"
+    assert slots_call.args[0] == "/Function/FN_RESFIXNOTE"
+    assert slots_call.kwargs["json_body"]["Parameters"]["RESID"] == "RSV-1"
+    assert notes_call.args[0] == "/Insert/RES_NOTE"
+    assert notes_call.kwargs["json_body"]["Object"] == "RES_NOTE"
+    inserted_rows = notes_call.kwargs["json_body"]["Row"]
+    assert len(inserted_rows) == 3
+    assert {row["UNIQUENOTETYPEID"] for row in inserted_rows} == {"1", "2", "3"}
+    assert {row["NOTETYPEID"] for row in inserted_rows} == {"1001", "1002", "1003"}
+    assert all(row["NOTES"] == draft["notes"] for row in inserted_rows)
 
 
 @pytest.mark.asyncio
-async def test_create_reservation_notes_fallbacks_to_hoteladvisor_update(
+async def test_create_reservation_notes_fallback_to_default_res_note_targets_when_slot_fetch_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """If booking update endpoint fails, notes sync should fallback to HOTEL_RES update."""
+    """If FN_RESFIXNOTE fails, adapter should still insert HAR-derived visible note targets."""
     mock_client = AsyncMock()
     mock_client.post.side_effect = [
         {"reservation-id": "RSV-1", "voucher-no": "V-1"},
-        RuntimeError("updateReservation failed"),
+        RuntimeError("FN_RESFIXNOTE failed"),
         {"success": True},
     ]
     monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
@@ -720,13 +743,14 @@ async def test_create_reservation_notes_fallbacks_to_hoteladvisor_update(
 
     assert mock_client.post.await_count == 3
     fallback_call = mock_client.post.await_args_list[2]
-    assert fallback_call.args[0] == "/Update/HOTEL_RES"
+    assert mock_client.post.await_args_list[1].args[0] == "/Function/FN_RESFIXNOTE"
+    assert fallback_call.args[0] == "/Insert/RES_NOTE"
     payload = fallback_call.kwargs["json_body"]
-    assert payload["Action"] == "Update"
-    assert payload["Object"] == "HOTEL_RES"
-    assert payload["Row"]["HOTELID"] == "21966"
-    assert payload["Row"]["ID"] == "RSV-1"
-    assert payload["Row"]["NOTES"] == draft["notes"]
+    assert payload["Action"] == "Insert"
+    assert payload["Object"] == "RES_NOTE"
+    assert {row["UNIQUENOTETYPEID"] for row in payload["Row"]} == {"1", "2", "3"}
+    assert {row["NOTETYPEID"] for row in payload["Row"]} == {"1001", "1002", "1003"}
+    assert all(row["NOTES"] == draft["notes"] for row in payload["Row"])
 
 
 @pytest.mark.asyncio
@@ -859,7 +883,7 @@ async def test_create_reservation_retries_with_refreshed_offer_on_agency_error(
 async def test_create_reservation_retry_success_also_syncs_notes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Notes must still be synced when booking create succeeds only after refreshed retry."""
+    """HAR-based voucher and note sync must also run when create succeeds after refreshed retry."""
     mock_client = AsyncMock()
     request = httpx.Request("POST", "https://bookingapi.elektraweb.com/hotel/21966/createReservation")
     agency_error = httpx.HTTPStatusError(
@@ -871,7 +895,19 @@ async def test_create_reservation_retry_success_also_syncs_notes(
             request=request,
         ),
     )
-    mock_client.post.side_effect = [agency_error, {"reservation-id": "RSV-2", "voucher-no": "V-2"}, {"success": True}]
+    mock_client.post.side_effect = [
+        agency_error,
+        {"reservation-id": "RSV-2", "voucher-no": "V-2"},
+        {"success": True},
+        [
+            [
+                {"RESID": 83236510, "NOTETYPEID": 1001, "UNIQUENOTETYPEID": 1, "NOTES": None},
+                {"RESID": 83236510, "NOTETYPEID": 1002, "UNIQUENOTETYPEID": 2, "NOTES": None},
+                {"RESID": 83236510, "NOTETYPEID": 1003, "UNIQUENOTETYPEID": 3, "NOTES": None},
+            ]
+        ],
+        {"success": True},
+    ]
     monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
     monkeypatch.setattr(
         endpoints,
@@ -892,6 +928,7 @@ async def test_create_reservation_retry_success_also_syncs_notes(
                 "total_price_eur": "140.0",
                 "currency_display": "EUR",
                 "cancel_policy_type": "NON_REFUNDABLE",
+                "reservation_no": "VLX-21966-2604-0005",
                 "notes": "Misafirimiz şu notu iletti: Geç check-in yapacaktır.",
             }
         ),
@@ -914,17 +951,24 @@ async def test_create_reservation_retry_success_also_syncs_notes(
             "total_price_eur": "140.0",
             "currency_display": "EUR",
             "cancel_policy_type": "NON_REFUNDABLE",
+            "reservation_no": "VLX-21966-2604-0005",
             "notes": "Misafirimiz şu notu iletti: Geç check-in yapacaktır.",
         },
     )
 
     assert result.reservation_id == "RSV-2"
-    assert mock_client.post.await_count == 3
-    notes_call = mock_client.post.await_args_list[2]
-    assert notes_call.args[0] == "/hotel/21966/updateReservation"
-    assert notes_call.kwargs["json_body"]["reservationId"] == "RSV-2"
-    assert notes_call.kwargs["json_body"]["voucherNo"] == "V-2"
-    assert notes_call.kwargs["json_body"]["notes"] == "Misafirimiz şu notu iletti: Geç check-in yapacaktır."
+    assert result.voucher_no == "VLX-21966-2604-0005"
+    assert mock_client.post.await_count == 5
+    voucher_call = mock_client.post.await_args_list[2]
+    assert voucher_call.args[0] == "/Update/HOTEL_RES"
+    assert voucher_call.kwargs["json_body"]["Row"]["VOUCHERNO"] == "VLX-21966-2604-0005"
+    assert mock_client.post.await_args_list[3].args[0] == "/Function/FN_RESFIXNOTE"
+    notes_call = mock_client.post.await_args_list[4]
+    assert notes_call.args[0] == "/Insert/RES_NOTE"
+    assert all(
+        row["NOTES"] == "Misafirimiz şu notu iletti: Geç check-in yapacaktır."
+        for row in notes_call.kwargs["json_body"]["Row"]
+    )
 
 
 def test_create_reservation_refresh_detector_accepts_price_mismatch_errors() -> None:
@@ -978,7 +1022,8 @@ async def test_create_reservation_agency_error_without_refresh_falls_back_to_hot
         ),
     )
 
-    async def _post(path: str, _json_body: dict[str, object]) -> dict[str, object]:
+    async def _post(path: str, *, json_body: dict[str, object]) -> dict[str, object]:
+        del json_body
         if path in {
             "/hotel/21966/createReservation",
             "/hotel/21966/reservation/create",
@@ -1018,6 +1063,89 @@ async def test_create_reservation_agency_error_without_refresh_falls_back_to_hot
     assert result.reservation_id == "991122"
     called_paths = [call.args[0] for call in mock_client.post.await_args_list]
     assert "/Insert/HOTEL_RES" in called_paths
+
+
+@pytest.mark.asyncio
+async def test_create_reservation_hoteladvisor_fallback_also_syncs_voucher_and_visible_notes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """HotelAdvisor fallback success must still fill voucher and visible note rows."""
+    mock_client = AsyncMock()
+    request = httpx.Request("POST", "https://bookingapi.elektraweb.com/hotel/21966/createReservation")
+    agency_error = httpx.HTTPStatusError(
+        "agency-not-found",
+        request=request,
+        response=httpx.Response(
+            400,
+            json={"success": False, "message": "Agency Not Found"},
+            request=request,
+        ),
+    )
+    mock_client.post.side_effect = [
+        agency_error,
+        agency_error,
+        agency_error,
+        {"primary-key": "991122"},
+        {"success": True},
+        {"success": True},
+        [
+            [
+                {"RESID": 991122, "NOTETYPEID": 1001, "UNIQUENOTETYPEID": 1, "NOTES": None},
+                {"RESID": 991122, "NOTETYPEID": 1002, "UNIQUENOTETYPEID": 2, "NOTES": None},
+                {"RESID": 991122, "NOTETYPEID": 1003, "UNIQUENOTETYPEID": 3, "NOTES": None},
+            ]
+        ],
+        {"success": True},
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+    monkeypatch.setattr(endpoints, "_refresh_offer_identifiers", AsyncMock(return_value=None))
+
+    result = await endpoints.create_reservation(
+        21966,
+        {
+            "guest_name": "Test User",
+            "phone": "+905301112233",
+            "checkin_date": "2026-10-01",
+            "checkout_date": "2026-10-03",
+            "adults": 2,
+            "chd_ages": [],
+            "room_type_id": 396097,
+            "board_type_id": 2,
+            "rate_type_id": 11,
+            "rate_code_id": 102,
+            "price_agency_id": 777,
+            "total_price_eur": "140.0",
+            "currency_display": "EUR",
+            "cancel_policy_type": "NON_REFUNDABLE",
+            "reservation_no": "VLX-21966-2604-0007",
+            "notes": "Misafirimiz şu notu iletti: 1 adet ekstra yastık rica ediyor.",
+        },
+    )
+
+    assert result.reservation_id == "991122"
+    assert result.voucher_no == "VLX-21966-2604-0007"
+    assert mock_client.post.await_count == 8
+    called_paths = [call.args[0] for call in mock_client.post.await_args_list]
+    assert called_paths[:3] == [
+        "/hotel/21966/createReservation",
+        "/hotel/21966/reservation/create",
+        "/hotel/21966/reservations/create",
+    ]
+    assert called_paths[3] == "/Insert/HOTEL_RES"
+    assert called_paths[4] == "/Execute/SP_HOTELRESGUEST_SAVE"
+    assert called_paths[5] == "/Update/HOTEL_RES"
+    assert called_paths[6] == "/Function/FN_RESFIXNOTE"
+    assert called_paths[7] == "/Insert/RES_NOTE"
+    voucher_call = mock_client.post.await_args_list[5]
+    assert voucher_call.kwargs["json_body"]["Row"]["ID"] == "991122"
+    assert voucher_call.kwargs["json_body"]["Row"]["HOTELID"] == 21966
+    assert voucher_call.kwargs["json_body"]["Row"]["VOUCHERNO"] == "VLX-21966-2604-0007"
+    notes_call = mock_client.post.await_args_list[7]
+    assert notes_call.kwargs["json_body"]["Object"] == "RES_NOTE"
+    assert all(
+        row["NOTES"] == "Misafirimiz şu notu iletti: 1 adet ekstra yastık rica ediyor."
+        for row in notes_call.kwargs["json_body"]["Row"]
+    )
 
 
 @pytest.mark.asyncio
@@ -1135,7 +1263,7 @@ async def test_create_reservation_uses_second_refresh_after_price_mismatch(
 async def test_create_reservation_second_refresh_success_also_syncs_notes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Second-refresh success path must also write customer-visible notes to Elektra."""
+    """Second-refresh success path must also write HAR-based voucher and note fields."""
     mock_client = AsyncMock()
     request = httpx.Request("POST", "https://bookingapi.elektraweb.com/hotel/21966/createReservation")
     agency_error = httpx.HTTPStatusError(
@@ -1156,6 +1284,14 @@ async def test_create_reservation_second_refresh_success_also_syncs_notes(
         agency_error,
         price_error,
         {"reservation-id": "RSV-SECOND", "voucher-no": "V-SECOND"},
+        {"success": True},
+        [
+            [
+                {"RESID": 83236510, "NOTETYPEID": 1001, "UNIQUENOTETYPEID": 1, "NOTES": None},
+                {"RESID": 83236510, "NOTETYPEID": 1002, "UNIQUENOTETYPEID": 2, "NOTES": None},
+                {"RESID": 83236510, "NOTETYPEID": 1003, "UNIQUENOTETYPEID": 3, "NOTES": None},
+            ]
+        ],
         {"success": True},
     ]
     monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
@@ -1179,6 +1315,7 @@ async def test_create_reservation_second_refresh_success_also_syncs_notes(
                     "total_price_eur": "504.0",
                     "currency_display": "EUR",
                     "cancel_policy_type": "FREE_CANCEL",
+                    "reservation_no": "VLX-21966-2604-0006",
                     "notes": "Misafirimiz şu notu iletti: Sessiz oda rica ediyor.",
                 },
                 {
@@ -1196,6 +1333,7 @@ async def test_create_reservation_second_refresh_success_also_syncs_notes(
                     "total_price_eur": "504.0",
                     "currency_display": "EUR",
                     "cancel_policy_type": "FREE_CANCEL",
+                    "reservation_no": "VLX-21966-2604-0006",
                     "notes": "Misafirimiz şu notu iletti: Sessiz oda rica ediyor.",
                 },
                 {
@@ -1215,6 +1353,7 @@ async def test_create_reservation_second_refresh_success_also_syncs_notes(
                     "cancel_policy_type": "FREE_CANCEL",
                     "pms_adult_count": 3,
                     "pms_child_count": 1,
+                    "reservation_no": "VLX-21966-2604-0006",
                     "notes": "Misafirimiz şu notu iletti: Sessiz oda rica ediyor.",
                 },
             ]
@@ -1238,17 +1377,24 @@ async def test_create_reservation_second_refresh_success_also_syncs_notes(
             "total_price_eur": "1501.5",
             "currency_display": "EUR",
             "cancel_policy_type": "FREE_CANCEL",
+            "reservation_no": "VLX-21966-2604-0006",
             "notes": "Misafirimiz şu notu iletti: Sessiz oda rica ediyor.",
         },
     )
 
     assert result.reservation_id == "RSV-SECOND"
-    assert mock_client.post.await_count == 4
-    notes_call = mock_client.post.await_args_list[3]
-    assert notes_call.args[0] == "/hotel/21966/updateReservation"
-    assert notes_call.kwargs["json_body"]["reservationId"] == "RSV-SECOND"
-    assert notes_call.kwargs["json_body"]["voucherNo"] == "V-SECOND"
-    assert notes_call.kwargs["json_body"]["notes"] == "Misafirimiz şu notu iletti: Sessiz oda rica ediyor."
+    assert result.voucher_no == "VLX-21966-2604-0006"
+    assert mock_client.post.await_count == 6
+    voucher_call = mock_client.post.await_args_list[3]
+    assert voucher_call.args[0] == "/Update/HOTEL_RES"
+    assert voucher_call.kwargs["json_body"]["Row"]["VOUCHERNO"] == "VLX-21966-2604-0006"
+    assert mock_client.post.await_args_list[4].args[0] == "/Function/FN_RESFIXNOTE"
+    notes_call = mock_client.post.await_args_list[5]
+    assert notes_call.args[0] == "/Insert/RES_NOTE"
+    assert all(
+        row["NOTES"] == "Misafirimiz şu notu iletti: Sessiz oda rica ediyor."
+        for row in notes_call.kwargs["json_body"]["Row"]
+    )
 
 
 @pytest.mark.asyncio

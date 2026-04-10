@@ -1333,8 +1333,10 @@ Adapter ham endpointleri uygulama tool contractina map eder.
 Auth secretlari ENV'de tutulur (ornek: ELEKTRA_API_BASE_URL, Elektra_Booking, ELEKTRA_HOTEL_ID).
 Stay rezervasyon create akisi icin musteri notu (`notes`) iki seviyede korunur:
 - createReservation payload'ina notes eklenir
-- create basarili olduktan sonra reservation notu Elektra'ya updateReservation ile senkronlanir; bu adim fail olursa HOTEL_RES update fallback'i calisir (best-effort, create akisini bloklamaz)
+- create basarili olduktan sonra Elektra rezervasyon kartindaki gorunur not alanlari `Function/FN_RESFIXNOTE` ile slotlari okunup `Insert/RES_NOTE` ile doldurulur; bu adim best-effort'tur ve create akisini bloklamaz
+- Elektra rezervasyon kartindaki `VOUCHERNO` alani, bizim ic rezervasyon numaramiz (`reservation_no`, or. `VLX-...`) ile `Update/HOTEL_RES` uzerinden senkronlanir
 - not senkronu, sadece ilk create success path'inde degil; refreshed retry, second-refresh ve final price-override dahil tum basarili create dallarinda uygulanir.
+- HotelAdvisor fallback (`Insert/HOTEL_RES`) success path'i de ayni voucher + gorunur not senkronunu uygular.
 
 ## B5) Restoran Modulu (Admin Panel DB)
 - Elektraweb ile baglanti yok.

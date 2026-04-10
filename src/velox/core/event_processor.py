@@ -947,7 +947,18 @@ class EventProcessor:
     @staticmethod
     def _extract_stay_draft(hold: asyncpg.Record) -> dict[str, Any]:
         """Extract stay draft JSON from hold safely."""
-        return decode_json_object(hold["draft_json"])
+        draft = decode_json_object(hold["draft_json"])
+        reservation_no: str | None = None
+        if isinstance(hold, dict):
+            reservation_no = str(hold.get("reservation_no") or "").strip() or None
+        else:
+            try:
+                reservation_no = str(hold["reservation_no"] or "").strip() or None
+            except (KeyError, IndexError, TypeError):
+                reservation_no = None
+        if reservation_no and "reservation_no" not in draft:
+            draft["reservation_no"] = reservation_no
+        return draft
 
     @staticmethod
     def _resolve_scheduled_date(draft: dict[str, Any], due_mode: str) -> str | None:

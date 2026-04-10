@@ -399,6 +399,7 @@ async def test_process_approval_event_decodes_string_draft_json(
     hold_row = {
         "hold_id": "S_HOLD_0001",
         "hotel_id": 21966,
+        "reservation_no": "VLX-21966-2604-0004",
         "conversation_id": None,
         "status": "PENDING_APPROVAL",
         "approval_idempotency_key": None,
@@ -435,3 +436,4 @@ async def test_process_approval_event_decodes_string_draft_json(
     assert create_call[0] == "booking_create_reservation"
     assert create_call[1]["draft"]["guest_name"] == "Test User"
     assert create_call[1]["draft"]["room_type_id"] == 99
+    assert create_call[1]["draft"]["reservation_no"] == "VLX-21966-2604-0004"

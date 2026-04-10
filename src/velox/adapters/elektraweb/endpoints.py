@@ -26,6 +26,11 @@ from velox.core.hotel_profile_loader import get_profile
 logger = structlog.get_logger(__name__)
 CHILD_OCCUPANCY_UNVERIFIED = "CHILD_OCCUPANCY_UNVERIFIED"
 PMS_ADULT_AGE_MIN = 12
+RES_NOTE_SYNC_TARGETS: dict[int, int] = {
+    1: 1001,
+    2: 1002,
+    3: 1003,
+}
 
 
 def _requested_child_ages(chd_count: int, chd_ages: list[int] | None) -> list[int]:
@@ -878,93 +883,211 @@ def _build_hoteladvisor_guest_payload(
     }
 
 
-async def _sync_reservation_notes_best_effort(
+def _target_voucher_no_from_draft(draft: dict[str, Any]) -> str:
+    """Return the internal reservation number that should populate Elektra voucher field."""
+    return str(draft.get("reservation_no") or "").strip()
+
+
+def _parse_res_note_slots(raw: dict[str, Any] | list[Any]) -> list[dict[str, Any]]:
+    """Flatten FN_RESFIXNOTE rows into plain dictionaries."""
+    normalized = normalize_keys(raw)
+    if isinstance(normalized, list):
+        if normalized and isinstance(normalized[0], list):
+            return [item for item in normalized[0] if isinstance(item, dict)]
+        return [item for item in normalized if isinstance(item, dict)]
+    if isinstance(normalized, dict):
+        rows = normalized.get("rows")
+        if isinstance(rows, list):
+            return [item for item in rows if isinstance(item, dict)]
+    return []
+
+
+def _build_res_note_insert_rows(
+    *,
+    hotel_id: int,
+    reservation_id: str,
+    notes: str,
+    slots: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+    """Build RES_NOTE insert rows for Elektra reservation card note slots."""
+    rows_by_unique_id = {
+        _safe_int(row.get("uniquenotetypeid"), 0): row
+        for row in slots
+        if _safe_int(row.get("uniquenotetypeid"), 0) > 0
+    }
+    insert_rows: list[dict[str, str]] = []
+    for unique_note_type_id, default_note_type_id in RES_NOTE_SYNC_TARGETS.items():
+        row = rows_by_unique_id.get(unique_note_type_id, {})
+        current_notes = str(row.get("notes") or "").strip()
+        if current_notes:
+            continue
+        note_type_id = _safe_int(row.get("notetypeid"), default_note_type_id)
+        if note_type_id <= 0:
+            continue
+        insert_rows.append(
+            {
+                "NOTES": notes,
+                "NOTETYPEID": str(note_type_id),
+                "UNIQUENOTETYPEID": str(unique_note_type_id),
+                "RESID": str(reservation_id),
+                "HOTELID": str(hotel_id),
+            }
+        )
+    return insert_rows
+
+
+async def _sync_reservation_voucher_best_effort(
     client: ElektrawebClient,
     *,
     hotel_id: int,
     reservation_id: str,
     voucher_no: str,
-    notes: str,
-) -> None:
-    """Write customer note to Elektra reservation notes area without blocking create flow."""
-    clean_notes = str(notes or "").strip()
-    if not clean_notes:
-        return
-
-    update_body: dict[str, Any] = {"notes": clean_notes}
-    if reservation_id:
-        update_body["reservationId"] = reservation_id
-    if voucher_no:
-        update_body["voucherNo"] = voucher_no
-
-    if "reservationId" in update_body or "voucherNo" in update_body:
-        try:
-            await client.post(f"/hotel/{hotel_id}/updateReservation", json_body=update_body)
-            logger.info(
-                "elektraweb_reservation_notes_synced",
-                hotel_id=hotel_id,
-                reservation_id=reservation_id,
-                voucher_no=voucher_no,
-                mode="booking_api_update",
-            )
-            return
-        except Exception as error:
-            logger.warning(
-                "elektraweb_reservation_notes_sync_failed",
-                hotel_id=hotel_id,
-                reservation_id=reservation_id,
-                voucher_no=voucher_no,
-                mode="booking_api_update",
-                error=str(error),
-            )
-
-    update_row: dict[str, object] = {"HOTELID": str(hotel_id), "NOTES": clean_notes}
-    if reservation_id:
-        update_row["ID"] = reservation_id
-    elif voucher_no:
-        update_row["VOUCHERNO"] = voucher_no
-    else:
-        return
+) -> bool:
+    """Write internal reservation number to HOTEL_RES.VOUCHERNO without blocking create flow."""
+    clean_voucher_no = str(voucher_no or "").strip()
+    if not clean_voucher_no or not reservation_id:
+        return False
 
     try:
         await client.post(
             "/Update/HOTEL_RES",
-            json_body={"Action": "Update", "Object": "HOTEL_RES", "Row": update_row},
+            json_body={
+                "Row": {
+                    "VOUCHERNO": clean_voucher_no,
+                    "ID": str(reservation_id),
+                    "HOTELID": hotel_id,
+                },
+                "SelectAfterUpdate": ["ID"],
+                "Action": "Update",
+                "Object": "HOTEL_RES",
+            },
+        )
+        logger.info(
+            "elektraweb_reservation_voucher_synced",
+            hotel_id=hotel_id,
+            reservation_id=reservation_id,
+            voucher_no=clean_voucher_no,
+        )
+        return True
+    except Exception as error:
+        logger.warning(
+            "elektraweb_reservation_voucher_sync_failed",
+            hotel_id=hotel_id,
+            reservation_id=reservation_id,
+            voucher_no=clean_voucher_no,
+            error=str(error),
+        )
+        return False
+
+
+async def _sync_reservation_notes_best_effort(
+    client: ElektrawebClient,
+    *,
+    hotel_id: int,
+    reservation_id: str,
+    notes: str,
+) -> None:
+    """Write customer note into Elektra RES_NOTE rows shown on the reservation card."""
+    clean_notes = str(notes or "").strip()
+    if not clean_notes or not reservation_id:
+        return
+
+    try:
+        raw_slots = await client.post(
+            "/Function/FN_RESFIXNOTE",
+            json_body={
+                "Parameters": {
+                    "RESID": _safe_int(reservation_id, 0) or reservation_id,
+                    "HOTELID": hotel_id,
+                },
+                "Action": "Function",
+                "Object": "FN_RESFIXNOTE",
+                "OrderBy": [{"Column": "SORTORDER", "Direction": "ASC"}],
+                "BaseObject": "RES_NOTE",
+            },
+        )
+    except Exception as error:
+        logger.warning(
+            "elektraweb_reservation_note_slots_fetch_failed",
+            hotel_id=hotel_id,
+            reservation_id=reservation_id,
+            error=str(error),
+        )
+        raw_slots = []
+
+    insert_rows = _build_res_note_insert_rows(
+        hotel_id=hotel_id,
+        reservation_id=reservation_id,
+        notes=clean_notes,
+        slots=_parse_res_note_slots(raw_slots),
+    )
+    if not insert_rows:
+        logger.info(
+            "elektraweb_reservation_notes_already_synced",
+            hotel_id=hotel_id,
+            reservation_id=reservation_id,
+        )
+        return
+
+    try:
+        await client.post(
+            "/Insert/RES_NOTE",
+            json_body={
+                "Row": insert_rows,
+                "SelectAfterInsert": [
+                    "UNIQUENOTETYPEID",
+                    "ID",
+                    "NOTETYPEID",
+                    "ACTIONID",
+                    "NOTES",
+                    "RESID",
+                    "CREATION_DATE",
+                    "SORTORDER",
+                ],
+                "Action": "Insert",
+                "Object": "RES_NOTE",
+            },
         )
         logger.info(
             "elektraweb_reservation_notes_synced",
             hotel_id=hotel_id,
             reservation_id=reservation_id,
-            voucher_no=voucher_no,
-            mode="hoteladvisor_update",
+            inserted_count=len(insert_rows),
         )
     except Exception as error:
         logger.warning(
             "elektraweb_reservation_notes_sync_failed",
             hotel_id=hotel_id,
             reservation_id=reservation_id,
-            voucher_no=voucher_no,
-            mode="hoteladvisor_update",
+            inserted_count=len(insert_rows),
             error=str(error),
         )
 
 
-async def _parse_create_response_and_sync_notes(
+async def _parse_create_response_and_sync_reservation_fields(
     client: ElektrawebClient,
     *,
     hotel_id: int,
     raw_response: Any,
     draft: dict[str, Any],
 ) -> ReservationResponse:
-    """Parse create response and sync customer-visible notes for every successful create path."""
+    """Parse create response and sync Elektra voucher and note card fields."""
     parsed = parse_reservation_create(raw_response)
+    target_voucher_no = _target_voucher_no_from_draft(draft)
+    voucher_synced = await _sync_reservation_voucher_best_effort(
+        client,
+        hotel_id=hotel_id,
+        reservation_id=str(parsed.reservation_id or ""),
+        voucher_no=target_voucher_no,
+    )
     await _sync_reservation_notes_best_effort(
         client,
         hotel_id=hotel_id,
         reservation_id=str(parsed.reservation_id or ""),
-        voucher_no=str(parsed.voucher_no or ""),
         notes=str(draft.get("notes") or ""),
     )
+    if voucher_synced:
+        parsed.voucher_no = target_voucher_no
     return parsed
 
 
@@ -1019,7 +1142,7 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
         try:
             logger.info("elektraweb_create_reservation_attempt", hotel_id=hotel_id, path=path)
             raw = await client.post(path, json_body=booking_api_payload)
-            return await _parse_create_response_and_sync_notes(
+            return await _parse_create_response_and_sync_reservation_fields(
                 client,
                 hotel_id=hotel_id,
                 raw_response=raw,
@@ -1057,7 +1180,7 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
                             path,
                             json_body=_build_booking_api_create_payload(hotel_id, refreshed_draft),
                         )
-                        return await _parse_create_response_and_sync_notes(
+                        return await _parse_create_response_and_sync_reservation_fields(
                             client,
                             hotel_id=hotel_id,
                             raw_response=raw,
@@ -1085,7 +1208,7 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
                                         path,
                                         json_body=_build_booking_api_create_payload(hotel_id, second_refresh_payload),
                                     )
-                                    return await _parse_create_response_and_sync_notes(
+                                    return await _parse_create_response_and_sync_reservation_fields(
                                         client,
                                         hotel_id=hotel_id,
                                         raw_response=raw,
@@ -1115,7 +1238,7 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
                                                         final_price_payload,
                                                     ),
                                                 )
-                                                return await _parse_create_response_and_sync_notes(
+                                                return await _parse_create_response_and_sync_reservation_fields(
                                                     client,
                                                     hotel_id=hotel_id,
                                                     raw_response=raw,
@@ -1161,13 +1284,21 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
                     await client.post("/Execute/SP_HOTELRESGUEST_SAVE", json_body=guest_payload)
                 except Exception as guest_error:
                     logger.warning("elektraweb_guest_save_failed", hotel_id=hotel_id, error=str(guest_error))
+        target_voucher_no = _target_voucher_no_from_draft(draft)
+        voucher_synced = await _sync_reservation_voucher_best_effort(
+            client,
+            hotel_id=hotel_id,
+            reservation_id=str(parsed.reservation_id or ""),
+            voucher_no=target_voucher_no,
+        )
         await _sync_reservation_notes_best_effort(
             client,
             hotel_id=hotel_id,
             reservation_id=str(parsed.reservation_id or ""),
-            voucher_no=str(parsed.voucher_no or ""),
             notes=str(draft.get("notes") or ""),
         )
+        if voucher_synced:
+            parsed.voucher_no = target_voucher_no
         return parsed
     except Exception as error:
         logger.warning("elektraweb_create_reservation_path_failed", path="/Insert/HOTEL_RES", error=str(error))
