@@ -1,5 +1,6 @@
 """WhatsApp webhook routes for verification and incoming messages."""
 
+import hashlib
 import re
 import time
 import unicodedata
@@ -62,6 +63,7 @@ DEDUPE_TTL_SECONDS = 3600
 MAX_TEXT_LENGTH = 4096
 WEBHOOK_MAX_AGE_SECONDS = 300
 CONVERSATION_IDLE_RESET_SECONDS = 20 * 60
+TICKET_DEDUPE_KEY_MAX_LENGTH = 200
 RESTAURANT_MANUAL_MODE_KEYWORDS = (
     "restoran",
     "restaurant",
@@ -711,6 +713,24 @@ def _restaurant_pending_approval_message(language: str = "tr") -> str:
         )
     return (
         "Restoran rezervasyon talebinizi aldik.\n\n"
+        "Talebinizi onay icin ilgili birimimize ilettik. Onay geldiginde size hemen bilgi verecegiz."
+    )
+
+
+def _transfer_pending_approval_message(language: str = "tr") -> str:
+    """Guest-facing acknowledgement for transfer approval flow."""
+    if language == "en":
+        return (
+            "Your transfer reservation request has been received.\n\n"
+            "We have forwarded it for approval and will inform you as soon as it is confirmed."
+        )
+    if language == "ru":
+        return (
+            "Мы получили ваш запрос на трансфер.\n\n"
+            "Мы передали его на подтверждение и сообщим вам сразу после одобрения."
+        )
+    return (
+        "Transfer rezervasyon talebinizi aldik.\n\n"
         "Talebinizi onay icin ilgili birimimize ilettik. Onay geldiginde size hemen bilgi verecegiz."
     )
 
@@ -3913,7 +3933,7 @@ def _should_auto_submit_stay_hold(internal_json: InternalJSON) -> bool:
         return False
 
     state = str(internal_json.state or "").upper()
-    if state not in {"READY_FOR_TOOL", "NEEDS_CONFIRMATION", "PENDING_APPROVAL"}:
+    if state not in {"READY_FOR_TOOL", "NEEDS_CONFIRMATION", "PENDING_APPROVAL", "NEEDS_VERIFICATION"}:
         return False
 
     parsed_tool_calls = ResponseParser.extract_tool_calls(internal_json)
@@ -3922,6 +3942,13 @@ def _should_auto_submit_stay_hold(internal_json: InternalJSON) -> bool:
         for item in parsed_tool_calls
         if isinstance(item, dict)
     }
+    if state == "NEEDS_VERIFICATION" and "stay_create_hold" in tool_names:
+        required = [
+            str(item).strip()
+            for item in internal_json.required_questions
+            if isinstance(item, str) and str(item).strip()
+        ]
+        return len(required) == 0
     if state in {"READY_FOR_TOOL", "PENDING_APPROVAL"} and (
         "stay_create_hold" in tool_names or "approval_request" in tool_names
     ):
@@ -4039,7 +4066,7 @@ def _should_auto_submit_restaurant_hold(
         return False
 
     state = str(internal_json.state or "").upper()
-    if state not in {"READY_FOR_TOOL", "TOOL_RUNNING", "NEEDS_CONFIRMATION", "PENDING_APPROVAL"}:
+    if state not in {"READY_FOR_TOOL", "TOOL_RUNNING", "NEEDS_CONFIRMATION", "PENDING_APPROVAL", "NEEDS_VERIFICATION"}:
         return False
     if state == "NEEDS_CONFIRMATION" and not _is_affirmative_confirmation(normalized_text):
         return False
@@ -4050,6 +4077,13 @@ def _should_auto_submit_restaurant_hold(
         for item in parsed_tool_calls
         if isinstance(item, dict)
     }
+    if state == "NEEDS_VERIFICATION" and "restaurant_create_hold" in tool_names:
+        required = [
+            str(item).strip()
+            for item in internal_json.required_questions
+            if isinstance(item, str) and str(item).strip()
+        ]
+        return len(required) == 0
     if {"restaurant_availability", "restaurant_create_hold"} & tool_names:
         return True
 
@@ -4074,6 +4108,119 @@ def _executed_restaurant_hold_submission(executed_calls: list[dict[str, Any]]) -
         if str(result.get("restaurant_hold_id") or "").strip():
             return True
     return False
+
+
+def _transfer_required_fields_present(entities: dict[str, Any]) -> bool:
+    """Return True when enough transfer fields exist to call transfer_create_hold."""
+    return (
+        bool(str(entities.get("route") or "").strip())
+        and bool(str(entities.get("date") or "").strip())
+        and bool(str(entities.get("time") or "").strip())
+        and _to_int(entities.get("pax_count"), 0) > 0
+        and bool(str(entities.get("guest_name") or "").strip())
+        and bool(str(entities.get("phone") or "").strip())
+    )
+
+
+def _should_auto_submit_transfer_hold(
+    internal_json: InternalJSON,
+    entities: dict[str, Any],
+    normalized_text: str,
+) -> bool:
+    """Return True when parsed response indicates transfer hold must be submitted now."""
+    if str(internal_json.intent or "").lower() != "transfer_booking_create":
+        return False
+    if not _transfer_required_fields_present(entities):
+        return False
+
+    state = str(internal_json.state or "").upper()
+    if state not in {"READY_FOR_TOOL", "TOOL_RUNNING", "NEEDS_CONFIRMATION", "PENDING_APPROVAL", "NEEDS_VERIFICATION"}:
+        return False
+    if state == "NEEDS_CONFIRMATION" and not _is_affirmative_confirmation(normalized_text):
+        return False
+
+    parsed_tool_calls = ResponseParser.extract_tool_calls(internal_json)
+    tool_names = {
+        str(item.get("name") or "").strip()
+        for item in parsed_tool_calls
+        if isinstance(item, dict)
+    }
+    if "transfer_create_hold" in tool_names:
+        if state == "NEEDS_VERIFICATION":
+            required = [
+                str(item).strip()
+                for item in internal_json.required_questions
+                if isinstance(item, str) and str(item).strip()
+            ]
+            return len(required) == 0
+        return True
+
+    next_step = _canonical_text(str(internal_json.next_step or ""))
+    if not next_step:
+        return state in {"READY_FOR_TOOL", "TOOL_RUNNING", "PENDING_APPROVAL"}
+    if "transfercreatehold" in next_step:
+        return True
+    if next_step == "awaittoolresult":
+        return True
+    if "approval" in next_step or "onay" in next_step:
+        return True
+    return state in {"READY_FOR_TOOL", "TOOL_RUNNING", "PENDING_APPROVAL"}
+
+
+def _executed_transfer_hold_submission(executed_calls: list[dict[str, Any]]) -> bool:
+    """Return True when a transfer hold was successfully created."""
+    for call in executed_calls:
+        if str(call.get("name") or "") != "transfer_create_hold":
+            continue
+        result = _loads_tool_payload(call.get("result"))
+        if str(result.get("transfer_hold_id") or "").strip():
+            return True
+    return False
+
+
+async def _auto_submit_transfer_hold(
+    conversation: Conversation,
+    entities: dict[str, Any],
+    dispatcher: Any,
+) -> list[dict[str, Any]]:
+    """Fallback: create transfer hold deterministically when LLM skips tool calls."""
+    route = str(entities.get("route") or "").strip()
+    date_value = str(entities.get("date") or "").strip()
+    time_value = str(entities.get("time") or "").strip()
+    pax_count = _to_int(entities.get("pax_count"), 0)
+    guest_name = str(entities.get("guest_name") or "").strip()
+    phone = str(entities.get("phone") or "").strip()
+    if not route or not date_value or not time_value or pax_count <= 0 or not guest_name or not phone:
+        return []
+
+    hold_args: dict[str, Any] = {
+        "hotel_id": conversation.hotel_id,
+        "route": route,
+        "date": date_value,
+        "time": time_value,
+        "pax_count": pax_count,
+        "guest_name": guest_name,
+        "phone": phone,
+    }
+    if str(entities.get("flight_no") or "").strip():
+        hold_args["flight_no"] = str(entities.get("flight_no") or "").strip()
+    if "baby_seat" in entities:
+        hold_args["baby_seat"] = bool(entities.get("baby_seat"))
+    if "notes" in entities:
+        hold_args["notes"] = str(entities.get("notes") or "")
+    if conversation.id is not None:
+        hold_args["conversation_id"] = str(conversation.id)
+
+    hold_result = await dispatcher.dispatch("transfer_create_hold", **hold_args)
+    if not isinstance(hold_result, dict) or hold_result.get("error"):
+        logger.warning("transfer_hold_auto_submit_create_failed")
+        return []
+
+    logger.info(
+        "transfer_hold_auto_submitted",
+        hold_id=hold_result.get("transfer_hold_id"),
+    )
+    return [{"name": "transfer_create_hold", "arguments": hold_args, "result": hold_result}]
 
 
 def _select_restaurant_slot_id(entities: dict[str, Any], availability_result: dict[str, Any]) -> str:
@@ -4927,6 +5074,46 @@ async def _run_message_pipeline(
                         ),
                     ),
                     scope_decision=scope_result.decision,
+                language_override=language,
+                executed_calls=executed_calls,
+            )
+        if (
+            dispatcher is not None
+            and not _executed_transfer_hold_submission(executed_calls)
+            and _should_auto_submit_transfer_hold(parsed.internal_json, entities, normalized_text)
+        ):
+            fallback_calls = await _auto_submit_transfer_hold(
+                conversation=conversation,
+                entities=entities,
+                dispatcher=dispatcher,
+            )
+            if fallback_calls:
+                executed_calls.extend(fallback_calls)
+            else:
+                logger.warning(
+                    "transfer_hold_submission_missing_after_pending_approval",
+                    conversation_id=str(conversation.id) if conversation.id is not None else None,
+                    state=str(parsed.internal_json.state or ""),
+                    next_step=str(parsed.internal_json.next_step or ""),
+                )
+                return _finalize_response(
+                    LLMResponse(
+                        user_message=(
+                            "Talebinizi aldik ancak transfer kaydini teknik olarak tamamlayamadik. "
+                            "Ekibimiz sizi manuel olarak en kisa surede bilgilendirecektir."
+                        ),
+                        internal_json=InternalJSON(
+                            language=language,
+                            intent="transfer_booking_create",
+                            state="HANDOFF",
+                            entities=entities,
+                            required_questions=[],
+                            handoff={"needed": True, "reason": "transfer_hold_submission_failed"},
+                            risk_flags=["TOOL_ERROR_REPEAT"],
+                            next_step="manual_review_required",
+                        ),
+                    ),
+                    scope_decision=scope_result.decision,
                     language_override=language,
                     executed_calls=executed_calls,
                 )
@@ -5006,6 +5193,10 @@ async def _run_message_pipeline(
                 parsed.user_message = _restaurant_confirmed_message(language)
                 parsed.internal_json.state = "CONFIRMED"
                 parsed.internal_json.next_step = "reservation_confirmed"
+        if _executed_transfer_hold_submission(executed_calls):
+            parsed.user_message = _transfer_pending_approval_message(language)
+            parsed.internal_json.state = "PENDING_APPROVAL"
+            parsed.internal_json.next_step = "await_admin_approval"
         _enforce_single_step_collection(parsed)
         _enforce_phone_collection_prompt(parsed)
         return _finalize_response(
@@ -5550,7 +5741,34 @@ def _build_fallback_handoff_dedupe_key(conversation: Conversation, llm_response:
     )
     intent = str(llm_response.internal_json.intent or "human_handoff").strip() or "human_handoff"
     reason = str((llm_response.internal_json.handoff or {}).get("reason") or "human_handoff").strip() or "human_handoff"
-    return f"HANDOFF|{intent}|{reason}|{reference_id}"
+    raw_key = f"HANDOFF|{intent}|{reason}|{reference_id}"
+    if len(raw_key) <= TICKET_DEDUPE_KEY_MAX_LENGTH:
+        return raw_key
+    digest = hashlib.sha1(raw_key.encode("utf-8")).hexdigest()[:16]
+    prefix_budget = TICKET_DEDUPE_KEY_MAX_LENGTH - len("|sha1:") - len(digest)
+    return f"{raw_key[:prefix_budget]}|sha1:{digest}"
+
+
+def _extract_handoff_ticket_id_from_tool_calls(internal_json: InternalJSON) -> str:
+    """Extract already-created handoff ticket id from structured tool call history."""
+    for call in internal_json.tool_calls:
+        if not isinstance(call, dict):
+            continue
+        tool_name = str(call.get("name") or call.get("tool") or "").strip()
+        if tool_name != "handoff_create_ticket":
+            continue
+        result = call.get("result")
+        if isinstance(result, str):
+            try:
+                result = orjson.loads(result)
+            except orjson.JSONDecodeError:
+                result = {}
+        if not isinstance(result, dict):
+            result = {}
+        ticket_id = str(result.get("ticket_id") or "").strip()
+        if ticket_id:
+            return ticket_id
+    return ""
 
 
 async def _finalize_handoff_transition(
@@ -5593,11 +5811,13 @@ async def _finalize_handoff_transition(
     )
     transcript_summary = _build_handoff_transcript_summary(conversation.messages)
 
-    ticket_ensured = False
-    ticket_id = ""
+    ticket_id = _extract_handoff_ticket_id_from_tool_calls(llm_response.internal_json)
+    ticket_ensured = bool(ticket_id)
     if handoff_tool is not None and db_pool is not None:
         try:
-            if dedupe_key and await EscalationEngine.check_dedupe(dedupe_key, db_pool):
+            if ticket_ensured:
+                pass
+            elif dedupe_key and await EscalationEngine.check_dedupe(dedupe_key, db_pool):
                 ticket_ensured = True
             else:
                 ticket_result = await handoff_tool.create_ticket(

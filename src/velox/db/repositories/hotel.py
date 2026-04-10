@@ -1,5 +1,6 @@
 """Repository for hotel and operational entities."""
 
+import hashlib
 from datetime import date
 from typing import Any
 from uuid import UUID
@@ -12,6 +13,39 @@ from velox.db.database import execute, fetch, fetchrow
 from velox.utils.id_gen import next_sequential_id
 
 logger = structlog.get_logger(__name__)
+
+_TICKET_ASSIGNED_ROLE_MAX_LENGTH = 20
+_TICKET_DEDUPE_KEY_MAX_LENGTH = 200
+_ALLOWED_TICKET_PRIORITIES = {"low", "medium", "high"}
+
+
+def _normalize_ticket_priority(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized in _ALLOWED_TICKET_PRIORITIES:
+        return normalized
+    return "medium"
+
+
+def _normalize_assigned_role(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip().upper()
+    if not normalized:
+        return None
+    return normalized[:_TICKET_ASSIGNED_ROLE_MAX_LENGTH]
+
+
+def _normalize_dedupe_key(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    if len(normalized) <= _TICKET_DEDUPE_KEY_MAX_LENGTH:
+        return normalized
+    digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:16]
+    prefix_budget = _TICKET_DEDUPE_KEY_MAX_LENGTH - len("|sha1:") - len(digest)
+    return f"{normalized[:prefix_budget]}|sha1:{digest}"
 
 
 class HotelRepository:
@@ -187,6 +221,10 @@ class TicketRepository:
         dedupe_key: str | None = None,
     ) -> dict[str, str | bool]:
         """Create a ticket, deduplicating open tickets with same dedupe key."""
+        priority = _normalize_ticket_priority(priority)
+        assigned_to_role = _normalize_assigned_role(assigned_to_role)
+        dedupe_key = _normalize_dedupe_key(dedupe_key)
+
         if dedupe_key:
             existing = await fetchrow(
                 """
