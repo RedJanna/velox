@@ -633,8 +633,15 @@ Input:
   "notes?": "Misafirimiz su notu iletti: Ucus gecikmesi nedeniyle 20 dakika gecis olabilir."
 }
 Output:
-{"transfer_hold_id":"TR_HOLD_...", "status":"PENDING_APPROVAL", "summary":"..."}
+{
+  "transfer_hold_id":"TR_HOLD_...",
+  "status":"PENDING_APPROVAL",
+  "approval_request_id":"APR_...",
+  "approval_status":"REQUESTED",
+  "summary":"..."
+}
 Kural: Transfer tarihi `HOTEL_PROFILE.season.open` ile `HOTEL_PROFILE.season.close` araliginda degilse tool yeni hold acmaz; `OUT_OF_SEASON` doner ve sezona uygun farkli tarih talep edilir.
+Kural: Transfer hold olustugunda ADMIN onay talebi de ayni akista uretilir; backend deterministic fallback ile hold olusturdugunda `approval_request` girdisini de `tool_calls` icine yansitir.
 
 #### TOOL: transfer.confirm / transfer.modify / transfer.cancel
 Input/Output: benzeri (transfer_hold_id bazli)

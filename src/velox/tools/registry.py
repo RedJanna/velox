@@ -95,7 +95,7 @@ def build_dispatcher() -> ToolDispatcher:
     )
 
     dispatcher.register("transfer_get_info", TransferGetInfoTool())
-    dispatcher.register("transfer_create_hold", TransferCreateHoldTool(transfer_repository))
+    dispatcher.register("transfer_create_hold", TransferCreateHoldTool(transfer_repository, approval_tool))
     dispatcher.register("transfer_confirm", TransferConfirmTool())
     dispatcher.register("transfer_modify", TransferModifyTool())
     dispatcher.register("transfer_cancel", TransferCancelTool())

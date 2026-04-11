@@ -59,9 +59,19 @@ class _CaptureTransferRepository:
             date=hold.date,
             time=hold.time,
             pax_count=hold.pax_count,
+            guest_name=hold.guest_name,
+            phone=hold.phone,
+            flight_no=hold.flight_no,
+            vehicle_type=hold.vehicle_type,
+            baby_seat=hold.baby_seat,
             price_eur=hold.price_eur,
             notes=hold.notes,
         )
+
+
+class _DummyApprovalTool:
+    async def execute(self, **_kwargs: Any) -> dict[str, Any]:
+        return {"approval_request_id": "APR_TR_1001", "status": "REQUESTED"}
 
 
 @pytest.mark.asyncio
@@ -98,7 +108,7 @@ async def test_transfer_create_hold_formats_customer_visible_note_before_save(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repository = _CaptureTransferRepository()
-    tool = TransferCreateHoldTool(repository)
+    tool = TransferCreateHoldTool(repository, _DummyApprovalTool())
     monkeypatch.setattr(transfer_tools, "get_profile", lambda _hotel_id: None)
 
     async def _fake_info(**_kwargs: Any) -> dict[str, Any]:
@@ -130,4 +140,6 @@ async def test_transfer_create_hold_formats_customer_visible_note_before_save(
         "Misafirimiz şu notu iletti: Flight delay nedeniyle 20 dk gec gelebiliriz."
     )
     assert result["transfer_hold_id"] == "TR_HOLD_1001"
+    assert result["approval_request_id"] == "APR_TR_1001"
+    assert result["approval_status"] == "REQUESTED"
     assert result.get("ops_notification", {}).get("reason") == "FLIGHT_DELAY_REPORTED"

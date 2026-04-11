@@ -4216,11 +4216,33 @@ async def _auto_submit_transfer_hold(
         logger.warning("transfer_hold_auto_submit_create_failed")
         return []
 
+    fallback_calls: list[dict[str, Any]] = [
+        {"name": "transfer_create_hold", "arguments": hold_args, "result": hold_result}
+    ]
+    approval_request_id = str(hold_result.get("approval_request_id") or "").strip()
+    if approval_request_id:
+        fallback_calls.append(
+            {
+                "name": "approval_request",
+                "arguments": {
+                    "hotel_id": conversation.hotel_id,
+                    "approval_type": "TRANSFER",
+                    "reference_id": str(hold_result.get("transfer_hold_id") or ""),
+                    "required_roles": ["ADMIN"],
+                },
+                "result": {
+                    "approval_request_id": approval_request_id,
+                    "status": hold_result.get("approval_status", "REQUESTED"),
+                },
+            }
+        )
+
     logger.info(
         "transfer_hold_auto_submitted",
         hold_id=hold_result.get("transfer_hold_id"),
+        approval_request_id=approval_request_id or None,
     )
-    return [{"name": "transfer_create_hold", "arguments": hold_args, "result": hold_result}]
+    return fallback_calls
 
 
 def _select_restaurant_slot_id(entities: dict[str, Any], availability_result: dict[str, Any]) -> str:

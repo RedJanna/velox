@@ -9,12 +9,14 @@ from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import structlog
 from pydantic import BaseModel
 
 from velox.core.hotel_profile_loader import get_profile
 from velox.db.database import execute, fetchrow
 from velox.db.repositories.transfer import TransferRepository
 from velox.models.transfer import TransferHold, TransferInfoRequest
+from velox.tools.approval import ApprovalRequestTool
 from velox.tools.base import BaseTool
 from velox.tools.season import is_within_hotel_season, out_of_season_response
 from velox.utils.customer_notes import format_customer_visible_note
@@ -23,6 +25,7 @@ FLIGHT_DELAY_PATTERN = re.compile(
     r"(flight\s*delay|delayed|delay|gecik|r[oö]tar|late\s*flight)",
     flags=re.IGNORECASE,
 )
+logger = structlog.get_logger(__name__)
 
 
 class _TransferHoldUpdates(BaseModel):
@@ -87,8 +90,13 @@ class TransferGetInfoTool(BaseTool):
 class TransferCreateHoldTool(BaseTool):
     """Create transfer hold in DB."""
 
-    def __init__(self, transfer_repository: TransferRepository) -> None:
+    def __init__(
+        self,
+        transfer_repository: TransferRepository,
+        approval_tool: ApprovalRequestTool | None = None,
+    ) -> None:
         self._transfer_repository = transfer_repository
+        self._approval_tool = approval_tool
         self._info_tool = TransferGetInfoTool()
 
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
@@ -139,9 +147,31 @@ class TransferCreateHoldTool(BaseTool):
             notes=formatted_notes or None,
         )
         created = await self._transfer_repository.create_hold(hold)
+        details_summary = _build_transfer_details_summary(created)
+        approval_result: dict[str, Any] = {"approval_request_id": None, "status": "REQUESTED"}
+        if self._approval_tool is not None:
+            try:
+                approval_result = await self._approval_tool.execute(
+                    hotel_id=hotel_id,
+                    approval_type="TRANSFER",
+                    reference_id=created.hold_id,
+                    details_summary=details_summary,
+                    required_roles=["ADMIN"],
+                    any_of=False,
+                )
+            except Exception:
+                logger.exception(
+                    "transfer_hold_approval_failed",
+                    hotel_id=hotel_id,
+                    hold_id=created.hold_id,
+                )
+                raise
+
         result: dict[str, Any] = {
             "transfer_hold_id": created.hold_id,
             "status": created.status.value,
+            "approval_request_id": approval_result.get("approval_request_id"),
+            "approval_status": approval_result.get("status"),
             "summary": (
                 f"{created.route} {created.date} {created.time} "
                 f"{created.pax_count} pax {created.price_eur} EUR"
@@ -263,6 +293,26 @@ def _same_day_urgent_escalation(hold_date: date, hold_time: time, hotel_id: int)
             "reason": "SAME_DAY_URGENT",
         }
     return None
+
+
+def _build_transfer_details_summary(hold: TransferHold) -> str:
+    """Build admin-facing approval summary for transfer holds."""
+    flight_line = f"\nUcus: {hold.flight_no}" if hold.flight_no else ""
+    notes_line = f"\nNot: {hold.notes}" if hold.notes else ""
+    baby_seat_line = "\nBebek koltugu: Evet" if hold.baby_seat else ""
+    return (
+        f"Transfer talebi\n"
+        f"Rota: {hold.route}\n"
+        f"Tarih: {hold.date} {hold.time}\n"
+        f"Misafir: {hold.guest_name}\n"
+        f"Telefon: {hold.phone}\n"
+        f"Kisi: {hold.pax_count}\n"
+        f"Arac: {hold.vehicle_type}\n"
+        f"Tutar: {hold.price_eur} EUR"
+        f"{flight_line}"
+        f"{baby_seat_line}"
+        f"{notes_line}"
+    )
 
 
 def _flight_delay_notification(notes: str | None) -> dict[str, str] | None:

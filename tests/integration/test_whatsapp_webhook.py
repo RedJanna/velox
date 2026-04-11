@@ -1486,6 +1486,65 @@ async def test_run_message_pipeline_restaurant_auto_submit_sets_confirmed_when_h
 
 
 @pytest.mark.asyncio
+async def test_run_message_pipeline_transfer_auto_submit_injects_approval_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Transfer fallback should mirror approval_request when hold creation returns it."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Transfer talebinizi olusturuyorum.\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"transfer_booking_create","state":"NEEDS_VERIFICATION","entities":'
+            '{"route":"DALAMAN_AIRPORT_TO_HOTEL","date":"2026-08-10","time":"14:30",'
+            '"pax_count":2,"guest_name":"Ali Veli","phone":"+905551112233"},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},'
+            '"next_step":"await_tool_result"}',
+            [],
+        )
+
+    class _Dispatcher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append((name, kwargs))
+            if name == "transfer_create_hold":
+                return {
+                    "transfer_hold_id": "TR_HOLD_9001",
+                    "status": "PENDING_APPROVAL",
+                    "approval_request_id": "APR_TR_9001",
+                    "approval_status": "REQUESTED",
+                }
+            return {"error": "unexpected_tool"}
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    dispatcher = _Dispatcher()
+    conversation = Conversation(id=uuid4(), hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="evet",
+        dispatcher=dispatcher,
+        expected_language="tr",
+    )
+
+    assert [item[0] for item in dispatcher.calls] == ["transfer_create_hold"]
+    assert result.internal_json.state == "PENDING_APPROVAL"
+    assert result.internal_json.next_step == "await_admin_approval"
+    assert [item["name"] for item in result.internal_json.tool_calls] == [
+        "transfer_create_hold",
+        "approval_request",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_run_message_pipeline_restaurant_auto_submit_returns_deterministic_out_of_season_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
