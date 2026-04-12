@@ -118,6 +118,11 @@ def test_admin_panel_notifications_use_notify_helper() -> None:
     assert "notify(" in ADMIN_PANEL_SCRIPT
 
 
+def test_stay_wizard_submit_button_is_not_rendered_disabled() -> None:
+    assert 'data-stay-submit-action disabled' not in ADMIN_HOLDS_SCRIPT
+    assert 'data-stay-submit-action>' in ADMIN_HOLDS_SCRIPT
+
+
 def test_chat_lab_boot_no_longer_requires_parent_token() -> None:
     assert "window.parent !== window && !adminToken()) return;" not in TEST_CHAT_SCRIPT
 
