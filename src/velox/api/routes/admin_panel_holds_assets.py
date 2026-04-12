@@ -535,7 +535,7 @@ function renderStayWizardSummary(bodyEl) {
     + '<div class="summary-total"><span class="total-label">Toplam Tutar</span><span class="total-value">' + escapeHtml(String(d.total_price_eur || 0)) + ' EUR</span></div>'
     + reprocessInfo
     + '<div class="wizard-nav"><button class="inline-button secondary" type="button" data-stay-wizard-prev>Geri</button>'
-    + '<button class="inline-button primary" type="button" data-stay-submit-action ' + (canReprocess ? '' : 'disabled') + '>' + (state.stayWizardUseExisting ? 'Yeniden Islem Baslat' : 'Rezervasyon Olustur') + '</button></div>';
+    + '<button class="inline-button primary" type="button" data-stay-submit-action>' + (state.stayWizardUseExisting ? 'Yeniden Islem Baslat' : 'Rezervasyon Olustur') + '</button></div>';
 }
 
 function collectStayDraftFromStep(step) {
