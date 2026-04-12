@@ -4567,10 +4567,11 @@ async function onCreateSlot(event) {
 }
 
 async function loadSystemOverview() {
-  const [systemOverview, readyState] = await Promise.all([
-    apiFetch('/system/overview'),
-    apiFetchFromAbsolute(READY_URL),
-  ]);
+  const systemOverview = await apiFetch('/system/overview');
+  const readyState = {
+    status: systemOverview.status || '-',
+    checks: systemOverview.checks || {},
+  };
   state.systemOverview = {systemOverview, readyState};
   renderSystemOverview();
 }
@@ -4870,6 +4871,7 @@ function clearClientSession() {
   state.hotelFactsVersionDetailRevealTimer = null;
   state.hotelFactsApiUnavailable = false;
   state.sessionPreferences = null;
+  state.stayWizardReprocessStatus = '';
   state.stayProfileRoomTypes = [];
   stopAuthKeepAlive();
 }

@@ -272,7 +272,6 @@ tbody tr:hover{background:#fffcf7}
 ADMIN_PANEL_SCRIPT = UI_SHARED_SCRIPT + """\
 const CONFIG = window.ADMIN_PANEL_CONFIG || {};
 const API_ROOT = '/api/v1/admin';
-const READY_URL = '/api/v1/health/ready';
 const HOTEL_KEY = 'velox.admin.hotel';
 const CSRF_COOKIE = 'velox_admin_csrf';
 const LIVE_REFRESH_INTERVAL_MS = 3000;
