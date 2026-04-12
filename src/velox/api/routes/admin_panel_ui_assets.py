@@ -309,7 +309,6 @@ const state = {
   stayWizardStep: 1,
   stayWizardUseExisting: false,
   stayWizardReprocessHoldId: null,
-  stayWizardReprocessStatus: '',
   stayProfileRoomTypes: [],
   tickets: [],
   faqs: [],

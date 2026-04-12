@@ -257,6 +257,42 @@ async def create_stay_hold_from_panel(
     }
 
 
+@router.post("/holds/stay/{hold_id}/clone")
+async def clone_stay_hold_from_panel(
+    hold_id: str,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Clone a previous stay hold and issue a fresh reservation number."""
+    check_permission(user, "holds:approve")
+    repo = ReservationRepository()
+    source_hold = await repo.get_by_hold_id(hold_id)
+    if source_hold is None:
+        raise HTTPException(status_code=404, detail="Kaynak rezervasyon bulunamadi.")
+    if user.role != Role.ADMIN and source_hold.hotel_id != user.hotel_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    cloned_draft = dict(source_hold.draft_json or {})
+    # Must be regenerated from the new hold row to keep voucher sync consistent.
+    cloned_draft.pop("reservation_no", None)
+    cloned_draft["notes"] = format_customer_visible_note(cloned_draft.get("notes"))
+
+    cloned_hold = StayHold(
+        hold_id="",
+        hotel_id=source_hold.hotel_id,
+        conversation_id=None,
+        draft_json=cloned_draft,
+        status=HoldStatus.PENDING_APPROVAL,
+    )
+    created = await repo.create_hold(cloned_hold)
+    return {
+        "status": "created",
+        "hold_id": created.hold_id,
+        "reservation_no": created.reservation_no,
+        "source_hold_id": source_hold.hold_id,
+        "source_reservation_no": source_hold.reservation_no,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Elektraweb proxy endpoints (availability, quote, room types)
 # ---------------------------------------------------------------------------
