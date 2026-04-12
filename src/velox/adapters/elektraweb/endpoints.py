@@ -986,11 +986,11 @@ async def _sync_reservation_notes_best_effort(
     hotel_id: int,
     reservation_id: str,
     notes: str,
-) -> None:
+) -> bool:
     """Write customer note into Elektra RES_NOTE rows shown on the reservation card."""
     clean_notes = str(notes or "").strip()
     if not clean_notes or not reservation_id:
-        return
+        return False
 
     try:
         raw_slots = await client.post(
@@ -1027,7 +1027,7 @@ async def _sync_reservation_notes_best_effort(
             hotel_id=hotel_id,
             reservation_id=reservation_id,
         )
-        return
+        return True
 
     try:
         await client.post(
@@ -1054,6 +1054,7 @@ async def _sync_reservation_notes_best_effort(
             reservation_id=reservation_id,
             inserted_count=len(insert_rows),
         )
+        return True
     except Exception as error:
         logger.warning(
             "elektraweb_reservation_notes_sync_failed",
@@ -1062,6 +1063,68 @@ async def _sync_reservation_notes_best_effort(
             inserted_count=len(insert_rows),
             error=str(error),
         )
+        return False
+
+
+async def _sync_reservation_card_fields_best_effort(
+    client: ElektrawebClient,
+    *,
+    hotel_id: int,
+    reservation_id: str,
+    voucher_no: str,
+    notes: str,
+) -> dict[str, Any]:
+    """Sync Elektra reservation-card voucher and visible note fields."""
+    clean_reservation_id = str(reservation_id or "").strip()
+    clean_voucher_no = str(voucher_no or "").strip()
+    clean_notes = str(notes or "").strip()
+
+    voucher_requested = bool(clean_reservation_id and clean_voucher_no)
+    notes_requested = bool(clean_reservation_id and clean_notes)
+
+    voucher_synced = False
+    notes_synced = False
+    if voucher_requested:
+        voucher_synced = await _sync_reservation_voucher_best_effort(
+            client,
+            hotel_id=hotel_id,
+            reservation_id=clean_reservation_id,
+            voucher_no=clean_voucher_no,
+        )
+    if notes_requested:
+        notes_synced = await _sync_reservation_notes_best_effort(
+            client,
+            hotel_id=hotel_id,
+            reservation_id=clean_reservation_id,
+            notes=clean_notes,
+        )
+
+    return {
+        "reservation_id": clean_reservation_id,
+        "voucher_no": clean_voucher_no or None,
+        "voucher_requested": voucher_requested,
+        "voucher_synced": voucher_synced,
+        "notes_requested": notes_requested,
+        "notes_synced": notes_synced,
+    }
+
+
+async def sync_reservation_card_fields(
+    *,
+    hotel_id: int,
+    reservation_id: str,
+    voucher_no: str,
+    notes: str,
+) -> dict[str, Any]:
+    """Public helper to replay Elektra reservation-card voucher and note sync."""
+    client = get_elektraweb_client()
+    return await _sync_reservation_card_fields_best_effort(
+        client,
+        hotel_id=hotel_id,
+        reservation_id=reservation_id,
+        voucher_no=voucher_no,
+        notes=notes,
+    )
 
 
 async def _parse_create_response_and_sync_reservation_fields(
@@ -1074,19 +1137,14 @@ async def _parse_create_response_and_sync_reservation_fields(
     """Parse create response and sync Elektra voucher and note card fields."""
     parsed = parse_reservation_create(raw_response)
     target_voucher_no = _target_voucher_no_from_draft(draft)
-    voucher_synced = await _sync_reservation_voucher_best_effort(
+    sync_result = await _sync_reservation_card_fields_best_effort(
         client,
         hotel_id=hotel_id,
         reservation_id=str(parsed.reservation_id or ""),
         voucher_no=target_voucher_no,
-    )
-    await _sync_reservation_notes_best_effort(
-        client,
-        hotel_id=hotel_id,
-        reservation_id=str(parsed.reservation_id or ""),
         notes=str(draft.get("notes") or ""),
     )
-    if voucher_synced:
+    if sync_result.get("voucher_synced"):
         parsed.voucher_no = target_voucher_no
     return parsed
 
@@ -1285,19 +1343,14 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
                 except Exception as guest_error:
                     logger.warning("elektraweb_guest_save_failed", hotel_id=hotel_id, error=str(guest_error))
         target_voucher_no = _target_voucher_no_from_draft(draft)
-        voucher_synced = await _sync_reservation_voucher_best_effort(
+        sync_result = await _sync_reservation_card_fields_best_effort(
             client,
             hotel_id=hotel_id,
             reservation_id=str(parsed.reservation_id or ""),
             voucher_no=target_voucher_no,
-        )
-        await _sync_reservation_notes_best_effort(
-            client,
-            hotel_id=hotel_id,
-            reservation_id=str(parsed.reservation_id or ""),
             notes=str(draft.get("notes") or ""),
         )
-        if voucher_synced:
+        if sync_result.get("voucher_synced"):
             parsed.voucher_no = target_voucher_no
         return parsed
     except Exception as error:

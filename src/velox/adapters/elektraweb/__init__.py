@@ -8,6 +8,7 @@ from velox.adapters.elektraweb.endpoints import (
     get_reservation,
     modify_reservation,
     quote,
+    sync_reservation_card_fields,
 )
 from velox.adapters.elektraweb.mapper import kebab_to_snake, normalize_keys
 
@@ -20,6 +21,7 @@ __all__ = [
     "get_reservation",
     "modify_reservation",
     "cancel_reservation",
+    "sync_reservation_card_fields",
     "normalize_keys",
     "kebab_to_snake",
 ]

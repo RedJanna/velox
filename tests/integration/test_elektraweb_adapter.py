@@ -831,6 +831,45 @@ async def test_create_reservation_notes_fallback_to_default_res_note_targets_whe
 
 
 @pytest.mark.asyncio
+async def test_sync_reservation_card_fields_replays_voucher_and_notes_for_existing_reservation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Existing reservations should support explicit voucher/note resync replay."""
+    mock_client = AsyncMock()
+    mock_client.post.side_effect = [
+        {"success": True},
+        [
+            [
+                {"RESID": 91254161, "NOTETYPEID": 1001, "UNIQUENOTETYPEID": 1, "NOTES": None},
+                {"RESID": 91254161, "NOTETYPEID": 1002, "UNIQUENOTETYPEID": 2, "NOTES": None},
+                {"RESID": 91254161, "NOTETYPEID": 1003, "UNIQUENOTETYPEID": 3, "NOTES": None},
+            ]
+        ],
+        {"success": True},
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+
+    result = await endpoints.sync_reservation_card_fields(
+        hotel_id=21966,
+        reservation_id="91254161",
+        voucher_no="VLX-21966-2604-0009",
+        notes="Misafirimiz şu notu iletti: 1 adet ekstra yatak talebi.",
+    )
+
+    assert result == {
+        "reservation_id": "91254161",
+        "voucher_no": "VLX-21966-2604-0009",
+        "voucher_requested": True,
+        "voucher_synced": True,
+        "notes_requested": True,
+        "notes_synced": True,
+    }
+    assert mock_client.post.await_args_list[0].args[0] == "/Update/HOTEL_RES"
+    assert mock_client.post.await_args_list[1].args[0] == "/Function/FN_RESFIXNOTE"
+    assert mock_client.post.await_args_list[2].args[0] == "/Insert/RES_NOTE"
+
+
+@pytest.mark.asyncio
 async def test_get_reservation_uses_reservation_list_window_and_filters_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

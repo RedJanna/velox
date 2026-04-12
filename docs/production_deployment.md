@@ -41,6 +41,10 @@ curl -fsS http://127.0.0.1:8001/metrics | head
 
 `/api/v1/health/ready` returns HTTP `200` when all checks are green, otherwise HTTP `503`.
 The readiness payload now includes a `migrations` check so pending SQL drift is visible immediately.
+The readiness payload also includes `elektraweb_generic_sync`.
+If only `ELEKTRA_GENERIC_LOGIN_TOKEN` is configured and the permanent Generic API credentials are missing,
+readiness stays `503` with `elektraweb_generic_override_only` because reservation-card `Voucher No` and
+visible `Notlar` sync cannot self-recover after token expiry.
 `/metrics` exposes Prometheus-style runtime counters, including prompt truncation, structured-output recovery/fallback, and deterministic intent-domain-guard signals.
 By default the endpoint only serves loopback/private-network clients. Override this only when your scrape path is protected:
 
@@ -59,6 +63,16 @@ Add `--run-llm` to measure how many historical failures still reproduce under th
 Use `--since-hours 24` for the last day, or `--since 2026-04-04T00:00:00Z --until 2026-04-04T23:59:59Z` for an explicit UTC window.
 The replay summary now also reports `intent_domain_guard_counts` so you can see how many historical turns were salvaged by deterministic domain remapping.
 It also reports `assistant_created_at_window` so ops can confirm the sampled time slice matches the requested replay window.
+
+If a stay reservation was created before the Generic API credentials were fixed, replay the Elektra reservation-card sync
+for the existing record after restoring the permanent credentials:
+
+```bash
+DB_HOST=127.0.0.1 PYTHONPATH=src .venv-wsl/bin/python scripts/resync_elektra_reservation_card.py --reservation-no VLX-21966-2604-0009
+```
+
+The script reloads the stay hold from PostgreSQL, replays `Voucher No` and visible note sync to Elektra, and writes
+the local `stay_holds.voucher_no` field when the voucher update succeeds.
 
 ## 5. CI/CD
 GitHub Actions workflow: `.github/workflows/ci.yml`

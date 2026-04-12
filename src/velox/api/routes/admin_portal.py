@@ -13,6 +13,7 @@ from velox.api.middleware.auth import ROLE_PERMISSIONS, TokenData, get_current_u
 from velox.api.routes.health import (
     check_db,
     check_elektraweb,
+    check_elektraweb_generic_sync,
     check_openai_api_key,
     check_profiles_loaded,
     check_redis,
@@ -352,6 +353,7 @@ async def admin_system_overview(
         "redis": await check_redis(request),
         "openai": await check_openai_api_key(),
         "elektraweb": await check_elektraweb(),
+        "elektraweb_generic_sync": await check_elektraweb_generic_sync(),
         "hotel_profiles_loaded": check_profiles_loaded(),
     }
     return {

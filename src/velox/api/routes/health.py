@@ -119,6 +119,48 @@ async def check_elektraweb() -> dict[str, Any]:
     return _result(True, "elektraweb_configured")
 
 
+async def check_elektraweb_generic_sync() -> dict[str, Any]:
+    """Validate permanent Generic API credentials required for reservation-card sync."""
+    base_url = settings.elektra_generic_api_base_url.strip()
+    parsed = urlparse(base_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return _result(False, "elektraweb_generic_base_url_invalid")
+
+    has_tenant = bool(settings.elektra_generic_tenant.strip())
+    has_usercode = bool(settings.elektra_generic_usercode.strip())
+    has_password = bool(settings.elektra_generic_password.strip())
+    has_login_token = bool(settings.elektra_generic_login_token.strip())
+
+    if has_tenant and has_usercode and has_password:
+        return _result(
+            True,
+            "elektraweb_generic_credentials_configured",
+            has_login_token_override=has_login_token,
+        )
+
+    if has_login_token:
+        return _result(
+            False,
+            "elektraweb_generic_override_only",
+            has_login_token_override=True,
+            missing_fields=[
+                field
+                for field, present in (
+                    ("tenant", has_tenant),
+                    ("usercode", has_usercode),
+                    ("password", has_password),
+                )
+                if not present
+            ],
+        )
+
+    return _result(
+        False,
+        "elektraweb_generic_credentials_missing",
+        has_login_token_override=False,
+    )
+
+
 def check_profiles_loaded() -> dict[str, Any]:
     """Validate at least one hotel profile is loaded in memory."""
     profiles_count = len(get_all_profiles())
@@ -171,6 +213,7 @@ async def readiness_check(request: Request) -> JSONResponse:
         "redis": await check_redis(request),
         "openai": await check_openai_api_key(),
         "elektraweb": await check_elektraweb(),
+        "elektraweb_generic_sync": await check_elektraweb_generic_sync(),
         "hotel_profiles_loaded": check_profiles_loaded(),
     }
     all_ok = all(check.get("ok", False) for check in checks.values())
