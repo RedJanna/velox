@@ -137,6 +137,11 @@ function holdApproveButtonLabel(item) {
   return 'Onayla';
 }
 
+function isStayReprocessActionableStatus(status) {
+  var normalizedStatus = String(status || '').toUpperCase();
+  return ['PENDING_APPROVAL', 'APPROVED', 'MANUAL_REVIEW', 'PMS_FAILED'].includes(normalizedStatus);
+}
+
 function mapFailedTool(toolName) {
   const n = String(toolName || '').trim();
   if (!n) return '-';
@@ -400,6 +405,7 @@ function toggleStayCreatePanel() {
     state.stayDraft = {};
     state.stayProfileRoomTypes = [];
     state.stayWizardReprocessHoldId = null;
+    state.stayWizardReprocessStatus = '';
     loadStayProfileRoomTypes();
     renderStayWizardStep();
   }
@@ -490,8 +496,15 @@ function renderStayWizardSummary(bodyEl) {
   var rooms = state.stayProfileRoomTypes || [];
   var selectedRoom = rooms.find(function(r) { return String(r.pms_room_type_id) === String(d.room_type_id); });
   var roomName = selectedRoom ? selectedRoom.name : '-';
+  var reprocessStatus = String(state.stayWizardReprocessStatus || '').toUpperCase();
+  var canReprocess = !state.stayWizardUseExisting || isStayReprocessActionableStatus(reprocessStatus);
   var boardLabels = {BB: 'Oda Kahvalti', HB: 'Yarim Pansiyon', FB: 'Tam Pansiyon', AI: 'Her Sey Dahil', RO: 'Sadece Oda'};
   var cancelLabels = {FREE_CANCEL: 'Ucretsiz Iptal', NON_REFUNDABLE: 'Iade Edilmez'};
+  var reprocessInfo = state.stayWizardUseExisting && !canReprocess
+    ? '<div class="helper-box mt-md"><strong>Durum Bilgisi</strong><p>Bu rezervasyon su anda <strong>'
+      + escapeHtml(holdStatusLabel(reprocessStatus))
+      + '</strong> durumunda. Yeniden islem baslatma sadece Onay Bekliyor / Onaylandi / Inceleme Gerekli / PMS Hatasi adimlarinda desteklenir.</p></div>'
+    : '';
 
   function sRow(label, value) {
     return '<div class="row"><span class="label">' + escapeHtml(label) + '</span><span class="value">' + escapeHtml(String(value || '-')) + '</span></div>';
@@ -520,8 +533,9 @@ function renderStayWizardSummary(bodyEl) {
     + '</div>'
     + '</div>'
     + '<div class="summary-total"><span class="total-label">Toplam Tutar</span><span class="total-value">' + escapeHtml(String(d.total_price_eur || 0)) + ' EUR</span></div>'
+    + reprocessInfo
     + '<div class="wizard-nav"><button class="inline-button secondary" type="button" data-stay-wizard-prev>Geri</button>'
-    + '<button class="inline-button primary" type="button" data-stay-submit-action>' + (state.stayWizardUseExisting ? 'Yeniden Islem Baslat' : 'Rezervasyon Olustur') + '</button></div>';
+    + '<button class="inline-button primary" type="button" data-stay-submit-action ' + (canReprocess ? '' : 'disabled') + '>' + (state.stayWizardUseExisting ? 'Yeniden Islem Baslat' : 'Rezervasyon Olustur') + '</button></div>';
 }
 
 function collectStayDraftFromStep(step) {
@@ -574,7 +588,12 @@ async function lookupStayReservationNo() {
     state.stayDraft.guest_name = state.stayDraft.guest_name || '';
     state.stayDraft.phone = state.stayDraft.phone || '';
     state.stayWizardReprocessHoldId = result.hold_id;
-    notify('Rezervasyon bulundu. Bilgileri kontrol edip devam edin.', 'success');
+    state.stayWizardReprocessStatus = String(result.status || '').toUpperCase();
+    if (isStayReprocessActionableStatus(state.stayWizardReprocessStatus)) {
+      notify('Rezervasyon bulundu. Bilgileri kontrol edip devam edin.', 'success');
+    } else {
+      notify('Rezervasyon bulundu; mevcut durum tekrar onay gerektirmiyor.', 'info');
+    }
     state.stayWizardStep = 2;
     renderStayWizardStep();
   } catch (error) {
@@ -589,9 +608,18 @@ async function submitStayHold() {
   if (!draft.checkin_date || !draft.checkout_date) { notify('Tarih alanlari zorunlu.', 'warn'); return; }
 
   if (state.stayWizardUseExisting && state.stayWizardReprocessHoldId) {
+    var currentStatus = String(state.stayWizardReprocessStatus || '').toUpperCase();
+    if (!isStayReprocessActionableStatus(currentStatus)) {
+      notify('Bu rezervasyon zaten ' + holdStatusLabel(currentStatus) + ' durumunda. Yeniden islem baslatilamaz.', 'info');
+      return;
+    }
     try {
-      await apiFetch('/holds/' + encodeURIComponent(state.stayWizardReprocessHoldId) + '/approve?force=true', {method: 'POST', body: {notes: ''}});
-      notify('Hold yeniden isleme alindi.', 'success');
+      var reprocessResult = await apiFetch('/holds/' + encodeURIComponent(state.stayWizardReprocessHoldId) + '/approve?force=true', {method: 'POST', body: {notes: ''}});
+      if (reprocessResult && reprocessResult.status === 'already_processed') {
+        notify('Rezervasyon zaten islenmis durumda. Tekrar onay tetiklenmedi.', 'info');
+      } else {
+        notify('Hold yeniden isleme alindi.', 'success');
+      }
       toggleStayCreatePanel();
       loadStayHolds();
       loadDashboard();
@@ -1089,6 +1117,7 @@ function handleHoldsModuleClick(target) {
     state.stayWizardUseExisting = target.checked;
     state.stayDraft = {};
     state.stayWizardReprocessHoldId = null;
+    state.stayWizardReprocessStatus = '';
     renderStayWizardStep();
     return true;
   }

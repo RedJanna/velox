@@ -310,6 +310,7 @@ const state = {
   stayWizardStep: 1,
   stayWizardUseExisting: false,
   stayWizardReprocessHoldId: null,
+  stayWizardReprocessStatus: '',
   stayProfileRoomTypes: [],
   tickets: [],
   faqs: [],
@@ -545,8 +546,12 @@ function bindDelegatedEvents() {
       approveButton.disabled = true;
       approveButton.textContent = 'Onaylaniyor...';
       try {
-        await apiFetch(`/holds/${target.dataset.approveHold}/approve?force=true`, {method: 'POST', body: {notes: ''}});
-        notify('Hold onaylandı.', 'success');
+        const result = await apiFetch(`/holds/${target.dataset.approveHold}/approve?force=true`, {method: 'POST', body: {notes: ''}});
+        if (result && result.status === 'already_processed') {
+          notify('Hold zaten islenmis durumda. Tekrar onay tetiklenmedi.', 'info');
+        } else {
+          notify('Hold onaylandı.', 'success');
+        }
         const tab = state.activeHoldsTab || 'stay';
         if (tab === 'stay') loadStayHolds();
         else if (tab === 'restaurant') loadRestaurantHolds();

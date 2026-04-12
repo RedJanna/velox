@@ -146,6 +146,42 @@ async def test_admin_hold_approve_allows_stay_retry_from_approved_status() -> No
 
 
 @pytest.mark.asyncio
+async def test_admin_hold_approve_is_idempotent_when_payment_is_already_pending() -> None:
+    """Already-processed stay holds should not raise 409 on repeated admin approve clicks."""
+    fake_conn = _FakeConnection()
+    fake_conn.hold_row["status"] = "PAYMENT_PENDING"
+    fake_processor = _FakeEventProcessor()
+    fake_request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                db_pool=_FakePool(fake_conn),
+                event_processor=fake_processor,
+            )
+        )
+    )
+    user = TokenData(
+        user_id=1,
+        hotel_id=21966,
+        username="ops_admin",
+        role=Role.ADMIN,
+        display_name="Ops Admin",
+    )
+
+    result = await admin.approve_hold(
+        hold_id="S_HOLD_0001",
+        body=admin.ApproveRequest(notes="retry"),
+        request=fake_request,
+        user=user,
+    )
+
+    assert result["status"] == "already_processed"
+    assert result["hold_id"] == "S_HOLD_0001"
+    assert result["hold_type"] == "stay"
+    assert result["result"]["current_status"] == "PAYMENT_PENDING"
+    assert fake_processor.events == []
+
+
+@pytest.mark.asyncio
 async def test_admin_hold_approve_blocks_retry_when_manual_review_has_uncertain_create_state() -> None:
     """Manual review stays after uncertain PMS create must not retry and duplicate reservations."""
     fake_conn = _FakeConnection()

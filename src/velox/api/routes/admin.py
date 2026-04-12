@@ -2780,6 +2780,31 @@ async def approve_hold(
         if row is None:
             raise HTTPException(status_code=404, detail="Hold not found")
         current_status = str(row["status"])
+        if hold_type == "stay" and current_status in {
+            HoldStatus.PMS_PENDING.value,
+            HoldStatus.PMS_CREATED.value,
+            HoldStatus.PAYMENT_PENDING.value,
+            HoldStatus.CONFIRMED.value,
+        }:
+            logger.info(
+                "admin_hold_approve_idempotent_skip",
+                hold_id=hold_id,
+                hold_type=hold_type,
+                current_status=current_status,
+                requested_by=user.username,
+            )
+            return {
+                "status": "already_processed",
+                "hold_id": hold_id,
+                "hold_type": hold_type,
+                "result": {
+                    "current_status": current_status,
+                    "message": (
+                        "Hold zaten islenmis durumda; tekrar onay islemi "
+                        "tetiklenmedi."
+                    ),
+                },
+            }
         allowed_statuses = (
             {
                 HoldStatus.PENDING_APPROVAL.value,
