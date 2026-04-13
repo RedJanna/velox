@@ -8,7 +8,7 @@ from velox.api.routes import health
 
 
 @pytest.mark.asyncio
-async def test_check_elektraweb_generic_sync_requires_permanent_credentials_even_with_override(
+async def test_check_elektraweb_generic_sync_accepts_login_token_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(health.settings, "elektra_generic_api_base_url", "https://4001.hoteladvisor.net")
@@ -19,8 +19,9 @@ async def test_check_elektraweb_generic_sync_requires_permanent_credentials_even
 
     result = await health.check_elektraweb_generic_sync()
 
-    assert result["ok"] is False
+    assert result["ok"] is True
     assert result["detail"] == "elektraweb_generic_override_only"
+    assert result["mode"] == "override_token"
     assert result["has_login_token_override"] is True
     assert result["missing_fields"] == ["tenant", "usercode", "password"]
 

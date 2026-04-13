@@ -120,7 +120,7 @@ async def check_elektraweb() -> dict[str, Any]:
 
 
 async def check_elektraweb_generic_sync() -> dict[str, Any]:
-    """Validate permanent Generic API credentials required for reservation-card sync."""
+    """Validate Generic API configuration used for reservation-card sync."""
     base_url = settings.elektra_generic_api_base_url.strip()
     parsed = urlparse(base_url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
@@ -140,9 +140,10 @@ async def check_elektraweb_generic_sync() -> dict[str, Any]:
 
     if has_login_token:
         return _result(
-            False,
+            True,
             "elektraweb_generic_override_only",
             has_login_token_override=True,
+            mode="override_token",
             missing_fields=[
                 field
                 for field, present in (
