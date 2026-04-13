@@ -211,8 +211,16 @@ def _serialize_message(message: Message) -> dict[str, Any]:
             approval_pending=bool(internal_json.get("approval_pending")),
             rejected=bool(internal_json.get("rejected")),
             whatsapp_message_id=str(internal_json.get("whatsapp_message_id") or "").strip() or None,
+            provider_status=str(internal_json.get("provider_status") or "").strip() or None,
         ),
-        "provider_status": "unknown",
+        "provider_status": str(internal_json.get("provider_status") or "").strip() or "unknown",
+        "provider_status_updated_at": str(internal_json.get("provider_status_updated_at") or "").strip() or None,
+        "provider_sent_at": str(internal_json.get("provider_sent_at") or "").strip() or None,
+        "delivered_at": str(internal_json.get("delivered_at") or "").strip() or None,
+        "read_at": str(internal_json.get("read_at") or "").strip() or None,
+        "failed_at": str(internal_json.get("failed_at") or "").strip() or None,
+        "provider_error": internal_json.get("provider_error") if isinstance(internal_json.get("provider_error"), dict) else None,
+        "provider_events": internal_json.get("provider_events") if isinstance(internal_json.get("provider_events"), list) else [],
     }
 
 
@@ -353,12 +361,18 @@ def _derive_delivery_state(
     approval_pending: bool,
     rejected: bool,
     whatsapp_message_id: str | None,
+    provider_status: str | None = None,
 ) -> str:
     """Map known assistant metadata into one conservative UI delivery state."""
+    normalized_provider_status = str(provider_status or "").strip().lower()
     if rejected:
+        return "failed"
+    if normalized_provider_status in {"failed", "undelivered"}:
         return "failed"
     if approval_pending or send_blocked:
         return "pending_approval"
+    if normalized_provider_status in {"read", "delivered", "sent"}:
+        return normalized_provider_status
     if whatsapp_message_id:
         return "accepted"
     return "unknown"
@@ -943,6 +957,12 @@ async def live_feed(request: Request, limit: int = 20) -> dict[str, Any]:
                    (SELECT m.internal_json->>'whatsapp_message_id' FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS whatsapp_message_id,
+                   (SELECT m.internal_json->>'provider_status' FROM messages m
+                    WHERE m.conversation_id = c.id AND m.role = 'assistant'
+                    ORDER BY m.created_at DESC LIMIT 1) AS provider_status,
+                   (SELECT m.internal_json->>'provider_status_updated_at' FROM messages m
+                    WHERE m.conversation_id = c.id AND m.role = 'assistant'
+                    ORDER BY m.created_at DESC LIMIT 1) AS provider_status_updated_at,
                    (SELECT m.id FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS last_assistant_msg_id,
@@ -969,6 +989,7 @@ async def live_feed(request: Request, limit: int = 20) -> dict[str, Any]:
             approval_pending=str(row["approval_pending"] or "").lower() == "true",
             rejected=str(row["rejected"] or "").lower() == "true",
             whatsapp_message_id=str(row["whatsapp_message_id"] or "").strip() or None,
+            provider_status=str(row["provider_status"] or "").strip() or None,
         )
         conversations.append({
             "id": str(row["id"]),
@@ -984,6 +1005,8 @@ async def live_feed(request: Request, limit: int = 20) -> dict[str, Any]:
             "send_blocked": row["send_blocked"],
             "approval_pending": row["approval_pending"],
             "whatsapp_message_id": row["whatsapp_message_id"],
+            "provider_status": row["provider_status"] or "unknown",
+            "provider_status_updated_at": row["provider_status_updated_at"],
             "last_assistant_msg_id": row["last_assistant_msg_id"],
             "rejected": row["rejected"],
             "last_message_at": row["last_message_at"].isoformat() if row["last_message_at"] else None,
@@ -1094,8 +1117,16 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
                 approval_pending=bool(ij.get("approval_pending")),
                 rejected=bool(ij.get("rejected")),
                 whatsapp_message_id=str(ij.get("whatsapp_message_id") or "").strip() or None,
+                provider_status=str(ij.get("provider_status") or "").strip() or None,
             ),
-            "provider_status": "unknown",
+            "provider_status": str(ij.get("provider_status") or "").strip() or "unknown",
+            "provider_status_updated_at": str(ij.get("provider_status_updated_at") or "").strip() or None,
+            "provider_sent_at": str(ij.get("provider_sent_at") or "").strip() or None,
+            "delivered_at": str(ij.get("delivered_at") or "").strip() or None,
+            "read_at": str(ij.get("read_at") or "").strip() or None,
+            "failed_at": str(ij.get("failed_at") or "").strip() or None,
+            "provider_error": ij.get("provider_error") if isinstance(ij.get("provider_error"), dict) else None,
+            "provider_events": ij.get("provider_events") if isinstance(ij.get("provider_events"), list) else [],
         })
 
     service_window = _build_service_window(last_user_message_at)
@@ -1104,6 +1135,7 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
         approval_pending=bool(latest_assistant_internal.get("approval_pending")),
         rejected=bool(latest_assistant_internal.get("rejected")),
         whatsapp_message_id=str(latest_assistant_internal.get("whatsapp_message_id") or "").strip() or None,
+        provider_status=str(latest_assistant_internal.get("provider_status") or "").strip() or None,
     )
 
     return {
@@ -1120,6 +1152,7 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
         "last_inbound_at": last_user_message_at.isoformat() if last_user_message_at else None,
         "last_outbound_at": last_outbound_at.isoformat() if last_outbound_at else None,
         "delivery_state": delivery_state,
+        "last_webhook_at": str(latest_assistant_internal.get("provider_status_updated_at") or "").strip() or None,
         **service_window,
         "messages": messages,
         "operation_mode": settings.operation_mode,
@@ -1699,18 +1732,22 @@ async def approve_and_send_message(request: Request) -> dict[str, Any]:
 
     whatsapp_client = get_whatsapp_client()
     try:
-        await whatsapp_client.send_text_message(to=phone, body=str(msg_row["content"]), force=True)
+        send_result = await whatsapp_client.send_text_message(to=phone, body=str(msg_row["content"]), force=True)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"WhatsApp gonderilemedi: {exc}") from exc
 
+    wa_message_id = _extract_whatsapp_message_id(send_result)
     internal["send_blocked"] = False
     internal["approval_pending"] = False
     internal["approved_at"] = datetime.now(UTC).isoformat()
+    if wa_message_id:
+        internal["whatsapp_message_id"] = wa_message_id
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE messages SET internal_json = $1 WHERE id = $2",
+            "UPDATE messages SET internal_json = $1, whatsapp_message_id = COALESCE($3, whatsapp_message_id) WHERE id = $2",
             orjson.dumps(internal).decode(),
             _UUID(str(msg_id)),
+            wa_message_id,
         )
 
     return {"status": "sent", "message_id": msg_id, "conversation_id": str(conv_id)}

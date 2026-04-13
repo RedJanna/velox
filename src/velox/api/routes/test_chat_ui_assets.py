@@ -584,9 +584,16 @@ function latestDeliverySummary() {
   return {
     localStatus: assistant.local_status || assistant.status || 'unknown',
     providerStatus: assistant.provider_status || 'unknown',
+    providerStatusUpdatedAt: assistant.provider_status_updated_at || '',
     whatsappMessageId: assistant.whatsapp_message_id || assistant.internal_json?.whatsapp_message_id || '',
     approvedAt: assistant.internal_json?.approved_at || '',
     sentAt: assistant.internal_json?.sent_at || '',
+    providerSentAt: assistant.provider_sent_at || '',
+    deliveredAt: assistant.delivered_at || '',
+    readAt: assistant.read_at || '',
+    failedAt: assistant.failed_at || '',
+    providerError: assistant.provider_error || null,
+    providerEvents: Array.isArray(assistant.provider_events) ? assistant.provider_events : [],
   };
 }
 
@@ -730,6 +737,12 @@ function renderSessionStrip() {
   }
   if (delivery) {
     pills.push(`<span class="session-pill">${escapeHtml('Teslimat: ' + delivery.localStatus)}</span>`);
+    if (delivery.providerStatus && delivery.providerStatus !== 'unknown') {
+      pills.push(`<span class="session-pill">${escapeHtml('Provider: ' + delivery.providerStatus)}</span>`);
+    }
+  }
+  if (conversation.last_webhook_at || delivery?.providerStatusUpdatedAt) {
+    pills.push(`<span class="session-pill">Son webhook: ${escapeHtml(formatRelativeTime(conversation.last_webhook_at || delivery?.providerStatusUpdatedAt))}</span>`);
   }
   if (state.operationMode) {
     pills.push(`<span class="session-pill">Mod: ${escapeHtml(String(state.operationMode).toUpperCase())}</span>`);
@@ -793,13 +806,37 @@ function renderContextRail() {
     <div class="context-card">
       <h3>Teslimat Sagligi</h3>
       <div class="context-list">
-        <div class="context-row"><span>Local durum</span><span>${escapeHtml(delivery?.localStatus || conversation.delivery_state || 'unknown')}</span></div>
+        <div class="context-row"><span>Mesaj durumu</span><span>${escapeHtml(delivery?.localStatus || conversation.delivery_state || 'unknown')}</span></div>
         <div class="context-row"><span>Provider durum</span><span>${escapeHtml(delivery?.providerStatus || 'unknown')}</span></div>
         <div class="context-row"><span>WhatsApp msg id</span><span>${escapeHtml(delivery?.whatsappMessageId || '-')}</span></div>
         <div class="context-row"><span>Approved at</span><span>${escapeHtml(delivery?.approvedAt ? fmtTime(delivery.approvedAt) : '-')}</span></div>
         <div class="context-row"><span>Sent at</span><span>${escapeHtml(delivery?.sentAt ? fmtTime(delivery.sentAt) : '-')}</span></div>
+        <div class="context-row"><span>Delivered at</span><span>${escapeHtml(delivery?.deliveredAt ? fmtTime(delivery.deliveredAt) : '-')}</span></div>
+        <div class="context-row"><span>Read at</span><span>${escapeHtml(delivery?.readAt ? fmtTime(delivery.readAt) : '-')}</span></div>
+        <div class="context-row"><span>Failed at</span><span>${escapeHtml(delivery?.failedAt ? fmtTime(delivery.failedAt) : '-')}</span></div>
+        <div class="context-row"><span>Son webhook</span><span>${escapeHtml((conversation.last_webhook_at || delivery?.providerStatusUpdatedAt) ? fmtTime(conversation.last_webhook_at || delivery?.providerStatusUpdatedAt) : '-')}</span></div>
         <div class="context-row"><span>Panel sync</span><span>${escapeHtml(getSyncSnapshot().label)}</span></div>
       </div>
+    </div>
+    <div class="context-card">
+      <h3>Provider Event Timeline</h3>
+      <div class="context-list">
+        ${
+          (delivery?.providerEvents || []).length
+            ? delivery.providerEvents.slice().reverse().map(event => `
+              <div class="context-row">
+                <span>${escapeHtml(String(event.status || '-'))}</span>
+                <span>${escapeHtml(event.timestamp ? fmtTime(event.timestamp) : '-')}</span>
+              </div>
+            `).join('')
+            : '<div class="context-row"><span>Event</span><span>Henüz yok</span></div>'
+        }
+      </div>
+      ${
+        delivery?.providerError
+          ? `<div class="context-row"><span>Son hata</span><span>${escapeHtml([delivery.providerError.title, delivery.providerError.code].filter(Boolean).join(' · ') || '-')}</span></div>`
+          : ''
+      }
     </div>
     <div class="context-card">
       <h3>Oturum Durumu</h3>
@@ -1439,7 +1476,7 @@ function renderMessages() {
       pill.textContent = localStatus.replaceAll('_', ' ');
       statusRow.appendChild(pill);
     }
-    if (message.provider_status && message.provider_status !== 'unknown') {
+    if (message.provider_status && message.provider_status !== 'unknown' && message.provider_status !== localStatus) {
       const providerPill = document.createElement('span');
       providerPill.className = 'msg-status-pill';
       providerPill.textContent = 'provider: ' + String(message.provider_status).replaceAll('_', ' ');
@@ -2139,6 +2176,13 @@ async function loadLiveConversation(convId) {
       whatsapp_message_id: m.whatsapp_message_id || null,
       local_status: m.local_status || 'unknown',
       provider_status: m.provider_status || 'unknown',
+      provider_status_updated_at: m.provider_status_updated_at || null,
+      provider_sent_at: m.provider_sent_at || null,
+      delivered_at: m.delivered_at || null,
+      read_at: m.read_at || null,
+      failed_at: m.failed_at || null,
+      provider_error: m.provider_error || null,
+      provider_events: Array.isArray(m.provider_events) ? m.provider_events : [],
     }));
     state.conversation = {
       id: data.id,
@@ -2152,6 +2196,7 @@ async function loadLiveConversation(convId) {
       last_inbound_at: data.last_inbound_at || null,
       last_outbound_at: data.last_outbound_at || null,
       delivery_state: data.delivery_state || 'unknown',
+      last_webhook_at: data.last_webhook_at || null,
       window_state: data.window_state || 'unknown',
       window_expires_at: data.window_expires_at || null,
       window_remaining_seconds: data.window_remaining_seconds || 0,
@@ -2932,6 +2977,7 @@ function renderLiveFeed(container, data) {
         ? '<span class="live-feed-badge" style="color:#b45309">pencere kapaniyor</span>'
         : '<span class="live-feed-badge" style="color:#0f766e">pencere acik</span>';
     const deliveryBadge = c.delivery_state ? '<span class="live-feed-badge">' + escapeHtml(String(c.delivery_state).replaceAll('_', ' ')) + '</span>' : '';
+    const webhookBadge = c.provider_status_updated_at ? '<span class="live-feed-badge">webhook ' + escapeHtml(formatRelativeTime(c.provider_status_updated_at)) + '</span>' : '';
 
     return '<div class="live-feed-card' + (state.activeConversationId === c.id ? ' is-active' : '') + '" draggable="true" data-conv-id="' + escapeHtml(c.id) + '">' +
       '<div class="live-feed-head">' +
@@ -2949,6 +2995,7 @@ function renderLiveFeed(container, data) {
         (c.is_active ? '<span class="live-feed-badge" style="color:#86efac">aktif</span>' : '<span class="live-feed-badge" style="color:#fca5a5">kapali</span>') +
         windowBadge +
         deliveryBadge +
+        webhookBadge +
         flags +
       '</div>' +
     '</div>';

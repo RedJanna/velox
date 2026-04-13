@@ -17,7 +17,7 @@ from fastapi.responses import PlainTextResponse
 from velox.adapters.elektraweb.endpoints import CHILD_OCCUPANCY_UNVERIFIED
 from velox.adapters.whatsapp.client import WhatsAppSendBlockedError, get_whatsapp_client
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
-from velox.adapters.whatsapp.webhook import IncomingMessage, WhatsAppWebhook
+from velox.adapters.whatsapp.webhook import IncomingMessage, MessageStatusEvent, WhatsAppWebhook
 from velox.config.constants import (
     CONTEXT_WINDOW_MAX_MESSAGES,
     SUPPORTED_LANGUAGES,
@@ -5793,6 +5793,111 @@ def _extract_handoff_ticket_id_from_tool_calls(internal_json: InternalJSON) -> s
     return ""
 
 
+_STATUS_PRIORITY = {
+    "sent": 1,
+    "delivered": 2,
+    "read": 3,
+    "failed": 4,
+    "undelivered": 4,
+}
+
+
+def _normalize_provider_status(value: str) -> str:
+    """Normalize provider status labels used in webhook events."""
+    status = str(value or "").strip().lower()
+    if status == "undelivered":
+        return "failed"
+    return status
+
+
+def _status_event_timestamp_iso(timestamp: int) -> str:
+    """Convert webhook event timestamps into ISO8601 UTC strings."""
+    if timestamp > 0:
+        return datetime.fromtimestamp(timestamp, UTC).isoformat()
+    return datetime.now(UTC).isoformat()
+
+
+def _event_sort_key(event: dict[str, Any]) -> tuple[str, int]:
+    """Sort provider events by timestamp then by semantic priority."""
+    timestamp = str(event.get("timestamp") or "")
+    status = _normalize_provider_status(str(event.get("status") or ""))
+    return (timestamp, _STATUS_PRIORITY.get(status, 0))
+
+
+def _derive_provider_status_snapshot(events: list[dict[str, Any]]) -> dict[str, Any]:
+    """Derive the current provider status and status timestamps from event history."""
+    if not events:
+        return {
+            "provider_status": "unknown",
+            "provider_status_updated_at": None,
+            "provider_sent_at": None,
+            "delivered_at": None,
+            "read_at": None,
+            "failed_at": None,
+            "provider_error": None,
+        }
+
+    ordered = sorted(events, key=_event_sort_key)
+    latest = ordered[-1]
+    sent_at = next((item.get("timestamp") for item in ordered if _normalize_provider_status(str(item.get("status") or "")) == "sent"), None)
+    delivered_at = next((item.get("timestamp") for item in ordered if _normalize_provider_status(str(item.get("status") or "")) == "delivered"), None)
+    read_at = next((item.get("timestamp") for item in ordered if _normalize_provider_status(str(item.get("status") or "")) == "read"), None)
+    failed_event = next((item for item in reversed(ordered) if _normalize_provider_status(str(item.get("status") or "")) == "failed"), None)
+    return {
+        "provider_status": _normalize_provider_status(str(latest.get("status") or "unknown")),
+        "provider_status_updated_at": latest.get("timestamp"),
+        "provider_sent_at": sent_at,
+        "delivered_at": delivered_at,
+        "read_at": read_at,
+        "failed_at": failed_event.get("timestamp") if failed_event else None,
+        "provider_error": {
+            "code": failed_event.get("error_code"),
+            "title": failed_event.get("error_title"),
+            "details": failed_event.get("error_details"),
+        } if failed_event else None,
+    }
+
+
+async def _persist_message_status_event(
+    conversation_repository: ConversationRepository,
+    event: MessageStatusEvent,
+) -> bool:
+    """Persist one outbound provider status event onto the matched assistant message."""
+    target = await conversation_repository.get_any_by_whatsapp_message_id(event.message_id)
+    if target is None or target.id is None:
+        return False
+
+    internal = target.internal_json if isinstance(target.internal_json, dict) else {}
+    provider_events_raw = internal.get("provider_events")
+    provider_events = provider_events_raw if isinstance(provider_events_raw, list) else []
+    normalized_status = _normalize_provider_status(event.status)
+    serialized_event = {
+        "status": normalized_status,
+        "timestamp": _status_event_timestamp_iso(event.timestamp),
+        "error_code": event.error_code,
+        "error_title": event.error_title,
+        "error_details": event.error_details,
+    }
+    deduped = [
+        item for item in provider_events
+        if not (
+            isinstance(item, dict)
+            and str(item.get("status") or "") == serialized_event["status"]
+            and str(item.get("timestamp") or "") == serialized_event["timestamp"]
+        )
+    ]
+    deduped.append(serialized_event)
+    deduped = sorted(
+        [item for item in deduped if isinstance(item, dict)],
+        key=_event_sort_key,
+    )[-10:]
+
+    internal["provider_events"] = deduped
+    internal.update(_derive_provider_status_snapshot(deduped))
+    await conversation_repository.update_message_internal_json(target.id, internal)
+    return True
+
+
 async def _finalize_handoff_transition(
     *,
     conversation: Conversation,
@@ -6303,12 +6408,23 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks) -
     if incoming is None:
         status_events = webhook_handler.parse_status_events(body)
         if status_events:
+            conversation_repository = ConversationRepository()
             for event in status_events:
+                matched = False
+                try:
+                    matched = await _persist_message_status_event(conversation_repository, event)
+                except Exception:
+                    logger.exception(
+                        "whatsapp_webhook_status_persist_failed",
+                        wa_message_id=event.message_id,
+                        status=event.status,
+                    )
                 base_payload = {
                     "wa_message_id": event.message_id,
                     "status": event.status,
                     "recipient": _mask_phone(event.recipient_id),
                     "status_timestamp": event.timestamp,
+                    "matched_message": matched,
                 }
                 if event.status.lower() in {"failed", "undelivered"}:
                     logger.warning(

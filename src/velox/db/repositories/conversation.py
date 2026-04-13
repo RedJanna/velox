@@ -432,6 +432,25 @@ class ConversationRepository:
             return None
         return self._row_to_message(row)
 
+    async def get_any_by_whatsapp_message_id(self, whatsapp_message_id: str) -> Message | None:
+        """Return the latest message linked to a WhatsApp provider/inbound message id across conversations."""
+        row = await fetchrow(
+            """
+            SELECT *
+            FROM messages
+            WHERE
+                whatsapp_message_id = $1
+                OR internal_json->>'whatsapp_message_id' = $1
+                OR internal_json->>'message_id' = $1
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            whatsapp_message_id,
+        )
+        if row is None:
+            return None
+        return self._row_to_message(row)
+
     async def update_message_internal_json(
         self,
         message_id: UUID,
