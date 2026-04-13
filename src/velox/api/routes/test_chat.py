@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from string import Formatter
 from typing import Annotated, Any
 from uuid import uuid4
 
@@ -53,6 +54,8 @@ from velox.core.chat_lab_feedback import (
 )
 from velox.core.chat_lab_metrics import compute_feedback_metrics
 from velox.core.chat_lab_report import ChatLabReportError, ChatLabReportService
+from velox.core.hotel_profile_loader import get_profile, load_all_profiles
+from velox.core.template_engine import get_all_templates, load_templates
 from velox.db.repositories.conversation import ConversationRepository
 from velox.llm.client import get_llm_client
 from velox.models.chat_lab_feedback import (
@@ -317,6 +320,31 @@ def _build_service_window(last_user_message_at: datetime | None) -> dict[str, An
         "window_expires_at": expires_at.isoformat(),
         "window_remaining_seconds": max(remaining_seconds, 0),
     }
+
+
+def _extract_template_fields(template_text: str) -> list[str]:
+    """Collect placeholder field names from a format string."""
+    fields: list[str] = []
+    formatter = Formatter()
+    for _, field_name, _, _ in formatter.parse(template_text):
+        if field_name and field_name not in fields:
+            fields.append(field_name)
+    return fields
+
+
+class _SafeTemplateValues(dict[str, str]):
+    """Return readable placeholders for missing values in template previews."""
+
+    def __missing__(self, key: str) -> str:
+        return f"[{key}]"
+
+
+def _build_template_preview(template_text: str, variables: dict[str, str]) -> str:
+    """Render template preview without failing on missing variables."""
+    safe_values = _SafeTemplateValues(variables)
+    with contextlib.suppress(Exception):
+        return template_text.format_map(safe_values)
+    return template_text
 
 
 def _derive_delivery_state(
@@ -1095,6 +1123,123 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
         **service_window,
         "messages": messages,
         "operation_mode": settings.operation_mode,
+    }
+
+
+@router.get("/chat/templates")
+async def list_chat_templates(
+    request: Request,
+    conversation_id: str | None = Query(default=None),
+    intent: str | None = Query(default=None),
+    state_name: str | None = Query(default=None, alias="state"),
+    language: str | None = Query(default=None),
+    hotel_id: int | None = Query(default=None),
+) -> dict[str, Any]:
+    """Return template candidates and previews for the current chat context."""
+    resolved_intent = str(intent or "").strip()
+    resolved_state = str(state_name or "").strip()
+    resolved_language = str(language or "").strip() or "tr"
+    resolved_hotel_id = hotel_id or settings.elektra_hotel_id
+
+    pool = getattr(request.app.state, "db_pool", None)
+    if conversation_id:
+        if pool is None:
+            raise HTTPException(status_code=503, detail="Database not available")
+        from uuid import UUID as _UUID
+
+        try:
+            conv_uuid = _UUID(str(conversation_id))
+        except (ValueError, AttributeError) as err:
+            raise HTTPException(status_code=400, detail="Invalid conversation_id") from err
+
+        async with pool.acquire() as conn:
+            conv_row = await conn.fetchrow(
+                """
+                SELECT id, hotel_id, language, current_state, current_intent
+                FROM conversations
+                WHERE id = $1
+                """,
+                conv_uuid,
+            )
+        if conv_row is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        resolved_hotel_id = int(conv_row["hotel_id"] or resolved_hotel_id)
+        resolved_language = str(conv_row["language"] or resolved_language or "tr")
+        resolved_state = str(conv_row["current_state"] or resolved_state or "")
+        resolved_intent = str(conv_row["current_intent"] or resolved_intent or "")
+
+    templates = get_all_templates()
+    if not templates:
+        templates = load_templates()
+
+    profile = get_profile(resolved_hotel_id)
+    if profile is None:
+        load_all_profiles()
+        profile = get_profile(resolved_hotel_id)
+    hotel_name = "-"
+    if profile is not None:
+        localized_name = getattr(profile.hotel_name, resolved_language, None)
+        hotel_name = str(localized_name or profile.hotel_name.tr or profile.hotel_name.en or "-")
+
+    preview_variables = {
+        "hotel_name": hotel_name,
+        "summary": "[summary]",
+        "name": "[name]",
+        "date": "[date]",
+    }
+
+    scored_templates: list[tuple[int, Any]] = []
+    for template in templates:
+        if resolved_language and template.language not in {resolved_language, "en"}:
+            continue
+        score = 0
+        if template.language == resolved_language:
+            score += 40
+        elif template.language == "en":
+            score += 10
+        if resolved_intent and template.intent == resolved_intent:
+            score += 30
+        if resolved_state and template.state == resolved_state:
+            score += 20
+        if not resolved_intent and template.intent:
+            score += 5
+        if score <= 0:
+            continue
+        scored_templates.append((score, template))
+
+    scored_templates.sort(key=lambda item: (-item[0], item[1].id))
+    candidates = []
+    for score, template in scored_templates[:12]:
+        fields = _extract_template_fields(template.template)
+        preview = _build_template_preview(template.template, preview_variables)
+        candidates.append(
+            {
+                "id": template.id,
+                "intent": template.intent,
+                "state": template.state,
+                "language": template.language,
+                "score": score,
+                "recommended": bool(
+                    template.language == resolved_language
+                    and (not resolved_intent or template.intent == resolved_intent)
+                    and (not resolved_state or template.state == resolved_state)
+                ),
+                "fields": fields,
+                "preview": preview,
+                "body": template.template,
+            }
+        )
+
+    return {
+        "context": {
+            "conversation_id": conversation_id,
+            "intent": resolved_intent or None,
+            "state": resolved_state or None,
+            "language": resolved_language,
+            "hotel_id": resolved_hotel_id,
+            "hotel_name": hotel_name,
+        },
+        "templates": candidates,
     }
 
 

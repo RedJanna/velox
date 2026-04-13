@@ -201,9 +201,20 @@ TEST_CHAT_HTML = (
         </div>
         <div id="composer-attachments" class="composer-attachments hidden" aria-live="polite"></div>
         <div id="template-panel" class="template-panel hidden">
-          <div class="template-panel-copy">
-            <strong>Sablon modu</strong>
-            <p>Bu P0 asamasinda sablon gonderimi hazirlik durumunda. Serbest mesaj yerine uygun sablon secimi gerektiginde bu alan genisletilecek.</p>
+          <div class="template-panel-head">
+            <div class="template-panel-copy">
+              <strong>Sablon modu</strong>
+              <p>Pencere kapaliysa uygun template secimini buradan inceleyin. Bu asamada secim ve onizleme vardir; gonderim entegrasyonu sonraki adimdir.</p>
+            </div>
+            <span class="template-panel-badge">Read only</span>
+          </div>
+          <input id="template-search" class="header-input template-search" type="text" placeholder="Sablon ara" aria-label="Sablon ara">
+          <div id="template-list" class="template-list">
+            <div class="feedback-muted">Sablonlar yukleniyor...</div>
+          </div>
+          <div id="template-preview" class="template-preview">
+            <strong>Onizleme</strong>
+            <p>Bir sablon sectiginizde icerik burada gorunecek.</p>
           </div>
         </div>
         <input id="attachment-input" type="file" class="hidden" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,.txt,.ogg,.mp3,.m4a,.mp4,.webm" aria-label="Dosya sec">

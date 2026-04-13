@@ -307,6 +307,22 @@ body{overflow:hidden}
 .composer-helper,.template-panel{padding:12px 14px;border-radius:16px;background:rgba(18,33,59,.05);border:1px solid rgba(18,33,59,.08);font-size:12px;line-height:1.5;color:var(--muted)}
 .composer-helper.hidden,.template-panel.hidden{display:none!important}
 .template-panel-copy strong{display:block;font-size:12px;color:var(--ink);margin-bottom:4px}
+.template-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.template-panel-badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:rgba(18,33,59,.08);font-size:10px;font-weight:800;color:var(--muted);white-space:nowrap}
+.template-search{margin-top:12px}
+.template-list{display:flex;flex-direction:column;gap:8px;margin-top:12px;max-height:220px;overflow:auto;padding-right:4px}
+.template-card{padding:12px;border-radius:14px;background:#fff;border:1px solid rgba(18,33,59,.08);cursor:pointer;transition:border-color .16s ease,transform .16s ease}
+.template-card:hover{border-color:rgba(21,117,111,.24);transform:translateY(-1px)}
+.template-card.is-selected{border-color:rgba(21,117,111,.42);box-shadow:0 10px 24px rgba(21,117,111,.08)}
+.template-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.template-card-title{font-size:12px;font-weight:800;color:var(--ink)}
+.template-card-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.template-pill{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:rgba(18,33,59,.06);font-size:10px;font-weight:700;color:var(--muted)}
+.template-pill.is-recommended{background:rgba(21,117,111,.12);color:var(--teal)}
+.template-card-preview{margin-top:8px;font-size:11px;line-height:1.45;color:var(--muted)}
+.template-preview{margin-top:12px;padding:12px;border-radius:14px;background:#fff;border:1px solid rgba(18,33,59,.08);white-space:pre-wrap}
+.template-preview strong{display:block;font-size:12px;color:var(--ink);margin-bottom:6px}
+.template-preview small{display:block;margin-top:8px;color:var(--muted)}
 .context-body{flex:1;overflow:auto;padding:14px}
 .context-empty{padding:14px 6px;color:var(--muted);line-height:1.5}
 .context-empty strong{display:block;color:var(--ink);margin-bottom:4px}
@@ -433,6 +449,14 @@ const state = {
   composerMode: 'reply',
   composerDrafts: new Map(),
   contextTab: 'guest',
+  templateTemplates: [],
+  templateSearch: '',
+  selectedTemplateId: null,
+  sync: {
+    lastPanelRefreshAt: null,
+    lastConversationRefreshAt: null,
+    connectionState: 'idle',
+  },
 };
 const CATEGORY_PRIORITY = ['yanlis_bilgi', 'eksik_bilgi', 'baglam_kopuklugu', 'intent_iskalama', 'mantik_celiskisi', 'format_ihlali', 'gevezelik', 'alakasiz_yanit', 'uydurma_bilgi', 'ton_politika_ihlali', 'ozel_kategori'];
 const CATEGORY_TAG_SUGGESTIONS = {
@@ -566,6 +590,74 @@ function latestDeliverySummary() {
   };
 }
 
+function markSyncSuccess(scope = 'panel') {
+  const now = new Date().toISOString();
+  if (scope === 'conversation') state.sync.lastConversationRefreshAt = now;
+  state.sync.lastPanelRefreshAt = now;
+  state.sync.connectionState = 'online';
+}
+
+function markSyncFailure() {
+  state.sync.connectionState = 'degraded';
+}
+
+function getSyncSnapshot() {
+  const lastRefresh = state.sourceType === 'live_conversation'
+    ? state.sync.lastConversationRefreshAt || state.sync.lastPanelRefreshAt
+    : state.sync.lastPanelRefreshAt;
+  if (!lastRefresh) {
+    return {label: 'Panel senkronu bekleniyor', tone: 'muted'};
+  }
+  const diffMs = Math.max(0, Date.now() - new Date(lastRefresh).getTime());
+  const stale = diffMs > 8000 || state.sync.connectionState === 'degraded';
+  if (stale) {
+    return {label: `Senkron gecikti · ${Math.floor(diffMs / 1000)} sn`, tone: 'warning'};
+  }
+  return {label: `Son yenileme ${formatRelativeTime(lastRefresh)}`, tone: 'muted'};
+}
+
+function activeTemplateCandidate() {
+  if (!state.templateTemplates.length) return null;
+  return state.templateTemplates.find(item => item.id === state.selectedTemplateId)
+    || state.templateTemplates.find(item => item.recommended)
+    || state.templateTemplates[0];
+}
+
+function buildTemplateQuery() {
+  const params = new URLSearchParams();
+  if (state.sourceType === 'live_conversation' && state.activeConversationId) {
+    params.set('conversation_id', state.activeConversationId);
+    return params.toString();
+  }
+  if (state.conversation?.intent) params.set('intent', state.conversation.intent);
+  if (state.conversation?.state) params.set('state', state.conversation.state);
+  if (state.conversation?.language) params.set('language', state.conversation.language);
+  return params.toString();
+}
+
+async function loadTemplateCandidates() {
+  if (!state.conversation) {
+    state.templateTemplates = [];
+    state.selectedTemplateId = null;
+    renderTemplatePanel();
+    return;
+  }
+  const query = buildTemplateQuery();
+  try {
+    const data = await apiFetch('/chat/templates' + (query ? `?${query}` : ''));
+    state.templateTemplates = data.templates || [];
+    const selectedExists = state.templateTemplates.some(item => item.id === state.selectedTemplateId);
+    if (!selectedExists) {
+      state.selectedTemplateId = (state.templateTemplates.find(item => item.recommended) || state.templateTemplates[0] || {}).id || null;
+    }
+    renderTemplatePanel();
+  } catch (error) {
+    state.templateTemplates = [];
+    state.selectedTemplateId = null;
+    renderTemplatePanel(error.message || 'Sablonlar yuklenemedi.');
+  }
+}
+
 function renderComposerModeBar() {
   document.querySelectorAll('.composer-mode-btn').forEach(btn => {
     btn.classList.toggle('is-active', btn.dataset.composerMode === state.composerMode);
@@ -573,6 +665,7 @@ function renderComposerModeBar() {
   const templatePanel = el('template-panel');
   if (!templatePanel) return;
   templatePanel.classList.toggle('hidden', state.composerMode !== 'template');
+  renderTemplatePanel();
 }
 
 function renderComposerHelper() {
@@ -625,6 +718,7 @@ function renderSessionStrip() {
   }
   const windowBadge = formatWindowBadge(conversation);
   const delivery = latestDeliverySummary();
+  const sync = getSyncSnapshot();
   const pills = [
     `<span class="session-pill ${windowBadge.tone === 'warning' ? 'is-warning' : windowBadge.tone === 'danger' ? 'is-danger' : ''}">${escapeHtml(windowBadge.label)}</span>`,
   ];
@@ -640,6 +734,7 @@ function renderSessionStrip() {
   if (state.operationMode) {
     pills.push(`<span class="session-pill">Mod: ${escapeHtml(String(state.operationMode).toUpperCase())}</span>`);
   }
+  pills.push(`<span class="session-pill ${sync.tone === 'warning' ? 'is-warning' : ''}">${escapeHtml(sync.label)}</span>`);
   container.innerHTML = pills.join('');
 }
 
@@ -703,6 +798,7 @@ function renderContextRail() {
         <div class="context-row"><span>WhatsApp msg id</span><span>${escapeHtml(delivery?.whatsappMessageId || '-')}</span></div>
         <div class="context-row"><span>Approved at</span><span>${escapeHtml(delivery?.approvedAt ? fmtTime(delivery.approvedAt) : '-')}</span></div>
         <div class="context-row"><span>Sent at</span><span>${escapeHtml(delivery?.sentAt ? fmtTime(delivery.sentAt) : '-')}</span></div>
+        <div class="context-row"><span>Panel sync</span><span>${escapeHtml(getSyncSnapshot().label)}</span></div>
       </div>
     </div>
     <div class="context-card">
@@ -713,6 +809,54 @@ function renderContextRail() {
         <div class="context-row"><span>Son cikis</span><span>${escapeHtml(formatRelativeTime(conversation.last_outbound_at))}</span></div>
       </div>
     </div>`;
+}
+
+function renderTemplatePanel(errorMessage = '') {
+  const listEl = el('template-list');
+  const previewEl = el('template-preview');
+  const searchEl = el('template-search');
+  if (!listEl || !previewEl) return;
+  if (searchEl && searchEl.value !== state.templateSearch) searchEl.value = state.templateSearch;
+  if (state.composerMode !== 'template') return;
+  const needle = String(state.templateSearch || '').trim().toLowerCase();
+  const items = state.templateTemplates.filter(item => {
+    if (!needle) return true;
+    const haystack = [item.id, item.intent, item.state, item.language, item.preview, ...(item.fields || [])].join(' ').toLowerCase();
+    return haystack.includes(needle);
+  });
+  if (errorMessage) {
+    listEl.innerHTML = `<div class="feedback-muted">${escapeHtml(errorMessage)}</div>`;
+    previewEl.innerHTML = '<strong>Onizleme</strong><p>Sablonlar su an getirilemedi.</p>';
+    return;
+  }
+  if (!items.length) {
+    const emptyText = conversationRequiresTemplate()
+      ? 'Bu konusma icin uygun sablon bulunamadi. Meta template katalog baglantisini tamamlamak gerekiyor.'
+      : 'Bu filtre ile eslesen sablon bulunamadi.';
+    listEl.innerHTML = `<div class="feedback-muted">${escapeHtml(emptyText)}</div>`;
+    previewEl.innerHTML = '<strong>Onizleme</strong><p>Goruntulenecek sablon yok.</p>';
+    return;
+  }
+  const selected = items.find(item => item.id === state.selectedTemplateId) || items[0];
+  listEl.innerHTML = items.map(item => `
+    <div class="template-card ${item.id === selected.id ? 'is-selected' : ''}" data-template-id="${escapeHtml(item.id)}">
+      <div class="template-card-head">
+        <div class="template-card-title">${escapeHtml(item.id)}</div>
+        ${item.recommended ? '<span class="template-pill is-recommended">onerilen</span>' : ''}
+      </div>
+      <div class="template-card-meta">
+        <span class="template-pill">${escapeHtml(item.language)}</span>
+        <span class="template-pill">${escapeHtml(item.intent || '-')}</span>
+        <span class="template-pill">${escapeHtml(item.state || '-')}</span>
+      </div>
+      <div class="template-card-preview">${escapeHtml(String(item.preview || '').slice(0, 180))}</div>
+    </div>
+  `).join('');
+  previewEl.innerHTML = `
+    <strong>${escapeHtml(selected.id)}</strong>
+    <div>${escapeHtml(selected.preview || selected.body || '-')}</div>
+    <small>Alanlar: ${escapeHtml((selected.fields || []).length ? selected.fields.join(', ') : 'degisken yok')} · Gonderim entegrasyonu sonraki adimda acilacak.</small>
+  `;
 }
 
 function flagLevel(flag) {
@@ -1663,10 +1807,12 @@ async function loadHistory() {
   if (state.sourceType !== 'live_test_chat') return;
   saveComposerDraft();
   state.activeConversationId = null;
+  state.templateSearch = '';
   clearReplyTarget();
   const phone = encodeURIComponent(el('phone-input').value.trim() || 'test_user_123');
   try {
     const data = await apiFetch(`/chat/history?phone=${phone}`);
+    markSyncSuccess('conversation');
     state.messages = data.messages || [];
     state.conversation = data.conversation ? {
       ...data.conversation,
@@ -1682,7 +1828,11 @@ async function loadHistory() {
     renderContextRail();
     refreshDebugFromLatestAssistant();
     restoreComposerDraft();
+    await loadTemplateCandidates();
   } catch (error) {
+    markSyncFailure();
+    renderSessionStrip();
+    renderContextRail();
     notify(error.message || 'Konusma gecmisi yuklenemedi.', 'error');
   }
 }
@@ -1693,7 +1843,9 @@ function updateTypingIndicator() {
 
 function sendMessage() {
   if (state.composerMode === 'template') {
-    notify('Bu asamada sablon gonderimi hazir degil. Pencere kapali konusmalarda sablon akisi sonraki adimda tamamlanacak.', 'warn');
+    const candidate = activeTemplateCandidate();
+    const suffix = candidate ? ` Secili sablon: ${candidate.id}.` : '';
+    notify(`Bu asamada sablon gonderimi hazir degil.${suffix} Pencere kapali konusmalarda template send entegrasyonu sonraki adimda tamamlanacak.`, 'warn');
     return;
   }
   const message = el('msg-input').value.trim();
@@ -1918,6 +2070,8 @@ async function resetConversation() {
     await apiFetch(`/chat/reset?phone=${phone}`, {method: 'POST'});
     state.messages = [];
     state.conversation = null;
+    state.templateTemplates = [];
+    state.selectedTemplateId = null;
     state.feedbackStates.clear();
     state.selectedFeedback = null;
     state.inflightMessages.clear();
@@ -1929,6 +2083,7 @@ async function resetConversation() {
     renderThreadHeader();
     renderSessionStrip();
     renderContextRail();
+    renderTemplatePanel();
     renderFeedbackStudio();
     updateDebug(null);
     notify('Konusma sifirlandi.', 'success');
@@ -1958,6 +2113,7 @@ async function loadLiveConversation(convId) {
   saveComposerDraft();
   state.sourceType = 'live_conversation';
   state.activeConversationId = convId;
+  state.templateSearch = '';
   state.importFile = '';
   state.importMetadata = {};
   state.roleMapping = {};
@@ -1967,6 +2123,7 @@ async function loadLiveConversation(convId) {
   el('source-banner').textContent = 'Canli konusma goruntuleniyor.';
   try {
     const data = await apiFetch('/chat/conversation/' + encodeURIComponent(convId));
+    markSyncSuccess('conversation');
     state.messages = (data.messages || []).map(m => ({
       id: m.id,
       role: m.role,
@@ -2005,7 +2162,11 @@ async function loadLiveConversation(convId) {
     renderContextRail();
     refreshDebugFromLatestAssistant();
     restoreComposerDraft();
+    await loadTemplateCandidates();
   } catch (error) {
+    markSyncFailure();
+    renderSessionStrip();
+    renderContextRail();
     notify(error.message || 'Konusma yuklenemedi.', 'error');
   }
 }
@@ -2014,6 +2175,7 @@ async function loadSelectedImport(roleMapping = {}) {
   const filename = el('import-select').value;
   if (!filename) {
     state.sourceType = 'live_test_chat';
+    state.templateSearch = '';
     state.importFile = '';
     state.importMetadata = {};
     state.roleMapping = {};
@@ -2044,6 +2206,7 @@ async function loadSelectedImport(roleMapping = {}) {
     return;
   }
   state.sourceType = data.source_type;
+  state.templateSearch = '';
   state.importFile = data.file_name;
   state.importMetadata = {...(data.metadata || {}), conversation_id: data.conversation_id, source_label: data.source_label};
   state.roleMapping = roleMapping;
@@ -2076,6 +2239,7 @@ async function loadSelectedImport(roleMapping = {}) {
   renderSessionStrip();
   renderContextRail();
   refreshDebugFromLatestAssistant();
+  await loadTemplateCandidates();
 }
 
 function selectFeedback(messageId, rating) {
@@ -2705,10 +2869,16 @@ async function loadLiveFeed() {
   const container = el('live-feed-container');
   try {
     const data = await apiFetch('/chat/live-feed?limit=15');
+    markSyncSuccess('panel');
     state.liveConversations = data.conversations || [];
     renderLiveFeed(container, data);
     renderImportOptions(state.importItems, state.liveConversations);
+    renderSessionStrip();
+    renderContextRail();
   } catch (error) {
+    markSyncFailure();
+    renderSessionStrip();
+    renderContextRail();
     container.innerHTML = '<div class="feedback-muted">Canli akis yuklenemedi: ' + escapeHtml(error.message || '') + '</div>';
   }
 }
@@ -2935,6 +3105,16 @@ function wireEvents() {
   el('queue-search').addEventListener('input', event => {
     state.queueSearch = event.target.value || '';
     renderLiveFeed(el('live-feed-container'), {conversations: state.liveConversations});
+  });
+  el('template-search').addEventListener('input', event => {
+    state.templateSearch = event.target.value || '';
+    renderTemplatePanel();
+  });
+  el('template-list').addEventListener('click', event => {
+    const card = event.target.closest('[data-template-id]');
+    if (!card) return;
+    state.selectedTemplateId = card.dataset.templateId || null;
+    renderTemplatePanel();
   });
   el('context-tabs').addEventListener('click', event => {
     const btn = event.target.closest('.context-tab');
