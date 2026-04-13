@@ -498,6 +498,7 @@ function currentConversationKey() {
 
 function clearComposerDraft(key = currentConversationKey()) {
   state.composerDrafts.delete(key);
+  rerenderQueueRail();
 }
 
 function conversationRequiresTemplate() {
@@ -517,6 +518,46 @@ function saveComposerDraft() {
     text: el('msg-input')?.value || '',
     replyTarget: state.replyTarget ? {...state.replyTarget} : null,
   });
+  rerenderQueueRail();
+}
+
+function rerenderQueueRail() {
+  const container = el('live-feed-container');
+  if (!container) return;
+  renderLiveFeed(container, {conversations: state.liveConversations});
+}
+
+function queueDraftForConversation(conversationId) {
+  if (!conversationId) return null;
+  return state.composerDrafts.get(`live:${conversationId}`) || null;
+}
+
+function queueDraftLabel(conversationId) {
+  const draft = queueDraftForConversation(conversationId);
+  if (!draft || !String(draft.text || '').trim()) return '';
+  if (draft.mode === 'internal_note') return 'not taslagi';
+  if (draft.mode === 'template') return 'sablon taslagi';
+  if (draft.mode === 'ai_draft') return 'ai taslagi';
+  return 'taslak var';
+}
+
+function queueHumanOverrideActive(conversation = {}) {
+  return Boolean(conversation.human_override)
+    || String(conversation.state || '').toLowerCase().includes('handoff')
+    || String(conversation.state || '').toLowerCase().includes('human');
+}
+
+function queueNeedsAttention(conversation = {}) {
+  const blocked = conversation.send_blocked === 'true'
+    || conversation.send_blocked === true
+    || conversation.approval_pending === 'true'
+    || conversation.approval_pending === true;
+  const rejected = conversation.rejected === 'true' || conversation.rejected === true;
+  return blocked
+    || rejected
+    || String(conversation.delivery_state || '').includes('failed')
+    || String(conversation.window_state || '') === 'closing_soon'
+    || String(conversation.window_state || '') === 'closed';
 }
 
 function restoreComposerDraft() {
@@ -584,6 +625,7 @@ function getConversationSubtitle(conversation = null) {
     conversation.language ? `Dil: ${conversation.language}` : null,
     conversation.intent ? `Intent: ${conversation.intent}` : null,
     conversation.state ? `Durum: ${conversation.state}` : null,
+    conversation.human_override ? 'Insan devri aktif' : null,
   ].filter(Boolean);
   return parts.join(' · ') || 'Konusma ozeti hazir.';
 }
@@ -716,6 +758,9 @@ function renderThreadHeader() {
     : getConversationSubtitle(state.conversation);
   const modeLabel = state.sourceType === 'live_conversation' ? 'Canli' : 'Test';
   const windowBadge = formatWindowBadge(state.conversation || {});
+  const handoffChip = state.conversation?.human_override
+    ? '<span class="thread-chip thread-chip-muted">Insan devri</span>'
+    : '';
   container.innerHTML = `
     <div class="thread-header-copy">
       <h2>${escapeHtml(title)}</h2>
@@ -723,6 +768,7 @@ function renderThreadHeader() {
     </div>
     <div class="thread-header-actions">
       <span class="thread-chip thread-chip-muted">${escapeHtml(modeLabel)}</span>
+      ${handoffChip}
       <span class="thread-chip ${windowBadge.tone === 'warning' ? 'thread-chip-muted' : ''}">${escapeHtml(windowBadge.label)}</span>
     </div>
   `;
@@ -747,6 +793,9 @@ function renderSessionStrip() {
   }
   if (conversation.last_outbound_at) {
     pills.push(`<span class="session-pill">Son cikis: ${escapeHtml(formatRelativeTime(conversation.last_outbound_at))}</span>`);
+  }
+  if (conversation.human_override) {
+    pills.push('<span class="session-pill is-warning">Insan devri aktif</span>');
   }
   if (delivery) {
     pills.push(`<span class="session-pill">${escapeHtml('Teslimat: ' + delivery.localStatus)}</span>`);
@@ -790,6 +839,7 @@ function renderContextRail() {
           <div class="context-row"><span>Dil</span><span>${escapeHtml(conversation.language || '-')}</span></div>
           <div class="context-row"><span>Son aktivite</span><span>${escapeHtml(formatRelativeTime(conversation.last_message_at))}</span></div>
           <div class="context-row"><span>Konusma</span><span>${conversation.is_active ? 'Aktif' : 'Kapali'}</span></div>
+          <div class="context-row"><span>Insan devri</span><span>${conversation.human_override ? 'Aktif' : 'Kapali'}</span></div>
         </div>
       </div>
       <div class="context-card">
@@ -806,6 +856,7 @@ function renderContextRail() {
           <div class="context-row"><span>Calisma modu</span><span>${escapeHtml(String(state.operationMode || '-').toUpperCase())}</span></div>
           <div class="context-row"><span>Intent</span><span>${escapeHtml(conversation.intent || '-')}</span></div>
           <div class="context-row"><span>Durum</span><span>${escapeHtml(conversation.state || '-')}</span></div>
+          <div class="context-row"><span>Insan devri</span><span>${conversation.human_override ? 'Aktif' : 'Kapali'}</span></div>
           <div class="context-row"><span>Pencere</span><span>${escapeHtml(formatWindowBadge(conversation).label)}</span></div>
         </div>
       </div>
@@ -2320,6 +2371,7 @@ async function loadLiveConversation(convId) {
       intent: data.intent || '-',
       risk_flags: data.risk_flags || [],
       is_active: Boolean(data.is_active),
+      human_override: Boolean(data.human_override),
       last_message_at: data.last_message_at || null,
       last_inbound_at: data.last_inbound_at || null,
       last_outbound_at: data.last_outbound_at || null,
@@ -3061,14 +3113,14 @@ function renderLiveFeed(container, data) {
   const queueSearch = String(state.queueSearch || '').trim().toLowerCase();
   const convs = rawConvs.filter(c => {
     const blocked = c.send_blocked === 'true' || c.send_blocked === true || c.approval_pending === 'true' || c.approval_pending === true;
-    const rejected = c.rejected === 'true' || c.rejected === true;
-    const human = String(c.state || '').toLowerCase().includes('handoff') || String(c.state || '').toLowerCase().includes('human');
-    const attention = blocked || rejected || String(c.delivery_state || '').includes('failed') || String(c.window_state || '') === 'closing_soon' || String(c.window_state || '') === 'closed';
+    const human = queueHumanOverrideActive(c);
+    const attention = queueNeedsAttention(c);
     if (state.queueFilter === 'approval' && !blocked) return false;
     if (state.queueFilter === 'human' && !human) return false;
     if (state.queueFilter === 'attention' && !attention) return false;
     if (!queueSearch) return true;
-    const haystack = [c.phone_display, c.last_user_msg, c.last_assistant_msg, c.intent, c.state, ...(c.risk_flags || [])].join(' ').toLowerCase();
+    const draftLabel = queueDraftLabel(c.id);
+    const haystack = [c.phone_display, c.last_user_msg, c.last_assistant_msg, c.intent, c.state, c.provider_status, draftLabel, human ? 'insan devri human override manual' : '', ...(c.risk_flags || [])].join(' ').toLowerCase();
     return haystack.includes(queueSearch);
   });
   if (!convs.length) {
@@ -3082,6 +3134,8 @@ function renderLiveFeed(container, data) {
     const assistantSnippet = c.last_assistant_msg ? escapeHtml(c.last_assistant_msg.slice(0, 300)) : '-';
     const blocked = c.send_blocked === 'true' || c.send_blocked === true || c.approval_pending === 'true' || c.approval_pending === true;
     const rejected = c.rejected === 'true' || c.rejected === true;
+    const human = queueHumanOverrideActive(c);
+    const draftLabel = queueDraftLabel(c.id);
     let statusTag;
     if (rejected) {
       statusTag = '<span class="live-feed-rejected">REDDEDILDI</span>';
@@ -3105,7 +3159,12 @@ function renderLiveFeed(container, data) {
         ? '<span class="live-feed-badge" style="color:#b45309">pencere kapaniyor</span>'
         : '<span class="live-feed-badge" style="color:#0f766e">pencere acik</span>';
     const deliveryBadge = c.delivery_state ? '<span class="live-feed-badge">' + escapeHtml(String(c.delivery_state).replaceAll('_', ' ')) + '</span>' : '';
+    const providerBadge = c.provider_status && c.provider_status !== 'unknown'
+      ? '<span class="live-feed-badge">provider ' + escapeHtml(String(c.provider_status).replaceAll('_', ' ')) + '</span>'
+      : '';
     const webhookBadge = c.provider_status_updated_at ? '<span class="live-feed-badge">webhook ' + escapeHtml(formatRelativeTime(c.provider_status_updated_at)) + '</span>' : '';
+    const draftBadge = draftLabel ? '<span class="live-feed-badge" style="color:#c4b5fd">' + escapeHtml(draftLabel) + '</span>' : '';
+    const handoffBadge = human ? '<span class="live-feed-badge" style="color:#fde68a">insan devri</span>' : '';
 
     return '<div class="live-feed-card' + (state.activeConversationId === c.id ? ' is-active' : '') + '" draggable="true" data-conv-id="' + escapeHtml(c.id) + '">' +
       '<div class="live-feed-head">' +
@@ -3114,15 +3173,18 @@ function renderLiveFeed(container, data) {
       '</div>' +
       '<div class="live-feed-msgs">' +
         '<div class="live-feed-user">Misafir: ' + userSnippet + '</div>' +
-        '<div class="live-feed-assistant">AI: ' + assistantSnippet + ' ' + statusTag + '</div>' +
+        '<div class="live-feed-assistant">Son cikis: ' + assistantSnippet + ' ' + statusTag + '</div>' +
       '</div>' +
       '<div class="live-feed-badges">' +
         '<span class="live-feed-badge">' + escapeHtml(c.language || '-') + '</span>' +
         '<span class="live-feed-badge">' + escapeHtml(c.state || '-') + '</span>' +
         (c.intent && c.intent !== '-' ? '<span class="live-feed-badge">' + escapeHtml(c.intent) + '</span>' : '') +
         (c.is_active ? '<span class="live-feed-badge" style="color:#86efac">aktif</span>' : '<span class="live-feed-badge" style="color:#fca5a5">kapali</span>') +
+        handoffBadge +
+        draftBadge +
         windowBadge +
         deliveryBadge +
+        providerBadge +
         webhookBadge +
         flags +
       '</div>' +
@@ -3392,7 +3454,7 @@ function wireEvents() {
     // Clone node and remove status badges so copied text is clean
     const clone = msgEl.cloneNode(true);
     clone.querySelectorAll('.live-feed-blocked,.live-feed-sent,.live-feed-rejected,.live-feed-approve-btn,.live-feed-reject-btn').forEach(n => n.remove());
-    const raw = clone.textContent.replace(/^(Misafir|AI):\\s*/, '').trim();
+    const raw = clone.textContent.replace(/^(Misafir|AI|Son cikis):\\s*/, '').trim();
     if (raw) showCtxMenu(event, raw);
   });
   // Drag-and-drop: live feed card → chat panel

@@ -995,6 +995,7 @@ async def live_feed(request: Request, limit: int = 20) -> dict[str, Any]:
             """
             SELECT c.id, c.phone_display, c.language, c.current_state,
                    c.current_intent, c.risk_flags, c.is_active,
+                   c.human_override,
                    c.last_message_at, c.created_at,
                    (SELECT m.created_at FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'user'
@@ -1057,6 +1058,7 @@ async def live_feed(request: Request, limit: int = 20) -> dict[str, Any]:
             "intent": row["current_intent"] or "-",
             "risk_flags": list(row["risk_flags"] or []),
             "is_active": row["is_active"],
+            "human_override": bool(row["human_override"]),
             "msg_count": row["msg_count"],
             "last_user_msg": (row["last_user_msg"] or "")[:500],
             "last_assistant_msg": (row["last_assistant_msg"] or "")[:500],
@@ -1100,7 +1102,7 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
     conv_row = await pool.fetchrow(
         """
         SELECT id, phone_display, language, current_state, current_intent,
-               risk_flags, is_active, hotel_id, created_at, last_message_at
+               risk_flags, is_active, human_override, hotel_id, created_at, last_message_at
         FROM conversations WHERE id = $1
         """,
         conv_uuid,
@@ -1207,6 +1209,7 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
         "intent": conv_row["current_intent"] or "-",
         "risk_flags": list(conv_row["risk_flags"] or []),
         "is_active": conv_row["is_active"],
+        "human_override": bool(conv_row["human_override"]),
         "hotel_id": conv_row["hotel_id"],
         "created_at": conv_row["created_at"].isoformat() if conv_row["created_at"] else None,
         "last_message_at": conv_row["last_message_at"].isoformat() if conv_row["last_message_at"] else None,
