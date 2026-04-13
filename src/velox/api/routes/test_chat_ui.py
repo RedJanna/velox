@@ -166,6 +166,7 @@ TEST_CHAT_HTML = (
           <button class="queue-tab" type="button" data-queue-filter="attention">Sorunlu</button>
         </div>
         <input id="queue-search" class="header-input queue-search" type="text" placeholder="Numara, durum veya mesaj ara" aria-label="Konusma ara">
+        <div id="queue-summary" class="queue-summary" aria-live="polite"></div>
       </div>
       <div id="live-feed-container" class="queue-list">
         <div class="feedback-muted">Kuyruk yukleniyor...</div>

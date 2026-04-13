@@ -258,6 +258,8 @@ body{overflow:hidden}
 .queue-tab:hover,.context-tab:hover,.composer-mode-btn:hover{border-color:rgba(21,117,111,.34);color:var(--teal)}
 .queue-tab.is-active,.context-tab.is-active,.composer-mode-btn.is-active{background:rgba(21,117,111,.1);border-color:rgba(21,117,111,.34);color:var(--teal)}
 .queue-search{width:100%}
+.queue-summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.queue-summary-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;background:rgba(18,33,59,.06);color:var(--muted);font-size:11px;font-weight:700}
 .queue-list{flex:1;overflow:auto;padding:10px 12px 18px}
 .queue-list::-webkit-scrollbar,.context-body::-webkit-scrollbar{width:7px}
 .queue-list::-webkit-scrollbar-thumb,.context-body::-webkit-scrollbar-thumb{background:rgba(100,116,139,.28);border-radius:999px}
@@ -558,6 +560,29 @@ function queueNeedsAttention(conversation = {}) {
     || String(conversation.delivery_state || '').includes('failed')
     || String(conversation.window_state || '') === 'closing_soon'
     || String(conversation.window_state || '') === 'closed';
+}
+
+function renderQueueSummary(rawConversations = [], visibleConversations = rawConversations) {
+  const container = el('queue-summary');
+  if (!container) return;
+  const allCount = rawConversations.length;
+  const approvalCount = rawConversations.filter(conversation =>
+    conversation.send_blocked === 'true'
+    || conversation.send_blocked === true
+    || conversation.approval_pending === 'true'
+    || conversation.approval_pending === true,
+  ).length;
+  const humanCount = rawConversations.filter(queueHumanOverrideActive).length;
+  const attentionCount = rawConversations.filter(queueNeedsAttention).length;
+  const draftCount = rawConversations.filter(conversation => Boolean(queueDraftLabel(conversation.id))).length;
+  const visibleCount = visibleConversations.length;
+  container.innerHTML = [
+    `<span class="queue-summary-chip">Gorunen ${visibleCount}/${allCount}</span>`,
+    `<span class="queue-summary-chip">Onay ${approvalCount}</span>`,
+    `<span class="queue-summary-chip">Insan ${humanCount}</span>`,
+    `<span class="queue-summary-chip">Sorunlu ${attentionCount}</span>`,
+    `<span class="queue-summary-chip">Taslak ${draftCount}</span>`,
+  ].join('');
 }
 
 function restoreComposerDraft() {
@@ -3123,6 +3148,7 @@ function renderLiveFeed(container, data) {
     const haystack = [c.phone_display, c.last_user_msg, c.last_assistant_msg, c.intent, c.state, c.provider_status, draftLabel, human ? 'insan devri human override manual' : '', ...(c.risk_flags || [])].join(' ').toLowerCase();
     return haystack.includes(queueSearch);
   });
+  renderQueueSummary(rawConvs, convs);
   if (!convs.length) {
     container.innerHTML = '<div class="feedback-muted">Bu filtreyle eslesen konusma yok.</div>';
     return;
