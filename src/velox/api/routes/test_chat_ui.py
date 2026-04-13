@@ -237,13 +237,14 @@ TEST_CHAT_HTML = (
       <div class="context-panel-head">
         <div>
           <h2>Baglam</h2>
-          <p>Misafir, operasyon modu ve teslimat sagligi</p>
+          <p>Misafir, operasyon modu, teslimat sagligi ve audit izi</p>
         </div>
       </div>
       <div class="context-tabs" id="context-tabs">
         <button class="context-tab is-active" type="button" data-context-tab="guest">Misafir</button>
         <button class="context-tab" type="button" data-context-tab="operations">Operasyon</button>
         <button class="context-tab" type="button" data-context-tab="delivery">Teslimat</button>
+        <button class="context-tab" type="button" data-context-tab="audit">Audit</button>
       </div>
       <div id="context-body" class="context-body">
         <div class="context-empty">

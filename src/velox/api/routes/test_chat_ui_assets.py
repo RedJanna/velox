@@ -335,6 +335,16 @@ body{overflow:hidden}
 .context-row span:last-child{color:var(--ink);text-align:right}
 .context-tag-row{display:flex;flex-wrap:wrap;gap:8px}
 .context-tag{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:rgba(18,33,59,.06);font-size:11px;font-weight:700;color:var(--muted)}
+.audit-timeline{display:flex;flex-direction:column;gap:10px}
+.audit-item{padding:12px;border-radius:14px;border:1px solid rgba(18,33,59,.08);background:rgba(248,250,252,.9)}
+.audit-item.is-success{border-color:rgba(21,117,111,.22);background:rgba(21,117,111,.06)}
+.audit-item.is-warning{border-color:rgba(231,191,95,.42);background:rgba(231,191,95,.12)}
+.audit-item.is-danger{border-color:rgba(220,38,38,.24);background:rgba(220,38,38,.08)}
+.audit-item.is-muted{border-color:rgba(100,116,139,.16);background:rgba(15,23,42,.03)}
+.audit-item-main{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.audit-item-title{font-size:12px;font-weight:800;color:var(--ink)}
+.audit-item-time{font-size:11px;color:var(--muted);white-space:nowrap}
+.audit-item-detail{margin-top:6px;font-size:11px;line-height:1.5;color:var(--muted)}
 .debug-panel{position:fixed;top:0;right:0;bottom:0;z-index:80;width:min(480px,92vw);display:flex;flex-direction:column;background:linear-gradient(180deg,#152238 0%,#0f172a 100%);color:#fff;border-left:1px solid rgba(255,255,255,.08);transform:translateX(0);transition:transform .2s ease,opacity .2s ease;box-shadow:-24px 0 44px rgba(15,23,42,.26)}
 .debug-panel.collapsed{transform:translateX(100%);opacity:0;pointer-events:none;width:min(480px,92vw);overflow:hidden}
 .debug-body{padding:18px 18px 28px;overflow:auto}
@@ -805,6 +815,29 @@ function renderContextRail() {
       </div>`;
     return;
   }
+  if (state.contextTab === 'audit') {
+    const entries = buildAuditEntries();
+    container.innerHTML = `
+      <div class="context-card">
+        <h3>Audit Timeline</h3>
+        <div class="audit-timeline">
+          ${
+            entries.length
+              ? entries.map(entry => `
+                <div class="audit-item ${entry.tone ? `is-${entry.tone}` : ''}">
+                  <div class="audit-item-main">
+                    <div class="audit-item-title">${escapeHtml(entry.title)}</div>
+                    <div class="audit-item-time">${escapeHtml(entry.timestamp ? fmtTime(entry.timestamp) : '-')}</div>
+                  </div>
+                  ${entry.detail ? `<div class="audit-item-detail">${escapeHtml(entry.detail)}</div>` : ''}
+                </div>
+              `).join('')
+              : '<div class="context-empty"><strong>Audit olayi yok</strong><p>Bu konusma icin henuz izlenebilir bir olay kaydi olusmadi.</p></div>'
+          }
+        </div>
+      </div>`;
+    return;
+  }
   container.innerHTML = `
     <div class="context-card">
       <h3>Teslimat Sagligi</h3>
@@ -851,6 +884,88 @@ function renderContextRail() {
         <div class="context-row"><span>Son cikis</span><span>${escapeHtml(formatRelativeTime(conversation.last_outbound_at))}</span></div>
       </div>
     </div>`;
+}
+
+function buildAuditEntries() {
+  const entries = [];
+  state.messages.forEach(message => {
+    const internal = message.internal_json || {};
+    const createdAt = message.created_at || '';
+    if (message.role === 'user') {
+      entries.push({
+        timestamp: createdAt,
+        tone: 'muted',
+        title: 'Misafir mesaji alindi',
+        detail: truncateReplyPreview(message.content || ''),
+      });
+    }
+    if (message.internal_note || internal.internal_note) {
+      entries.push({
+        timestamp: internal.created_at || createdAt,
+        tone: 'muted',
+        title: 'Ic not kaydedildi',
+        detail: truncateReplyPreview(message.content || ''),
+      });
+    }
+    if (message.role === 'assistant' && (message.send_blocked || message.approval_pending) && !message.rejected) {
+      entries.push({
+        timestamp: createdAt,
+        tone: 'warning',
+        title: 'AI taslagi onay bekliyor',
+        detail: truncateReplyPreview(message.content || ''),
+      });
+    }
+    if (internal.regenerated_at) {
+      entries.push({
+        timestamp: internal.regenerated_at,
+        tone: 'warning',
+        title: 'AI taslagi yeniden uretildi',
+        detail: truncateReplyPreview(message.content || ''),
+      });
+    }
+    if (message.rejected || internal.rejected_at) {
+      entries.push({
+        timestamp: internal.rejected_at || createdAt,
+        tone: 'danger',
+        title: 'AI taslagi reddedildi',
+        detail: truncateReplyPreview(message.content || ''),
+      });
+    }
+    if (internal.approved_at) {
+      entries.push({
+        timestamp: internal.approved_at,
+        tone: 'success',
+        title: 'Mesaj onaylandi',
+        detail: truncateReplyPreview(message.content || ''),
+      });
+    }
+    if (internal.manual_send) {
+      entries.push({
+        timestamp: internal.sent_at || createdAt,
+        tone: 'success',
+        title: 'Admin manuel mesaj gonderdi',
+        detail: truncateReplyPreview(message.content || ''),
+      });
+    }
+    if (message.session_reopen_template_sent || internal.session_reopen_template_sent) {
+      entries.push({
+        timestamp: message.session_reopen_template_sent_at || internal.session_reopen_template_sent_at || createdAt,
+        tone: 'warning',
+        title: 'Session reopen template gonderildi',
+        detail: internal.session_reopen_template_name || message.session_reopen_template_name || 'hello_world',
+      });
+    }
+    const providerEvents = Array.isArray(message.provider_events) ? message.provider_events : [];
+    providerEvents.forEach(event => {
+      entries.push({
+        timestamp: event.timestamp || createdAt,
+        tone: String(event.status || '') === 'failed' ? 'danger' : String(event.status || '') === 'read' ? 'success' : 'muted',
+        title: `Provider olayi: ${String(event.status || '-').replaceAll('_', ' ')}`,
+        detail: [event.error_title, event.error_code].filter(Boolean).join(' · '),
+      });
+    });
+  });
+  return entries.sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
 }
 
 function renderTemplatePanel(errorMessage = '') {
