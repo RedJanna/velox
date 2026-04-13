@@ -242,12 +242,96 @@ body{overflow:hidden}
 .faq-dialog .field-stack{margin-top:0}
 .faq-dialog .field-stack label{color:var(--ink)}
 .faq-dialog .debug-input,.faq-dialog .debug-textarea,.faq-dialog .debug-select{background:rgba(255,255,255,.94);color:var(--ink)}
+.field-stack-sm{flex-direction:column;align-items:flex-start;gap:6px}
+.header--workspace{gap:18px;align-items:flex-start}
+.header--workspace .header-brand{align-items:flex-start}
+.header--workspace .header-controls{flex:1;justify-content:flex-end;row-gap:12px}
+.main{display:grid;grid-template-columns:minmax(300px,340px) minmax(0,1fr) minmax(300px,360px);gap:16px;padding:16px;min-height:0;background:linear-gradient(180deg,rgba(255,255,255,.28),rgba(255,255,255,0))}
+.queue-panel,.chat-panel,.context-panel{min-height:0;background:rgba(255,255,255,.84);border:1px solid rgba(18,33,59,.08);border-radius:22px;box-shadow:var(--shadow)}
+.queue-panel,.context-panel{display:flex;flex-direction:column;overflow:hidden}
+.queue-panel-head,.context-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 18px 14px;border-bottom:1px solid rgba(18,33,59,.08)}
+.queue-panel-head h2,.context-panel-head h2{font-size:16px;font-weight:800;letter-spacing:.01em}
+.queue-panel-head p,.context-panel-head p{font-size:12px;line-height:1.45;color:var(--muted);margin-top:4px}
+.queue-toolbar{display:flex;flex-direction:column;gap:12px;padding:14px 18px;border-bottom:1px solid rgba(18,33,59,.08);background:rgba(248,250,252,.8)}
+.queue-tabs,.context-tabs,.composer-modebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.queue-tab,.context-tab,.composer-mode-btn{height:34px;border:1px solid rgba(18,33,59,.1);border-radius:999px;background:rgba(255,255,255,.9);padding:0 12px;font-size:12px;font-weight:800;color:var(--muted);cursor:pointer;transition:all .16s ease}
+.queue-tab:hover,.context-tab:hover,.composer-mode-btn:hover{border-color:rgba(21,117,111,.34);color:var(--teal)}
+.queue-tab.is-active,.context-tab.is-active,.composer-mode-btn.is-active{background:rgba(21,117,111,.1);border-color:rgba(21,117,111,.34);color:var(--teal)}
+.queue-search{width:100%}
+.queue-list{flex:1;overflow:auto;padding:10px 12px 18px}
+.queue-list::-webkit-scrollbar,.context-body::-webkit-scrollbar{width:7px}
+.queue-list::-webkit-scrollbar-thumb,.context-body::-webkit-scrollbar-thumb{background:rgba(100,116,139,.28);border-radius:999px}
+.live-feed-card{margin:0 0 10px;padding:14px;border-radius:18px;background:#fff;border:1px solid rgba(18,33,59,.08);box-shadow:0 8px 24px rgba(15,23,42,.05)}
+.live-feed-card:hover{border-color:rgba(21,117,111,.22);transform:translateY(-1px)}
+.live-feed-card.is-active{border-color:rgba(21,117,111,.45);box-shadow:0 14px 30px rgba(21,117,111,.12)}
+.live-feed-head{align-items:flex-start}
+.live-feed-phone{font-size:13px;color:var(--ink)}
+.live-feed-time{font-size:11px;color:var(--muted)}
+.live-feed-msgs{margin-top:8px;font-size:12px}
+.live-feed-user{color:var(--ink)}
+.live-feed-assistant{color:var(--muted)}
+.live-feed-badges{margin-top:10px}
+.live-feed-badge{background:rgba(18,33,59,.06);color:var(--muted);border-radius:999px;padding:3px 8px;font-size:10px}
+.live-feed-blocked,.live-feed-sent,.live-feed-rejected{border-radius:999px;padding:2px 8px;font-size:10px}
+.chat-panel{display:flex;flex-direction:column;overflow:hidden}
+.thread-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 22px 14px;border-bottom:1px solid rgba(18,33,59,.08);background:rgba(255,255,255,.9)}
+.thread-header-copy h2{font-size:18px;font-weight:800;letter-spacing:.01em}
+.thread-header-copy p{font-size:12px;line-height:1.45;color:var(--muted);margin-top:4px}
+.thread-header-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.thread-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:800;background:rgba(21,117,111,.1);color:var(--teal)}
+.thread-chip-muted{background:rgba(18,33,59,.06);color:var(--muted)}
+.session-strip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 22px;border-bottom:1px solid rgba(18,33,59,.06);background:rgba(248,250,252,.84);min-height:56px}
+.session-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#fff;border:1px solid rgba(18,33,59,.08);font-size:11px;font-weight:700;color:var(--ink)}
+.session-pill.is-warning{background:rgba(231,191,95,.16);border-color:rgba(231,191,95,.4);color:#7c5800}
+.session-pill.is-danger{background:rgba(220,38,38,.1);border-color:rgba(220,38,38,.24);color:#991b1b}
+.messages{padding:18px 22px;background:linear-gradient(180deg,rgba(248,250,252,.72),rgba(255,255,255,.86))}
+.msg{max-width:72%;border:1px solid transparent;box-shadow:0 12px 28px rgba(15,23,42,.07)}
+.msg-user{align-self:flex-start;background:#fff;border-color:rgba(18,33,59,.08);color:var(--ink);border-bottom-left-radius:8px}
+.msg-assistant{align-self:flex-end;background:linear-gradient(135deg,var(--teal),var(--teal-2));color:#fff;border-bottom-right-radius:8px}
+.msg-system{align-self:center;max-width:92%;background:rgba(18,33,59,.06);color:var(--muted);border:1px solid rgba(18,33,59,.06)}
+.msg.msg-ai-draft{align-self:flex-end;max-width:82%;background:linear-gradient(180deg,#fff8e8,#fff);border:1px dashed rgba(231,191,95,.85);color:var(--ink)}
+.msg.msg-internal-note{align-self:center;max-width:88%;background:rgba(15,23,42,.92);color:#e2e8f0;border:1px solid rgba(15,23,42,.92)}
+.msg-role{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;opacity:.9}
+.msg-status-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.msg-status-pill{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:800;background:rgba(18,33,59,.08);color:var(--muted)}
+.msg-status-pill.is-warning{background:rgba(231,191,95,.18);color:#7c5800}
+.msg-status-pill.is-danger{background:rgba(220,38,38,.12);color:#991b1b}
+.msg-status-pill.is-success{background:rgba(21,117,111,.14);color:var(--teal)}
+.msg-actions{display:flex;gap:8px;flex-wrap:wrap;padding-top:6px}
+.msg-action{height:32px;border-radius:999px;border:1px solid rgba(18,33,59,.12);background:#fff;padding:0 12px;font-size:11px;font-weight:800;color:var(--ink);cursor:pointer}
+.msg-action:hover{border-color:rgba(21,117,111,.34);color:var(--teal)}
+.msg-assistant .msg-action{background:rgba(255,255,255,.92)}
+.msg-internal-note .msg-action{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.12);color:#fff}
+.feedback-bar{display:none}
+.input-bar{gap:12px;padding:14px 18px 18px;background:rgba(255,255,255,.92)}
+.composer-helper,.template-panel{padding:12px 14px;border-radius:16px;background:rgba(18,33,59,.05);border:1px solid rgba(18,33,59,.08);font-size:12px;line-height:1.5;color:var(--muted)}
+.composer-helper.hidden,.template-panel.hidden{display:none!important}
+.template-panel-copy strong{display:block;font-size:12px;color:var(--ink);margin-bottom:4px}
+.context-body{flex:1;overflow:auto;padding:14px}
+.context-empty{padding:14px 6px;color:var(--muted);line-height:1.5}
+.context-empty strong{display:block;color:var(--ink);margin-bottom:4px}
+.context-card{display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:18px;background:#fff;border:1px solid rgba(18,33,59,.08);box-shadow:0 8px 24px rgba(15,23,42,.04)}
+.context-card + .context-card{margin-top:12px}
+.context-card h3{font-size:13px;font-weight:800;letter-spacing:.02em}
+.context-list{display:flex;flex-direction:column;gap:10px}
+.context-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;font-size:12px;line-height:1.45}
+.context-row span:first-child{color:var(--muted);font-weight:700}
+.context-row span:last-child{color:var(--ink);text-align:right}
+.context-tag-row{display:flex;flex-wrap:wrap;gap:8px}
+.context-tag{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:rgba(18,33,59,.06);font-size:11px;font-weight:700;color:var(--muted)}
+.debug-panel{position:fixed;top:0;right:0;bottom:0;z-index:80;width:min(480px,92vw);display:flex;flex-direction:column;background:linear-gradient(180deg,#152238 0%,#0f172a 100%);color:#fff;border-left:1px solid rgba(255,255,255,.08);transform:translateX(0);transition:transform .2s ease,opacity .2s ease;box-shadow:-24px 0 44px rgba(15,23,42,.26)}
+.debug-panel.collapsed{transform:translateX(100%);opacity:0;pointer-events:none;width:min(480px,92vw);overflow:hidden}
+.debug-body{padding:18px 18px 28px;overflow:auto}
+.btn-toggle{display:inline-flex;align-items:center;justify-content:center}
+.source-badge{margin-left:8px}
 @keyframes pulse{from{opacity:.8}to{opacity:1}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes bounce{to{opacity:.35;transform:translateY(-4px)}}
 @media(max-width:1240px){
   .header{padding:12px 18px}
   .header-controls{gap:8px}
+  .main{grid-template-columns:minmax(280px,320px) minmax(0,1fr)}
+  .context-panel{display:none}
   .msg{max-width:86%}
 }
 @media(max-width:980px){
@@ -257,9 +341,9 @@ body{overflow:hidden}
   .header-controls{margin-left:0;justify-content:flex-start}
   .field{flex:1 1 100%}
   .header-select,.header-input{width:100%}
-  .main{min-height:calc(100vh - 170px)}
-  .debug-panel{position:fixed;inset:0 0 0 auto;z-index:30;width:min(90vw,410px)}
-  .btn-toggle{display:inline-flex;align-items:center;justify-content:center}
+  .main{grid-template-columns:1fr;min-height:calc(100vh - 170px);padding:12px}
+  .queue-panel{max-height:320px}
+  .context-panel{display:flex}
   .msg{max-width:90%}
   .composer-chip{max-width:100%}
 }
@@ -338,12 +422,17 @@ const state = {
   liveConversations: [],
   importItems: [],
   activeConversationId: null,
+  queueFilter: 'all',
+  queueSearch: '',
   replyTarget: null,
   composerAttachments: [],
   uploadInProgress: 0,
   mediaRecorder: null,
   mediaChunks: [],
   isRecordingVoice: false,
+  composerMode: 'reply',
+  composerDrafts: new Map(),
+  contextTab: 'guest',
 };
 const CATEGORY_PRIORITY = ['yanlis_bilgi', 'eksik_bilgi', 'baglam_kopuklugu', 'intent_iskalama', 'mantik_celiskisi', 'format_ihlali', 'gevezelik', 'alakasiz_yanit', 'uydurma_bilgi', 'ton_politika_ihlali', 'ozel_kategori'];
 const CATEGORY_TAG_SUGGESTIONS = {
@@ -367,6 +456,264 @@ const el = id => document.getElementById(id);
 
 // escapeHtml, formatMessageHtml, formatTime provided by UI_SHARED_SCRIPT
 const fmtTime = formatTime;
+
+function currentConversationKey() {
+  if (state.sourceType === 'live_conversation' && state.activeConversationId) return `live:${state.activeConversationId}`;
+  return `test:${(el('phone-input')?.value || 'test_user_123').trim() || 'test_user_123'}`;
+}
+
+function clearComposerDraft(key = currentConversationKey()) {
+  state.composerDrafts.delete(key);
+}
+
+function conversationRequiresTemplate() {
+  return state.sourceType === 'live_conversation' && String(state.conversation?.window_state || '') === 'closed';
+}
+
+function normalizeComposerMode() {
+  if (conversationRequiresTemplate() && state.composerMode !== 'internal_note' && state.composerMode !== 'template') {
+    state.composerMode = 'template';
+  }
+}
+
+function saveComposerDraft() {
+  const key = currentConversationKey();
+  state.composerDrafts.set(key, {
+    mode: state.composerMode,
+    text: el('msg-input')?.value || '',
+    replyTarget: state.replyTarget ? {...state.replyTarget} : null,
+  });
+}
+
+function restoreComposerDraft() {
+  const key = currentConversationKey();
+  const draft = state.composerDrafts.get(key);
+  if (!draft) {
+    state.composerMode = 'reply';
+    normalizeComposerMode();
+    state.replyTarget = null;
+    if (el('msg-input')) el('msg-input').value = '';
+    renderComposerModeBar();
+    renderReplyPreview();
+    renderComposerHelper();
+    return;
+  }
+  state.composerMode = draft.mode || 'reply';
+  normalizeComposerMode();
+  state.replyTarget = draft.replyTarget ? {...draft.replyTarget} : null;
+  if (el('msg-input')) el('msg-input').value = draft.text || '';
+  renderComposerModeBar();
+  renderReplyPreview();
+  renderComposerHelper();
+}
+
+function formatRelativeTime(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  const diff = Math.max(0, Date.now() - date.getTime());
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'simdi';
+  if (mins < 60) return `${mins} dk`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} sa`;
+  const days = Math.floor(hours / 24);
+  return `${days} g`;
+}
+
+function formatWindowBadge(conversation = {}) {
+  const stateValue = String(conversation.window_state || 'unknown');
+  const remainingSeconds = Number(conversation.window_remaining_seconds || 0);
+  if (stateValue === 'open') {
+    const hours = Math.floor(remainingSeconds / 3600);
+    const mins = Math.floor((remainingSeconds % 3600) / 60);
+    return {label: `Pencere acik ${hours}s ${mins}dk`, tone: 'success'};
+  }
+  if (stateValue === 'closing_soon') {
+    const mins = Math.floor(remainingSeconds / 60);
+    return {label: `Pencere kapaniyor ${mins}dk`, tone: 'warning'};
+  }
+  if (stateValue === 'closed') {
+    return {label: 'Pencere kapali · sablon gerekli', tone: 'danger'};
+  }
+  return {label: 'Pencere durumu bilinmiyor', tone: 'muted'};
+}
+
+function getConversationDisplayTitle(conversation = null) {
+  if (!conversation) return 'Konusma secin';
+  return conversation.phone_display || conversation.display_name || 'Maskeli kullanici';
+}
+
+function getConversationSubtitle(conversation = null) {
+  if (!conversation) return 'Soldaki kuyruktan bir konusma acin veya test kimligi ile yeni bir test baslatin.';
+  const parts = [
+    conversation.language ? `Dil: ${conversation.language}` : null,
+    conversation.intent ? `Intent: ${conversation.intent}` : null,
+    conversation.state ? `Durum: ${conversation.state}` : null,
+  ].filter(Boolean);
+  return parts.join(' · ') || 'Konusma ozeti hazir.';
+}
+
+function latestDeliverySummary() {
+  const assistant = [...state.messages].reverse().find(message => message.role === 'assistant' && !message.internal_note);
+  if (!assistant) return null;
+  return {
+    localStatus: assistant.local_status || assistant.status || 'unknown',
+    providerStatus: assistant.provider_status || 'unknown',
+    whatsappMessageId: assistant.whatsapp_message_id || assistant.internal_json?.whatsapp_message_id || '',
+    approvedAt: assistant.internal_json?.approved_at || '',
+    sentAt: assistant.internal_json?.sent_at || '',
+  };
+}
+
+function renderComposerModeBar() {
+  document.querySelectorAll('.composer-mode-btn').forEach(btn => {
+    btn.classList.toggle('is-active', btn.dataset.composerMode === state.composerMode);
+  });
+  const templatePanel = el('template-panel');
+  if (!templatePanel) return;
+  templatePanel.classList.toggle('hidden', state.composerMode !== 'template');
+}
+
+function renderComposerHelper() {
+  const helper = el('composer-helper');
+  if (!helper) return;
+  let text = '';
+  if (conversationRequiresTemplate() && state.composerMode === 'template') {
+    text = 'Servis penceresi kapali. Musteriye serbest mesaj yerine sablon akisi gerekir. P0 asamasinda gonderim bloke edilir.';
+  } else if (state.composerMode === 'internal_note') {
+    text = 'Ic not olarak kaydedilir; musteriye gonderilmez.';
+  } else if (state.composerMode === 'template') {
+    text = 'Sablon akisi P0 asamasinda hazirlaniyor. Pencere kapaliysa serbest mesaj yerine sablon secimi gerekir.';
+  } else if (state.composerMode === 'ai_draft') {
+    text = 'AI taslagi bu modda duzenlenir; gondermeden once kontrol sizde kalir.';
+  }
+  helper.textContent = text;
+  helper.classList.toggle('hidden', !text);
+}
+
+function renderThreadHeader() {
+  const container = el('thread-header');
+  if (!container) return;
+  const title = state.sourceType === 'live_test_chat'
+    ? `Test: ${(el('phone-input')?.value || 'test_user_123').trim() || 'test_user_123'}`
+    : getConversationDisplayTitle(state.conversation);
+  const subtitle = state.sourceType === 'live_test_chat'
+    ? 'Test akisi · prompt ve davranis denemeleri icin canli alan'
+    : getConversationSubtitle(state.conversation);
+  const modeLabel = state.sourceType === 'live_conversation' ? 'Canli' : 'Test';
+  const windowBadge = formatWindowBadge(state.conversation || {});
+  container.innerHTML = `
+    <div class="thread-header-copy">
+      <h2>${escapeHtml(title)}</h2>
+      <p>${escapeHtml(subtitle)}</p>
+    </div>
+    <div class="thread-header-actions">
+      <span class="thread-chip thread-chip-muted">${escapeHtml(modeLabel)}</span>
+      <span class="thread-chip ${windowBadge.tone === 'warning' ? 'thread-chip-muted' : ''}">${escapeHtml(windowBadge.label)}</span>
+    </div>
+  `;
+}
+
+function renderSessionStrip() {
+  const container = el('session-strip');
+  if (!container) return;
+  const conversation = state.conversation || {};
+  if (!conversation || (!conversation.id && state.sourceType !== 'live_test_chat')) {
+    container.innerHTML = '<span class="session-pill">Konusma secildiginde oturum durumu burada gorunecek.</span>';
+    return;
+  }
+  const windowBadge = formatWindowBadge(conversation);
+  const delivery = latestDeliverySummary();
+  const pills = [
+    `<span class="session-pill ${windowBadge.tone === 'warning' ? 'is-warning' : windowBadge.tone === 'danger' ? 'is-danger' : ''}">${escapeHtml(windowBadge.label)}</span>`,
+  ];
+  if (conversation.last_inbound_at || conversation.last_message_at) {
+    pills.push(`<span class="session-pill">Son gelen: ${escapeHtml(formatRelativeTime(conversation.last_inbound_at || conversation.last_message_at))}</span>`);
+  }
+  if (conversation.last_outbound_at) {
+    pills.push(`<span class="session-pill">Son cikis: ${escapeHtml(formatRelativeTime(conversation.last_outbound_at))}</span>`);
+  }
+  if (delivery) {
+    pills.push(`<span class="session-pill">${escapeHtml('Teslimat: ' + delivery.localStatus)}</span>`);
+  }
+  if (state.operationMode) {
+    pills.push(`<span class="session-pill">Mod: ${escapeHtml(String(state.operationMode).toUpperCase())}</span>`);
+  }
+  container.innerHTML = pills.join('');
+}
+
+function renderContextRail() {
+  const container = el('context-body');
+  if (!container) return;
+  document.querySelectorAll('.context-tab').forEach(btn => {
+    btn.classList.toggle('is-active', btn.dataset.contextTab === state.contextTab);
+  });
+  const conversation = state.conversation;
+  if (!conversation) {
+    container.innerHTML = `
+      <div class="context-empty">
+        <strong>Baglam hazir degil</strong>
+        <p>Bir konusma acildiginda misafir, operasyon ve teslimat ozeti burada gorunecek.</p>
+      </div>`;
+    return;
+  }
+  const tags = [...new Set([...(conversation.risk_flags || []), conversation.intent || '', conversation.state || ''])].filter(Boolean);
+  const delivery = latestDeliverySummary();
+  if (state.contextTab === 'guest') {
+    container.innerHTML = `
+      <div class="context-card">
+        <h3>Misafir Ozeti</h3>
+        <div class="context-list">
+          <div class="context-row"><span>Kimlik</span><span>${escapeHtml(getConversationDisplayTitle(conversation))}</span></div>
+          <div class="context-row"><span>Dil</span><span>${escapeHtml(conversation.language || '-')}</span></div>
+          <div class="context-row"><span>Son aktivite</span><span>${escapeHtml(formatRelativeTime(conversation.last_message_at))}</span></div>
+          <div class="context-row"><span>Konusma</span><span>${conversation.is_active ? 'Aktif' : 'Kapali'}</span></div>
+        </div>
+      </div>
+      <div class="context-card">
+        <h3>Etiketler</h3>
+        <div class="context-tag-row">${tags.length ? tags.map(tag => `<span class="context-tag">${escapeHtml(tag)}</span>`).join('') : '<span class="context-tag">Etiket yok</span>'}</div>
+      </div>`;
+    return;
+  }
+  if (state.contextTab === 'operations') {
+    container.innerHTML = `
+      <div class="context-card">
+        <h3>Operasyon Modu</h3>
+        <div class="context-list">
+          <div class="context-row"><span>Calisma modu</span><span>${escapeHtml(String(state.operationMode || '-').toUpperCase())}</span></div>
+          <div class="context-row"><span>Intent</span><span>${escapeHtml(conversation.intent || '-')}</span></div>
+          <div class="context-row"><span>Durum</span><span>${escapeHtml(conversation.state || '-')}</span></div>
+          <div class="context-row"><span>Pencere</span><span>${escapeHtml(formatWindowBadge(conversation).label)}</span></div>
+        </div>
+      </div>
+      <div class="context-card">
+        <h3>Risk ve Notlar</h3>
+        <div class="context-tag-row">${(conversation.risk_flags || []).length ? conversation.risk_flags.map(flag => `<span class="context-tag">${escapeHtml(flag)}</span>`).join('') : '<span class="context-tag">Risk flag yok</span>'}</div>
+      </div>`;
+    return;
+  }
+  container.innerHTML = `
+    <div class="context-card">
+      <h3>Teslimat Sagligi</h3>
+      <div class="context-list">
+        <div class="context-row"><span>Local durum</span><span>${escapeHtml(delivery?.localStatus || conversation.delivery_state || 'unknown')}</span></div>
+        <div class="context-row"><span>Provider durum</span><span>${escapeHtml(delivery?.providerStatus || 'unknown')}</span></div>
+        <div class="context-row"><span>WhatsApp msg id</span><span>${escapeHtml(delivery?.whatsappMessageId || '-')}</span></div>
+        <div class="context-row"><span>Approved at</span><span>${escapeHtml(delivery?.approvedAt ? fmtTime(delivery.approvedAt) : '-')}</span></div>
+        <div class="context-row"><span>Sent at</span><span>${escapeHtml(delivery?.sentAt ? fmtTime(delivery.sentAt) : '-')}</span></div>
+      </div>
+    </div>
+    <div class="context-card">
+      <h3>Oturum Durumu</h3>
+      <div class="context-list">
+        <div class="context-row"><span>Pencere</span><span>${escapeHtml(formatWindowBadge(conversation).label)}</span></div>
+        <div class="context-row"><span>Son gelen</span><span>${escapeHtml(formatRelativeTime(conversation.last_inbound_at || conversation.last_message_at))}</span></div>
+        <div class="context-row"><span>Son cikis</span><span>${escapeHtml(formatRelativeTime(conversation.last_outbound_at))}</span></div>
+      </div>
+    </div>`;
+}
 
 function flagLevel(flag) {
   if (L3_FLAGS.includes(flag)) return 'l3';
@@ -866,19 +1213,43 @@ function renderMessages() {
     container.innerHTML = `
       <div class="empty-state">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
-        <p>Canli test veya import kaydi secin; sonra asistan mesajlarini puanlayin.</p>
+        <p>${state.sourceType === 'live_conversation' ? 'Bu konusmada henuz mesaj yok.' : 'Soldaki kuyruktan bir konusma secin veya test kimligi ile yeni bir test baslatin.'}</p>
       </div>`;
+    renderThreadHeader();
+    renderSessionStrip();
+    renderContextRail();
     return;
   }
 
   state.messages.forEach(message => {
     const bubble = document.createElement('div');
-    bubble.className = 'msg msg-' + message.role;
+    const isInternalNote = Boolean(message.internal_note || message.internal_json?.internal_note);
+    const isAIDraft = message.role === 'assistant' && (message.send_blocked || message.approval_pending || message.rejected);
+    const bubbleRole = isInternalNote
+      ? 'system'
+      : message.role === 'user'
+        ? 'user'
+        : message.role === 'assistant' && !isAIDraft
+          ? 'assistant'
+          : 'system';
+    bubble.className = 'msg msg-' + bubbleRole;
+    if (isAIDraft) bubble.classList.add('msg-ai-draft');
+    if (isInternalNote) bubble.classList.add('msg-internal-note');
     bubble.dataset.role = message.role;
     bubble.dataset.messageId = message.id || '';
     bubble.dataset.status = message.status || '';
     if (message.status === 'sending') bubble.classList.add('msg-sending');
     if (message.status === 'error') bubble.classList.add('msg-error');
+
+    const roleRow = document.createElement('div');
+    roleRow.className = 'msg-role';
+    let roleLabel = 'Sistem';
+    if (isInternalNote) roleLabel = 'Ic Not';
+    else if (isAIDraft) roleLabel = 'AI Onerisi';
+    else if (message.role === 'user') roleLabel = 'Misafir';
+    else if (message.role === 'assistant') roleLabel = 'Gonderilen Yanit';
+    roleRow.textContent = roleLabel;
+    bubble.appendChild(roleRow);
 
     const replySnippet = buildReplySnippet(message);
     if (replySnippet) {
@@ -912,6 +1283,32 @@ function renderMessages() {
     stamp.textContent = fmtTime(message.created_at);
     bubble.appendChild(stamp);
 
+    const statusRow = document.createElement('div');
+    statusRow.className = 'msg-status-row';
+    const localStatus = message.local_status || message.status || '';
+    if (localStatus) {
+      const pill = document.createElement('span');
+      pill.className = 'msg-status-pill';
+      if (localStatus.includes('failed') || localStatus === 'error') pill.classList.add('is-danger');
+      else if (localStatus.includes('pending')) pill.classList.add('is-warning');
+      else if (localStatus === 'accepted' || localStatus === 'delivered') pill.classList.add('is-success');
+      pill.textContent = localStatus.replaceAll('_', ' ');
+      statusRow.appendChild(pill);
+    }
+    if (message.provider_status && message.provider_status !== 'unknown') {
+      const providerPill = document.createElement('span');
+      providerPill.className = 'msg-status-pill';
+      providerPill.textContent = 'provider: ' + String(message.provider_status).replaceAll('_', ' ');
+      statusRow.appendChild(providerPill);
+    }
+    if (message.whatsapp_message_id) {
+      const idPill = document.createElement('span');
+      idPill.className = 'msg-status-pill';
+      idPill.textContent = 'wa id var';
+      statusRow.appendChild(idPill);
+    }
+    if (statusRow.children.length > 0) bubble.appendChild(statusRow);
+
     if (message.status === 'error' && message._retryPayload) {
       const retryBtn = document.createElement('button');
       retryBtn.type = 'button';
@@ -923,7 +1320,21 @@ function renderMessages() {
       bubble.appendChild(retryBtn);
     }
 
-    if (message.role === 'assistant' && message.id) {
+    if (isAIDraft && message.id) {
+      const actions = document.createElement('div');
+      actions.className = 'msg-actions';
+      if (!message.rejected) {
+        actions.innerHTML += `<button class="msg-action" type="button" data-msg-action="approve" data-message-id="${escapeHtml(String(message.id))}">Onayla ve Gonder</button>`;
+        actions.innerHTML += `<button class="msg-action" type="button" data-msg-action="reject" data-message-id="${escapeHtml(String(message.id))}">Gonderme</button>`;
+      }
+      actions.innerHTML += `<button class="msg-action" type="button" data-msg-action="regenerate" data-message-id="${escapeHtml(String(message.id))}">Yeniden Isle</button>`;
+      if (message.rejected) {
+        actions.innerHTML += `<button class="msg-action" type="button" data-msg-action="feedback" data-message-id="${escapeHtml(String(message.id))}">Geri Bildirim</button>`;
+      }
+      bubble.appendChild(actions);
+    }
+
+    if (message.role === 'assistant' && message.id && state.sourceType !== 'live_conversation' && !isAIDraft) {
       bubble.appendChild(buildFeedbackBar(message.id));
     }
     container.appendChild(bubble);
@@ -1187,26 +1598,43 @@ function currentRoleMapping() {
 }
 
 function setComposerMode(isLive) {
-  el('msg-input').disabled = !isLive;
-  el('send-btn').disabled = !isLive;
-  el('attach-btn').disabled = !isLive;
-  el('voice-btn').disabled = !isLive;
-  el('export-btn').disabled = !isLive;
-  if (!isLive) {
+  normalizeComposerMode();
+  const composerEnabled = isLive || state.sourceType === 'live_conversation';
+  const messageInput = el('msg-input');
+  const sendBtn = el('send-btn');
+  const attachBtn = el('attach-btn');
+  const voiceBtn = el('voice-btn');
+  const exportBtn = el('export-btn');
+  messageInput.disabled = !composerEnabled || state.composerMode === 'template';
+  sendBtn.disabled = !composerEnabled;
+  attachBtn.disabled = !composerEnabled || state.composerMode === 'template';
+  voiceBtn.disabled = !composerEnabled || state.sourceType !== 'live_test_chat' || state.composerMode !== 'reply';
+  exportBtn.disabled = state.sourceType !== 'live_test_chat';
+  if (!composerEnabled) {
     clearReplyTarget();
     state.composerAttachments = [];
     if (state.isRecordingVoice) stopVoiceRecording();
   }
   if (state.sourceType === 'live_conversation') {
-    el('msg-input').placeholder = 'Canli konusma salt okunur. Mesaj gondermek icin detay modalini kullanin.';
-    el('source-banner').textContent = 'Canli konusma goruntuleniyor.';
+    messageInput.placeholder = state.composerMode === 'internal_note'
+      ? 'Konusma icin ekip ici not yazin...'
+      : state.composerMode === 'template'
+        ? 'Sablon secimi gereklidir.'
+        : 'Canli konusmaya mesaj yazin...';
+    el('source-banner').textContent = 'Canli kuyruk konusmasi acik.';
   } else if (isLive) {
-    el('msg-input').placeholder = 'Mesajinizi yazin...';
+    messageInput.placeholder = state.composerMode === 'internal_note'
+      ? 'Test akisi icin yerel not yazin...'
+      : state.composerMode === 'template'
+        ? 'Sablon modu secili.'
+        : 'Mesajinizi yazin...';
     el('source-banner').textContent = 'Canli test gorunumu aktif.';
   } else {
-    el('msg-input').placeholder = 'Import gorunumu salt okunur. Yeni mesaj icin New Test secin.';
+    messageInput.placeholder = 'Import gorunumu salt okunur. Yeni mesaj icin New Test secin.';
     el('source-banner').textContent = 'Import gorunumu aktif: ' + (state.importFile || '-');
   }
+  renderComposerModeBar();
+  renderComposerHelper();
   renderReplyPreview();
   renderComposerAttachments();
 }
@@ -1233,14 +1661,27 @@ function refreshDebugFromLatestAssistant() {
 
 async function loadHistory() {
   if (state.sourceType !== 'live_test_chat') return;
+  saveComposerDraft();
+  state.activeConversationId = null;
   clearReplyTarget();
   const phone = encodeURIComponent(el('phone-input').value.trim() || 'test_user_123');
   try {
     const data = await apiFetch(`/chat/history?phone=${phone}`);
     state.messages = data.messages || [];
-    state.conversation = data.conversation || null;
+    state.conversation = data.conversation ? {
+      ...data.conversation,
+      phone_display: (el('phone-input')?.value || 'test_user_123').trim() || 'test_user_123',
+      window_state: data.window_state,
+      window_expires_at: data.window_expires_at,
+      window_remaining_seconds: data.window_remaining_seconds,
+      last_message_at: state.messages.length ? state.messages[state.messages.length - 1].created_at : null,
+    } : null;
     renderMessages();
+    renderThreadHeader();
+    renderSessionStrip();
+    renderContextRail();
     refreshDebugFromLatestAssistant();
+    restoreComposerDraft();
   } catch (error) {
     notify(error.message || 'Konusma gecmisi yuklenemedi.', 'error');
   }
@@ -1251,7 +1692,10 @@ function updateTypingIndicator() {
 }
 
 function sendMessage() {
-  if (state.sourceType !== 'live_test_chat') return;
+  if (state.composerMode === 'template') {
+    notify('Bu asamada sablon gonderimi hazir degil. Pencere kapali konusmalarda sablon akisi sonraki adimda tamamlanacak.', 'warn');
+    return;
+  }
   const message = el('msg-input').value.trim();
   const attachments = state.composerAttachments
     .filter(item => item.status === 'uploaded' && item.asset_id)
@@ -1268,6 +1712,20 @@ function sendMessage() {
     notify('Dosya yuklemesi tamamlanmadan mesaj gonderilemez.', 'warn');
     return;
   }
+  saveComposerDraft();
+  if (state.composerMode === 'internal_note') {
+    if (state.sourceType !== 'live_conversation' || !state.activeConversationId) {
+      notify('Ic not sadece canli konusma seciliyken kaydedilebilir.', 'warn');
+      return;
+    }
+    persistInternalNote(message);
+    return;
+  }
+  if (state.sourceType === 'live_conversation' && state.activeConversationId) {
+    sendLiveConversationMessage(message, attachments);
+    return;
+  }
+  if (state.sourceType !== 'live_test_chat') return;
   const replyTarget = state.replyTarget ? {...state.replyTarget} : null;
   const clientMsgId = `cl_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   const visibleText = message || (attachments.length ? `Ek gonderildi (${attachments.length})` : '');
@@ -1303,6 +1761,61 @@ function sendMessage() {
   _fireSend(clientMsgId, userMsg, message, attachments, replyTarget);
 }
 
+async function persistInternalNote(message) {
+  const payload = {
+    conversation_id: state.activeConversationId,
+    note: message,
+  };
+  const input = el('msg-input');
+  const sendBtn = el('send-btn');
+  sendBtn.disabled = true;
+  try {
+    await apiFetch('/chat/note-to-conversation', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    input.value = '';
+    clearComposerDraft();
+    notify('Ic not kaydedildi.', 'success');
+    await loadLiveConversation(state.activeConversationId);
+  } catch (error) {
+    notify(error.message || 'Ic not kaydedilemedi.', 'error');
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+async function sendLiveConversationMessage(message, attachments) {
+  const payload = {
+    conversation_id: state.activeConversationId,
+    message: message,
+    attachments: attachments.map(item => ({asset_id: item.asset_id})),
+  };
+  const input = el('msg-input');
+  const sendBtn = el('send-btn');
+  sendBtn.disabled = true;
+  try {
+    await apiFetch('/chat/send-to-conversation', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    input.value = '';
+    state.composerAttachments = [];
+    renderComposerAttachments();
+    clearReplyTarget();
+    clearComposerDraft();
+    notify('Mesaj canli konusmaya gonderildi.', 'success');
+    await loadLiveConversation(state.activeConversationId);
+    await loadLiveFeed();
+  } catch (error) {
+    notify(error.message || 'Canli konusmaya mesaj gonderilemedi.', 'error');
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
 async function _fireSend(clientMsgId, userMsg, message, attachments, replyTarget) {
   try {
     const payload = {
@@ -1322,7 +1835,11 @@ async function _fireSend(clientMsgId, userMsg, message, attachments, replyTarget
     userMsg.status = 'delivered';
     if (data.blocked) {
       state.conversation = data.conversation || null;
+      clearComposerDraft();
       renderMessages();
+      renderThreadHeader();
+      renderSessionStrip();
+      renderContextRail();
       refreshDebugFromLatestAssistant();
       notify('Bu konusma insan temsilci devrinde. AI yaniti durduruldu.', 'warn');
       return;
@@ -1335,16 +1852,30 @@ async function _fireSend(clientMsgId, userMsg, message, attachments, replyTarget
         created_at: data.timestamp,
         internal_json: data.internal_json,
         model: el('model-select').value || '',
+        send_blocked: Boolean(data.internal_json?.send_blocked),
+        approval_pending: Boolean(data.internal_json?.approval_pending),
+        rejected: Boolean(data.internal_json?.rejected),
+        internal_note: false,
+        whatsapp_message_id: data.internal_json?.whatsapp_message_id || null,
+        local_status: data.internal_json?.approval_pending || data.internal_json?.send_blocked ? 'pending_approval' : 'accepted',
+        provider_status: 'unknown',
       },
     );
     state.conversation = data.conversation || null;
+    clearComposerDraft();
     renderMessages();
+    renderThreadHeader();
+    renderSessionStrip();
+    renderContextRail();
     updateDebug(state.messages[state.messages.length - 1]);
   } catch (error) {
     userMsg.status = 'error';
     userMsg.errorMessage = error.message || 'Mesaj gonderilemedi.';
     userMsg._retryPayload = { clientMsgId, message, attachments, replyTarget };
     renderMessages();
+    renderThreadHeader();
+    renderSessionStrip();
+    renderContextRail();
     notify(error.message || 'Mesaj gonderilemedi.', 'error');
   } finally {
     state.inflightMessages.delete(clientMsgId);
@@ -1395,6 +1926,9 @@ async function resetConversation() {
     clearReplyTarget();
     renderComposerAttachments();
     renderMessages();
+    renderThreadHeader();
+    renderSessionStrip();
+    renderContextRail();
     renderFeedbackStudio();
     updateDebug(null);
     notify('Konusma sifirlandi.', 'success');
@@ -1421,13 +1955,14 @@ async function refreshImportFiles() {
 }
 
 async function loadLiveConversation(convId) {
+  saveComposerDraft();
   state.sourceType = 'live_conversation';
   state.activeConversationId = convId;
   state.importFile = '';
   state.importMetadata = {};
   state.roleMapping = {};
   clearReplyTarget();
-  setComposerMode(false);
+  setComposerMode(true);
   renderRoleMappingPanel(null);
   el('source-banner').textContent = 'Canli konusma goruntuleniyor.';
   try {
@@ -1441,17 +1976,35 @@ async function loadLiveConversation(convId) {
       attachments: Array.isArray(m.attachments) ? m.attachments : [],
       model: m.model || null,
       send_blocked: m.send_blocked || false,
+      approval_pending: m.approval_pending || false,
       rejected: m.rejected || false,
+      internal_note: m.internal_note || false,
+      whatsapp_message_id: m.whatsapp_message_id || null,
+      local_status: m.local_status || 'unknown',
+      provider_status: m.provider_status || 'unknown',
     }));
     state.conversation = {
       id: data.id,
+      phone_display: data.phone_display || '***',
       language: data.language || '-',
       state: data.state || '-',
       intent: data.intent || '-',
       risk_flags: data.risk_flags || [],
+      is_active: Boolean(data.is_active),
+      last_message_at: data.last_message_at || null,
+      last_inbound_at: data.last_inbound_at || null,
+      last_outbound_at: data.last_outbound_at || null,
+      delivery_state: data.delivery_state || 'unknown',
+      window_state: data.window_state || 'unknown',
+      window_expires_at: data.window_expires_at || null,
+      window_remaining_seconds: data.window_remaining_seconds || 0,
     };
     renderMessages();
+    renderThreadHeader();
+    renderSessionStrip();
+    renderContextRail();
     refreshDebugFromLatestAssistant();
+    restoreComposerDraft();
   } catch (error) {
     notify(error.message || 'Konusma yuklenemedi.', 'error');
   }
@@ -1500,6 +2053,9 @@ async function loadSelectedImport(roleMapping = {}) {
     renderMessages();
     renderRoleMappingPanel(data);
     setComposerMode(false);
+    renderThreadHeader();
+    renderSessionStrip();
+    renderContextRail();
     updateDebug(null);
     return;
   }
@@ -1508,6 +2064,7 @@ async function loadSelectedImport(roleMapping = {}) {
   state.messages = data.messages || [];
   state.conversation = {
     id: data.conversation_id || data.file_name,
+    phone_display: data.source_label || data.file_name,
     language: data.metadata?.language || '-',
     state: data.metadata?.state || '-',
     intent: data.metadata?.intent || '-',
@@ -1515,6 +2072,9 @@ async function loadSelectedImport(roleMapping = {}) {
   };
   setComposerMode(false);
   renderMessages();
+  renderThreadHeader();
+  renderSessionStrip();
+  renderContextRail();
   refreshDebugFromLatestAssistant();
 }
 
@@ -1684,7 +2244,9 @@ async function changeModel() {
 // isoToLocalInput provided by UI_SHARED_SCRIPT
 
 function toggleDebug() {
-  el('debug-panel').classList.toggle('collapsed');
+  const panel = el('debug-panel');
+  panel.classList.toggle('collapsed');
+  el('toggle-debug').setAttribute('aria-expanded', String(!panel.classList.contains('collapsed')));
 }
 
 function removeCtxMenu() {
@@ -2152,9 +2714,22 @@ async function loadLiveFeed() {
 }
 
 function renderLiveFeed(container, data) {
-  const convs = data.conversations || [];
+  const rawConvs = data.conversations || [];
+  const queueSearch = String(state.queueSearch || '').trim().toLowerCase();
+  const convs = rawConvs.filter(c => {
+    const blocked = c.send_blocked === 'true' || c.send_blocked === true || c.approval_pending === 'true' || c.approval_pending === true;
+    const rejected = c.rejected === 'true' || c.rejected === true;
+    const human = String(c.state || '').toLowerCase().includes('handoff') || String(c.state || '').toLowerCase().includes('human');
+    const attention = blocked || rejected || String(c.delivery_state || '').includes('failed') || String(c.window_state || '') === 'closing_soon' || String(c.window_state || '') === 'closed';
+    if (state.queueFilter === 'approval' && !blocked) return false;
+    if (state.queueFilter === 'human' && !human) return false;
+    if (state.queueFilter === 'attention' && !attention) return false;
+    if (!queueSearch) return true;
+    const haystack = [c.phone_display, c.last_user_msg, c.last_assistant_msg, c.intent, c.state, ...(c.risk_flags || [])].join(' ').toLowerCase();
+    return haystack.includes(queueSearch);
+  });
   if (!convs.length) {
-    container.innerHTML = '<div class="feedback-muted">Henuz gercek misafir mesaji yok.</div>';
+    container.innerHTML = '<div class="feedback-muted">Bu filtreyle eslesen konusma yok.</div>';
     return;
   }
 
@@ -2162,12 +2737,8 @@ function renderLiveFeed(container, data) {
     const timeStr = c.last_message_at ? formatTime(c.last_message_at) : '-';
     const userSnippet = c.last_user_msg ? escapeHtml(c.last_user_msg.slice(0, 300)) : '-';
     const assistantSnippet = c.last_assistant_msg ? escapeHtml(c.last_assistant_msg.slice(0, 300)) : '-';
-    let blocked = c.send_blocked === 'true' || c.send_blocked === true;
+    const blocked = c.send_blocked === 'true' || c.send_blocked === true || c.approval_pending === 'true' || c.approval_pending === true;
     const rejected = c.rejected === 'true' || c.rejected === true;
-    // Safety: if no send_blocked flag at all and mode is not ai, treat as pending
-    if (!blocked && !rejected && c.send_blocked === null && state.operationMode !== 'ai') {
-      blocked = true;
-    }
     let statusTag;
     if (rejected) {
       statusTag = '<span class="live-feed-rejected">REDDEDILDI</span>';
@@ -2177,13 +2748,22 @@ function renderLiveFeed(container, data) {
         ' <button class="live-feed-reject-btn" data-reject-conv="' + escapeHtml(c.id) + '" data-reject-msg="' + escapeHtml(String(c.last_assistant_msg_id)) + '">Gonderme</button>';
     } else if (blocked) {
       statusTag = '<span class="live-feed-blocked">BEKLIYOR</span>';
+    } else if (String(c.delivery_state || '') === 'failed') {
+      statusTag = '<span class="live-feed-rejected">HATA</span>';
     } else {
-      statusTag = '<span class="live-feed-sent">GONDERILDI</span>';
+      statusTag = '<span class="live-feed-sent">' + escapeHtml(String(c.delivery_state || 'accepted').replaceAll('_', ' ').toUpperCase()) + '</span>';
     }
 
     const flags = (c.risk_flags || []).map(f => '<span class="live-feed-badge">' + escapeHtml(f) + '</span>').join('');
 
-    return '<div class="live-feed-card" draggable="true" data-conv-id="' + escapeHtml(c.id) + '">' +
+    const windowBadge = c.window_state === 'closed'
+      ? '<span class="live-feed-badge" style="color:#991b1b">pencere kapali</span>'
+      : c.window_state === 'closing_soon'
+        ? '<span class="live-feed-badge" style="color:#b45309">pencere kapaniyor</span>'
+        : '<span class="live-feed-badge" style="color:#0f766e">pencere acik</span>';
+    const deliveryBadge = c.delivery_state ? '<span class="live-feed-badge">' + escapeHtml(String(c.delivery_state).replaceAll('_', ' ')) + '</span>' : '';
+
+    return '<div class="live-feed-card' + (state.activeConversationId === c.id ? ' is-active' : '') + '" draggable="true" data-conv-id="' + escapeHtml(c.id) + '">' +
       '<div class="live-feed-head">' +
         '<span class="live-feed-phone">' + escapeHtml(c.phone_display) + ' (' + c.msg_count + ' mesaj)</span>' +
         '<span class="live-feed-time">' + timeStr + '</span>' +
@@ -2197,6 +2777,8 @@ function renderLiveFeed(container, data) {
         '<span class="live-feed-badge">' + escapeHtml(c.state || '-') + '</span>' +
         (c.intent && c.intent !== '-' ? '<span class="live-feed-badge">' + escapeHtml(c.intent) + '</span>' : '') +
         (c.is_active ? '<span class="live-feed-badge" style="color:#86efac">aktif</span>' : '<span class="live-feed-badge" style="color:#fca5a5">kapali</span>') +
+        windowBadge +
+        deliveryBadge +
         flags +
       '</div>' +
     '</div>';
@@ -2277,6 +2859,33 @@ function wireEvents() {
     if (!body) return;
     showCtxMenu(event, body.textContent, bubble);
   });
+  el('messages').addEventListener('click', async event => {
+    const actionBtn = event.target.closest('[data-msg-action]');
+    if (!actionBtn) return;
+    const action = actionBtn.dataset.msgAction;
+    const messageId = actionBtn.dataset.messageId;
+    if (!state.activeConversationId || !messageId) return;
+    actionBtn.disabled = true;
+    try {
+      if (action === 'approve') {
+        await apiFetch('/chat/approve-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: state.activeConversationId, message_id: messageId})});
+        notify('Mesaj onaylandi ve gonderildi.', 'success');
+      } else if (action === 'reject') {
+        await apiFetch('/chat/reject-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: state.activeConversationId, message_id: messageId})});
+        notify('Mesaj reddedildi.', 'success');
+      } else if (action === 'regenerate') {
+        await apiFetch('/chat/regenerate', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: state.activeConversationId})});
+        notify('Mesaj yeniden uretildi.', 'success');
+      } else if (action === 'feedback') {
+        showConversationDetail(state.activeConversationId).then(() => showModalFeedbackForm(state.activeConversationId, messageId));
+      }
+      await loadLiveFeed();
+      await loadLiveConversation(state.activeConversationId);
+    } catch (error) {
+      notify(error.message || 'Mesaj aksiyonu basarisiz.', 'error');
+      actionBtn.disabled = false;
+    }
+  });
   el('send-btn').addEventListener('click', sendMessage);
   el('attach-btn').addEventListener('click', openAttachmentPicker);
   el('voice-btn').addEventListener('click', toggleVoiceRecording);
@@ -2289,16 +2898,50 @@ function wireEvents() {
     removeComposerAttachment(removeBtn.dataset.removeAttachment);
   });
   el('reply-preview-clear').addEventListener('click', clearReplyTarget);
+  el('composer-modebar').addEventListener('click', event => {
+    const btn = event.target.closest('.composer-mode-btn');
+    if (!btn) return;
+    saveComposerDraft();
+    const requestedMode = btn.dataset.composerMode || 'reply';
+    if (conversationRequiresTemplate() && requestedMode !== 'template' && requestedMode !== 'internal_note') {
+      state.composerMode = 'template';
+      notify('Bu konusmada servis penceresi kapali. Musteriye serbest mesaj yerine sablon kullanilmalidir.', 'warn');
+    } else {
+      state.composerMode = requestedMode;
+    }
+    renderComposerModeBar();
+    renderComposerHelper();
+    setComposerMode(state.sourceType === 'live_test_chat' || state.sourceType === 'live_conversation');
+    saveComposerDraft();
+  });
   el('msg-input').addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       sendMessage();
     }
   });
+  el('msg-input').addEventListener('input', () => saveComposerDraft());
   el('reset-btn').addEventListener('click', resetConversation);
   el('export-btn').addEventListener('click', downloadConversation);
   el('refresh-imports').addEventListener('click', refreshImportFiles);
   el('import-select').addEventListener('change', () => loadSelectedImport());
+  el('queue-tabs').addEventListener('click', event => {
+    const btn = event.target.closest('.queue-tab');
+    if (!btn) return;
+    state.queueFilter = btn.dataset.queueFilter || 'all';
+    document.querySelectorAll('.queue-tab').forEach(item => item.classList.toggle('is-active', item === btn));
+    renderLiveFeed(el('live-feed-container'), {conversations: state.liveConversations});
+  });
+  el('queue-search').addEventListener('input', event => {
+    state.queueSearch = event.target.value || '';
+    renderLiveFeed(el('live-feed-container'), {conversations: state.liveConversations});
+  });
+  el('context-tabs').addEventListener('click', event => {
+    const btn = event.target.closest('.context-tab');
+    if (!btn) return;
+    state.contextTab = btn.dataset.contextTab || 'guest';
+    renderContextRail();
+  });
   el('role-mapping-submit').addEventListener('click', () => loadSelectedImport(currentRoleMapping()));
   el('feedback-category').addEventListener('change', () => {
     if (!state.manualTagTouched) applyCategorySuggestions(true);
@@ -2325,7 +2968,8 @@ function wireEvents() {
       try {
         await apiFetch('/chat/approve-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: convId, message_id: msgId})});
         notify('Mesaj onaylandi ve gonderildi.', 'success');
-        loadLiveFeed();
+        await loadLiveFeed();
+        await loadLiveConversation(convId);
       } catch (error) {
         notify(error.message || 'Onay gonderilemedi.', 'error');
         approveBtn.disabled = false;
@@ -2351,7 +2995,8 @@ function wireEvents() {
       try {
         await apiFetch('/chat/reject-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: convId, message_id: msgId})});
         notify('Mesaj reddedildi.', 'success');
-        loadLiveFeed();
+        await loadLiveFeed();
+        await loadLiveConversation(convId);
         // Open modal with feedback form for the rejected message
         showConversationDetail(convId).then(() => {
           showModalFeedbackForm(convId, msgId);
@@ -2367,7 +3012,7 @@ function wireEvents() {
     // Card click → open modal
     const card = event.target.closest('.live-feed-card');
     if (card && card.dataset.convId) {
-      showConversationDetail(card.dataset.convId);
+      loadLiveConversation(card.dataset.convId);
     }
   });
   // Right-click copy on live feed messages
@@ -2455,7 +3100,10 @@ function wireEvents() {
   el('report-submit').addEventListener('click', generateReport);
   el('model-select').addEventListener('change', changeModel);
   el('phone-input').addEventListener('change', () => {
-    if (state.sourceType === 'live_test_chat') loadHistory();
+    if (state.sourceType === 'live_test_chat') {
+      saveComposerDraft();
+      loadHistory();
+    }
   });
   el('toggle-debug').addEventListener('click', toggleDebug);
 }
@@ -2467,6 +3115,11 @@ async function boot() {
   wireEvents();
   renderCategoryOptions();
   renderTagOptions();
+  renderThreadHeader();
+  renderSessionStrip();
+  renderContextRail();
+  renderComposerModeBar();
+  renderComposerHelper();
   renderReplyPreview();
   try {
     await Promise.all([loadCatalog(), loadModels(), refreshImportFiles(), loadMetrics(), loadMode(), loadLiveFeed()]);
@@ -2476,9 +3129,19 @@ async function boot() {
     return;
   }
   setComposerMode(true);
-  await loadHistory();
+  if (state.liveConversations.length) {
+    await loadLiveConversation(state.liveConversations[0].id);
+  } else {
+    await loadHistory();
+  }
   // Auto-refresh live feed and mode every 3 seconds
-  setInterval(() => { loadLiveFeed(); loadMode(); }, 3000);
+  setInterval(async () => {
+    await loadLiveFeed();
+    await loadMode();
+    if (state.sourceType === 'live_conversation' && state.activeConversationId) {
+      await loadLiveConversation(state.activeConversationId);
+    }
+  }, 3000);
 }
 
 let _eventsBound = false;

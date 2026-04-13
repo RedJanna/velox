@@ -2,7 +2,7 @@
 
 import asyncio
 import contextlib
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any
 from uuid import uuid4
@@ -136,6 +136,13 @@ class SetModeRequest(BaseModel):
     mode: str = Field(pattern=r"^(test|ai|approval|off)$")
 
 
+class ConversationNoteRequest(BaseModel):
+    """Persist one internal admin note for a live conversation."""
+
+    conversation_id: str = Field(min_length=1)
+    note: str = Field(min_length=1, max_length=4000)
+
+
 def _ensure_test_phone(phone: str) -> str:
     if phone.startswith(TEST_PHONE_PREFIX):
         return phone
@@ -191,6 +198,18 @@ def _serialize_message(message: Message) -> dict[str, Any]:
         "internal_json": message.internal_json,
         "attachments": attachments,
         "created_at": message.created_at.isoformat(),
+        "send_blocked": bool(internal_json.get("send_blocked")),
+        "approval_pending": bool(internal_json.get("approval_pending")),
+        "rejected": bool(internal_json.get("rejected")),
+        "internal_note": bool(internal_json.get("internal_note")),
+        "whatsapp_message_id": str(internal_json.get("whatsapp_message_id") or "").strip() or None,
+        "local_status": _derive_delivery_state(
+            send_blocked=bool(internal_json.get("send_blocked")),
+            approval_pending=bool(internal_json.get("approval_pending")),
+            rejected=bool(internal_json.get("rejected")),
+            whatsapp_message_id=str(internal_json.get("whatsapp_message_id") or "").strip() or None,
+        ),
+        "provider_status": "unknown",
     }
 
 
@@ -275,6 +294,46 @@ def _serialize_conversation(conversation: Conversation) -> dict[str, Any]:
         "risk_flags": conversation.risk_flags,
         "is_active": conversation.is_active,
     }
+
+
+def _build_service_window(last_user_message_at: datetime | None) -> dict[str, Any]:
+    """Derive customer service window state from the latest inbound user message."""
+    if last_user_message_at is None:
+        return {
+            "window_state": "unknown",
+            "window_expires_at": None,
+            "window_remaining_seconds": None,
+        }
+    expires_at = last_user_message_at + timedelta(hours=24)
+    remaining_seconds = int((expires_at - datetime.now(UTC)).total_seconds())
+    if remaining_seconds <= 0:
+        window_state = "closed"
+    elif remaining_seconds <= 3600:
+        window_state = "closing_soon"
+    else:
+        window_state = "open"
+    return {
+        "window_state": window_state,
+        "window_expires_at": expires_at.isoformat(),
+        "window_remaining_seconds": max(remaining_seconds, 0),
+    }
+
+
+def _derive_delivery_state(
+    *,
+    send_blocked: bool,
+    approval_pending: bool,
+    rejected: bool,
+    whatsapp_message_id: str | None,
+) -> str:
+    """Map known assistant metadata into one conservative UI delivery state."""
+    if rejected:
+        return "failed"
+    if approval_pending or send_blocked:
+        return "pending_approval"
+    if whatsapp_message_id:
+        return "accepted"
+    return "unknown"
 
 
 def _resolve_test_chat_reply_context(
@@ -600,9 +659,11 @@ async def test_chat_history(request: Request, phone: str = "test_user_123") -> d
         raise HTTPException(status_code=500, detail="Conversation id is missing")
 
     messages = await repository.get_messages(conversation.id, limit=100, offset=0)
+    last_user_message_at = next((message.created_at for message in reversed(messages) if message.role == "user"), None)
     return {
         "messages": [_serialize_message(message) for message in messages],
         "conversation": _serialize_conversation(conversation),
+        **_build_service_window(last_user_message_at),
     }
 
 
@@ -835,11 +896,14 @@ async def live_feed(request: Request, limit: int = 20) -> dict[str, Any]:
             SELECT c.id, c.phone_display, c.language, c.current_state,
                    c.current_intent, c.risk_flags, c.is_active,
                    c.last_message_at, c.created_at,
+                   (SELECT m.created_at FROM messages m
+                    WHERE m.conversation_id = c.id AND m.role = 'user'
+                    ORDER BY m.created_at DESC LIMIT 1) AS last_user_message_at,
                    (SELECT count(*) FROM messages m WHERE m.conversation_id = c.id) AS msg_count,
                    (SELECT m.content FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'user'
                     ORDER BY m.created_at DESC LIMIT 1) AS last_user_msg,
-                   (SELECT m.content FROM messages m
+                    (SELECT m.content FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS last_assistant_msg,
                    (SELECT m.internal_json->>'send_blocked' FROM messages m
@@ -848,6 +912,9 @@ async def live_feed(request: Request, limit: int = 20) -> dict[str, Any]:
                    (SELECT m.internal_json->>'approval_pending' FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS approval_pending,
+                   (SELECT m.internal_json->>'whatsapp_message_id' FROM messages m
+                    WHERE m.conversation_id = c.id AND m.role = 'assistant'
+                    ORDER BY m.created_at DESC LIMIT 1) AS whatsapp_message_id,
                    (SELECT m.id FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS last_assistant_msg_id,
@@ -868,6 +935,13 @@ async def live_feed(request: Request, limit: int = 20) -> dict[str, Any]:
 
     conversations = []
     for row in rows:
+        service_window = _build_service_window(row["last_user_message_at"])
+        delivery_state = _derive_delivery_state(
+            send_blocked=str(row["send_blocked"] or "").lower() == "true",
+            approval_pending=str(row["approval_pending"] or "").lower() == "true",
+            rejected=str(row["rejected"] or "").lower() == "true",
+            whatsapp_message_id=str(row["whatsapp_message_id"] or "").strip() or None,
+        )
         conversations.append({
             "id": str(row["id"]),
             "phone_display": row["phone_display"] or "***",
@@ -881,10 +955,14 @@ async def live_feed(request: Request, limit: int = 20) -> dict[str, Any]:
             "last_assistant_msg": (row["last_assistant_msg"] or "")[:500],
             "send_blocked": row["send_blocked"],
             "approval_pending": row["approval_pending"],
+            "whatsapp_message_id": row["whatsapp_message_id"],
             "last_assistant_msg_id": row["last_assistant_msg_id"],
             "rejected": row["rejected"],
             "last_message_at": row["last_message_at"].isoformat() if row["last_message_at"] else None,
             "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            "last_user_message_at": row["last_user_message_at"].isoformat() if row["last_user_message_at"] else None,
+            "delivery_state": delivery_state,
+            **service_window,
         })
 
     return {
@@ -945,8 +1023,16 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
         return {}
 
     messages = []
+    last_user_message_at: datetime | None = None
+    last_outbound_at: datetime | None = None
+    latest_assistant_internal: dict[str, Any] = {}
     for m in msg_rows:
         ij = _pj(m["internal_json"])
+        if m["role"] == "user":
+            last_user_message_at = m["created_at"] or last_user_message_at
+        if m["role"] == "assistant":
+            last_outbound_at = m["created_at"] or last_outbound_at
+            latest_assistant_internal = ij
         raw_attachments = ij.get("attachments") if isinstance(ij, dict) else None
         attachments: list[dict[str, Any]] = []
         if isinstance(raw_attachments, list):
@@ -971,8 +1057,26 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
             "internal_json": ij,
             "attachments": attachments,
             "send_blocked": ij.get("send_blocked", False),
+            "approval_pending": ij.get("approval_pending", False),
             "rejected": ij.get("rejected", False),
+            "internal_note": bool(ij.get("internal_note")),
+            "whatsapp_message_id": str(ij.get("whatsapp_message_id") or "").strip() or None,
+            "local_status": _derive_delivery_state(
+                send_blocked=bool(ij.get("send_blocked")),
+                approval_pending=bool(ij.get("approval_pending")),
+                rejected=bool(ij.get("rejected")),
+                whatsapp_message_id=str(ij.get("whatsapp_message_id") or "").strip() or None,
+            ),
+            "provider_status": "unknown",
         })
+
+    service_window = _build_service_window(last_user_message_at)
+    delivery_state = _derive_delivery_state(
+        send_blocked=bool(latest_assistant_internal.get("send_blocked")),
+        approval_pending=bool(latest_assistant_internal.get("approval_pending")),
+        rejected=bool(latest_assistant_internal.get("rejected")),
+        whatsapp_message_id=str(latest_assistant_internal.get("whatsapp_message_id") or "").strip() or None,
+    )
 
     return {
         "id": str(conv_row["id"]),
@@ -985,6 +1089,10 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
         "hotel_id": conv_row["hotel_id"],
         "created_at": conv_row["created_at"].isoformat() if conv_row["created_at"] else None,
         "last_message_at": conv_row["last_message_at"].isoformat() if conv_row["last_message_at"] else None,
+        "last_inbound_at": last_user_message_at.isoformat() if last_user_message_at else None,
+        "last_outbound_at": last_outbound_at.isoformat() if last_outbound_at else None,
+        "delivery_state": delivery_state,
+        **service_window,
         "messages": messages,
         "operation_mode": settings.operation_mode,
     }
@@ -1324,6 +1432,46 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
         "status": "sent",
         "conversation_id": str(conv_id),
         "message_ids": sent_ids,
+    }
+
+
+@router.post("/chat/note-to-conversation")
+async def add_note_to_conversation(body: ConversationNoteRequest, request: Request) -> dict[str, Any]:
+    """Persist one internal admin note for a live conversation."""
+    from uuid import UUID as _UUID
+
+    pool = getattr(request.app.state, "db_pool", None)
+    if pool is None:
+        raise HTTPException(status_code=503, detail="Database not available")
+
+    try:
+        conv_uuid = _UUID(str(body.conversation_id))
+    except (ValueError, AttributeError) as err:
+        raise HTTPException(status_code=400, detail="Invalid conversation_id") from err
+
+    async with pool.acquire() as conn:
+        conv_row = await conn.fetchrow("SELECT id FROM conversations WHERE id = $1", conv_uuid)
+        if conv_row is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+    repository = ConversationRepository()
+    note_message = await repository.add_message(
+        Message(
+            conversation_id=conv_uuid,
+            role="system",
+            content=str(body.note).strip(),
+            internal_json={
+                "internal_note": True,
+                "source": "chat_lab_admin_note",
+                "created_by": "admin",
+                "created_at": datetime.now(UTC).isoformat(),
+            },
+        )
+    )
+    return {
+        "status": "saved",
+        "conversation_id": body.conversation_id,
+        "message_id": str(note_message.id) if note_message.id is not None else None,
     }
 
 
