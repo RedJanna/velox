@@ -9,6 +9,7 @@ from typing import Annotated, Any
 from uuid import uuid4
 
 import asyncpg
+import httpx
 import structlog
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
@@ -91,6 +92,9 @@ _chat_locks: dict[str, asyncio.Lock] = {}
 _chat_locks_guard = asyncio.Lock()
 IDEMPOTENT_ASSISTANT_WAIT_ATTEMPTS = 20
 IDEMPOTENT_ASSISTANT_WAIT_SECONDS = 0.1
+_SESSION_REOPEN_TEMPLATE_NAME = "hello_world"
+_SESSION_REOPEN_TEMPLATE_LANGUAGE = "en_US"
+_SESSION_REOPEN_META_CODES = {470, 131047, 131051}
 
 
 class TestChatRequest(BaseModel):
@@ -221,6 +225,9 @@ def _serialize_message(message: Message) -> dict[str, Any]:
         "failed_at": str(internal_json.get("failed_at") or "").strip() or None,
         "provider_error": internal_json.get("provider_error") if isinstance(internal_json.get("provider_error"), dict) else None,
         "provider_events": internal_json.get("provider_events") if isinstance(internal_json.get("provider_events"), list) else [],
+        "session_reopen_template_sent": bool(internal_json.get("session_reopen_template_sent")),
+        "session_reopen_template_name": str(internal_json.get("session_reopen_template_name") or "").strip() or None,
+        "session_reopen_template_sent_at": str(internal_json.get("session_reopen_template_sent_at") or "").strip() or None,
     }
 
 
@@ -353,6 +360,57 @@ def _build_template_preview(template_text: str, variables: dict[str, str]) -> st
     with contextlib.suppress(Exception):
         return template_text.format_map(safe_values)
     return template_text
+
+
+def _is_session_reopen_error(error: httpx.HTTPStatusError) -> bool:
+    """Return True when Meta rejects a free-form send because the session window is closed."""
+    if error.response.status_code not in {400, 403}:
+        return False
+    try:
+        payload = error.response.json()
+    except ValueError:
+        return False
+    if not isinstance(payload, dict):
+        return False
+    error_obj = payload.get("error")
+    if not isinstance(error_obj, dict):
+        return False
+    code = error_obj.get("code")
+    if isinstance(code, int):
+        return code in _SESSION_REOPEN_META_CODES
+    if isinstance(code, str) and code.isdigit():
+        return int(code) in _SESSION_REOPEN_META_CODES
+    return False
+
+
+async def _send_with_session_reopen_fallback(
+    *,
+    whatsapp_client: Any,
+    phone: str,
+    send_operation: Any,
+    reopen_state: dict[str, Any],
+) -> Any:
+    """Retry one outbound WhatsApp operation after sending the approved reopen template."""
+    try:
+        return await send_operation()
+    except httpx.HTTPStatusError as error:
+        if not _is_session_reopen_error(error):
+            raise
+        if reopen_state.get("sent"):
+            raise
+
+    logger.info("chat_lab_session_reopen_attempt", phone=_mask_phone(phone))
+    await whatsapp_client.send_template_message(
+        to=phone,
+        template_name=_SESSION_REOPEN_TEMPLATE_NAME,
+        language=_SESSION_REOPEN_TEMPLATE_LANGUAGE,
+        components=[],
+        force=True,
+    )
+    reopen_state["sent"] = True
+    reopen_state["template_name"] = _SESSION_REOPEN_TEMPLATE_NAME
+    reopen_state["sent_at"] = datetime.now(UTC).isoformat()
+    return await send_operation()
 
 
 def _derive_delivery_state(
@@ -1127,6 +1185,9 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
             "failed_at": str(ij.get("failed_at") or "").strip() or None,
             "provider_error": ij.get("provider_error") if isinstance(ij.get("provider_error"), dict) else None,
             "provider_events": ij.get("provider_events") if isinstance(ij.get("provider_events"), list) else [],
+            "session_reopen_template_sent": bool(ij.get("session_reopen_template_sent")),
+            "session_reopen_template_name": str(ij.get("session_reopen_template_name") or "").strip() or None,
+            "session_reopen_template_sent_at": str(ij.get("session_reopen_template_sent_at") or "").strip() or None,
         })
 
     service_window = _build_service_window(last_user_message_at)
@@ -1520,9 +1581,15 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
     # Send via WhatsApp
     whatsapp_client = get_whatsapp_client()
     outbound_events: list[dict[str, Any]] = []
+    reopen_state: dict[str, Any] = {"sent": False, "template_name": None, "sent_at": None}
     try:
         if message:
-            text_result = await whatsapp_client.send_text_message(to=phone, body=message, force=True)
+            text_result = await _send_with_session_reopen_fallback(
+                whatsapp_client=whatsapp_client,
+                phone=phone,
+                send_operation=lambda: whatsapp_client.send_text_message(to=phone, body=message, force=True),
+                reopen_state=reopen_state,
+            )
             outbound_events.append(
                 {
                     "kind": "text",
@@ -1538,28 +1605,43 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
                 raise HTTPException(status_code=400, detail=f"Dosya bulunamadi: {asset.file_name}")
 
             if asset.kind == "image":
-                media_result = await whatsapp_client.send_image_message(
-                    to=phone,
-                    file_path=storage_path,
-                    mime_type=asset.mime_type,
-                    force=True,
+                media_result = await _send_with_session_reopen_fallback(
+                    whatsapp_client=whatsapp_client,
+                    phone=phone,
+                    send_operation=lambda: whatsapp_client.send_image_message(
+                        to=phone,
+                        file_path=storage_path,
+                        mime_type=asset.mime_type,
+                        force=True,
+                    ),
+                    reopen_state=reopen_state,
                 )
                 title = f"[Gorsel] {asset.file_name}"
             elif asset.kind == "document":
-                media_result = await whatsapp_client.send_document_message(
-                    to=phone,
-                    file_path=storage_path,
-                    mime_type=asset.mime_type,
-                    file_name=asset.file_name,
-                    force=True,
+                media_result = await _send_with_session_reopen_fallback(
+                    whatsapp_client=whatsapp_client,
+                    phone=phone,
+                    send_operation=lambda: whatsapp_client.send_document_message(
+                        to=phone,
+                        file_path=storage_path,
+                        mime_type=asset.mime_type,
+                        file_name=asset.file_name,
+                        force=True,
+                    ),
+                    reopen_state=reopen_state,
                 )
                 title = f"[Belge] {asset.file_name}"
             elif asset.kind == "audio":
-                media_result = await whatsapp_client.send_audio_message(
-                    to=phone,
-                    file_path=storage_path,
-                    mime_type=asset.mime_type,
-                    force=True,
+                media_result = await _send_with_session_reopen_fallback(
+                    whatsapp_client=whatsapp_client,
+                    phone=phone,
+                    send_operation=lambda: whatsapp_client.send_audio_message(
+                        to=phone,
+                        file_path=storage_path,
+                        mime_type=asset.mime_type,
+                        force=True,
+                    ),
+                    reopen_state=reopen_state,
                 )
                 title = f"[Ses] {asset.file_name}"
             else:
@@ -1594,6 +1676,9 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
                 "sent_by": "admin",
                 "whatsapp_message_id": event.get("whatsapp_message_id"),
                 "attachments": event.get("attachments") or [],
+                "session_reopen_template_sent": bool(reopen_state.get("sent")),
+                "session_reopen_template_name": reopen_state.get("template_name"),
+                "session_reopen_template_sent_at": reopen_state.get("sent_at"),
             },
         )
         await repo.add_message(assistant_msg)
@@ -1610,6 +1695,8 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
         "status": "sent",
         "conversation_id": str(conv_id),
         "message_ids": sent_ids,
+        "session_reopen_template_sent": bool(reopen_state.get("sent")),
+        "session_reopen_template_name": reopen_state.get("template_name"),
     }
 
 
@@ -1731,8 +1818,14 @@ async def approve_and_send_message(request: Request) -> dict[str, Any]:
         )
 
     whatsapp_client = get_whatsapp_client()
+    reopen_state: dict[str, Any] = {"sent": False, "template_name": None, "sent_at": None}
     try:
-        send_result = await whatsapp_client.send_text_message(to=phone, body=str(msg_row["content"]), force=True)
+        send_result = await _send_with_session_reopen_fallback(
+            whatsapp_client=whatsapp_client,
+            phone=phone,
+            send_operation=lambda: whatsapp_client.send_text_message(to=phone, body=str(msg_row["content"]), force=True),
+            reopen_state=reopen_state,
+        )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"WhatsApp gonderilemedi: {exc}") from exc
 
@@ -1740,6 +1833,9 @@ async def approve_and_send_message(request: Request) -> dict[str, Any]:
     internal["send_blocked"] = False
     internal["approval_pending"] = False
     internal["approved_at"] = datetime.now(UTC).isoformat()
+    internal["session_reopen_template_sent"] = bool(reopen_state.get("sent"))
+    internal["session_reopen_template_name"] = reopen_state.get("template_name")
+    internal["session_reopen_template_sent_at"] = reopen_state.get("sent_at")
     if wa_message_id:
         internal["whatsapp_message_id"] = wa_message_id
     async with pool.acquire() as conn:
@@ -1750,7 +1846,13 @@ async def approve_and_send_message(request: Request) -> dict[str, Any]:
             wa_message_id,
         )
 
-    return {"status": "sent", "message_id": msg_id, "conversation_id": str(conv_id)}
+    return {
+        "status": "sent",
+        "message_id": msg_id,
+        "conversation_id": str(conv_id),
+        "session_reopen_template_sent": bool(reopen_state.get("sent")),
+        "session_reopen_template_name": reopen_state.get("template_name"),
+    }
 
 
 @router.get("/chat/metrics")

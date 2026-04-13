@@ -204,7 +204,7 @@ TEST_CHAT_HTML = (
           <div class="template-panel-head">
             <div class="template-panel-copy">
               <strong>Sablon modu</strong>
-              <p>Pencere kapaliysa uygun template secimini buradan inceleyin. Bu asamada secim ve onizleme vardir; gonderim entegrasyonu sonraki adimdir.</p>
+              <p>Pencere kapaliysa asagidaki prompt/template onerilerini inceleyin. Gercek gonderimde ise onayli Meta pencere-acma sablonu kullanilir.</p>
             </div>
             <span class="template-panel-badge">Read only</span>
           </div>

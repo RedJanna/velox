@@ -594,6 +594,9 @@ function latestDeliverySummary() {
     failedAt: assistant.failed_at || '',
     providerError: assistant.provider_error || null,
     providerEvents: Array.isArray(assistant.provider_events) ? assistant.provider_events : [],
+    sessionReopenTemplateSent: Boolean(assistant.session_reopen_template_sent),
+    sessionReopenTemplateName: assistant.session_reopen_template_name || '',
+    sessionReopenTemplateSentAt: assistant.session_reopen_template_sent_at || '',
   };
 }
 
@@ -680,11 +683,11 @@ function renderComposerHelper() {
   if (!helper) return;
   let text = '';
   if (conversationRequiresTemplate() && state.composerMode === 'template') {
-    text = 'Servis penceresi kapali. Musteriye serbest mesaj yerine sablon akisi gerekir. P0 asamasinda gonderim bloke edilir.';
+    text = 'Servis penceresi kapali. Gonderimde once onayli Meta pencere-acma sablonu, sonra yazdiginiz mesaj kullanilir.';
   } else if (state.composerMode === 'internal_note') {
     text = 'Ic not olarak kaydedilir; musteriye gonderilmez.';
   } else if (state.composerMode === 'template') {
-    text = 'Sablon akisi P0 asamasinda hazirlaniyor. Pencere kapaliysa serbest mesaj yerine sablon secimi gerekir.';
+    text = 'Template modu, kapali pencere durumunda pencere-acma sablonu ile birlikte kullanilir.';
   } else if (state.composerMode === 'ai_draft') {
     text = 'AI taslagi bu modda duzenlenir; gondermeden once kontrol sizde kalir.';
   }
@@ -814,6 +817,8 @@ function renderContextRail() {
         <div class="context-row"><span>Delivered at</span><span>${escapeHtml(delivery?.deliveredAt ? fmtTime(delivery.deliveredAt) : '-')}</span></div>
         <div class="context-row"><span>Read at</span><span>${escapeHtml(delivery?.readAt ? fmtTime(delivery.readAt) : '-')}</span></div>
         <div class="context-row"><span>Failed at</span><span>${escapeHtml(delivery?.failedAt ? fmtTime(delivery.failedAt) : '-')}</span></div>
+        <div class="context-row"><span>Reopen sablonu</span><span>${escapeHtml(delivery?.sessionReopenTemplateSent ? (delivery.sessionReopenTemplateName || 'hello_world') : '-')}</span></div>
+        <div class="context-row"><span>Reopen gonderimi</span><span>${escapeHtml(delivery?.sessionReopenTemplateSentAt ? fmtTime(delivery.sessionReopenTemplateSentAt) : '-')}</span></div>
         <div class="context-row"><span>Son webhook</span><span>${escapeHtml((conversation.last_webhook_at || delivery?.providerStatusUpdatedAt) ? fmtTime(conversation.last_webhook_at || delivery?.providerStatusUpdatedAt) : '-')}</span></div>
         <div class="context-row"><span>Panel sync</span><span>${escapeHtml(getSyncSnapshot().label)}</span></div>
       </div>
@@ -1786,7 +1791,8 @@ function setComposerMode(isLive) {
   const attachBtn = el('attach-btn');
   const voiceBtn = el('voice-btn');
   const exportBtn = el('export-btn');
-  messageInput.disabled = !composerEnabled || state.composerMode === 'template';
+  const templateTextEnabled = state.sourceType === 'live_conversation' && state.composerMode === 'template';
+  messageInput.disabled = !composerEnabled || (state.composerMode === 'template' && !templateTextEnabled);
   sendBtn.disabled = !composerEnabled;
   attachBtn.disabled = !composerEnabled || state.composerMode === 'template';
   voiceBtn.disabled = !composerEnabled || state.sourceType !== 'live_test_chat' || state.composerMode !== 'reply';
@@ -1800,7 +1806,7 @@ function setComposerMode(isLive) {
     messageInput.placeholder = state.composerMode === 'internal_note'
       ? 'Konusma icin ekip ici not yazin...'
       : state.composerMode === 'template'
-        ? 'Sablon secimi gereklidir.'
+        ? 'Mesajinizi yazin; gonderimde once pencere-acma sablonu kullanilacak.'
         : 'Canli konusmaya mesaj yazin...';
     el('source-banner').textContent = 'Canli kuyruk konusmasi acik.';
   } else if (isLive) {
@@ -1880,10 +1886,10 @@ function updateTypingIndicator() {
 
 function sendMessage() {
   if (state.composerMode === 'template') {
-    const candidate = activeTemplateCandidate();
-    const suffix = candidate ? ` Secili sablon: ${candidate.id}.` : '';
-    notify(`Bu asamada sablon gonderimi hazir degil.${suffix} Pencere kapali konusmalarda template send entegrasyonu sonraki adimda tamamlanacak.`, 'warn');
-    return;
+    if (state.sourceType !== 'live_conversation' || !state.activeConversationId) {
+      notify('Template modu yalnizca canli konusmalarda kullanilabilir.', 'warn');
+      return;
+    }
   }
   const message = el('msg-input').value.trim();
   const attachments = state.composerAttachments
@@ -1985,7 +1991,7 @@ async function sendLiveConversationMessage(message, attachments) {
   const sendBtn = el('send-btn');
   sendBtn.disabled = true;
   try {
-    await apiFetch('/chat/send-to-conversation', {
+    const data = await apiFetch('/chat/send-to-conversation', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload),
@@ -1995,7 +2001,11 @@ async function sendLiveConversationMessage(message, attachments) {
     renderComposerAttachments();
     clearReplyTarget();
     clearComposerDraft();
-    notify('Mesaj canli konusmaya gonderildi.', 'success');
+    if (data?.session_reopen_template_sent) {
+      notify(`Meta pencere-acma sablonu (${data.session_reopen_template_name || 'hello_world'}) gonderildi, ardindan mesaj iletildi.`, 'success');
+    } else {
+      notify('Mesaj canli konusmaya gonderildi.', 'success');
+    }
     await loadLiveConversation(state.activeConversationId);
     await loadLiveFeed();
   } catch (error) {
@@ -2183,6 +2193,9 @@ async function loadLiveConversation(convId) {
       failed_at: m.failed_at || null,
       provider_error: m.provider_error || null,
       provider_events: Array.isArray(m.provider_events) ? m.provider_events : [],
+      session_reopen_template_sent: m.session_reopen_template_sent || false,
+      session_reopen_template_name: m.session_reopen_template_name || null,
+      session_reopen_template_sent_at: m.session_reopen_template_sent_at || null,
     }));
     state.conversation = {
       id: data.id,
@@ -3085,8 +3098,12 @@ function wireEvents() {
     actionBtn.disabled = true;
     try {
       if (action === 'approve') {
-        await apiFetch('/chat/approve-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: state.activeConversationId, message_id: messageId})});
-        notify('Mesaj onaylandi ve gonderildi.', 'success');
+        const data = await apiFetch('/chat/approve-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: state.activeConversationId, message_id: messageId})});
+        if (data?.session_reopen_template_sent) {
+          notify(`Mesaj onaylandi. Meta pencere-acma sablonu (${data.session_reopen_template_name || 'hello_world'}) kullanilarak gonderildi.`, 'success');
+        } else {
+          notify('Mesaj onaylandi ve gonderildi.', 'success');
+        }
       } else if (action === 'reject') {
         await apiFetch('/chat/reject-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: state.activeConversationId, message_id: messageId})});
         notify('Mesaj reddedildi.', 'success');
@@ -3193,8 +3210,12 @@ function wireEvents() {
       approveBtn.disabled = true;
       approveBtn.textContent = 'Gonderiliyor...';
       try {
-        await apiFetch('/chat/approve-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: convId, message_id: msgId})});
-        notify('Mesaj onaylandi ve gonderildi.', 'success');
+        const data = await apiFetch('/chat/approve-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: convId, message_id: msgId})});
+        if (data?.session_reopen_template_sent) {
+          notify(`Mesaj onaylandi. Meta pencere-acma sablonu (${data.session_reopen_template_name || 'hello_world'}) kullanilarak gonderildi.`, 'success');
+        } else {
+          notify('Mesaj onaylandi ve gonderildi.', 'success');
+        }
         await loadLiveFeed();
         await loadLiveConversation(convId);
       } catch (error) {
