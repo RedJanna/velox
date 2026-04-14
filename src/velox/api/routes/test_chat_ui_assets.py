@@ -848,6 +848,18 @@ function handleEscapeShortcut() {
   return false;
 }
 
+function focusQueueSearch() {
+  const input = el('queue-search');
+  if (!input) return;
+  input.focus();
+  input.select?.();
+}
+
+function applyContextTab(tab = 'guest') {
+  state.contextTab = tab;
+  renderContextRail();
+}
+
 function activeTemplateCandidate() {
   if (!state.templateTemplates.length) return null;
   return state.templateTemplates.find(item => item.id === state.selectedTemplateId)
@@ -2802,9 +2814,10 @@ async function changeModel() {
 
 // isoToLocalInput provided by UI_SHARED_SCRIPT
 
-function toggleDebug() {
+function toggleDebug(forceOpen = null) {
   const panel = el('debug-panel');
-  panel.classList.toggle('collapsed');
+  const shouldOpen = forceOpen === null ? panel.classList.contains('collapsed') : Boolean(forceOpen);
+  panel.classList.toggle('collapsed', !shouldOpen);
   el('toggle-debug').setAttribute('aria-expanded', String(!panel.classList.contains('collapsed')));
 }
 
@@ -3507,6 +3520,13 @@ function wireEvents() {
       }
       return;
     }
+    if ((event.metaKey || event.ctrlKey) && (event.key === 'k' || event.key === 'K')) {
+      if (!isDialogOpen()) {
+        event.preventDefault();
+        focusQueueSearch();
+      }
+      return;
+    }
     if (typingContext || isDialogOpen()) return;
 
     if (event.key === 'r' || event.key === 'R') {
@@ -3522,6 +3542,31 @@ function wireEvents() {
     if (event.key === 't' || event.key === 'T') {
       event.preventDefault();
       applyComposerMode('template', {focusInput: true});
+      return;
+    }
+    if (event.key === 'd' || event.key === 'D') {
+      event.preventDefault();
+      toggleDebug();
+      return;
+    }
+    if (event.key === 'g' || event.key === 'G') {
+      event.preventDefault();
+      applyContextTab('guest');
+      return;
+    }
+    if (event.key === 'o' || event.key === 'O') {
+      event.preventDefault();
+      applyContextTab('operations');
+      return;
+    }
+    if (event.key === 'l' || event.key === 'L') {
+      event.preventDefault();
+      applyContextTab('delivery');
+      return;
+    }
+    if (event.key === 'a' || event.key === 'A') {
+      event.preventDefault();
+      applyContextTab('audit');
       return;
     }
 
@@ -3569,8 +3614,7 @@ function wireEvents() {
   el('context-tabs').addEventListener('click', event => {
     const btn = event.target.closest('.context-tab');
     if (!btn) return;
-    state.contextTab = btn.dataset.contextTab || 'guest';
-    renderContextRail();
+    applyContextTab(btn.dataset.contextTab || 'guest');
   });
   el('role-mapping-submit').addEventListener('click', () => loadSelectedImport(currentRoleMapping()));
   el('feedback-category').addEventListener('change', () => {
