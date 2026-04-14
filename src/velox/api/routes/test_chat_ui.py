@@ -132,23 +132,23 @@ TEST_CHAT_HTML = (
       <div class="source-badge" id="source-banner">Canlı kuyruk hazır.</div>
     </div>
     <div class="header-controls">
-      <div class="field field-stack-sm">
+      <div class="field field-stack-sm control-model">
         <label for="model-select">Test modeli</label>
         <select id="model-select" class="header-select header-select-model">
           <option>Yükleniyor...</option>
         </select>
       </div>
-      <div class="field field-stack-sm">
+      <div class="field field-stack-sm control-id">
         <label for="phone-input">Test kimliği</label>
         <input type="text" id="phone-input" class="header-input" value="test_user_123">
       </div>
-      <div class="field field-stack-sm">
+      <div class="field field-stack-sm control-source">
         <label for="import-select">Kaynak</label>
         <select id="import-select" class="header-select header-select-import">
           <option value="">Yeni test</option>
         </select>
       </div>
-      <div class="field field-stack-sm">
+      <div class="field field-stack-sm control-mode">
         <label>Mod</label>
         <div class="mode-switch" id="mode-switch">
           <button class="mode-btn" data-mode="test" type="button" title="Test: mesaj alınır, yapay zekâ yanıt üretir ama göndermez">Test</button>
@@ -157,9 +157,9 @@ TEST_CHAT_HTML = (
           <button class="mode-btn" data-mode="off" type="button" title="Kapalı: sadece veri kaydedilir, yanıt üretilmez">Kapalı</button>
         </div>
       </div>
-      <button class="btn btn-ghost" id="refresh-imports" type="button" aria-label="İçe aktarım listesini yenile">İçe Aktarımlar</button>
-      <button class="btn btn-reset" id="reset-btn" type="button" aria-label="Konuşmayı sıfırla">Sıfırla</button>
-      <div class="field field-stack-sm">
+      <button class="btn btn-ghost control-action control-imports" id="refresh-imports" type="button" aria-label="İçe aktarım listesini yenile">İçe Aktarımlar</button>
+      <button class="btn btn-reset control-action control-reset" id="reset-btn" type="button" aria-label="Konuşmayı sıfırla">Sıfırla</button>
+      <div class="field field-stack-sm control-export-format">
         <label for="save-format">Dışa Aktarım</label>
         <select id="save-format" class="header-select">
           <option value="md">.md</option>
@@ -168,8 +168,8 @@ TEST_CHAT_HTML = (
           <option value="pdf">.pdf</option>
         </select>
       </div>
-      <button class="btn btn-save" id="export-btn" type="button" aria-label="Konuşma kaydını dışa aktar">Dışa Aktar</button>
-      <button class="btn btn-toggle" id="toggle-debug" type="button" aria-label="Tanılama panelini aç veya kapat">Tanılama</button>
+      <button class="btn btn-save control-action control-export" id="export-btn" type="button" aria-label="Konuşma kaydını dışa aktar">Dışa Aktar</button>
+      <button class="btn btn-toggle control-action control-diagnostics" id="toggle-debug" type="button" aria-label="Tanılama panelini aç veya kapat">Diagnostics</button>
     </div>
   </div>
 

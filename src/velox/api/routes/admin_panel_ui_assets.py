@@ -242,7 +242,7 @@ tbody tr:hover{background:#fffcf7}
 .min-w-select{min-width:240px}
 .checkbox-field{width:20px;height:20px}
 .card-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
-.chatlab-frame{width:100%;height:calc(100vh - 80px);border:none;border-radius:12px}
+.chatlab-frame{width:100%;height:calc(100vh - 140px);min-height:680px;border:none;border-radius:12px}
 .dialog-textarea{min-height:120px}
 .inline-flex-center{display:flex;align-items:center;gap:8px}
 .pill-closed{background:#e5e7eb;color:#6b7280;font-size:11px}
