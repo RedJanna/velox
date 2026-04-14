@@ -190,7 +190,7 @@ TEST_CHAT_HTML = (
           <button class="queue-tab is-active" type="button" data-queue-filter="all">Tümü</button>
           <button class="queue-tab" type="button" data-queue-filter="approval">Onay</button>
           <button class="queue-tab" type="button" data-queue-filter="human">Temsilci</button>
-          <button class="queue-tab" type="button" data-queue-filter="attention">Sorunlu</button>
+          <button class="queue-tab" type="button" data-queue-filter="attention">Dikkat Gerektiren</button>
         </div>
         <input id="queue-search" class="header-input queue-search" type="text" placeholder="Numara, durum veya mesaj ara" aria-label="Konuşma ara">
         <div id="queue-summary" class="queue-summary" aria-live="polite"></div>

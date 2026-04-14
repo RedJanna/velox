@@ -49,3 +49,15 @@ Amaç, aynı kavramın farklı yerlerde farklı Türkçe karşılıklarla görü
 - Yeni UI metni eklenirken bu dosyadaki karşılıklar esas alınmalıdır.
 - Backend `HTTPException.detail` ve toast mesajları da aynı sözlüğe uymalıdır.
 - Kod içi anahtarlar ve veri şemaları İngilizce kalabilir; bu belge yalnızca kullanıcıya görünen metinler içindir.
+
+
+## Kontrol Adımı
+
+Chat Lab metinlerini güncelledikten sonra aşağıdaki script çalıştırılmalıdır:
+
+```bash
+scripts/chatlab_copy_smoke.sh
+```
+
+Bu script, kullanıcıya görünen kaynaklarda eski İngilizce terimleri, kırık ASCII Türkçeyi ve artık kullanılmaması gereken bazı etiketleri tarar.
+Bu tarama tam bir dil kalite incelemesinin yerine geçmez; ancak geriye dönüşleri hızlı yakalamak için zorunlu bir smoke check olarak kullanılmalıdır.
