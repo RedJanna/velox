@@ -104,7 +104,11 @@ TEST_CHAT_HTML = (
     <div class="shortcut-list" aria-label="Chat Lab kisayollari">
       <div class="shortcut-row"><span class="shortcut-key">J / ↓</span><span>Sonraki konusma</span></div>
       <div class="shortcut-row"><span class="shortcut-key">K / ↑</span><span>Onceki konusma</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">R</span><span>Yanit moduna gec</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">N</span><span>Ic not moduna gec</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">T</span><span>Sablon moduna gec</span></div>
       <div class="shortcut-row"><span class="shortcut-key">Enter</span><span>Secili konusmayi ac</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">Esc</span><span>Acik panel veya onizlemeyi kapat</span></div>
       <div class="shortcut-row"><span class="shortcut-key">?</span><span>Bu yardimi ac / kapat</span></div>
       <div class="shortcut-row"><span class="shortcut-key">Shift + Enter</span><span>Satir atla</span></div>
       <div class="shortcut-row"><span class="shortcut-key">Enter</span><span>Composer icinde mesaji gonder</span></div>

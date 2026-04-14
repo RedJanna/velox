@@ -518,6 +518,29 @@ function normalizeComposerMode() {
   }
 }
 
+function applyComposerMode(requestedMode = 'reply', options = {}) {
+  const {
+    warnOnTemplateGate = false,
+    focusInput = false,
+  } = options;
+  saveComposerDraft();
+  if (conversationRequiresTemplate() && requestedMode !== 'template' && requestedMode !== 'internal_note') {
+    state.composerMode = 'template';
+    if (warnOnTemplateGate) {
+      notify('Bu konusmada servis penceresi kapali. Musteriye serbest mesaj yerine sablon kullanilmalidir.', 'warn');
+    }
+  } else {
+    state.composerMode = requestedMode;
+  }
+  renderComposerModeBar();
+  renderComposerHelper();
+  setComposerMode(state.sourceType === 'live_test_chat' || state.sourceType === 'live_conversation');
+  saveComposerDraft();
+  if (focusInput && !el('msg-input')?.disabled) {
+    el('msg-input').focus();
+  }
+}
+
 function saveComposerDraft() {
   const key = currentConversationKey();
   state.composerDrafts.set(key, {
@@ -798,6 +821,31 @@ function toggleShortcutDialog(forceOpen = null) {
     return;
   }
   if (dialog.open) dialog.close();
+}
+
+function handleEscapeShortcut() {
+  if (el('shortcut-dialog')?.open) {
+    toggleShortcutDialog(false);
+    return true;
+  }
+  if (el('faq-dialog')?.open) {
+    el('faq-dialog').close();
+    return true;
+  }
+  if (!el('debug-panel')?.classList.contains('collapsed')) {
+    toggleDebug();
+    return true;
+  }
+  if (!el('conv-detail-overlay')?.classList.contains('hidden')) {
+    closeConvModal();
+    return true;
+  }
+  if (state.replyTarget) {
+    clearReplyTarget();
+    saveComposerDraft();
+    return true;
+  }
+  return false;
 }
 
 function activeTemplateCandidate() {
@@ -3429,18 +3477,7 @@ function wireEvents() {
   el('composer-modebar').addEventListener('click', event => {
     const btn = event.target.closest('.composer-mode-btn');
     if (!btn) return;
-    saveComposerDraft();
-    const requestedMode = btn.dataset.composerMode || 'reply';
-    if (conversationRequiresTemplate() && requestedMode !== 'template' && requestedMode !== 'internal_note') {
-      state.composerMode = 'template';
-      notify('Bu konusmada servis penceresi kapali. Musteriye serbest mesaj yerine sablon kullanilmalidir.', 'warn');
-    } else {
-      state.composerMode = requestedMode;
-    }
-    renderComposerModeBar();
-    renderComposerHelper();
-    setComposerMode(state.sourceType === 'live_test_chat' || state.sourceType === 'live_conversation');
-    saveComposerDraft();
+    applyComposerMode(btn.dataset.composerMode || 'reply', {warnOnTemplateGate: true});
   });
   el('msg-input').addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -3464,7 +3501,29 @@ function wireEvents() {
       toggleShortcutDialog(!shortcutDialogOpen);
       return;
     }
+    if (event.key === 'Escape') {
+      if (handleEscapeShortcut()) {
+        event.preventDefault();
+      }
+      return;
+    }
     if (typingContext || isDialogOpen()) return;
+
+    if (event.key === 'r' || event.key === 'R') {
+      event.preventDefault();
+      applyComposerMode('reply', {warnOnTemplateGate: true, focusInput: true});
+      return;
+    }
+    if (event.key === 'n' || event.key === 'N') {
+      event.preventDefault();
+      applyComposerMode('internal_note', {focusInput: true});
+      return;
+    }
+    if (event.key === 't' || event.key === 'T') {
+      event.preventDefault();
+      applyComposerMode('template', {focusInput: true});
+      return;
+    }
 
     if (event.key === 'j' || event.key === 'ArrowDown') {
       event.preventDefault();
