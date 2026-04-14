@@ -562,6 +562,11 @@ function queueNeedsAttention(conversation = {}) {
     || String(conversation.window_state || '') === 'closed';
 }
 
+function queueSessionReopenLabel(conversation = {}) {
+  if (!conversation.session_reopen_template_sent) return '';
+  return conversation.session_reopen_template_name || 'reopen sablonu';
+}
+
 function renderQueueSummary(rawConversations = [], visibleConversations = rawConversations) {
   const container = el('queue-summary');
   if (!container) return;
@@ -575,6 +580,7 @@ function renderQueueSummary(rawConversations = [], visibleConversations = rawCon
   const humanCount = rawConversations.filter(queueHumanOverrideActive).length;
   const attentionCount = rawConversations.filter(queueNeedsAttention).length;
   const draftCount = rawConversations.filter(conversation => Boolean(queueDraftLabel(conversation.id))).length;
+  const reopenCount = rawConversations.filter(conversation => Boolean(queueSessionReopenLabel(conversation))).length;
   const visibleCount = visibleConversations.length;
   container.innerHTML = [
     `<span class="queue-summary-chip">Gorunen ${visibleCount}/${allCount}</span>`,
@@ -582,6 +588,7 @@ function renderQueueSummary(rawConversations = [], visibleConversations = rawCon
     `<span class="queue-summary-chip">Insan ${humanCount}</span>`,
     `<span class="queue-summary-chip">Sorunlu ${attentionCount}</span>`,
     `<span class="queue-summary-chip">Taslak ${draftCount}</span>`,
+    `<span class="queue-summary-chip">Reopen ${reopenCount}</span>`,
   ].join('');
 }
 
@@ -3145,7 +3152,8 @@ function renderLiveFeed(container, data) {
     if (state.queueFilter === 'attention' && !attention) return false;
     if (!queueSearch) return true;
     const draftLabel = queueDraftLabel(c.id);
-    const haystack = [c.phone_display, c.last_user_msg, c.last_assistant_msg, c.intent, c.state, c.provider_status, draftLabel, human ? 'insan devri human override manual' : '', ...(c.risk_flags || [])].join(' ').toLowerCase();
+    const reopenLabel = queueSessionReopenLabel(c);
+    const haystack = [c.phone_display, c.last_user_msg, c.last_assistant_msg, c.intent, c.state, c.provider_status, draftLabel, reopenLabel, human ? 'insan devri human override manual' : '', ...(c.risk_flags || [])].join(' ').toLowerCase();
     return haystack.includes(queueSearch);
   });
   renderQueueSummary(rawConvs, convs);
@@ -3162,6 +3170,7 @@ function renderLiveFeed(container, data) {
     const rejected = c.rejected === 'true' || c.rejected === true;
     const human = queueHumanOverrideActive(c);
     const draftLabel = queueDraftLabel(c.id);
+    const reopenLabel = queueSessionReopenLabel(c);
     let statusTag;
     if (rejected) {
       statusTag = '<span class="live-feed-rejected">REDDEDILDI</span>';
@@ -3191,6 +3200,7 @@ function renderLiveFeed(container, data) {
     const webhookBadge = c.provider_status_updated_at ? '<span class="live-feed-badge">webhook ' + escapeHtml(formatRelativeTime(c.provider_status_updated_at)) + '</span>' : '';
     const draftBadge = draftLabel ? '<span class="live-feed-badge" style="color:#c4b5fd">' + escapeHtml(draftLabel) + '</span>' : '';
     const handoffBadge = human ? '<span class="live-feed-badge" style="color:#fde68a">insan devri</span>' : '';
+    const reopenBadge = reopenLabel ? '<span class="live-feed-badge" style="color:#38bdf8">reopen ' + escapeHtml(reopenLabel) + '</span>' : '';
 
     return '<div class="live-feed-card' + (state.activeConversationId === c.id ? ' is-active' : '') + '" draggable="true" data-conv-id="' + escapeHtml(c.id) + '">' +
       '<div class="live-feed-head">' +
@@ -3208,6 +3218,7 @@ function renderLiveFeed(container, data) {
         (c.is_active ? '<span class="live-feed-badge" style="color:#86efac">aktif</span>' : '<span class="live-feed-badge" style="color:#fca5a5">kapali</span>') +
         handoffBadge +
         draftBadge +
+        reopenBadge +
         windowBadge +
         deliveryBadge +
         providerBadge +

@@ -1022,6 +1022,12 @@ async def live_feed(request: Request, limit: int = 20) -> dict[str, Any]:
                    (SELECT m.internal_json->>'provider_status_updated_at' FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS provider_status_updated_at,
+                   (SELECT m.internal_json->>'session_reopen_template_sent' FROM messages m
+                    WHERE m.conversation_id = c.id AND m.role = 'assistant'
+                    ORDER BY m.created_at DESC LIMIT 1) AS session_reopen_template_sent,
+                   (SELECT m.internal_json->>'session_reopen_template_name' FROM messages m
+                    WHERE m.conversation_id = c.id AND m.role = 'assistant'
+                    ORDER BY m.created_at DESC LIMIT 1) AS session_reopen_template_name,
                    (SELECT m.id FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS last_assistant_msg_id,
@@ -1067,6 +1073,8 @@ async def live_feed(request: Request, limit: int = 20) -> dict[str, Any]:
             "whatsapp_message_id": row["whatsapp_message_id"],
             "provider_status": row["provider_status"] or "unknown",
             "provider_status_updated_at": row["provider_status_updated_at"],
+            "session_reopen_template_sent": str(row["session_reopen_template_sent"] or "").lower() == "true",
+            "session_reopen_template_name": str(row["session_reopen_template_name"] or "").strip() or None,
             "last_assistant_msg_id": row["last_assistant_msg_id"],
             "rejected": row["rejected"],
             "last_message_at": row["last_message_at"].isoformat() if row["last_message_at"] else None,
