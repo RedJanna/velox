@@ -62,9 +62,9 @@ body{overflow:hidden}
 .msg-attachment-image{max-width:260px;max-height:220px;border-radius:10px;border:1px solid rgba(18,33,59,.16);background:#fff}
 .msg-time{font-size:11px;opacity:.66}.msg-user .msg-time{text-align:right}
 .msg-sending{opacity:.6}
-.msg-sending .msg-time::after{content:' \u2022 gonderiliyor...';font-style:italic;color:var(--muted-2)}
+.msg-sending .msg-time::after{content:' \u2022 gönderiliyor...';font-style:italic;color:var(--muted-2)}
 .msg-error{border:1px solid var(--red)!important}
-.msg-error .msg-time::after{content:' \u2022 gonderilemedi';color:var(--red);font-weight:700}
+.msg-error .msg-time::after{content:' \u2022 gönderilemedi';color:var(--red);font-weight:700}
 .msg-retry-btn{margin-top:6px;padding:4px 12px;border:1px solid var(--red);border-radius:10px;background:rgba(220,38,38,.08);color:var(--red);font-size:11px;font-weight:700;cursor:pointer;transition:background .15s ease}
 .msg-retry-btn:hover{background:rgba(220,38,38,.16)}
 .feedback-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-top:6px;border-top:1px solid rgba(18,33,59,.08)}
@@ -196,7 +196,7 @@ body{overflow:hidden}
 .live-feed-card[draggable="true"]{cursor:grab}.live-feed-card[draggable="true"]:active{cursor:grabbing}
 .live-feed-card.is-dragging{opacity:.4}
 .chat-panel.drop-active{outline:2px dashed var(--teal);outline-offset:-4px;background:rgba(21,117,111,.05)}
-.chat-panel.drop-active .messages::after{content:'Konusmayi buraya birakin';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--teal);background:rgba(21,117,111,.06);border-radius:18px;pointer-events:none}
+.chat-panel.drop-active .messages::after{content:'Konuşmayı buraya bırakın';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--teal);background:rgba(21,117,111,.06);border-radius:18px;pointer-events:none}
 .messages{position:relative}
 .conv-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s ease}
 .conv-modal-overlay.hidden{display:none!important}
@@ -403,16 +403,16 @@ const ADMIN_ENTRY_PATH = '/admin';
 const CSRF_COOKIE = 'velox_admin_csrf';
 const TOAST_TIMEOUT_MS = 2800;
 const DEFAULT_FEEDBACK_SCALES = [
-  {rating: 1, label: 'Kesinlikle Yanlis', summary: 'Yanit tamamen hatali.', tooltip: 'Bilgi tamamen yanlis mi? Burayi sec ve dogruyu sisteme ogret.', correction_required: true},
+  {rating: 1, label: 'Kesinlikle Yanlış', summary: 'Yanıt tamamen hatalı.', tooltip: 'Bilgi tamamen yanlışsa bunu seçin ve doğru bilgiyi sisteme öğretin.', correction_required: true},
   {rating: 2, label: 'Hatali Anlatim', summary: 'Bilgi ozunde dogru ama anlatim bozuk.', tooltip: 'Bilgi dogru ama anlatim bozuk mu?', correction_required: true},
   {rating: 3, label: 'Eksik Bilgi', summary: 'Temel cevap dogru ama kritik detay eksik.', tooltip: 'Cevap yetersiz mi? Eksikleri tamamla.', correction_required: true},
   {rating: 4, label: 'Gereksiz Ayrinti', summary: 'Bilgi dogru ama fazla uzun.', tooltip: 'Cok mu laf kalabaligi var? Sadelestirilmis halini onayla.', correction_required: true},
-  {rating: 5, label: 'Mukemmel', summary: 'Yanit dogru ve onayli ornek olmaya uygun.', tooltip: 'Yanit dogruysa bunu secin; onayli ornek havuzuna eklenir.', correction_required: false},
+  {rating: 5, label: 'Mükemmel', summary: 'Yanıt doğru ve onaylı örnek olmaya uygun.', tooltip: 'Yanıt doğruysa bunu seçin; onaylı örnek havuzuna eklenir.', correction_required: false},
 ];
 const DEFAULT_FEEDBACK_CATEGORIES = [
   {key: 'yanlis_bilgi', label: 'Yanlis Bilgi', description: 'Net olarak yanlis bilgi verilmesi.', tooltip: 'Ornek: EUR yerine USD yazmak.'},
   {key: 'eksik_bilgi', label: 'Eksik Bilgi', description: 'Temel cevap dogru ama kritik detaylar eksik.', tooltip: 'Cevap yarim kaliyor veya gerekli bilgi tamamlanmiyor.'},
-  {key: 'alakasiz_yanit', label: 'Alakasiz Yanit', description: 'Sorudan kopuk veya konu disi cevap.', tooltip: 'Kullanici niyetini kaciran cevaplar.'},
+  {key: 'alakasiz_yanit', label: 'Alakasız Yanıt', description: 'Sorudan kopuk veya konu dışı cevap.', tooltip: 'Kullanıcı niyetini kaçıran cevaplar.'},
   {key: 'baglam_kopuklugu', label: 'Baglam Kopuklugu', description: 'Sohbet akisina uyumsuz cevap.', tooltip: 'Hafiza kaybi gibi davranan cevaplar.'},
   {key: 'uydurma_bilgi', label: 'Asiri Ozyguvenli Uydurma', description: 'Kaynaksiz bilgi uydurulmasi.', tooltip: 'Bilmiyorum demek yerine uydurma bilgi verilmesi.'},
   {key: 'gevezelik', label: 'Gevezelik / Uzunluk', description: 'Gereksiz uzun veya daginik cevap.', tooltip: 'Kisa istek icin asiri uzun mesaj.'},
@@ -420,23 +420,23 @@ const DEFAULT_FEEDBACK_CATEGORIES = [
   {key: 'format_ihlali', label: 'Format Ihlali', description: 'Istenen sunum bicimine uymayan cevap.', tooltip: 'Liste yerine duz metin gibi.'},
   {key: 'mantik_celiskisi', label: 'Eksik / Celiskili Mantik', description: 'Tutarsiz veya eksik mantik.', tooltip: 'Bir adim digerini bozuyor.'},
   {key: 'ton_politika_ihlali', label: 'Ton / Politika Ihlali', description: 'Uslup veya politika ihlali.', tooltip: 'Kaba uslup ya da yetkisiz taahhut.'},
-  {key: 'ozel_kategori', label: 'Ozel Kategori', description: 'Hazir listeye sigmayan durum.', tooltip: 'Aciklamayi admin manuel yazar.'},
+  {key: 'ozel_kategori', label: 'Özel Kategori', description: 'Hazır listeye sığmayan durum.', tooltip: 'Açıklamayı yönetici manuel olarak yazar.'},
 ];
 const DEFAULT_FEEDBACK_TAGS = [
   {key: 'yanlis_bilgi', label: 'Yanlis Bilgi', description: 'Net bilgi hatasi.'},
   {key: 'eksik_bilgi', label: 'Eksik Bilgi', description: 'Kritik detay eksik.'},
-  {key: 'alakasiz_yanit', label: 'Alakasiz Yanit', description: 'Sorudan kopuk cevap.'},
+  {key: 'alakasiz_yanit', label: 'Alakasız Yanıt', description: 'Sorudan kopuk cevap.'},
   {key: 'baglam_kopuklugu', label: 'Baglam Kopuklugu', description: 'Onceki konusma unutuluyor.'},
   {key: 'niyet_iskalama', label: 'Niyet Iskalama', description: 'Asil amac anlasilmiyor.'},
-  {key: 'asiri_uzun_yanit', label: 'Asiri Uzun Yanit', description: 'Gereksiz uzun mesaj.'},
-  {key: 'asiri_kisa_yanit', label: 'Asiri Kisa Yanit', description: 'Eksik aciklama iceren kisa cevap.'},
+  {key: 'asiri_uzun_yanit', label: 'Aşırı Uzun Yanıt', description: 'Gereksiz uzun mesaj.'},
+  {key: 'asiri_kisa_yanit', label: 'Aşırı Kısa Yanıt', description: 'Eksik açıklama içeren kısa cevap.'},
   {key: 'tekrar_loop', label: 'Tekrar / Loop', description: 'Ayni kalip tekrar ediyor.'},
   {key: 'format_ihlali', label: 'Format Ihlali', description: 'Istenen format bozuluyor.'},
   {key: 'ton_uyumsuzlugu', label: 'Ton Uyumsuzlugu', description: 'Duruma uygun olmayan uslup.'},
   {key: 'kaba_uslup', label: 'Kaba Uslup', description: 'Premium sicak ton bozuluyor.'},
   {key: 'politika_ihlali', label: 'Politika Ihlali', description: 'Kurallarin disina cikiliyor.'},
   {key: 'uydurma_bilgi', label: 'Uydurma Bilgi', description: 'Kaynaksiz bilgi uyduruluyor.'},
-  {key: 'guncel_olmayan_bilgi', label: 'Guncel Olmayan Bilgi', description: 'Eski bilgi kullaniliyor.'},
+  {key: 'guncel_olmayan_bilgi', label: 'Güncel Olmayan Bilgi', description: 'Eski bilgi kullanılıyor.'},
   {key: 'hotel_profile_celiskisi', label: 'Hotel Profile Celiskisi', description: 'Hotel profile ile uyumsuz cevap.'},
   {key: 'tool_output_celiskisi', label: 'Tool Output Celiskisi', description: 'Tool sonucu ile uyumsuz cevap.'},
   {key: 'mantik_celiskisi', label: 'Mantik Celiskisi', description: 'Cevap kendi icinde tutarsiz.'},
@@ -542,7 +542,7 @@ function applyComposerMode(requestedMode = 'reply', options = {}) {
   if (conversationRequiresTemplate() && requestedMode !== 'template' && requestedMode !== 'internal_note') {
     state.composerMode = 'template';
     if (warnOnTemplateGate) {
-      notify('Bu konusmada servis penceresi kapali. Musteriye serbest mesaj yerine sablon kullanilmalidir.', 'warn');
+      notify('Bu konuşmada servis penceresi kapalı. Misafire serbest mesaj yerine şablon kullanılmalıdır.', 'warn');
     }
   } else {
     state.composerMode = requestedMode;
@@ -582,9 +582,9 @@ function queueDraftForConversation(conversationId) {
 function queueDraftLabel(conversationId) {
   const draft = queueDraftForConversation(conversationId);
   if (!draft || !String(draft.text || '').trim()) return '';
-  if (draft.mode === 'internal_note') return 'not taslagi';
-  if (draft.mode === 'template') return 'sablon taslagi';
-  if (draft.mode === 'ai_draft') return 'ai taslagi';
+  if (draft.mode === 'internal_note') return 'not taslağı';
+  if (draft.mode === 'template') return 'şablon taslağı';
+  if (draft.mode === 'ai_draft') return 'yapay zekâ taslağı';
   return 'taslak var';
 }
 
@@ -733,7 +733,7 @@ function formatRelativeTime(value) {
   if (Number.isNaN(date.getTime())) return '-';
   const diff = Math.max(0, Date.now() - date.getTime());
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'simdi';
+  if (mins < 1) return 'şimdi';
   if (mins < 60) return `${mins} dk`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours} sa`;
@@ -747,32 +747,32 @@ function formatWindowBadge(conversation = {}) {
   if (stateValue === 'open') {
     const hours = Math.floor(remainingSeconds / 3600);
     const mins = Math.floor((remainingSeconds % 3600) / 60);
-    return {label: `Pencere acik ${hours}s ${mins}dk`, tone: 'success'};
+    return {label: `Pencere açık ${hours}s ${mins}dk`, tone: 'success'};
   }
   if (stateValue === 'closing_soon') {
     const mins = Math.floor(remainingSeconds / 60);
-    return {label: `Pencere kapaniyor ${mins}dk`, tone: 'warning'};
+    return {label: `Pencere kapanıyor ${mins}dk`, tone: 'warning'};
   }
   if (stateValue === 'closed') {
-    return {label: 'Pencere kapali · sablon gerekli', tone: 'danger'};
+    return {label: 'Pencere kapalı · şablon gerekli', tone: 'danger'};
   }
   return {label: 'Pencere durumu bilinmiyor', tone: 'muted'};
 }
 
 function getConversationDisplayTitle(conversation = null) {
-  if (!conversation) return 'Konusma secin';
-  return conversation.phone_display || conversation.display_name || 'Maskeli kullanici';
+  if (!conversation) return 'Konuşma seçin';
+  return conversation.phone_display || conversation.display_name || 'Maskeli kullanıcı';
 }
 
 function getConversationSubtitle(conversation = null) {
-  if (!conversation) return 'Soldaki kuyruktan bir konusma acin veya test kimligi ile yeni bir test baslatin.';
+  if (!conversation) return 'Soldaki kuyruktan bir konuşma açın veya test kimliği ile yeni bir test başlatın.';
   const parts = [
     conversation.language ? `Dil: ${conversation.language}` : null,
-    conversation.intent ? `Intent: ${conversation.intent}` : null,
+    conversation.intent ? `Niyet: ${conversation.intent}` : null,
     conversation.state ? `Durum: ${conversation.state}` : null,
-    conversation.human_override ? 'Insan devri aktif' : null,
+    conversation.human_override ? 'İnsan devri aktif' : null,
   ].filter(Boolean);
-  return parts.join(' · ') || 'Konusma ozeti hazir.';
+  return parts.join(' · ') || 'Konuşma özeti hazır.';
 }
 
 function renderEmptyCard({title, body, actions = [], hints = []} = {}) {
@@ -938,7 +938,7 @@ async function loadTemplateCandidates() {
   } catch (error) {
     state.templateTemplates = [];
     state.selectedTemplateId = null;
-    renderTemplatePanel(error.message || 'Sablonlar yuklenemedi.');
+    renderTemplatePanel(error.message || 'Şablonlar yüklenemedi.');
   }
 }
 
@@ -957,13 +957,13 @@ function renderComposerHelper() {
   if (!helper) return;
   let text = '';
   if (conversationRequiresTemplate() && state.composerMode === 'template') {
-    text = 'Servis penceresi kapali. Gonderimde once onayli Meta pencere-acma sablonu, sonra yazdiginiz mesaj kullanilir.';
+    text = 'Servis penceresi kapalı. Gönderimde önce onaylı Meta pencere açma şablonu, ardından yazdığınız mesaj kullanılır.';
   } else if (state.composerMode === 'internal_note') {
-    text = 'Ic not olarak kaydedilir; musteriye gonderilmez.';
+    text = 'İç not olarak kaydedilir; misafire gönderilmez.';
   } else if (state.composerMode === 'template') {
-    text = 'Template modu, kapali pencere durumunda pencere-acma sablonu ile birlikte kullanilir.';
+    text = 'Şablon modu, kapalı pencere durumunda pencere açma şablonuyla birlikte kullanılır.';
   } else if (state.composerMode === 'ai_draft') {
-    text = 'AI taslagi bu modda duzenlenir; gondermeden once kontrol sizde kalir.';
+    text = 'Yapay zekâ taslağı bu modda düzenlenir; göndermeden önce son kontrol sizde kalır.';
   }
   helper.textContent = text;
   helper.classList.toggle('hidden', !text);
@@ -976,9 +976,9 @@ function renderThreadHeader() {
     ? `Test: ${(el('phone-input')?.value || 'test_user_123').trim() || 'test_user_123'}`
     : getConversationDisplayTitle(state.conversation);
   const subtitle = state.sourceType === 'live_test_chat'
-    ? 'Test akisi · prompt ve davranis denemeleri icin canli alan'
+    ? 'Test akışı · istem ve davranış denemeleri için canlı alan'
     : getConversationSubtitle(state.conversation);
-  const modeLabel = state.sourceType === 'live_conversation' ? 'Canli' : 'Test';
+  const modeLabel = state.sourceType === 'live_conversation' ? 'Canlı' : 'Test';
   const windowBadge = formatWindowBadge(state.conversation || {});
   const handoffChip = state.conversation?.human_override
     ? '<span class="thread-chip thread-chip-muted">Insan devri</span>'
@@ -1001,7 +1001,7 @@ function renderSessionStrip() {
   if (!container) return;
   const conversation = state.conversation || {};
   if (!conversation || (!conversation.id && state.sourceType !== 'live_test_chat')) {
-    container.innerHTML = '<span class="session-pill">Konusma secildiginde oturum durumu burada gorunecek.</span>';
+    container.innerHTML = '<span class="session-pill">Konuşma seçildiğinde oturum durumu burada görünecek.</span>';
     return;
   }
   const windowBadge = formatWindowBadge(conversation);
@@ -1014,15 +1014,15 @@ function renderSessionStrip() {
     pills.push(`<span class="session-pill">Son gelen: ${escapeHtml(formatRelativeTime(conversation.last_inbound_at || conversation.last_message_at))}</span>`);
   }
   if (conversation.last_outbound_at) {
-    pills.push(`<span class="session-pill">Son cikis: ${escapeHtml(formatRelativeTime(conversation.last_outbound_at))}</span>`);
+    pills.push(`<span class="session-pill">Son çıkış: ${escapeHtml(formatRelativeTime(conversation.last_outbound_at))}</span>`);
   }
   if (conversation.human_override) {
-    pills.push('<span class="session-pill is-warning">Insan devri aktif</span>');
+    pills.push('<span class="session-pill is-warning">İnsan devri aktif</span>');
   }
   if (delivery) {
     pills.push(`<span class="session-pill">${escapeHtml('Teslimat: ' + delivery.localStatus)}</span>`);
     if (delivery.providerStatus && delivery.providerStatus !== 'unknown') {
-      pills.push(`<span class="session-pill">${escapeHtml('Provider: ' + delivery.providerStatus)}</span>`);
+      pills.push(`<span class="session-pill">${escapeHtml('Sağlayıcı: ' + delivery.providerStatus)}</span>`);
     }
   }
   if (conversation.last_webhook_at || delivery?.providerStatusUpdatedAt) {
@@ -1045,11 +1045,11 @@ function renderContextRail() {
   if (!conversation) {
     container.innerHTML = `
       <div class="context-empty">
-        <strong>Baglam hazir degil</strong>
-        <p>Bir konusma acildiginda misafir, operasyon ve teslimat ozeti burada gorunecek.</p>
+        <strong>Bağlam hazır değil</strong>
+        <p>Bir konuşma açıldığında misafir, operasyon ve teslimat özeti burada görünecek.</p>
         <div class="empty-hints">
           <span class="empty-hint">G / O / L / A ile sekmeler</span>
-          <span class="empty-hint">D ile diagnostics</span>
+          <span class="empty-hint">D ile tanılama</span>
         </div>
       </div>`;
     return;
@@ -1059,13 +1059,13 @@ function renderContextRail() {
   if (state.contextTab === 'guest') {
     container.innerHTML = `
       <div class="context-card">
-        <h3>Misafir Ozeti</h3>
+        <h3>Misafir Özeti</h3>
         <div class="context-list">
           <div class="context-row"><span>Kimlik</span><span>${escapeHtml(getConversationDisplayTitle(conversation))}</span></div>
           <div class="context-row"><span>Dil</span><span>${escapeHtml(conversation.language || '-')}</span></div>
           <div class="context-row"><span>Son aktivite</span><span>${escapeHtml(formatRelativeTime(conversation.last_message_at))}</span></div>
-          <div class="context-row"><span>Konusma</span><span>${conversation.is_active ? 'Aktif' : 'Kapali'}</span></div>
-          <div class="context-row"><span>Insan devri</span><span>${conversation.human_override ? 'Aktif' : 'Kapali'}</span></div>
+          <div class="context-row"><span>Konuşma</span><span>${conversation.is_active ? 'Aktif' : 'Kapalı'}</span></div>
+          <div class="context-row"><span>İnsan devri</span><span>${conversation.human_override ? 'Aktif' : 'Kapalı'}</span></div>
         </div>
       </div>
       <div class="context-card">
@@ -1079,16 +1079,16 @@ function renderContextRail() {
       <div class="context-card">
         <h3>Operasyon Modu</h3>
         <div class="context-list">
-          <div class="context-row"><span>Calisma modu</span><span>${escapeHtml(String(state.operationMode || '-').toUpperCase())}</span></div>
-          <div class="context-row"><span>Intent</span><span>${escapeHtml(conversation.intent || '-')}</span></div>
+          <div class="context-row"><span>Çalışma modu</span><span>${escapeHtml(String(state.operationMode || '-').toUpperCase())}</span></div>
+          <div class="context-row"><span>Niyet</span><span>${escapeHtml(conversation.intent || '-')}</span></div>
           <div class="context-row"><span>Durum</span><span>${escapeHtml(conversation.state || '-')}</span></div>
-          <div class="context-row"><span>Insan devri</span><span>${conversation.human_override ? 'Aktif' : 'Kapali'}</span></div>
+          <div class="context-row"><span>İnsan devri</span><span>${conversation.human_override ? 'Aktif' : 'Kapalı'}</span></div>
           <div class="context-row"><span>Pencere</span><span>${escapeHtml(formatWindowBadge(conversation).label)}</span></div>
         </div>
       </div>
       <div class="context-card">
         <h3>Risk ve Notlar</h3>
-        <div class="context-tag-row">${(conversation.risk_flags || []).length ? conversation.risk_flags.map(flag => `<span class="context-tag">${escapeHtml(flag)}</span>`).join('') : '<span class="context-tag">Risk flag yok</span>'}</div>
+        <div class="context-tag-row">${(conversation.risk_flags || []).length ? conversation.risk_flags.map(flag => `<span class="context-tag">${escapeHtml(flag)}</span>`).join('') : '<span class="context-tag">Risk işareti yok</span>'}</div>
       </div>`;
     return;
   }
@@ -1096,7 +1096,7 @@ function renderContextRail() {
     const entries = buildAuditEntries();
     container.innerHTML = `
       <div class="context-card">
-        <h3>Audit Timeline</h3>
+        <h3>Denetim Geçmişi</h3>
         <div class="audit-timeline">
           ${
             entries.length
@@ -1109,7 +1109,7 @@ function renderContextRail() {
                   ${entry.detail ? `<div class="audit-item-detail">${escapeHtml(entry.detail)}</div>` : ''}
                 </div>
               `).join('')
-              : '<div class="context-empty"><strong>Audit olayi yok</strong><p>Bu konusma icin henuz izlenebilir bir olay kaydi olusmadi.</p></div>'
+              : '<div class="context-empty"><strong>Denetim olayı yok</strong><p>Bu konuşma için henüz izlenebilir bir olay kaydı oluşmadı.</p></div>'
           }
         </div>
       </div>`;
@@ -1117,24 +1117,24 @@ function renderContextRail() {
   }
   container.innerHTML = `
     <div class="context-card">
-      <h3>Teslimat Sagligi</h3>
+      <h3>Teslimat Durumu</h3>
       <div class="context-list">
         <div class="context-row"><span>Mesaj durumu</span><span>${escapeHtml(delivery?.localStatus || conversation.delivery_state || 'unknown')}</span></div>
-        <div class="context-row"><span>Provider durum</span><span>${escapeHtml(delivery?.providerStatus || 'unknown')}</span></div>
-        <div class="context-row"><span>WhatsApp msg id</span><span>${escapeHtml(delivery?.whatsappMessageId || '-')}</span></div>
-        <div class="context-row"><span>Approved at</span><span>${escapeHtml(delivery?.approvedAt ? fmtTime(delivery.approvedAt) : '-')}</span></div>
-        <div class="context-row"><span>Sent at</span><span>${escapeHtml(delivery?.sentAt ? fmtTime(delivery.sentAt) : '-')}</span></div>
-        <div class="context-row"><span>Delivered at</span><span>${escapeHtml(delivery?.deliveredAt ? fmtTime(delivery.deliveredAt) : '-')}</span></div>
-        <div class="context-row"><span>Read at</span><span>${escapeHtml(delivery?.readAt ? fmtTime(delivery.readAt) : '-')}</span></div>
-        <div class="context-row"><span>Failed at</span><span>${escapeHtml(delivery?.failedAt ? fmtTime(delivery.failedAt) : '-')}</span></div>
-        <div class="context-row"><span>Reopen sablonu</span><span>${escapeHtml(delivery?.sessionReopenTemplateSent ? (delivery.sessionReopenTemplateName || 'hello_world') : '-')}</span></div>
-        <div class="context-row"><span>Reopen gonderimi</span><span>${escapeHtml(delivery?.sessionReopenTemplateSentAt ? fmtTime(delivery.sessionReopenTemplateSentAt) : '-')}</span></div>
+        <div class="context-row"><span>Sağlayıcı durumu</span><span>${escapeHtml(delivery?.providerStatus || 'unknown')}</span></div>
+        <div class="context-row"><span>WhatsApp mesaj kimliği</span><span>${escapeHtml(delivery?.whatsappMessageId || '-')}</span></div>
+        <div class="context-row"><span>Onaylanma zamanı</span><span>${escapeHtml(delivery?.approvedAt ? fmtTime(delivery.approvedAt) : '-')}</span></div>
+        <div class="context-row"><span>Gönderim zamanı</span><span>${escapeHtml(delivery?.sentAt ? fmtTime(delivery.sentAt) : '-')}</span></div>
+        <div class="context-row"><span>İletim zamanı</span><span>${escapeHtml(delivery?.deliveredAt ? fmtTime(delivery.deliveredAt) : '-')}</span></div>
+        <div class="context-row"><span>Okunma zamanı</span><span>${escapeHtml(delivery?.readAt ? fmtTime(delivery.readAt) : '-')}</span></div>
+        <div class="context-row"><span>Hata zamanı</span><span>${escapeHtml(delivery?.failedAt ? fmtTime(delivery.failedAt) : '-')}</span></div>
+        <div class="context-row"><span>Oturum açma şablonu</span><span>${escapeHtml(delivery?.sessionReopenTemplateSent ? (delivery.sessionReopenTemplateName || 'hello_world') : '-')}</span></div>
+        <div class="context-row"><span>Şablon gönderim zamanı</span><span>${escapeHtml(delivery?.sessionReopenTemplateSentAt ? fmtTime(delivery.sessionReopenTemplateSentAt) : '-')}</span></div>
         <div class="context-row"><span>Son webhook</span><span>${escapeHtml((conversation.last_webhook_at || delivery?.providerStatusUpdatedAt) ? fmtTime(conversation.last_webhook_at || delivery?.providerStatusUpdatedAt) : '-')}</span></div>
-        <div class="context-row"><span>Panel sync</span><span>${escapeHtml(getSyncSnapshot().label)}</span></div>
+        <div class="context-row"><span>Panel eşitleme durumu</span><span>${escapeHtml(getSyncSnapshot().label)}</span></div>
       </div>
     </div>
     <div class="context-card">
-      <h3>Provider Event Timeline</h3>
+      <h3>Sağlayıcı Olay Geçmişi</h3>
       <div class="context-list">
         ${
           (delivery?.providerEvents || []).length
@@ -1144,7 +1144,7 @@ function renderContextRail() {
                 <span>${escapeHtml(event.timestamp ? fmtTime(event.timestamp) : '-')}</span>
               </div>
             `).join('')
-            : '<div class="context-row"><span>Event</span><span>Henüz yok</span></div>'
+            : '<div class="context-row"><span>Olay</span><span>Henüz yok</span></div>'
         }
       </div>
       ${
@@ -1158,7 +1158,7 @@ function renderContextRail() {
       <div class="context-list">
         <div class="context-row"><span>Pencere</span><span>${escapeHtml(formatWindowBadge(conversation).label)}</span></div>
         <div class="context-row"><span>Son gelen</span><span>${escapeHtml(formatRelativeTime(conversation.last_inbound_at || conversation.last_message_at))}</span></div>
-        <div class="context-row"><span>Son cikis</span><span>${escapeHtml(formatRelativeTime(conversation.last_outbound_at))}</span></div>
+        <div class="context-row"><span>Son çıkış</span><span>${escapeHtml(formatRelativeTime(conversation.last_outbound_at))}</span></div>
       </div>
     </div>`;
 }
@@ -1172,7 +1172,7 @@ function buildAuditEntries() {
       entries.push({
         timestamp: createdAt,
         tone: 'muted',
-        title: 'Misafir mesaji alindi',
+        title: 'Misafir mesajı alındı',
         detail: truncateReplyPreview(message.content || ''),
       });
     }
@@ -1180,7 +1180,7 @@ function buildAuditEntries() {
       entries.push({
         timestamp: internal.created_at || createdAt,
         tone: 'muted',
-        title: 'Ic not kaydedildi',
+        title: 'İç not kaydedildi',
         detail: truncateReplyPreview(message.content || ''),
       });
     }
@@ -1188,7 +1188,7 @@ function buildAuditEntries() {
       entries.push({
         timestamp: createdAt,
         tone: 'warning',
-        title: 'AI taslagi onay bekliyor',
+        title: 'Yapay zekâ taslağı onay bekliyor',
         detail: truncateReplyPreview(message.content || ''),
       });
     }
@@ -1196,7 +1196,7 @@ function buildAuditEntries() {
       entries.push({
         timestamp: internal.regenerated_at,
         tone: 'warning',
-        title: 'AI taslagi yeniden uretildi',
+        title: 'Yapay zekâ taslağı yeniden oluşturuldu',
         detail: truncateReplyPreview(message.content || ''),
       });
     }
@@ -1204,7 +1204,7 @@ function buildAuditEntries() {
       entries.push({
         timestamp: internal.rejected_at || createdAt,
         tone: 'danger',
-        title: 'AI taslagi reddedildi',
+        title: 'Yapay zekâ taslağı reddedildi',
         detail: truncateReplyPreview(message.content || ''),
       });
     }
@@ -1212,7 +1212,7 @@ function buildAuditEntries() {
       entries.push({
         timestamp: internal.approved_at,
         tone: 'success',
-        title: 'Mesaj onaylandi',
+        title: 'Mesaj onaylandı',
         detail: truncateReplyPreview(message.content || ''),
       });
     }
@@ -1220,7 +1220,7 @@ function buildAuditEntries() {
       entries.push({
         timestamp: internal.sent_at || createdAt,
         tone: 'success',
-        title: 'Admin manuel mesaj gonderdi',
+        title: 'Yönetici manuel mesaj gönderdi',
         detail: truncateReplyPreview(message.content || ''),
       });
     }
@@ -1228,7 +1228,7 @@ function buildAuditEntries() {
       entries.push({
         timestamp: message.session_reopen_template_sent_at || internal.session_reopen_template_sent_at || createdAt,
         tone: 'warning',
-        title: 'Session reopen template gonderildi',
+        title: 'Oturumu yeniden açma şablonu gönderildi',
         detail: internal.session_reopen_template_name || message.session_reopen_template_name || 'hello_world',
       });
     }
@@ -1237,7 +1237,7 @@ function buildAuditEntries() {
       entries.push({
         timestamp: event.timestamp || createdAt,
         tone: String(event.status || '') === 'failed' ? 'danger' : String(event.status || '') === 'read' ? 'success' : 'muted',
-        title: `Provider olayi: ${String(event.status || '-').replaceAll('_', ' ')}`,
+        title: `Sağlayıcı olayı: ${String(event.status || '-').replaceAll('_', ' ')}`,
         detail: [event.error_title, event.error_code].filter(Boolean).join(' · '),
       });
     });
@@ -1260,15 +1260,15 @@ function renderTemplatePanel(errorMessage = '') {
   });
   if (errorMessage) {
     listEl.innerHTML = `<div class="feedback-muted">${escapeHtml(errorMessage)}</div>`;
-    previewEl.innerHTML = '<strong>Onizleme</strong><p>Sablonlar su an getirilemedi.</p>';
+    previewEl.innerHTML = '<strong>Önizleme</strong><p>Şablonlar şu anda getirilemedi.</p>';
     return;
   }
   if (!items.length) {
     const emptyText = conversationRequiresTemplate()
-      ? 'Bu konusma icin uygun sablon bulunamadi. Meta template katalog baglantisini tamamlamak gerekiyor.'
-      : 'Bu filtre ile eslesen sablon bulunamadi.';
+      ? 'Bu konuşma için uygun şablon bulunamadı. Meta şablon kataloğu bağlantısını tamamlamak gerekiyor.'
+      : 'Bu filtreyle eşleşen şablon bulunamadı.';
     listEl.innerHTML = `<div class="feedback-muted">${escapeHtml(emptyText)}</div>`;
-    previewEl.innerHTML = '<strong>Onizleme</strong><p>Goruntulenecek sablon yok.</p>';
+    previewEl.innerHTML = '<strong>Önizleme</strong><p>Görüntülenecek şablon yok.</p>';
     return;
   }
   const selected = items.find(item => item.id === state.selectedTemplateId) || items[0];
@@ -1276,7 +1276,7 @@ function renderTemplatePanel(errorMessage = '') {
     <div class="template-card ${item.id === selected.id ? 'is-selected' : ''}" data-template-id="${escapeHtml(item.id)}">
       <div class="template-card-head">
         <div class="template-card-title">${escapeHtml(item.id)}</div>
-        ${item.recommended ? '<span class="template-pill is-recommended">onerilen</span>' : ''}
+        ${item.recommended ? '<span class="template-pill is-recommended">önerilen</span>' : ''}
       </div>
       <div class="template-card-meta">
         <span class="template-pill">${escapeHtml(item.language)}</span>
@@ -1289,7 +1289,7 @@ function renderTemplatePanel(errorMessage = '') {
   previewEl.innerHTML = `
     <strong>${escapeHtml(selected.id)}</strong>
     <div>${escapeHtml(selected.preview || selected.body || '-')}</div>
-    <small>Alanlar: ${escapeHtml((selected.fields || []).length ? selected.fields.join(', ') : 'degisken yok')} · Gonderim entegrasyonu sonraki adimda acilacak.</small>
+    <small>Alanlar: ${escapeHtml((selected.fields || []).length ? selected.fields.join(', ') : 'değişken yok')} · Gönderim entegrasyonu sonraki adımda açılacak.</small>
   `;
 }
 
@@ -1338,15 +1338,15 @@ function updateCategoryGuidance() {
   const meta = categoryMeta(selectedCategory);
 
   if (!selectedCategory) {
-    helper.innerHTML = '<strong>Secim Yardimi</strong>Ana problem turunu secin; buna gore etiket onerileri hazirlanir.';
-    recommendation.textContent = 'Kategori secince ilgili etiketler otomatik onerilir.';
+    helper.innerHTML = '<strong>Seçim Yardımı</strong>Ana problem türünü seçin; buna göre etiket önerileri hazırlanır.';
+    recommendation.textContent = 'Kategori seçildiğinde ilgili etiketler otomatik önerilir.';
     return;
   }
 
   const tooltip = meta?.tooltip ? ` ${meta.tooltip}` : '';
   helper.innerHTML = `<strong>${escapeHtml(meta?.label || selectedCategory)}</strong>${escapeHtml((meta?.description || '') + tooltip)}`;
   if (!recommendedTags.length) {
-    recommendation.textContent = 'Bu kategori icin hazir etiket onerisi yok.';
+    recommendation.textContent = 'Bu kategori için hazır etiket önerisi yok.';
     return;
   }
 
@@ -1354,8 +1354,8 @@ function updateCategoryGuidance() {
     .map(tagKey => state.catalog.tags.find(item => item.key === tagKey)?.label || tagKey)
     .join(', ');
   recommendation.textContent = state.manualTagTouched
-    ? `Onerilen etiketler: ${recommendationText}. Mevcut manuel secim korunuyor.`
-    : `Onerilen etiketler otomatik uygulandi: ${recommendationText}.`;
+    ? `Önerilen etiketler: ${recommendationText}. Mevcut manuel seçim korunuyor.`
+    : `Önerilen etiketler otomatik uygulandı: ${recommendationText}.`;
 }
 
 function applyCategorySuggestions(force = false) {
@@ -1467,10 +1467,10 @@ async function apiFetch(path, options = {}) {
       } else {
         window.location.href = ADMIN_ENTRY_PATH;
       }
-      throw new Error('Oturum suresi doldu. Lutfen tekrar giris yapin.');
+      throw new Error('Oturum süresi doldu. Lütfen yeniden giriş yapın.');
     }
     if (response.status === 403) {
-      throw new Error('Chat Lab erisimi icin admin yetkisi gerekiyor.');
+      throw new Error('Chat Lab erişimi için yönetici yetkisi gerekiyor.');
     }
     throw new Error(extractApiErrorMessage(data, rawText));
   }
@@ -1497,7 +1497,7 @@ function formatBytes(size) {
 }
 
 function attachmentKindLabel(kind) {
-  if (kind === 'image') return 'Gorsel';
+  if (kind === 'image') return 'Görsel';
   if (kind === 'audio') return 'Ses';
   if (kind === 'document') return 'Belge';
   return 'Dosya';
@@ -1542,11 +1542,11 @@ function renderComposerAttachments() {
   container.innerHTML = state.composerAttachments.map(item => {
     const pct = Math.max(0, Math.min(100, Number(item.progress || 0)));
     const status = item.status === 'uploading'
-      ? `Yukleniyor (%${pct})`
+      ? `Yükleniyor (%${pct})`
       : item.status === 'error'
         ? (item.error || 'Hata')
         : item.status === 'uploaded'
-          ? 'Hazir'
+          ? 'Hazır'
           : 'Bekliyor';
     const chipClass = item.status === 'error' ? 'composer-chip error' : 'composer-chip';
     return `
@@ -1558,7 +1558,7 @@ function renderComposerAttachments() {
             <div class="composer-chip-progress-fill" style="width:${pct}%"></div>
           </div>
         </div>
-        <button class="composer-chip-remove" type="button" data-remove-attachment="${escapeHtml(item.local_id)}" aria-label="Eki kaldir">&times;</button>
+        <button class="composer-chip-remove" type="button" data-remove-attachment="${escapeHtml(item.local_id)}" aria-label="Eki kaldır">&times;</button>
       </div>`;
   }).join('');
   updateComposerControls();
@@ -1685,7 +1685,7 @@ async function uploadComposerFile(file) {
   } catch (error) {
     item.status = 'error';
     item.progress = 100;
-    item.error = error.message || 'Yukleme basarisiz.';
+    item.error = error.message || 'Yükleme başarısız.';
     notify(item.error, 'error');
   } finally {
     state.uploadInProgress = Math.max(0, state.uploadInProgress - 1);
@@ -1698,7 +1698,7 @@ async function handleAttachmentFiles(fileList) {
   if (!files.length) return;
   for (const file of files) {
     if (state.composerAttachments.length >= 5) {
-      notify('Tek mesajda en fazla 5 dosya gonderebilirsiniz.', 'warn');
+      notify('Tek mesajda en fazla 5 dosya gönderebilirsiniz.', 'warn');
       break;
     }
     await uploadComposerFile(file);
@@ -1716,7 +1716,7 @@ function openAttachmentPicker() {
 async function startVoiceRecording() {
   if (state.isRecordingVoice) return;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    notify('Tarayici ses kaydini desteklemiyor.', 'error');
+    notify('Tarayıcı ses kaydını desteklemiyor.', 'error');
     return;
   }
   try {
@@ -1747,10 +1747,10 @@ async function startVoiceRecording() {
       await handleAttachmentFiles([file]);
     });
     recorder.start();
-    notify('Ses kaydi basladi. Durdurmak icin tekrar mikrofon ikonuna basin.', 'info');
+    notify('Ses kaydı başladı. Durdurmak için mikrofon simgesine tekrar basın.', 'info');
   } catch (_error) {
     state.isRecordingVoice = false;
-    notify('Mikrofon izni olmadan ses kaydi baslatilamaz.', 'error');
+    notify('Mikrofon izni olmadan ses kaydı başlatılamaz.', 'error');
   }
 }
 
@@ -1758,7 +1758,7 @@ function stopVoiceRecording() {
   const recorder = state.mediaRecorder;
   if (!recorder || recorder.state === 'inactive') return;
   recorder.stop();
-  notify('Ses kaydi durduruldu.', 'success');
+  notify('Ses kaydı durduruldu.', 'success');
 }
 
 function toggleVoiceRecording() {
@@ -1791,29 +1791,29 @@ function renderMessages() {
     const visibleConversations = getVisibleQueueConversations();
     if (state.sourceType === 'live_conversation') {
       container.innerHTML = renderEmptyCard({
-        title: 'Bu konusmada henuz mesaj yok',
-        body: 'Misafir veya ajan mesaji geldiginde thread burada gorunecek. Oturum ve teslimat durumu ust seritte izlenmeye devam eder.',
-        hints: ['R ile yanit', 'N ile ic not', 'T ile sablon', 'D ile diagnostics'],
+        title: 'Bu konuşmada henüz mesaj yok',
+        body: 'Misafir veya temsilci mesajı geldiğinde akış burada görünecek. Oturum ve teslimat durumu üst şeritte izlenmeye devam eder.',
+        hints: ['R ile yanıt', 'N ile iç not', 'T ile şablon', 'D ile tanılama'],
       });
     } else if (visibleConversations.length) {
       container.innerHTML = renderEmptyCard({
-        title: 'Bir konusma secin',
-        body: 'Soldaki kuyruktan bir konusma acin veya klavye ile gezin. Aktif thread secildiginde mesaj akisi burada gorunecek.',
+        title: 'Bir konuşma seçin',
+        body: 'Soldaki kuyruktan bir konuşma açın veya klavye ile gezin. Aktif akış seçildiğinde mesajlar burada görünecek.',
         actions: [
-          {label: 'Ilk gorunur konusmayi ac', action: 'open-first-visible-conversation'},
-          {label: 'Aramayi odakla', action: 'focus-queue-search'},
+          {label: 'İlk görünür konuşmayı aç', action: 'open-first-visible-conversation'},
+          {label: 'Aramayı odakla', action: 'focus-queue-search'},
         ],
-        hints: ['J/K ile gezin', 'Enter ile ac', 'Ctrl/Cmd + K ile ara'],
+        hints: ['J/K ile gezin', 'Enter ile aç', 'Ctrl/Cmd + K ile ara'],
       });
     } else {
       container.innerHTML = renderEmptyCard({
-        title: 'Kuyruk su an bos',
-        body: 'Canli bir konusma geldiginde bu alan mesaj threadi olarak kullanilacak. Filtre veya arama aktifse once kuyrugu temizleyin.',
+        title: 'Kuyruk şu an boş',
+        body: 'Canlı bir konuşma geldiğinde bu alan mesaj akışı olarak kullanılacak. Filtre veya arama aktifse önce kuyruğu temizleyin.',
         actions: [
-          {label: 'Aramayi temizle', action: 'clear-queue-search'},
-          {label: 'Filtreleri sifirla', action: 'reset-queue-filter'},
+          {label: 'Aramayı temizle', action: 'clear-queue-search'},
+          {label: 'Filtreleri sıfırla', action: 'reset-queue-filter'},
         ],
-        hints: ['Yenile ile kuyrugu cek', 'Ctrl/Cmd + K ile ara'],
+        hints: ['Yenile ile kuyruğu güncelle', 'Ctrl/Cmd + K ile ara'],
       });
     }
     renderThreadHeader();
@@ -1845,10 +1845,10 @@ function renderMessages() {
     const roleRow = document.createElement('div');
     roleRow.className = 'msg-role';
     let roleLabel = 'Sistem';
-    if (isInternalNote) roleLabel = 'Ic Not';
-    else if (isAIDraft) roleLabel = 'AI Onerisi';
+    if (isInternalNote) roleLabel = 'İç Not';
+    else if (isAIDraft) roleLabel = 'Yapay Zekâ Önerisi';
     else if (message.role === 'user') roleLabel = 'Misafir';
-    else if (message.role === 'assistant') roleLabel = 'Gonderilen Yanit';
+    else if (message.role === 'assistant') roleLabel = 'Gönderilen Yanıt';
     roleRow.textContent = roleLabel;
     bubble.appendChild(roleRow);
 
@@ -1899,13 +1899,13 @@ function renderMessages() {
     if (message.provider_status && message.provider_status !== 'unknown' && message.provider_status !== localStatus) {
       const providerPill = document.createElement('span');
       providerPill.className = 'msg-status-pill';
-      providerPill.textContent = 'provider: ' + String(message.provider_status).replaceAll('_', ' ');
+      providerPill.textContent = 'sağlayıcı: ' + String(message.provider_status).replaceAll('_', ' ');
       statusRow.appendChild(providerPill);
     }
     if (message.whatsapp_message_id) {
       const idPill = document.createElement('span');
       idPill.className = 'msg-status-pill';
-      idPill.textContent = 'wa id var';
+      idPill.textContent = 'WhatsApp mesaj kimliği var';
       statusRow.appendChild(idPill);
     }
     if (statusRow.children.length > 0) bubble.appendChild(statusRow);
@@ -1915,7 +1915,7 @@ function renderMessages() {
       retryBtn.type = 'button';
       retryBtn.className = 'msg-retry-btn';
       retryBtn.textContent = 'Tekrar Dene';
-      retryBtn.setAttribute('aria-label', 'Mesaji tekrar gonder');
+      retryBtn.setAttribute('aria-label', 'Mesajı tekrar gönder');
       const msgId = message.id;
       retryBtn.addEventListener('click', () => retryMessage(msgId));
       bubble.appendChild(retryBtn);
@@ -1925,10 +1925,10 @@ function renderMessages() {
       const actions = document.createElement('div');
       actions.className = 'msg-actions';
       if (!message.rejected) {
-        actions.innerHTML += `<button class="msg-action" type="button" data-msg-action="approve" data-message-id="${escapeHtml(String(message.id))}">Onayla ve Gonder</button>`;
-        actions.innerHTML += `<button class="msg-action" type="button" data-msg-action="reject" data-message-id="${escapeHtml(String(message.id))}">Gonderme</button>`;
+        actions.innerHTML += `<button class="msg-action" type="button" data-msg-action="approve" data-message-id="${escapeHtml(String(message.id))}">Onayla ve Gönder</button>`;
+        actions.innerHTML += `<button class="msg-action" type="button" data-msg-action="reject" data-message-id="${escapeHtml(String(message.id))}">Reddet</button>`;
       }
-      actions.innerHTML += `<button class="msg-action" type="button" data-msg-action="regenerate" data-message-id="${escapeHtml(String(message.id))}">Yeniden Isle</button>`;
+      actions.innerHTML += `<button class="msg-action" type="button" data-msg-action="regenerate" data-message-id="${escapeHtml(String(message.id))}">Yeniden Oluştur</button>`;
       if (message.rejected) {
         actions.innerHTML += `<button class="msg-action" type="button" data-msg-action="feedback" data-message-id="${escapeHtml(String(message.id))}">Geri Bildirim</button>`;
       }
@@ -1971,7 +1971,7 @@ function buildFeedbackBar(messageId) {
 
   const status = document.createElement('span');
   status.className = 'feedback-status';
-  status.textContent = saved?.status || 'Puan secin';
+  status.textContent = saved?.status || 'Puan seçin';
   wrapper.appendChild(status);
   return wrapper;
 }
@@ -1988,10 +1988,10 @@ function truncateReplyPreview(text, maxLength = 180) {
 }
 
 function replyRoleLabel(role) {
-  if (role === 'assistant') return 'AI mesajina yanit';
-  if (role === 'user') return 'Misafir mesajina yanit';
-  if (role === 'system') return 'Sistem mesajina yanit';
-  return 'Mesaja yanit';
+  if (role === 'assistant') return 'Yapay zekâ mesajına yanıt';
+  if (role === 'user') return 'Misafir mesajına yanıt';
+  if (role === 'system') return 'Sistem mesajına yanıt';
+  return 'Mesaja yanıt';
 }
 
 function buildReplyTargetFromMessage(message) {
@@ -2037,10 +2037,10 @@ function buildReplySnippet(message) {
   const replyContext = internal.reply_context;
   if (!replyContext || !replyContext.present) return null;
   const role = replyContext.target_role || 'assistant';
-  const label = replyContext.resolved ? replyRoleLabel(role) : 'Mesaja yanit';
+  const label = replyContext.resolved ? replyRoleLabel(role) : 'Mesaja yanıt';
   const text = replyContext.resolved
     ? truncateReplyPreview(replyContext.target_content || '')
-    : 'Hedef mesaj artik cozulmuyor.';
+    : 'Hedef mesaj artık çözümlenemiyor.';
   return {label, text};
 }
 
@@ -2113,8 +2113,8 @@ function renderFeedbackStudio() {
 
   approvedRow.classList.toggle('hidden', state.selectedFeedback.rating !== 5);
   el('feedback-gold-standard').placeholder = state.selectedFeedback.rating === 4
-    ? 'Daha sade ve kisa onayli cevabi yazin...'
-    : 'Dogru bilgiyi veya Altin Standart cevabi yazin...';
+    ? 'Daha sade ve kısa onaylı yanıtı yazın...'
+    : 'Doğru bilgiyi veya referans yanıtı yazın...';
   customCategory.classList.toggle('hidden', el('feedback-category').value !== 'ozel_kategori');
 
   const r = state.selectedFeedback.rating;
@@ -2122,16 +2122,16 @@ function renderFeedbackStudio() {
   const lblCat = el('lbl-category');
   const lblTags = el('lbl-tags');
   const lblGold = el('lbl-gold');
-  if (lblCat) lblCat.innerHTML = 'Hata Kategorizasyonu' + (r <= 4 ? mark : '');
-  if (lblTags) lblTags.innerHTML = 'Hata Etiketleri' + (r <= 3 ? mark : '');
-  if (lblGold) lblGold.innerHTML = 'Altin Standart' + (r <= 4 ? mark : '');
+  if (lblCat) lblCat.innerHTML = 'Hata kategorisi' + (r <= 4 ? mark : '');
+  if (lblTags) lblTags.innerHTML = 'Hata etiketleri' + (r <= 3 ? mark : '');
+  if (lblGold) lblGold.innerHTML = 'Referans yanıt' + (r <= 4 ? mark : '');
 
   updateCategoryGuidance();
 }
 
 function renderCategoryOptions() {
   const selectedValue = el('feedback-category').value;
-  el('feedback-category').innerHTML = '<option value="">Kategori secin</option>' +
+  el('feedback-category').innerHTML = '<option value="">Kategori seçin</option>' +
     sortedCategories().map(item => `<option value="${escapeHtml(item.key)}">${escapeHtml(item.label)}</option>`).join('');
   el('feedback-category').value = selectedValue || '';
   updateCategoryGuidance();
@@ -2151,15 +2151,15 @@ function renderTagOptions() {
 function renderImportOptions(items, liveConvs) {
   const select = el('import-select');
   const prev = select.value || state.importFile || '';
-  let html = '<option value="">Yeni Test</option>';
+  let html = '<option value="">Yeni test</option>';
   if (liveConvs && liveConvs.length) {
-    html += '<optgroup label="Aktif Konusmalar">' + liveConvs.map(c => {
+    html += '<optgroup label="Aktif Konuşmalar">' + liveConvs.map(c => {
       const label = (c.phone_display || '***') + ' (' + c.msg_count + ' mesaj)';
       return '<option value="conv:' + escapeHtml(c.id) + '">' + escapeHtml(label) + '</option>';
     }).join('') + '</optgroup>';
   }
   if (items && items.length) {
-    html += '<optgroup label="Import Dosyalari">' + items.map(item =>
+    html += '<optgroup label="İçe Aktarılan Dosyalar">' + items.map(item =>
       '<option value="' + escapeHtml(item.filename) + '">' + escapeHtml(item.label || item.filename) + '</option>'
     ).join('') + '</optgroup>';
   }
@@ -2177,15 +2177,15 @@ function renderRoleMappingPanel(response) {
   }
 
   panel.classList.remove('hidden');
-  el('role-mapping-note').textContent = 'JSON icindeki roller net degil. Eslesmeyi tamamlayin ve importu onaylayin.';
+  el('role-mapping-note').textContent = 'JSON içindeki roller net değil. Eşleştirmeyi tamamlayıp içe aktarmayı onaylayın.';
   fields.innerHTML = (response.participants || []).map(item => `
     <div class="field-stack">
       <label>${escapeHtml(item.label || item.phone)}</label>
-      <select class="debug-select role-mapping-select" data-phone="${escapeHtml(item.phone)}" aria-label="${escapeHtml((item.label || item.phone) + ' rol secimi')}">
-        <option value="user" ${item.suggested_role === 'user' ? 'selected' : ''}>Musteri</option>
+      <select class="debug-select role-mapping-select" data-phone="${escapeHtml(item.phone)}" aria-label="${escapeHtml((item.label || item.phone) + ' rol seçimi')}">
+        <option value="user" ${item.suggested_role === 'user' ? 'selected' : ''}>Misafir</option>
         <option value="assistant" ${item.suggested_role === 'assistant' ? 'selected' : ''}>Asistan</option>
         <option value="system" ${item.suggested_role === 'system' ? 'selected' : ''}>Sistem</option>
-        <option value="other" ${item.suggested_role === 'other' ? 'selected' : ''}>Diger</option>
+        <option value="other" ${item.suggested_role === 'other' ? 'selected' : ''}>Diğer</option>
       </select>
     </div>`).join('');
 }
@@ -2219,21 +2219,21 @@ function setComposerMode(isLive) {
   }
   if (state.sourceType === 'live_conversation') {
     messageInput.placeholder = state.composerMode === 'internal_note'
-      ? 'Konusma icin ekip ici not yazin...'
+      ? 'Konuşma için ekip içi not yazın...'
       : state.composerMode === 'template'
-        ? 'Mesajinizi yazin; gonderimde once pencere-acma sablonu kullanilacak.'
-        : 'Canli konusmaya mesaj yazin...';
-    el('source-banner').textContent = 'Canli kuyruk konusmasi acik.';
+        ? 'Mesajınızı yazın; gönderimde önce pencere açma şablonu kullanılacak.'
+        : 'Canlı konuşmaya mesaj yazın...';
+    el('source-banner').textContent = 'Canlı kuyruk konuşması açık.';
   } else if (isLive) {
     messageInput.placeholder = state.composerMode === 'internal_note'
-      ? 'Test akisi icin yerel not yazin...'
+      ? 'Test akışı için yerel not yazın...'
       : state.composerMode === 'template'
-        ? 'Sablon modu secili.'
-        : 'Mesajinizi yazin...';
-    el('source-banner').textContent = 'Canli test gorunumu aktif.';
+        ? 'Şablon modu seçili.'
+        : 'Mesajınızı yazın...';
+    el('source-banner').textContent = 'Canlı test görünümü aktif.';
   } else {
-    messageInput.placeholder = 'Import gorunumu salt okunur. Yeni mesaj icin New Test secin.';
-    el('source-banner').textContent = 'Import gorunumu aktif: ' + (state.importFile || '-');
+    messageInput.placeholder = 'İçe aktarılan kayıt görünümü salt okunurdur. Yeni mesaj için "Yeni test" seçin.';
+    el('source-banner').textContent = 'İçe aktarılan kayıt açık: ' + (state.importFile || '-');
   }
   renderComposerModeBar();
   renderComposerHelper();
@@ -2251,7 +2251,7 @@ function updateDebug(message = null) {
   const flags = [...new Set([...(conversation.risk_flags || []), ...(internal.risk_flags || []), ...(state.importMetadata.risk_flags || [])])];
   el('d-flags').innerHTML = flags.length
     ? flags.map(flag => `<span class="flag flag-${flagLevel(flag)}">${escapeHtml(flag)}</span>`).join('')
-    : '<span class="feedback-muted">Flag yok</span>';
+    : '<span class="feedback-muted">Risk işareti yok</span>';
   el('d-next').textContent = internal.next_step || '-';
   el('d-full').textContent = JSON.stringify(internal || {}, null, 2);
 }
@@ -2291,7 +2291,7 @@ async function loadHistory() {
     markSyncFailure();
     renderSessionStrip();
     renderContextRail();
-    notify(error.message || 'Konusma gecmisi yuklenemedi.', 'error');
+    notify(error.message || 'Konuşma geçmişi yüklenemedi.', 'error');
   }
 }
 
@@ -2302,7 +2302,7 @@ function updateTypingIndicator() {
 function sendMessage() {
   if (state.composerMode === 'template') {
     if (state.sourceType !== 'live_conversation' || !state.activeConversationId) {
-      notify('Template modu yalnizca canli konusmalarda kullanilabilir.', 'warn');
+      notify('Şablon modu yalnızca canlı konuşmalarda kullanılabilir.', 'warn');
       return;
     }
   }
@@ -2319,13 +2319,13 @@ function sendMessage() {
     }));
   if (!message && attachments.length === 0) return;
   if (state.uploadInProgress > 0) {
-    notify('Dosya yuklemesi tamamlanmadan mesaj gonderilemez.', 'warn');
+    notify('Dosya yüklemesi tamamlanmadan mesaj gönderilemez.', 'warn');
     return;
   }
   saveComposerDraft();
   if (state.composerMode === 'internal_note') {
     if (state.sourceType !== 'live_conversation' || !state.activeConversationId) {
-      notify('Ic not sadece canli konusma seciliyken kaydedilebilir.', 'warn');
+      notify('İç not yalnızca canlı konuşma seçiliyken kaydedilebilir.', 'warn');
       return;
     }
     persistInternalNote(message);
@@ -2338,7 +2338,7 @@ function sendMessage() {
   if (state.sourceType !== 'live_test_chat') return;
   const replyTarget = state.replyTarget ? {...state.replyTarget} : null;
   const clientMsgId = `cl_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-  const visibleText = message || (attachments.length ? `Ek gonderildi (${attachments.length})` : '');
+  const visibleText = message || (attachments.length ? `Ek gönderildi (${attachments.length})` : '');
 
   const userMsg = {
     id: `user_${Date.now()}`,
@@ -2387,10 +2387,10 @@ async function persistInternalNote(message) {
     });
     input.value = '';
     clearComposerDraft();
-    notify('Ic not kaydedildi.', 'success');
+    notify('İç not kaydedildi.', 'success');
     await loadLiveConversation(state.activeConversationId);
   } catch (error) {
-    notify(error.message || 'Ic not kaydedilemedi.', 'error');
+    notify(error.message || 'İç not kaydedilemedi.', 'error');
   } finally {
     sendBtn.disabled = false;
   }
@@ -2417,14 +2417,14 @@ async function sendLiveConversationMessage(message, attachments) {
     clearReplyTarget();
     clearComposerDraft();
     if (data?.session_reopen_template_sent) {
-      notify(`Meta pencere-acma sablonu (${data.session_reopen_template_name || 'hello_world'}) gonderildi, ardindan mesaj iletildi.`, 'success');
+      notify(`Meta pencere açma şablonu (${data.session_reopen_template_name || 'hello_world'}) gönderildi, ardından mesaj iletildi.`, 'success');
     } else {
-      notify('Mesaj canli konusmaya gonderildi.', 'success');
+      notify('Mesaj canlı konuşmaya gönderildi.', 'success');
     }
     await loadLiveConversation(state.activeConversationId);
     await loadLiveFeed();
   } catch (error) {
-    notify(error.message || 'Canli konusmaya mesaj gonderilemedi.', 'error');
+    notify(error.message || 'Canlı konuşmaya mesaj gönderilemedi.', 'error');
   } finally {
     sendBtn.disabled = false;
   }
@@ -2455,7 +2455,7 @@ async function _fireSend(clientMsgId, userMsg, message, attachments, replyTarget
       renderSessionStrip();
       renderContextRail();
       refreshDebugFromLatestAssistant();
-      notify('Bu konusma insan temsilci devrinde. AI yaniti durduruldu.', 'warn');
+      notify('Bu konuşma insan temsilci devrinde. Yapay zekâ yanıtı durduruldu.', 'warn');
       return;
     }
     state.messages.push(
@@ -2484,13 +2484,13 @@ async function _fireSend(clientMsgId, userMsg, message, attachments, replyTarget
     updateDebug(state.messages[state.messages.length - 1]);
   } catch (error) {
     userMsg.status = 'error';
-    userMsg.errorMessage = error.message || 'Mesaj gonderilemedi.';
+    userMsg.errorMessage = error.message || 'Mesaj gönderilemedi.';
     userMsg._retryPayload = { clientMsgId, message, attachments, replyTarget };
     renderMessages();
     renderThreadHeader();
     renderSessionStrip();
     renderContextRail();
-    notify(error.message || 'Mesaj gonderilemedi.', 'error');
+    notify(error.message || 'Mesaj gönderilemedi.', 'error');
   } finally {
     state.inflightMessages.delete(clientMsgId);
     updateTypingIndicator();
@@ -2548,9 +2548,9 @@ async function resetConversation() {
     renderTemplatePanel();
     renderFeedbackStudio();
     updateDebug(null);
-    notify('Konusma sifirlandi.', 'success');
+    notify('Konuşma sıfırlandı.', 'success');
   } catch (error) {
-    notify(error.message || 'Konusma sifirlanamadi.', 'error');
+    notify(error.message || 'Konuşma sıfırlanamadı.', 'error');
   }
 }
 
@@ -2567,7 +2567,7 @@ async function refreshImportFiles() {
     state.importItems = data.items || [];
     renderImportOptions(state.importItems, state.liveConversations);
   } catch (error) {
-    notify(error.message || 'Import listesi yuklenemedi.', 'error');
+    notify(error.message || 'İçe aktarım listesi yüklenemedi.', 'error');
   }
 }
 
@@ -2582,7 +2582,7 @@ async function loadLiveConversation(convId) {
   clearReplyTarget();
   setComposerMode(true);
   renderRoleMappingPanel(null);
-  el('source-banner').textContent = 'Canli konusma goruntuleniyor.';
+  el('source-banner').textContent = 'Canlı konuşma görüntüleniyor.';
   try {
     const data = await apiFetch('/chat/conversation/' + encodeURIComponent(convId));
     markSyncSuccess('conversation');
@@ -2641,7 +2641,7 @@ async function loadLiveConversation(convId) {
     markSyncFailure();
     renderSessionStrip();
     renderContextRail();
-    notify(error.message || 'Konusma yuklenemedi.', 'error');
+    notify(error.message || 'Konuşma yüklenemedi.', 'error');
   }
 }
 
@@ -2676,7 +2676,7 @@ async function loadSelectedImport(roleMapping = {}) {
       body: JSON.stringify({filename: filename, role_mapping: roleMapping}),
     });
   } catch (error) {
-    notify(error.message || 'Import yuklenemedi.', 'error');
+    notify(error.message || 'İçe aktarma yüklenemedi.', 'error');
     return;
   }
   state.sourceType = data.source_type;
@@ -2746,9 +2746,9 @@ async function submitFeedback() {
 
   const rating = state.selectedFeedback.rating;
   const errors = [];
-  if (rating <= 4 && !goldStandard) errors.push('Altin Standart / dogru cevap alani zorunlu.');
-  if (rating <= 4 && !category && !customCategory) errors.push('Kategori secimi zorunlu.');
-  if (rating <= 3 && !tags.length && !customTags.length) errors.push('En az bir etiket secimi zorunlu.');
+  if (rating <= 4 && !goldStandard) errors.push('Referans yanıt / doğru cevap alanı zorunludur.');
+  if (rating <= 4 && !category && !customCategory) errors.push('Kategori seçimi zorunludur.');
+  if (rating <= 3 && !tags.length && !customTags.length) errors.push('En az bir etiket seçimi zorunludur.');
   if (errors.length) {
     notify(errors[0], 'error');
     return;
@@ -2778,11 +2778,11 @@ async function submitFeedback() {
     });
     state.feedbackStates.set(state.selectedFeedback.messageId, {
       rating: data.rating,
-      status: data.approved_example ? 'Onayli ornek olarak kaydedildi' : 'Geri bildirim kaydedildi',
+      status: data.approved_example ? 'Onaylı örnek olarak kaydedildi' : 'Geri bildirim kaydedildi',
     });
     renderMessages();
     el('feedback-result').classList.remove('hidden');
-    el('feedback-result').textContent = `Kayit: ${data.storage_path}`;
+    el('feedback-result').textContent = `Kayıt: ${data.storage_path}`;
     notify('Geri bildirim kaydedildi.', 'success');
     loadMetrics();
   } catch (error) {
@@ -2821,10 +2821,10 @@ async function generateReport() {
         <strong>${escapeHtml(data.selected_model || '-')} | ${escapeHtml(data.report_path || '-')}</strong>
         <span>${escapeHtml(data.summary || '-')}</span>
       </div>${items}`;
-    notify('Rapor olusturuldu.', 'success');
+    notify('Rapor oluşturuldu.', 'success');
   } catch (error) {
-    el('report-result').textContent = error.message || 'Rapor olusturulamadi.';
-    notify(error.message || 'Rapor olusturulamadi.', 'error');
+    el('report-result').textContent = error.message || 'Rapor oluşturulamadı.';
+    notify(error.message || 'Rapor oluşturulamadı.', 'error');
   }
 }
 
@@ -2846,7 +2846,7 @@ async function loadCatalog() {
       categories: DEFAULT_FEEDBACK_CATEGORIES,
       tags: DEFAULT_FEEDBACK_TAGS,
     };
-    notify(error.message || 'Feedback katalogu alinamadi; varsayilan puanlar kullaniliyor.', 'warn');
+    notify(error.message || 'Geri bildirim kataloğu alınamadı; varsayılan puanlar kullanılıyor.', 'warn');
   }
   renderCategoryOptions();
   renderTagOptions();
@@ -2861,7 +2861,7 @@ async function loadModels() {
       <option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join('');
     if (data.current) el('model-select').value = data.current;
   } catch (error) {
-    notify(error.message || 'Model listesi yuklenemedi.', 'error');
+    notify(error.message || 'Model listesi yüklenemedi.', 'error');
   }
 }
 
@@ -2873,9 +2873,9 @@ async function changeModel() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({model: model}),
     });
-    notify('Model guncellendi.', 'success');
+    notify('Model güncellendi.', 'success');
   } catch (error) {
-    notify(error.message || 'Model guncellenemedi.', 'error');
+    notify(error.message || 'Model güncellenemedi.', 'error');
   }
 }
 
@@ -2910,7 +2910,7 @@ function showCtxMenu(event, text, bubble) {
     replyBtn.type = 'button';
     replyBtn.className = 'ctx-menu-item';
     replyBtn.setAttribute('role', 'menuitem');
-    replyBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-.9-5-4-10-11-11z"/></svg>Yanitla';
+    replyBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-.9-5-4-10-11-11z"/></svg>Yanıtla';
     replyBtn.addEventListener('click', () => {
       setReplyTarget(bubble.dataset.messageId);
       removeCtxMenu();
@@ -2923,7 +2923,7 @@ function showCtxMenu(event, text, bubble) {
   copyBtn.setAttribute('role', 'menuitem');
   copyBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>Kopyala';
   copyBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(text).then(() => notify('Panoya kopyalandi.', 'success')).catch(() => notify('Kopyalanamadi.', 'error'));
+    navigator.clipboard.writeText(text).then(() => notify('Panoya kopyalandı.', 'success')).catch(() => notify('Kopyalanamadı.', 'error'));
     removeCtxMenu();
   });
   menu.appendChild(copyBtn);
@@ -3013,13 +3013,13 @@ async function onFaqSubmit(event) {
   try {
     const payload = {topic, question_tr: questionTr, answer_tr: answerTr, question_en: questionEn, answer_en: answerEn, status};
     await apiFetch('/api/v1/admin/hotels/' + encodeURIComponent(state.hotelId) + '/faq', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
-    notify('SSS kaydi olusturuldu.', 'success');
+    notify('SSS kaydı oluşturuldu.', 'success');
     el('faq-dialog').close();
     if (window.parent !== window) {
       try { window.parent.postMessage({type: 'chatlab:faq-created'}, window.location.origin); } catch(_e) {}
     }
   } catch (error) {
-    notify(error.message || 'SSS kaydi olusturulamadi.', 'error');
+    notify(error.message || 'SSS kaydı oluşturulamadı.', 'error');
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = 'SSS Kaydet';
@@ -3044,7 +3044,7 @@ function updateModeUI(mode) {
 
 async function changeMode(newMode) {
   if (newMode === 'ai') {
-    if (!confirm('AI moduna gecmek gercek misafirlere mesaj gondermeyi aktif eder. Emin misiniz?')) return;
+    if (!confirm('Otomatik moda geçmek gerçek misafirlere mesaj gönderimini etkinleştirir. Emin misiniz?')) return;
   }
   try {
     const data = await apiFetch('/chat/mode', {
@@ -3093,7 +3093,7 @@ async function _silentRefreshModal(convId) {
 async function showConversationDetail(convId) {
   _modalConvId = convId;
   openConvModal();
-  el('conv-modal-meta').innerHTML = '<span class="feedback-muted">Yukleniyor...</span>';
+  el('conv-modal-meta').innerHTML = '<span class="feedback-muted">Yükleniyor...</span>';
   el('conv-modal-messages').innerHTML = '';
   el('conv-modal-json').classList.add('hidden');
   el('conv-modal-json').innerHTML = '';
@@ -3129,7 +3129,7 @@ function renderConvModal(data) {
   let lastAssistantMsg = null;
   const msgHtml = msgs.map(m => {
     const roleClass = m.role === 'user' ? 'conv-msg-user' : m.role === 'assistant' ? 'conv-msg-assistant' : 'conv-msg-system';
-    const roleName = m.role === 'user' ? 'Misafir' : m.role === 'assistant' ? 'AI Onerisi' : 'Sistem';
+    const roleName = m.role === 'user' ? 'Misafir' : m.role === 'assistant' ? 'Yapay Zekâ Önerisi' : 'Sistem';
     const timeStr = m.created_at ? formatTime(m.created_at) : '';
     let statusHtml = '';
     if (m.role === 'assistant') {
@@ -3153,7 +3153,7 @@ function renderConvModal(data) {
       '<div class="conv-msg-time">' + escapeHtml(timeStr) + '</div>' +
     '</div>';
   }).join('');
-  el('conv-modal-messages').innerHTML = msgHtml || '<div class="feedback-muted">Mesaj bulunamadi.</div>';
+  el('conv-modal-messages').innerHTML = msgHtml || '<div class="feedback-muted">Mesaj bulunamadı.</div>';
 
   // JSON toggle content (last assistant internal_json)
   if (lastAssistantMsg && lastAssistantMsg.internal_json) {
@@ -3166,8 +3166,8 @@ function renderConvModal(data) {
   let actionsHtml = '';
   if (lastAssistantMsg) {
     if (!lastAssistantMsg.rejected && lastAssistantMsg.send_blocked) {
-      actionsHtml += '<button class="btn btn-primary" id="conv-modal-approve" data-conv="' + escapeHtml(data.id) + '" data-msg="' + escapeHtml(lastAssistantMsg.id) + '">Onayla ve Gonder</button>';
-      actionsHtml += '<button class="btn btn-reset" id="conv-modal-reject" data-conv="' + escapeHtml(data.id) + '" data-msg="' + escapeHtml(lastAssistantMsg.id) + '">Gonderme</button>';
+      actionsHtml += '<button class="btn btn-primary" id="conv-modal-approve" data-conv="' + escapeHtml(data.id) + '" data-msg="' + escapeHtml(lastAssistantMsg.id) + '">Onayla ve Gönder</button>';
+      actionsHtml += '<button class="btn btn-reset" id="conv-modal-reject" data-conv="' + escapeHtml(data.id) + '" data-msg="' + escapeHtml(lastAssistantMsg.id) + '">Reddet</button>';
     }
     // Always show "Yeniden Isle" for messages that haven't been sent yet
     if (lastAssistantMsg.send_blocked || lastAssistantMsg.rejected) {
@@ -3186,16 +3186,16 @@ function renderConvModal(data) {
   if (approveBtn) {
     approveBtn.addEventListener('click', async () => {
       approveBtn.disabled = true;
-      approveBtn.textContent = 'Gonderiliyor...';
+      approveBtn.textContent = 'Gönderiliyor...';
       try {
         await apiFetch('/chat/approve-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: approveBtn.dataset.conv, message_id: approveBtn.dataset.msg})});
-        notify('Mesaj onaylandi ve gonderildi.', 'success');
+        notify('Mesaj onaylandı ve gönderildi.', 'success');
         loadLiveFeed();
         showConversationDetail(approveBtn.dataset.conv);
       } catch (err) {
-        notify(err.message || 'Onay gonderilemedi.', 'error');
+        notify(err.message || 'Onay gönderilemedi.', 'error');
         approveBtn.disabled = false;
-        approveBtn.textContent = 'Onayla ve Gonder';
+        approveBtn.textContent = 'Onayla ve Gönder';
       }
     });
   }
@@ -3215,9 +3215,9 @@ function renderConvModal(data) {
         rejectBtn.textContent = 'Reddedildi';
         if (approveBtn) approveBtn.remove();
       } catch (err) {
-        notify(err.message || 'Reddetme basarisiz.', 'error');
+        notify(err.message || 'Reddetme başarısız.', 'error');
         rejectBtn.disabled = false;
-        rejectBtn.textContent = 'Gonderme';
+        rejectBtn.textContent = 'Reddet';
       }
     });
   }
@@ -3225,16 +3225,16 @@ function renderConvModal(data) {
   const regenBtn = document.getElementById('conv-modal-regenerate');
   if (regenBtn) {
     regenBtn.addEventListener('click', async () => {
-      if (!confirm('AI mesaji yeniden uretilecek. Eski oneri silinecek. Emin misiniz?')) return;
+      if (!confirm('Yapay zekâ mesajı yeniden oluşturulacak. Önceki öneri silinecek. Emin misiniz?')) return;
       regenBtn.disabled = true;
-      regenBtn.textContent = 'Uretiliyor...';
+      regenBtn.textContent = 'Oluşturuluyor...';
       try {
         await apiFetch('/chat/regenerate', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: regenBtn.dataset.conv})});
-        notify('Mesaj yeniden uretildi.', 'success');
+        notify('Mesaj yeniden oluşturuldu.', 'success');
         loadLiveFeed();
         showConversationDetail(regenBtn.dataset.conv);
       } catch (err) {
-        notify(err.message || 'Yeniden uretim basarisiz.', 'error');
+        notify(err.message || 'Yeniden oluşturma başarısız.', 'error');
         regenBtn.disabled = false;
         regenBtn.textContent = 'Yeniden Isle';
       }
@@ -3318,7 +3318,7 @@ async function sendModalMessage() {
   if (!text || !_modalConvId) return;
   const btn = document.getElementById('conv-modal-send-btn');
   btn.disabled = true;
-  btn.textContent = 'Gonderiliyor...';
+  btn.textContent = 'Gönderiliyor...';
   input.disabled = true;
   try {
     await apiFetch('/chat/send-to-conversation', {
@@ -3327,14 +3327,14 @@ async function sendModalMessage() {
       body: JSON.stringify({conversation_id: _modalConvId, message: text}),
     });
     input.value = '';
-    notify('Mesaj gonderildi.', 'success');
+    notify('Mesaj gönderildi.', 'success');
     loadLiveFeed();
     showConversationDetail(_modalConvId);
   } catch (err) {
-    notify(err.message || 'Mesaj gonderilemedi.', 'error');
+    notify(err.message || 'Mesaj gönderilemedi.', 'error');
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Gonder';
+    btn.textContent = 'Gönder';
     input.disabled = false;
     input.focus();
   }
@@ -3354,7 +3354,7 @@ async function loadLiveFeed() {
     markSyncFailure();
     renderSessionStrip();
     renderContextRail();
-    container.innerHTML = '<div class="feedback-muted">Canli akis yuklenemedi: ' + escapeHtml(error.message || '') + '</div>';
+    container.innerHTML = '<div class="feedback-muted">Canlı akış yüklenemedi: ' + escapeHtml(error.message || '') + '</div>';
   }
 }
 
@@ -3366,17 +3366,17 @@ function renderLiveFeed(container, data) {
     const activeFiltered = activeQueueConversationFiltered(rawConvs, convs);
     const searchActive = Boolean(String(state.queueSearch || '').trim());
     const filterActive = state.queueFilter !== 'all';
-    let title = 'Bu filtreyle eslesen konusma yok';
-    let body = 'Filtre veya arama sonucunda gorunen kuyruk su an bos.';
+    let title = 'Bu filtreyle eşleşen konuşma yok';
+    let body = 'Filtre veya arama sonucunda görünen kuyruk şu an boş.';
     if (!rawConvs.length) {
-      title = 'Canli kuyrukta henuz konusma yok';
-      body = 'Yeni mesajlar geldiginde konusmalar burada listelenecek.';
+      title = 'Canlı kuyrukta henüz konuşma yok';
+      body = 'Yeni mesajlar geldiğinde konuşmalar burada listelenecek.';
     } else if (activeFiltered) {
-      body += ' Aktif konusma filtre disinda kaliyor.';
+      body += ' Aktif konuşma filtre dışında kalıyor.';
     }
     const actions = [];
-    if (searchActive) actions.push({label: 'Aramayi temizle', action: 'clear-queue-search'});
-    if (filterActive) actions.push({label: 'Filtreleri sifirla', action: 'reset-queue-filter'});
+    if (searchActive) actions.push({label: 'Aramayı temizle', action: 'clear-queue-search'});
+    if (filterActive) actions.push({label: 'Filtreleri sıfırla', action: 'reset-queue-filter'});
     actions.push({label: 'Yenile', action: 'refresh-queue'});
     container.innerHTML = renderEmptyCard({
       title,
@@ -3400,13 +3400,13 @@ function renderLiveFeed(container, data) {
     const reopenLabel = queueSessionReopenLabel(c);
     let statusTag;
     if (rejected) {
-      statusTag = '<span class="live-feed-rejected">REDDEDILDI</span>';
+      statusTag = '<span class="live-feed-rejected">REDDEDİLDİ</span>';
     } else if (blocked && c.last_assistant_msg_id) {
-      statusTag = '<span class="live-feed-blocked">BEKLIYOR</span> ' +
+      statusTag = '<span class="live-feed-blocked">BEKLİYOR</span> ' +
         '<button class="live-feed-approve-btn" data-approve-conv="' + escapeHtml(c.id) + '" data-approve-msg="' + escapeHtml(String(c.last_assistant_msg_id)) + '">Onayla</button>' +
-        ' <button class="live-feed-reject-btn" data-reject-conv="' + escapeHtml(c.id) + '" data-reject-msg="' + escapeHtml(String(c.last_assistant_msg_id)) + '">Gonderme</button>';
+        ' <button class="live-feed-reject-btn" data-reject-conv="' + escapeHtml(c.id) + '" data-reject-msg="' + escapeHtml(String(c.last_assistant_msg_id)) + '">Reddet</button>';
     } else if (blocked) {
-      statusTag = '<span class="live-feed-blocked">BEKLIYOR</span>';
+      statusTag = '<span class="live-feed-blocked">BEKLİYOR</span>';
     } else if (String(c.delivery_state || '') === 'failed') {
       statusTag = '<span class="live-feed-rejected">HATA</span>';
     } else {
@@ -3416,23 +3416,23 @@ function renderLiveFeed(container, data) {
     const flags = (c.risk_flags || []).map(f => '<span class="live-feed-badge">' + escapeHtml(f) + '</span>').join('');
 
     const windowBadge = c.window_state === 'closed'
-      ? queueBadgeHtml('pencere kapali', 'danger')
+      ? queueBadgeHtml('pencere kapalı', 'danger')
       : c.window_state === 'closing_soon'
-        ? queueBadgeHtml('pencere kapaniyor', 'warning')
-        : queueBadgeHtml('pencere acik', 'success');
+        ? queueBadgeHtml('pencere kapanıyor', 'warning')
+        : queueBadgeHtml('pencere açık', 'success');
     const deliveryBadge = c.delivery_state ? queueBadgeHtml(String(c.delivery_state).replaceAll('_', ' '), queueDeliveryTone(c.delivery_state)) : '';
     const providerBadge = c.provider_status && c.provider_status !== 'unknown'
-      ? queueBadgeHtml('provider ' + String(c.provider_status).replaceAll('_', ' '), queueDeliveryTone(c.provider_status))
+      ? queueBadgeHtml('sağlayıcı ' + String(c.provider_status).replaceAll('_', ' '), queueDeliveryTone(c.provider_status))
       : '';
     const webhookBadge = c.provider_status_updated_at ? queueBadgeHtml('webhook ' + formatRelativeTime(c.provider_status_updated_at), 'info') : '';
     const draftBadge = draftLabel ? queueBadgeHtml(draftLabel, 'accent') : '';
     const handoffBadge = human ? queueBadgeHtml('insan devri', 'handoff') : '';
-    const reopenBadge = reopenLabel ? queueBadgeHtml('reopen ' + reopenLabel, 'info') : '';
+    const reopenBadge = reopenLabel ? queueBadgeHtml('yeniden açma ' + reopenLabel, 'info') : '';
     let priorityBadge = '';
     if (attention) {
       priorityBadge = '<span class="live-feed-priority is-attention">Sorunlu</span>';
     } else if (human) {
-      priorityBadge = '<span class="live-feed-priority is-human">Insan</span>';
+      priorityBadge = '<span class="live-feed-priority is-human">Temsilci</span>';
     } else if (hasDraft) {
       priorityBadge = '<span class="live-feed-priority is-draft">Taslak</span>';
     }
@@ -3442,20 +3442,20 @@ function renderLiveFeed(container, data) {
     if (human) cardClasses.push('is-human');
     if (hasDraft) cardClasses.push('has-draft');
 
-    return '<div class="' + cardClasses.join(' ') + '" draggable="true" tabindex="0" aria-label="' + escapeHtml(`${c.phone_display || 'Konusma'} kuyruk karti`) + '" data-conv-id="' + escapeHtml(c.id) + '">' +
+    return '<div class="' + cardClasses.join(' ') + '" draggable="true" tabindex="0" aria-label="' + escapeHtml(`${c.phone_display || 'Konuşma'} kuyruk kartı`) + '" data-conv-id="' + escapeHtml(c.id) + '">' +
       '<div class="live-feed-head">' +
         '<span class="live-feed-phone">' + escapeHtml(c.phone_display) + ' (' + c.msg_count + ' mesaj)</span>' +
         '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">' + priorityBadge + '<span class="live-feed-time">' + timeStr + '</span></div>' +
       '</div>' +
       '<div class="live-feed-msgs">' +
         '<div class="live-feed-user">Misafir: ' + userSnippet + '</div>' +
-        '<div class="live-feed-assistant">Son cikis: ' + assistantSnippet + ' ' + statusTag + '</div>' +
+        '<div class="live-feed-assistant">Son çıkış: ' + assistantSnippet + ' ' + statusTag + '</div>' +
       '</div>' +
       '<div class="live-feed-badges">' +
         '<span class="live-feed-badge">' + escapeHtml(c.language || '-') + '</span>' +
         '<span class="live-feed-badge">' + escapeHtml(c.state || '-') + '</span>' +
         (c.intent && c.intent !== '-' ? '<span class="live-feed-badge">' + escapeHtml(c.intent) + '</span>' : '') +
-        (c.is_active ? '<span class="live-feed-badge" style="color:#86efac">aktif</span>' : '<span class="live-feed-badge" style="color:#fca5a5">kapali</span>') +
+        (c.is_active ? '<span class="live-feed-badge" style="color:#86efac">aktif</span>' : '<span class="live-feed-badge" style="color:#fca5a5">kapalı</span>') +
         handoffBadge +
         draftBadge +
         reopenBadge +
@@ -3475,13 +3475,13 @@ async function loadMetrics() {
     const data = await apiFetch('/chat/metrics');
     renderMetrics(container, data);
   } catch (error) {
-    container.innerHTML = '<div class="feedback-muted">Metrik yuklenemedi: ' + escapeHtml(error.message || 'Bilinmeyen hata') + '</div>';
+    container.innerHTML = '<div class="feedback-muted">Metrik yüklenemedi: ' + escapeHtml(error.message || 'Bilinmeyen hata') + '</div>';
   }
 }
 
 function renderMetrics(container, m) {
   if (!m || m.total_feedbacks === 0) {
-    container.innerHTML = '<div class="feedback-muted">Henuz geri bildirim kaydedilmemis.</div>';
+    container.innerHTML = '<div class="feedback-muted">Henüz geri bildirim kaydedilmemiş.</div>';
     return;
   }
   const pct = (n) => m.total_feedbacks ? Math.round(n / m.total_feedbacks * 100) : 0;
@@ -3522,12 +3522,12 @@ function renderMetrics(container, m) {
     '<div class="metrics-grid">' +
       '<div class="metric-card"><div class="metric-value">' + m.total_feedbacks + '</div><div class="metric-label">Toplam Geri Bildirim</div></div>' +
       '<div class="metric-card"><div class="metric-value">' + (m.avg_rating || 0).toFixed(1) + '</div><div class="metric-label">Ortalama Puan</div></div>' +
-      '<div class="metric-card"><div class="metric-value">' + (m.good_count || 0) + '</div><div class="metric-label">Iyi (4-5)</div></div>' +
-      '<div class="metric-card"><div class="metric-value">' + (m.bad_count || 0) + '</div><div class="metric-label">Kotu (1-3)</div></div>' +
+      '<div class="metric-card"><div class="metric-value">' + (m.good_count || 0) + '</div><div class="metric-label">İyi (4-5)</div></div>' +
+      '<div class="metric-card"><div class="metric-value">' + (m.bad_count || 0) + '</div><div class="metric-label">Kötü (1-3)</div></div>' +
     '</div>' +
-    '<div class="metric-bar-group"><strong style="font-size:12px;color:rgba(255,255,255,.7)">Puan Dagilimi</strong>' + ratingBars + '</div>' +
-    (catBars ? '<div class="metric-bar-group mt-sm"><strong style="font-size:12px;color:rgba(255,255,255,.7)">Kategori Dagilimi (Top 5)</strong>' + catBars + '</div>' : '') +
-    (langBars ? '<div class="metric-bar-group mt-sm"><strong style="font-size:12px;color:rgba(255,255,255,.7)">Dil Dagilimi</strong>' + langBars + '</div>' : '');
+    '<div class="metric-bar-group"><strong style="font-size:12px;color:rgba(255,255,255,.7)">Puan Dağılımı</strong>' + ratingBars + '</div>' +
+    (catBars ? '<div class="metric-bar-group mt-sm"><strong style="font-size:12px;color:rgba(255,255,255,.7)">Kategori Dağılımı (İlk 5)</strong>' + catBars + '</div>' : '') +
+    (langBars ? '<div class="metric-bar-group mt-sm"><strong style="font-size:12px;color:rgba(255,255,255,.7)">Dil Dağılımı</strong>' + langBars + '</div>' : '');
 }
 
 function wireEvents() {
@@ -3573,23 +3573,23 @@ function wireEvents() {
       if (action === 'approve') {
         const data = await apiFetch('/chat/approve-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: state.activeConversationId, message_id: messageId})});
         if (data?.session_reopen_template_sent) {
-          notify(`Mesaj onaylandi. Meta pencere-acma sablonu (${data.session_reopen_template_name || 'hello_world'}) kullanilarak gonderildi.`, 'success');
+          notify(`Mesaj onaylandı. Meta pencere açma şablonu (${data.session_reopen_template_name || 'hello_world'}) kullanılarak gönderildi.`, 'success');
         } else {
-          notify('Mesaj onaylandi ve gonderildi.', 'success');
+          notify('Mesaj onaylandı ve gönderildi.', 'success');
         }
       } else if (action === 'reject') {
         await apiFetch('/chat/reject-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: state.activeConversationId, message_id: messageId})});
         notify('Mesaj reddedildi.', 'success');
       } else if (action === 'regenerate') {
         await apiFetch('/chat/regenerate', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: state.activeConversationId})});
-        notify('Mesaj yeniden uretildi.', 'success');
+        notify('Mesaj yeniden oluşturuldu.', 'success');
       } else if (action === 'feedback') {
         showConversationDetail(state.activeConversationId).then(() => showModalFeedbackForm(state.activeConversationId, messageId));
       }
       await loadLiveFeed();
       await loadLiveConversation(state.activeConversationId);
     } catch (error) {
-      notify(error.message || 'Mesaj aksiyonu basarisiz.', 'error');
+      notify(error.message || 'Mesaj işlemi başarısız.', 'error');
       actionBtn.disabled = false;
     }
   });
@@ -3769,20 +3769,20 @@ function wireEvents() {
       const msgId = approveBtn.dataset.approveMsg;
       if (!convId || !msgId) return;
       approveBtn.disabled = true;
-      approveBtn.textContent = 'Gonderiliyor...';
+      approveBtn.textContent = 'Gönderiliyor...';
       try {
         const data = await apiFetch('/chat/approve-message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({conversation_id: convId, message_id: msgId})});
         if (data?.session_reopen_template_sent) {
-          notify(`Mesaj onaylandi. Meta pencere-acma sablonu (${data.session_reopen_template_name || 'hello_world'}) kullanilarak gonderildi.`, 'success');
+          notify(`Mesaj onaylandı. Meta pencere açma şablonu (${data.session_reopen_template_name || 'hello_world'}) kullanılarak gönderildi.`, 'success');
         } else {
-          notify('Mesaj onaylandi ve gonderildi.', 'success');
+          notify('Mesaj onaylandı ve gönderildi.', 'success');
         }
         await loadLiveFeed();
         await loadLiveConversation(convId);
       } catch (error) {
-        notify(error.message || 'Onay gonderilemedi.', 'error');
+        notify(error.message || 'Onay gönderilemedi.', 'error');
         approveBtn.disabled = false;
-        approveBtn.textContent = 'Onayla ve Gonder';
+        approveBtn.textContent = 'Onayla ve Gönder';
       }
       return;
     }
@@ -3793,7 +3793,7 @@ function wireEvents() {
       if (!rejectBtn.classList.contains('confirm-state')) {
         rejectBtn.classList.add('confirm-state');
         rejectBtn.textContent = 'Emin misiniz?';
-        setTimeout(() => { rejectBtn.classList.remove('confirm-state'); rejectBtn.textContent = 'Gonderme'; }, 3000);
+        setTimeout(() => { rejectBtn.classList.remove('confirm-state'); rejectBtn.textContent = 'Reddet'; }, 3000);
         return;
       }
       const convId = rejectBtn.dataset.rejectConv;
@@ -3811,9 +3811,9 @@ function wireEvents() {
           showModalFeedbackForm(convId, msgId);
         });
       } catch (error) {
-        notify(error.message || 'Reddetme basarisiz.', 'error');
+        notify(error.message || 'Reddetme başarısız.', 'error');
         rejectBtn.disabled = false;
-        rejectBtn.textContent = 'Gonderme';
+        rejectBtn.textContent = 'Reddet';
         rejectBtn.classList.remove('confirm-state');
       }
       return;
@@ -3846,7 +3846,7 @@ function wireEvents() {
     // Clone node and remove status badges so copied text is clean
     const clone = msgEl.cloneNode(true);
     clone.querySelectorAll('.live-feed-blocked,.live-feed-sent,.live-feed-rejected,.live-feed-approve-btn,.live-feed-reject-btn').forEach(n => n.remove());
-    const raw = clone.textContent.replace(/^(Misafir|AI|Son cikis):\\s*/, '').trim();
+    const raw = clone.textContent.replace(/^(Misafir|Yapay Zekâ|Son çıkış):\\s*/, '').trim();
     if (raw) showCtxMenu(event, raw);
   });
   // Drag-and-drop: live feed card → chat panel

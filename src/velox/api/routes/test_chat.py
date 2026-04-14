@@ -114,7 +114,7 @@ class TestChatRequest(BaseModel):
         if not has_text and not has_attachments:
             raise ValueError("Mesaj veya en az bir dosya gerekli.")
         if len(self.attachments) > 5:
-            raise ValueError("Tek mesajda en fazla 5 dosya gonderilebilir.")
+            raise ValueError("Tek mesajda en fazla 5 dosya gönderilebilir.")
         return self
 
 
@@ -247,8 +247,8 @@ def _build_attachment_only_fallback_text(attachments: list[dict[str, Any]]) -> s
     """Create visible message text when user sends only attachments."""
     labels = [str(item.get("file_name") or item.get("kind") or "dosya") for item in attachments]
     if not labels:
-        return "Dosya gonderildi."
-    return "Ek gonderildi: " + ", ".join(labels[:3])
+        return "Dosya gönderildi."
+    return "Ek gönderildi: " + ", ".join(labels[:3])
 
 
 def _extract_attachment_ids(payload: list[dict[str, str]]) -> list[str]:
@@ -469,7 +469,7 @@ def _resolve_test_chat_reply_context(
 async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse:
     """Process a test message synchronously and return the assistant reply."""
     if getattr(request.app.state, "db_pool", None) is None:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
 
     phone = _ensure_test_phone(body.phone)
     repository = ConversationRepository()
@@ -507,7 +507,7 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
             )
             conversation = await repository.create(conversation)
         if conversation.id is None:
-            raise HTTPException(status_code=500, detail="Conversation id is missing")
+            raise HTTPException(status_code=500, detail="Konuşma kimliği eksik")
 
         existing_assistant = await repository.get_assistant_by_client_message_id(
             conversation.id,
@@ -578,7 +578,7 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
             if existing_assistant is None:
                 raise HTTPException(
                     status_code=409,
-                    detail="Duplicate request is already being processed",
+                    detail="Aynı istek zaten işleniyor",
                 ) from None
             latest_conversation = await repository.get_by_id(conversation.id)
             safe_conversation = latest_conversation or conversation
@@ -718,7 +718,7 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
             conversation.messages.append(saved_message)
 
         if assistant_message is None:
-            raise HTTPException(status_code=500, detail="Assistant message was not created")
+            raise HTTPException(status_code=500, detail="Asistan mesajı oluşturulamadı")
 
         if handoff_lock_activated:
             await _finalize_handoff_transition(
@@ -746,7 +746,7 @@ async def test_chat(body: TestChatRequest, request: Request) -> TestChatResponse
 async def test_chat_history(request: Request, phone: str = "test_user_123") -> dict[str, Any]:
     """Load conversation history for one test phone number."""
     if getattr(request.app.state, "db_pool", None) is None:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
 
     repository = ConversationRepository()
     conversation = await repository.get_active_by_phone(
@@ -756,7 +756,7 @@ async def test_chat_history(request: Request, phone: str = "test_user_123") -> d
     if conversation is None:
         return {"messages": [], "conversation": None}
     if conversation.id is None:
-        raise HTTPException(status_code=500, detail="Conversation id is missing")
+        raise HTTPException(status_code=500, detail="Konuşma kimliği eksik")
 
     messages = await repository.get_messages(conversation.id, limit=100, offset=0)
     last_user_message_at = next((message.created_at for message in reversed(messages) if message.role == "user"), None)
@@ -771,7 +771,7 @@ async def test_chat_history(request: Request, phone: str = "test_user_123") -> d
 async def test_chat_reset(request: Request, phone: str = "test_user_123") -> dict[str, str]:
     """Close the active Chat Lab conversation and start fresh on the next turn."""
     if getattr(request.app.state, "db_pool", None) is None:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
 
     repository = ConversationRepository()
     conversation = await repository.get_active_by_phone(
@@ -793,7 +793,7 @@ async def upload_chat_asset(
 ) -> dict[str, Any]:
     """Upload a Chat Lab attachment and return reusable metadata."""
     if getattr(request.app.state, "db_pool", None) is None:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
 
     file_name = file.filename or "upload.bin"
     try:
@@ -821,7 +821,7 @@ async def upload_chat_asset(
 async def delete_chat_asset(request: Request, asset_id: str) -> dict[str, str]:
     """Delete one not-yet-sent Chat Lab attachment."""
     if getattr(request.app.state, "db_pool", None) is None:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
     try:
         await attachment_service.delete_asset(asset_id=asset_id, hotel_id=settings.elektra_hotel_id)
     except ChatLabAttachmentError as error:
@@ -833,7 +833,7 @@ async def delete_chat_asset(request: Request, asset_id: str) -> dict[str, str]:
 async def get_chat_asset_content(request: Request, asset_id: str) -> FileResponse:
     """Serve one uploaded attachment to authenticated Chat Lab users."""
     if getattr(request.app.state, "db_pool", None) is None:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
     try:
         asset = await attachment_service.get_asset_for_hotel(
             asset_id=asset_id,
@@ -844,7 +844,7 @@ async def get_chat_asset_content(request: Request, asset_id: str) -> FileRespons
 
     storage_path = Path(asset.storage_path)
     if not storage_path.exists():
-        raise HTTPException(status_code=404, detail="Dosya depoda bulunamadi.")
+        raise HTTPException(status_code=404, detail="Dosya depoda bulunamadı.")
 
     return FileResponse(
         path=storage_path,
@@ -861,7 +861,7 @@ async def test_chat_export(
 ) -> Response:
     """Export the active test conversation as json/pdf/md/txt."""
     if getattr(request.app.state, "db_pool", None) is None:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
 
     repository = ConversationRepository()
     conversation = await repository.get_active_by_phone(
@@ -869,9 +869,9 @@ async def test_chat_export(
         _hash_phone(_ensure_test_phone(phone)),
     )
     if conversation is None:
-        raise HTTPException(status_code=404, detail="No active conversation for this phone")
+        raise HTTPException(status_code=404, detail="Bu telefon için aktif bir konuşma bulunamadı")
     if conversation.id is None:
-        raise HTTPException(status_code=500, detail="Conversation id is missing")
+        raise HTTPException(status_code=500, detail="Konuşma kimliği eksik")
 
     messages = await repository.get_messages(conversation.id, limit=500, offset=0)
     exported_at = datetime.now(UTC)
@@ -904,7 +904,7 @@ async def test_chat_feedback(
         body.source_type in {"live_test_chat", "live_conversation"}
         and getattr(request.app.state, "db_pool", None) is None
     ):
-        raise HTTPException(status_code=503, detail="Veritabani kullanilamiyor")
+        raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
 
     service = ChatLabFeedbackService()
     try:
@@ -985,7 +985,7 @@ async def set_operation_mode(body: SetModeRequest, request: Request) -> dict[str
 async def live_feed(request: Request, limit: int = 20) -> dict[str, Any]:
     """Return recent real (non-test) conversations with their last messages."""
     if getattr(request.app.state, "db_pool", None) is None:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
 
     pool = request.app.state.db_pool
     capped_limit = min(max(limit, 1), 50)
@@ -1100,12 +1100,12 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
 
     pool = getattr(request.app.state, "db_pool", None)
     if pool is None:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
 
     try:
         conv_uuid = _UUID(str(conversation_id))
     except (ValueError, AttributeError) as err:
-        raise HTTPException(status_code=400, detail="Invalid conversation_id") from err
+        raise HTTPException(status_code=400, detail="Konuşma kimliği geçersiz") from err
 
     conv_row = await pool.fetchrow(
         """
@@ -1116,7 +1116,7 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
         conv_uuid,
     )
     if conv_row is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise HTTPException(status_code=404, detail="Konuşma bulunamadı")
 
     msg_rows = await pool.fetch(
         """
@@ -1249,13 +1249,13 @@ async def list_chat_templates(
     pool = getattr(request.app.state, "db_pool", None)
     if conversation_id:
         if pool is None:
-            raise HTTPException(status_code=503, detail="Database not available")
+            raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
         from uuid import UUID as _UUID
 
         try:
             conv_uuid = _UUID(str(conversation_id))
         except (ValueError, AttributeError) as err:
-            raise HTTPException(status_code=400, detail="Invalid conversation_id") from err
+            raise HTTPException(status_code=400, detail="Konuşma kimliği geçersiz") from err
 
         async with pool.acquire() as conn:
             conv_row = await conn.fetchrow(
@@ -1267,7 +1267,7 @@ async def list_chat_templates(
                 conv_uuid,
             )
         if conv_row is None:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise HTTPException(status_code=404, detail="Konuşma bulunamadı")
         resolved_hotel_id = int(conv_row["hotel_id"] or resolved_hotel_id)
         resolved_language = str(conv_row["language"] or resolved_language or "tr")
         resolved_state = str(conv_row["current_state"] or resolved_state or "")
@@ -1359,17 +1359,17 @@ async def reject_and_flag_message(request: Request) -> dict[str, Any]:
     conv_id = body.get("conversation_id")
     msg_id = body.get("message_id")
     if not conv_id or not msg_id:
-        raise HTTPException(status_code=400, detail="conversation_id and message_id required")
+        raise HTTPException(status_code=400, detail="conversation_id ve message_id alanları zorunludur")
 
     pool = getattr(request.app.state, "db_pool", None)
     if pool is None:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
 
     try:
         msg_uuid = _UUID(str(msg_id))
         conv_uuid = _UUID(str(conv_id))
     except (ValueError, AttributeError) as err:
-        raise HTTPException(status_code=400, detail="Invalid id format") from err
+        raise HTTPException(status_code=400, detail="Kimlik biçimi geçersiz") from err
 
     def _pj(raw: object) -> dict[str, Any]:
         if raw is None:
@@ -1391,9 +1391,9 @@ async def reject_and_flag_message(request: Request) -> dict[str, Any]:
             conv_uuid,
         )
         if msg_row is None:
-            raise HTTPException(status_code=404, detail="Message not found")
+            raise HTTPException(status_code=404, detail="Mesaj bulunamadı")
         if msg_row["role"] != "assistant":
-            raise HTTPException(status_code=400, detail="Only assistant messages can be rejected")
+            raise HTTPException(status_code=400, detail="Yalnızca asistan mesajları reddedilebilir")
 
         internal = _pj(msg_row["internal_json"])
         internal["rejected"] = True
@@ -1421,16 +1421,16 @@ async def regenerate_assistant_message(request: Request) -> dict[str, Any]:
     body = await request.json()
     conv_id = body.get("conversation_id")
     if not conv_id:
-        raise HTTPException(status_code=400, detail="conversation_id required")
+        raise HTTPException(status_code=400, detail="conversation_id alanı zorunludur")
 
     pool = getattr(request.app.state, "db_pool", None)
     if pool is None:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
 
     try:
         conv_uuid = _UUID(str(conv_id))
     except (ValueError, AttributeError) as err:
-        raise HTTPException(status_code=400, detail="Invalid id format") from err
+        raise HTTPException(status_code=400, detail="Kimlik biçimi geçersiz") from err
 
     repo = ConversationRepository()
 
@@ -1439,7 +1439,7 @@ async def regenerate_assistant_message(request: Request) -> dict[str, Any]:
             "SELECT * FROM conversations WHERE id = $1", conv_uuid,
         )
         if conv_row is None:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise HTTPException(status_code=404, detail="Konuşma bulunamadı")
 
         # Find last user message (context for regeneration)
         last_user = await conn.fetchrow(
@@ -1449,7 +1449,7 @@ async def regenerate_assistant_message(request: Request) -> dict[str, Any]:
             conv_uuid,
         )
         if last_user is None:
-            raise HTTPException(status_code=400, detail="No user message to regenerate from")
+            raise HTTPException(status_code=400, detail="Yeniden oluşturma için kullanıcı mesajı bulunamadı")
 
         # Delete last assistant message(s) that came after the last user message
         await conn.execute(
@@ -1469,7 +1469,7 @@ async def regenerate_assistant_message(request: Request) -> dict[str, Any]:
     # Load conversation object for pipeline
     conversation = await repo.get_by_id(conv_uuid)
     if conversation is None:
-        raise HTTPException(status_code=404, detail="Conversation not found after cleanup")
+        raise HTTPException(status_code=404, detail="Temizlik sonrası konuşma bulunamadı")
 
     conversation.messages = await repo.get_recent_messages(conv_uuid, count=20)
     normalized_text = _normalize_text(last_user["content"] or "")
@@ -1540,16 +1540,16 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
             if candidate:
                 attachment_ids.append(candidate)
     if not conv_id or (not message and not attachment_ids):
-        raise HTTPException(status_code=400, detail="conversation_id and message or attachments required")
+        raise HTTPException(status_code=400, detail="conversation_id ile birlikte message veya attachments alanı zorunludur")
 
     pool = getattr(request.app.state, "db_pool", None)
     if pool is None:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
 
     try:
         conv_uuid = _UUID(str(conv_id))
     except (ValueError, AttributeError) as err:
-        raise HTTPException(status_code=400, detail="Invalid id format") from err
+        raise HTTPException(status_code=400, detail="Kimlik biçimi geçersiz") from err
 
     repo = ConversationRepository()
     try:
@@ -1565,7 +1565,7 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
             "SELECT id, phone_display FROM conversations WHERE id = $1", conv_uuid,
         )
         if conv_row is None:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise HTTPException(status_code=404, detail="Konuşma bulunamadı")
 
         # Resolve real phone
         phone = str(conv_row["phone_display"] or "")
@@ -1587,7 +1587,7 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
                         ij = orjson.loads(raw)
                 phone = ij.get("wa_id", "")
         if not phone or "*" in phone:
-            raise HTTPException(status_code=400, detail="Gercek telefon numarasi bulunamadi")
+            raise HTTPException(status_code=400, detail="Gerçek telefon numarası bulunamadı")
 
     # Send via WhatsApp
     whatsapp_client = get_whatsapp_client()
@@ -1613,7 +1613,7 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
         for asset in resolved_assets:
             storage_path = Path(asset.storage_path)
             if not storage_path.exists():
-                raise HTTPException(status_code=400, detail=f"Dosya bulunamadi: {asset.file_name}")
+                raise HTTPException(status_code=400, detail=f"Dosya bulunamadı: {asset.file_name}")
 
             if asset.kind == "image":
                 media_result = await _send_with_session_reopen_fallback(
@@ -1656,7 +1656,7 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
                 )
                 title = f"[Ses] {asset.file_name}"
             else:
-                raise HTTPException(status_code=400, detail="Bilinmeyen dosya tipi.")
+                raise HTTPException(status_code=400, detail="Bilinmeyen dosya türü.")
 
             outbound_events.append(
                 {
@@ -1670,7 +1670,7 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"WhatsApp gonderilemedi: {exc}") from exc
+        raise HTTPException(status_code=502, detail=f"WhatsApp mesajı gönderilemedi: {exc}") from exc
 
     # Save outbound events as assistant messages in DB
     from velox.models.conversation import Message
@@ -1718,17 +1718,17 @@ async def add_note_to_conversation(body: ConversationNoteRequest, request: Reque
 
     pool = getattr(request.app.state, "db_pool", None)
     if pool is None:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
 
     try:
         conv_uuid = _UUID(str(body.conversation_id))
     except (ValueError, AttributeError) as err:
-        raise HTTPException(status_code=400, detail="Invalid conversation_id") from err
+        raise HTTPException(status_code=400, detail="Konuşma kimliği geçersiz") from err
 
     async with pool.acquire() as conn:
         conv_row = await conn.fetchrow("SELECT id FROM conversations WHERE id = $1", conv_uuid)
         if conv_row is None:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise HTTPException(status_code=404, detail="Konuşma bulunamadı")
 
     repository = ConversationRepository()
     note_message = await repository.add_message(
@@ -1764,11 +1764,11 @@ async def approve_and_send_message(request: Request) -> dict[str, Any]:
     conv_id = body.get("conversation_id")
     msg_id = body.get("message_id")
     if not conv_id or not msg_id:
-        raise HTTPException(status_code=400, detail="conversation_id and message_id required")
+        raise HTTPException(status_code=400, detail="conversation_id ve message_id alanları zorunludur")
 
     pool = getattr(request.app.state, "db_pool", None)
     if pool is None:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
 
     async with pool.acquire() as conn:
         conv_row = await conn.fetchrow(
@@ -1776,7 +1776,7 @@ async def approve_and_send_message(request: Request) -> dict[str, Any]:
             _UUID(str(conv_id)),
         )
         if conv_row is None:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise HTTPException(status_code=404, detail="Konuşma bulunamadı")
 
         msg_row = await conn.fetchrow(
             "SELECT id, role, content, internal_json FROM messages WHERE id = $1 AND conversation_id = $2",
@@ -1784,9 +1784,9 @@ async def approve_and_send_message(request: Request) -> dict[str, Any]:
             conv_row["id"],
         )
         if msg_row is None:
-            raise HTTPException(status_code=404, detail="Message not found")
+            raise HTTPException(status_code=404, detail="Mesaj bulunamadı")
         if msg_row["role"] != "assistant":
-            raise HTTPException(status_code=400, detail="Only assistant messages can be sent")
+            raise HTTPException(status_code=400, detail="Yalnızca asistan mesajları gönderilebilir")
 
         # Try to find real phone from user message audit context (wa_id field)
         user_phone_row = await conn.fetchrow(
@@ -1825,7 +1825,7 @@ async def approve_and_send_message(request: Request) -> dict[str, Any]:
     if not phone or "*" in phone:
         raise HTTPException(
             status_code=400,
-            detail="Bu konusma icin gercek telefon numarasi bulunamadi. Maskeli numaraya mesaj gonderilemez.",
+            detail="Bu konuşma için gerçek telefon numarası bulunamadı. Maskeli numaraya mesaj gönderilemez.",
         )
 
     whatsapp_client = get_whatsapp_client()
@@ -1838,7 +1838,7 @@ async def approve_and_send_message(request: Request) -> dict[str, Any]:
             reopen_state=reopen_state,
         )
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"WhatsApp gonderilemedi: {exc}") from exc
+        raise HTTPException(status_code=502, detail=f"WhatsApp mesajı gönderilemedi: {exc}") from exc
 
     wa_message_id = _extract_whatsapp_message_id(send_result)
     internal["send_blocked"] = False

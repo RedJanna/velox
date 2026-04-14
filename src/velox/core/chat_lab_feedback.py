@@ -296,18 +296,18 @@ class ChatLabFeedbackService:
 
     async def _load_import_source(self, payload: ChatLabFeedbackRequest) -> dict[str, Any]:
         if not payload.import_file:
-            raise ChatLabImportError("Import file is required for imported transcript feedback.")
+            raise ChatLabImportError("İçe aktarılan konuşma geri bildirimi için dosya seçilmelidir.")
 
         raw_transcript = self._load_import_json(payload.import_file)
         role_result = _resolve_import_roles(raw_transcript, payload.role_mapping)
         if role_result["status"] != "ready":
-            raise ChatLabImportError("Role mapping is required before saving imported transcript feedback.")
+            raise ChatLabImportError("İçe aktarılan konuşma geri bildirimi kaydedilmeden önce rol eşleştirmesi yapılmalıdır.")
 
         messages = _normalize_import_messages(raw_transcript, role_result["role_mapping"])
         excerpt = _message_views_until_target(messages, payload.assistant_message_id)
         assistant_message = excerpt[-1]
         if assistant_message.role != "assistant":
-            raise FeedbackMessageNotFoundError("The selected imported message is not an assistant reply.")
+            raise FeedbackMessageNotFoundError("Seçilen içe aktarılmış mesaj, asistan yanıtı değil.")
 
         assistant_internal = assistant_message.internal_json or {}
         return {
@@ -335,22 +335,22 @@ class ChatLabFeedbackService:
     def _load_import_json(self, filename: str) -> dict[str, Any]:
         safe_name = Path(filename).name
         if safe_name != filename or not safe_name.endswith(".json"):
-            raise ChatLabImportError("Invalid import file name.")
+            raise ChatLabImportError("İçe aktarma dosya adı geçersiz.")
 
         file_path = self._imports_root / safe_name
         if not file_path.exists():
-            raise ChatLabImportError("Import file not found.")
+            raise ChatLabImportError("İçe aktarma dosyası bulunamadı.")
 
         try:
             with file_path.open(encoding="utf-8") as file_obj:
                 data = json.load(file_obj)
         except json.JSONDecodeError as error:
-            raise ChatLabImportError("Import file is not valid JSON.") from error
+            raise ChatLabImportError("İçe aktarma dosyası geçerli bir JSON değil.") from error
 
         if not isinstance(data, dict):
-            raise ChatLabImportError("Import file must contain a JSON object.")
+            raise ChatLabImportError("İçe aktarma dosyası bir JSON nesnesi içermelidir.")
         if not isinstance(data.get("messages"), list):
-            raise ChatLabImportError("Import file must contain a messages list.")
+            raise ChatLabImportError("İçe aktarma dosyası `messages` listesini içermelidir.")
         schema_version = data.get("schema_version")
         if schema_version is not None and schema_version != _TRANSCRIPT_SCHEMA_VERSION:
             logger.warning("chat_lab_import_schema_mismatch", filename=safe_name, schema_version=schema_version)
@@ -629,7 +629,7 @@ def _normalize_import_messages(
     normalized: list[ChatLabMessageView] = []
     for index, raw_message in enumerate(raw_transcript.get("messages", []), start=1):
         if not isinstance(raw_message, dict):
-            raise ChatLabImportError("Transcript message entries must be objects.")
+            raise ChatLabImportError("Konuşma kaydındaki mesaj girdileri nesne biçiminde olmalıdır.")
 
         message_id = str(raw_message.get("id") or f"imp_{index}")
         content = str(raw_message.get("content") or "").strip()
