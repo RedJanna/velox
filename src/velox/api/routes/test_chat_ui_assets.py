@@ -614,6 +614,13 @@ function activeQueueIndex(visibleConversations = getVisibleQueueConversations())
   return visibleConversations.findIndex(conversation => String(conversation.id) === String(state.activeConversationId));
 }
 
+function activeQueueConversationFiltered(rawConversations = state.liveConversations, visibleConversations = getVisibleQueueConversations(rawConversations)) {
+  if (!state.activeConversationId) return false;
+  const activeInRaw = rawConversations.some(conversation => String(conversation.id) === String(state.activeConversationId));
+  if (!activeInRaw) return false;
+  return !visibleConversations.some(conversation => String(conversation.id) === String(state.activeConversationId));
+}
+
 async function moveQueueSelection(step = 1) {
   const visibleConversations = getVisibleQueueConversations();
   if (!visibleConversations.length) return;
@@ -641,14 +648,19 @@ function renderQueueSummary(rawConversations = [], visibleConversations = rawCon
   const draftCount = rawConversations.filter(conversation => Boolean(queueDraftLabel(conversation.id))).length;
   const reopenCount = rawConversations.filter(conversation => Boolean(queueSessionReopenLabel(conversation))).length;
   const visibleCount = visibleConversations.length;
-  container.innerHTML = [
+  const chips = [
     `<span class="queue-summary-chip">Gorunen ${visibleCount}/${allCount}</span>`,
     `<span class="queue-summary-chip">Onay ${approvalCount}</span>`,
     `<span class="queue-summary-chip">Insan ${humanCount}</span>`,
     `<span class="queue-summary-chip">Sorunlu ${attentionCount}</span>`,
     `<span class="queue-summary-chip">Taslak ${draftCount}</span>`,
     `<span class="queue-summary-chip">Reopen ${reopenCount}</span>`,
-  ].join('');
+    '<span class="queue-summary-chip">J/K ile gez</span>',
+  ];
+  if (activeQueueConversationFiltered(rawConversations, visibleConversations)) {
+    chips.push('<span class="queue-summary-chip" style="color:#b45309;background:rgba(245,158,11,.16)">Aktif konusma filtre disinda</span>');
+  }
+  container.innerHTML = chips.join('');
 }
 
 function restoreComposerDraft() {
@@ -3204,7 +3216,8 @@ function renderLiveFeed(container, data) {
   const convs = getVisibleQueueConversations(rawConvs);
   renderQueueSummary(rawConvs, convs);
   if (!convs.length) {
-    container.innerHTML = '<div class="feedback-muted">Bu filtreyle eslesen konusma yok.</div>';
+    const activeFiltered = activeQueueConversationFiltered(rawConvs, convs);
+    container.innerHTML = '<div class="feedback-muted">Bu filtreyle eslesen konusma yok.' + (activeFiltered ? ' Aktif konusma filtre disinda kaliyor.' : '') + '</div>';
     return;
   }
 
