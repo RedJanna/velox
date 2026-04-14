@@ -404,45 +404,45 @@ const CSRF_COOKIE = 'velox_admin_csrf';
 const TOAST_TIMEOUT_MS = 2800;
 const DEFAULT_FEEDBACK_SCALES = [
   {rating: 1, label: 'Kesinlikle Yanlış', summary: 'Yanıt tamamen hatalı.', tooltip: 'Bilgi tamamen yanlışsa bunu seçin ve doğru bilgiyi sisteme öğretin.', correction_required: true},
-  {rating: 2, label: 'Hatali Anlatim', summary: 'Bilgi ozunde dogru ama anlatim bozuk.', tooltip: 'Bilgi dogru ama anlatim bozuk mu?', correction_required: true},
-  {rating: 3, label: 'Eksik Bilgi', summary: 'Temel cevap dogru ama kritik detay eksik.', tooltip: 'Cevap yetersiz mi? Eksikleri tamamla.', correction_required: true},
-  {rating: 4, label: 'Gereksiz Ayrinti', summary: 'Bilgi dogru ama fazla uzun.', tooltip: 'Cok mu laf kalabaligi var? Sadelestirilmis halini onayla.', correction_required: true},
+  {rating: 2, label: 'Hatalı Anlatım', summary: 'Bilgi özünde doğru ama anlatım bozuk.', tooltip: 'Bilgi doğru ama anlatımı bozuksa bunu seçin.', correction_required: true},
+  {rating: 3, label: 'Eksik Bilgi', summary: 'Temel cevap doğru ama kritik detay eksik.', tooltip: 'Cevap yetersizse eksikleri tamamlayın.', correction_required: true},
+  {rating: 4, label: 'Gereksiz Ayrıntı', summary: 'Bilgi doğru ama fazla uzun.', tooltip: 'Gereksiz uzunsa daha sade bir sürümü onaylayın.', correction_required: true},
   {rating: 5, label: 'Mükemmel', summary: 'Yanıt doğru ve onaylı örnek olmaya uygun.', tooltip: 'Yanıt doğruysa bunu seçin; onaylı örnek havuzuna eklenir.', correction_required: false},
 ];
 const DEFAULT_FEEDBACK_CATEGORIES = [
-  {key: 'yanlis_bilgi', label: 'Yanlis Bilgi', description: 'Net olarak yanlis bilgi verilmesi.', tooltip: 'Ornek: EUR yerine USD yazmak.'},
-  {key: 'eksik_bilgi', label: 'Eksik Bilgi', description: 'Temel cevap dogru ama kritik detaylar eksik.', tooltip: 'Cevap yarim kaliyor veya gerekli bilgi tamamlanmiyor.'},
+  {key: 'yanlis_bilgi', label: 'Yanlış Bilgi', description: 'Net olarak yanlış bilgi verilmesi.', tooltip: 'Örnek: EUR yerine USD yazmak.'},
+  {key: 'eksik_bilgi', label: 'Eksik Bilgi', description: 'Temel cevap doğru ama kritik detaylar eksik.', tooltip: 'Cevap yarım kalıyor veya gerekli bilgi tamamlanmıyor.'},
   {key: 'alakasiz_yanit', label: 'Alakasız Yanıt', description: 'Sorudan kopuk veya konu dışı cevap.', tooltip: 'Kullanıcı niyetini kaçıran cevaplar.'},
-  {key: 'baglam_kopuklugu', label: 'Baglam Kopuklugu', description: 'Sohbet akisina uyumsuz cevap.', tooltip: 'Hafiza kaybi gibi davranan cevaplar.'},
-  {key: 'uydurma_bilgi', label: 'Asiri Ozyguvenli Uydurma', description: 'Kaynaksiz bilgi uydurulmasi.', tooltip: 'Bilmiyorum demek yerine uydurma bilgi verilmesi.'},
-  {key: 'gevezelik', label: 'Gevezelik / Uzunluk', description: 'Gereksiz uzun veya daginik cevap.', tooltip: 'Kisa istek icin asiri uzun mesaj.'},
-  {key: 'intent_iskalama', label: 'Intent Iskalama', description: 'Asil talebi kaciran cevap.', tooltip: 'Kelimeyi anlayip amaci gormeyen cevap.'},
-  {key: 'format_ihlali', label: 'Format Ihlali', description: 'Istenen sunum bicimine uymayan cevap.', tooltip: 'Liste yerine duz metin gibi.'},
-  {key: 'mantik_celiskisi', label: 'Eksik / Celiskili Mantik', description: 'Tutarsiz veya eksik mantik.', tooltip: 'Bir adim digerini bozuyor.'},
-  {key: 'ton_politika_ihlali', label: 'Ton / Politika Ihlali', description: 'Uslup veya politika ihlali.', tooltip: 'Kaba uslup ya da yetkisiz taahhut.'},
+  {key: 'baglam_kopuklugu', label: 'Bağlam Kopukluğu', description: 'Sohbet akışına uyumsuz cevap.', tooltip: 'Hafıza kaybı varmış gibi davranan cevaplar.'},
+  {key: 'uydurma_bilgi', label: 'Aşırı Özgüvenli Uydurma', description: 'Kaynaksız bilgi uydurulması.', tooltip: 'Bilmiyorum demek yerine uydurma bilgi verilmesi.'},
+  {key: 'gevezelik', label: 'Gevezelik / Uzunluk', description: 'Gereksiz uzun veya dağınık cevap.', tooltip: 'Kısa bir istek için aşırı uzun mesaj.'},
+  {key: 'intent_iskalama', label: 'Niyet Iskalama', description: 'Asıl talebi kaçıran cevap.', tooltip: 'Kelimeyi anlayıp amacı göremeyen cevap.'},
+  {key: 'format_ihlali', label: 'Format İhlali', description: 'İstenen sunum biçimine uymayan cevap.', tooltip: 'Liste yerine düz metin kullanılması gibi.'},
+  {key: 'mantik_celiskisi', label: 'Eksik / Çelişkili Mantık', description: 'Tutarsız veya eksik mantık.', tooltip: 'Bir adımın diğerini bozduğu durumlar.'},
+  {key: 'ton_politika_ihlali', label: 'Ton / Politika İhlali', description: 'Üslup veya politika ihlali.', tooltip: 'Kaba üslup ya da yetkisiz taahhüt.'},
   {key: 'ozel_kategori', label: 'Özel Kategori', description: 'Hazır listeye sığmayan durum.', tooltip: 'Açıklamayı yönetici manuel olarak yazar.'},
 ];
 const DEFAULT_FEEDBACK_TAGS = [
-  {key: 'yanlis_bilgi', label: 'Yanlis Bilgi', description: 'Net bilgi hatasi.'},
+  {key: 'yanlis_bilgi', label: 'Yanlış Bilgi', description: 'Net bilgi hatası.'},
   {key: 'eksik_bilgi', label: 'Eksik Bilgi', description: 'Kritik detay eksik.'},
   {key: 'alakasiz_yanit', label: 'Alakasız Yanıt', description: 'Sorudan kopuk cevap.'},
-  {key: 'baglam_kopuklugu', label: 'Baglam Kopuklugu', description: 'Onceki konusma unutuluyor.'},
-  {key: 'niyet_iskalama', label: 'Niyet Iskalama', description: 'Asil amac anlasilmiyor.'},
+  {key: 'baglam_kopuklugu', label: 'Bağlam Kopukluğu', description: 'Önceki konuşma unutuluyor.'},
+  {key: 'niyet_iskalama', label: 'Niyet Iskalama', description: 'Asıl amaç anlaşılmıyor.'},
   {key: 'asiri_uzun_yanit', label: 'Aşırı Uzun Yanıt', description: 'Gereksiz uzun mesaj.'},
   {key: 'asiri_kisa_yanit', label: 'Aşırı Kısa Yanıt', description: 'Eksik açıklama içeren kısa cevap.'},
-  {key: 'tekrar_loop', label: 'Tekrar / Loop', description: 'Ayni kalip tekrar ediyor.'},
-  {key: 'format_ihlali', label: 'Format Ihlali', description: 'Istenen format bozuluyor.'},
-  {key: 'ton_uyumsuzlugu', label: 'Ton Uyumsuzlugu', description: 'Duruma uygun olmayan uslup.'},
-  {key: 'kaba_uslup', label: 'Kaba Uslup', description: 'Premium sicak ton bozuluyor.'},
-  {key: 'politika_ihlali', label: 'Politika Ihlali', description: 'Kurallarin disina cikiliyor.'},
-  {key: 'uydurma_bilgi', label: 'Uydurma Bilgi', description: 'Kaynaksiz bilgi uyduruluyor.'},
+  {key: 'tekrar_loop', label: 'Tekrar / Döngü', description: 'Aynı kalıp tekrar ediyor.'},
+  {key: 'format_ihlali', label: 'Format İhlali', description: 'İstenen format bozuluyor.'},
+  {key: 'ton_uyumsuzlugu', label: 'Ton Uyumsuzluğu', description: 'Duruma uygun olmayan üslup.'},
+  {key: 'kaba_uslup', label: 'Kaba Üslup', description: 'Beklenen sıcak ve profesyonel ton bozuluyor.'},
+  {key: 'politika_ihlali', label: 'Politika İhlali', description: 'Kuralların dışına çıkılıyor.'},
+  {key: 'uydurma_bilgi', label: 'Uydurma Bilgi', description: 'Kaynaksız bilgi uyduruluyor.'},
   {key: 'guncel_olmayan_bilgi', label: 'Güncel Olmayan Bilgi', description: 'Eski bilgi kullanılıyor.'},
-  {key: 'hotel_profile_celiskisi', label: 'Hotel Profile Celiskisi', description: 'Hotel profile ile uyumsuz cevap.'},
-  {key: 'tool_output_celiskisi', label: 'Tool Output Celiskisi', description: 'Tool sonucu ile uyumsuz cevap.'},
-  {key: 'mantik_celiskisi', label: 'Mantik Celiskisi', description: 'Cevap kendi icinde tutarsiz.'},
-  {key: 'eksik_dogrulama_sorusu', label: 'Eksik Dogrulama Sorusu', description: 'Gerekli netlestirme sorusu yok.'},
-  {key: 'gereksiz_pii_talebi', label: 'Gereksiz PII Talebi', description: 'Gereksiz kisisel veri istendi.'},
-  {key: 'gereksiz_escalation', label: 'Gereksiz Escalation', description: 'Gereksiz insan devri yapildi.'},
+  {key: 'hotel_profile_celiskisi', label: 'Otel Profili Çelişkisi', description: 'Otel profili ile uyumsuz cevap.'},
+  {key: 'tool_output_celiskisi', label: 'Araç Çıktısı Çelişkisi', description: 'Araç sonucu ile uyumsuz cevap.'},
+  {key: 'mantik_celiskisi', label: 'Mantık Çelişkisi', description: 'Cevap kendi içinde tutarsız.'},
+  {key: 'eksik_dogrulama_sorusu', label: 'Eksik Doğrulama Sorusu', description: 'Gerekli netleştirme sorusu yok.'},
+  {key: 'gereksiz_pii_talebi', label: 'Gereksiz Kişisel Veri Talebi', description: 'Gereksiz kişisel veri istendi.'},
+  {key: 'gereksiz_escalation', label: 'Gereksiz İnsan Devri', description: 'Gereksiz insan devri yapıldı.'},
 ];
 
 const state = {
@@ -694,7 +694,7 @@ function renderQueueSummary(rawConversations = [], visibleConversations = rawCon
     `<span class="queue-summary-chip">Gorunen ${visibleCount}/${allCount}</span>`,
     `<span class="queue-summary-chip">Onay ${approvalCount}</span>`,
     `<span class="queue-summary-chip">Insan ${humanCount}</span>`,
-    `<span class="queue-summary-chip">Sorunlu ${attentionCount}</span>`,
+    `<span class="queue-summary-chip">Dikkat Gerektiren ${attentionCount}</span>`,
     `<span class="queue-summary-chip">Taslak ${draftCount}</span>`,
     `<span class="queue-summary-chip">Reopen ${reopenCount}</span>`,
     '<span class="queue-summary-chip">J/K ile gez</span>',
@@ -780,7 +780,7 @@ function renderEmptyCard({title, body, actions = [], hints = []} = {}) {
     <div class="empty-state">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
       <div class="empty-card">
-        <strong>${escapeHtml(title || 'Hazir')}</strong>
+        <strong>${escapeHtml(title || 'Hazır')}</strong>
         <p>${escapeHtml(body || '')}</p>
         ${actions.length ? `<div class="empty-actions">${actions.map(action => `<button class="btn btn-ghost btn-mini" type="button" data-empty-action="${escapeHtml(action.action)}">${escapeHtml(action.label)}</button>`).join('')}</div>` : ''}
         ${hints.length ? `<div class="empty-hints">${hints.map(hint => `<span class="empty-hint">${escapeHtml(hint)}</span>`).join('')}</div>` : ''}
@@ -3053,7 +3053,8 @@ async function changeMode(newMode) {
       body: JSON.stringify({mode: newMode}),
     });
     updateModeUI(data.mode);
-    notify('Mod degistirildi: ' + data.mode.toUpperCase(), 'success');
+    const modeLabels = {test: 'Test', ai: 'Otomatik', approval: 'Onay', off: 'Kapalı'};
+    notify('Mod değiştirildi: ' + (modeLabels[data.mode] || String(data.mode || '').toUpperCase()), 'success');
   } catch (error) {
     notify(error.message || 'Mod değiştirilemedi.', 'error');
   }
@@ -3114,7 +3115,7 @@ function renderConvModal(data) {
     {label: data.phone_display, highlight: true},
     {label: 'Dil: ' + data.language},
     {label: 'Durum: ' + data.state},
-    {label: 'Intent: ' + data.intent},
+    {label: 'Niyet: ' + data.intent},
     {label: data.is_active ? 'Aktif' : 'Kapalı', highlight: data.is_active},
   ];
   if (data.hotel_id) metaItems.push({label: 'Otel: ' + data.hotel_id});
@@ -3136,15 +3137,15 @@ function renderConvModal(data) {
       lastAssistantMsg = m;
       const hasInternalFlags = m.internal_json && Object.keys(m.internal_json).length > 0;
       if (m.rejected) {
-        statusHtml = '<span class="conv-msg-status rejected">REDDEDILDI</span>';
+        statusHtml = '<span class="conv-msg-status rejected">REDDEDİLDİ</span>';
       } else if (m.send_blocked) {
-        statusHtml = '<span class="conv-msg-status pending">BEKLIYOR</span>';
+        statusHtml = '<span class="conv-msg-status pending">BEKLİYOR</span>';
       } else if (!hasInternalFlags && state.operationMode !== 'ai') {
         // No flags recorded — treat as pending in non-ai modes (legacy data safety)
-        statusHtml = '<span class="conv-msg-status pending">BEKLIYOR</span>';
+        statusHtml = '<span class="conv-msg-status pending">BEKLİYOR</span>';
         m.send_blocked = true;
       } else {
-        statusHtml = '<span class="conv-msg-status sent">GONDERILDI</span>';
+        statusHtml = '<span class="conv-msg-status sent">GÖNDERİLDİ</span>';
       }
     }
     return '<div class="conv-msg ' + roleClass + '">' +
@@ -3169,9 +3170,9 @@ function renderConvModal(data) {
       actionsHtml += '<button class="btn btn-primary" id="conv-modal-approve" data-conv="' + escapeHtml(data.id) + '" data-msg="' + escapeHtml(lastAssistantMsg.id) + '">Onayla ve Gönder</button>';
       actionsHtml += '<button class="btn btn-reset" id="conv-modal-reject" data-conv="' + escapeHtml(data.id) + '" data-msg="' + escapeHtml(lastAssistantMsg.id) + '">Reddet</button>';
     }
-    // Always show "Yeniden Isle" for messages that haven't been sent yet
+    // Henüz gönderilmemiş mesajlar için yeniden oluşturma aksiyonunu göster.
     if (lastAssistantMsg.send_blocked || lastAssistantMsg.rejected) {
-      actionsHtml += '<button class="btn btn-save" id="conv-modal-regenerate" data-conv="' + escapeHtml(data.id) + '">Yeniden Isle</button>';
+      actionsHtml += '<button class="btn btn-save" id="conv-modal-regenerate" data-conv="' + escapeHtml(data.id) + '">Yeniden Oluştur</button>';
     }
     // Show feedback button for rejected messages that were closed without feedback
     if (lastAssistantMsg.rejected) {
@@ -3202,7 +3203,7 @@ function renderConvModal(data) {
   const rejectBtn = document.getElementById('conv-modal-reject');
   if (rejectBtn) {
     rejectBtn.addEventListener('click', async () => {
-      if (!confirm('Bu mesaji reddetmek istediginize emin misiniz?')) return;
+      if (!confirm('Bu mesajı reddetmek istediğinize emin misiniz?')) return;
       rejectBtn.disabled = true;
       rejectBtn.textContent = 'Reddediliyor...';
       try {
@@ -3236,7 +3237,7 @@ function renderConvModal(data) {
       } catch (err) {
         notify(err.message || 'Yeniden oluşturma başarısız.', 'error');
         regenBtn.disabled = false;
-        regenBtn.textContent = 'Yeniden Isle';
+        regenBtn.textContent = 'Yeniden Oluştur';
       }
     });
   }
@@ -3257,7 +3258,7 @@ function showModalFeedbackForm(convId, msgId) {
   // Populate categories
   const catSelect = document.getElementById('conv-fb-category');
   const cats = state.feedbackCategories || DEFAULT_FEEDBACK_CATEGORIES;
-  catSelect.innerHTML = '<option value="">Kategori secin...</option>' +
+  catSelect.innerHTML = '<option value="">Kategori seçin...</option>' +
     cats.map(c => '<option value="' + escapeHtml(c.key) + '">' + escapeHtml(c.label) + '</option>').join('');
   document.getElementById('conv-fb-gold').value = '';
   document.getElementById('conv-fb-notes').value = '';
@@ -3271,8 +3272,8 @@ function showModalFeedbackForm(convId, msgId) {
     const category = catSelect.value;
     const gold = document.getElementById('conv-fb-gold').value.trim();
     const notes = document.getElementById('conv-fb-notes').value.trim();
-    if (!category) { notify('Kategori secin.', 'warn'); return; }
-    if (!gold) { notify('Dogru yanit alanini doldurun.', 'warn'); return; }
+    if (!category) { notify('Kategori seçin.', 'warn'); return; }
+    if (!gold) { notify('Doğru yanıt alanını doldurun.', 'warn'); return; }
     freshBtn.disabled = true;
     freshBtn.textContent = 'Kaydediliyor...';
     try {
@@ -3430,7 +3431,7 @@ function renderLiveFeed(container, data) {
     const reopenBadge = reopenLabel ? queueBadgeHtml('yeniden açma ' + reopenLabel, 'info') : '';
     let priorityBadge = '';
     if (attention) {
-      priorityBadge = '<span class="live-feed-priority is-attention">Sorunlu</span>';
+      priorityBadge = '<span class="live-feed-priority is-attention">Dikkat Gerektiriyor</span>';
     } else if (human) {
       priorityBadge = '<span class="live-feed-priority is-human">Temsilci</span>';
     } else if (hasDraft) {
