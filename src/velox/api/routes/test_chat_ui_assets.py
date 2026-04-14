@@ -521,6 +521,8 @@ const state = {
   renderedThreadHeaderSignature: '',
   renderedSessionStripSignature: '',
   renderedContextRailSignature: '',
+  liveConversationRequest: null,
+  liveConversationRequestId: '',
   sync: {
     lastPanelRefreshAt: null,
     lastConversationRefreshAt: null,
@@ -2691,76 +2693,99 @@ async function refreshImportFiles() {
 }
 
 async function loadLiveConversation(convId) {
-  saveComposerDraft();
-  state.sourceType = 'live_conversation';
-  state.activeConversationId = convId;
-  state.templateSearch = '';
-  state.importFile = '';
-  state.importMetadata = {};
-  state.roleMapping = {};
-  clearReplyTarget();
-  setComposerMode(true);
-  renderRoleMappingPanel(null);
-  el('source-banner').textContent = 'Canlı konuşma görüntüleniyor.';
+  const conversationId = String(convId || '').trim();
+  if (!conversationId) return;
+  if (state.liveConversationRequest && state.liveConversationRequestId === conversationId) {
+    return state.liveConversationRequest;
+  }
+  const request = (async () => {
+    saveComposerDraft();
+    state.sourceType = 'live_conversation';
+    state.activeConversationId = conversationId;
+    state.templateSearch = '';
+    state.importFile = '';
+    state.importMetadata = {};
+    state.roleMapping = {};
+    clearReplyTarget();
+    setComposerMode(true);
+    renderRoleMappingPanel(null);
+    el('source-banner').textContent = 'Canlı konuşma görüntüleniyor.';
+    try {
+      const data = await apiFetch('/chat/conversation/' + encodeURIComponent(conversationId));
+      if (String(state.activeConversationId || '') !== conversationId) {
+        return;
+      }
+      markSyncSuccess('conversation');
+      state.messages = (data.messages || []).map(m => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        created_at: m.created_at,
+        internal_json: m.internal_json || null,
+        attachments: Array.isArray(m.attachments) ? m.attachments : [],
+        model: m.model || null,
+        send_blocked: m.send_blocked || false,
+        approval_pending: m.approval_pending || false,
+        rejected: m.rejected || false,
+        internal_note: m.internal_note || false,
+        whatsapp_message_id: m.whatsapp_message_id || null,
+        local_status: m.local_status || 'unknown',
+        provider_status: m.provider_status || 'unknown',
+        provider_status_updated_at: m.provider_status_updated_at || null,
+        provider_sent_at: m.provider_sent_at || null,
+        delivered_at: m.delivered_at || null,
+        read_at: m.read_at || null,
+        failed_at: m.failed_at || null,
+        provider_error: m.provider_error || null,
+        provider_events: Array.isArray(m.provider_events) ? m.provider_events : [],
+        session_reopen_template_sent: m.session_reopen_template_sent || false,
+        session_reopen_template_name: m.session_reopen_template_name || null,
+        session_reopen_template_sent_at: m.session_reopen_template_sent_at || null,
+      }));
+      state.conversation = {
+        id: data.id,
+        phone_display: data.phone_display || '***',
+        language: data.language || '-',
+        state: data.state || '-',
+        intent: data.intent || '-',
+        risk_flags: data.risk_flags || [],
+        is_active: Boolean(data.is_active),
+        human_override: Boolean(data.human_override),
+        last_message_at: data.last_message_at || null,
+        last_inbound_at: data.last_inbound_at || null,
+        last_outbound_at: data.last_outbound_at || null,
+        delivery_state: data.delivery_state || 'unknown',
+        last_webhook_at: data.last_webhook_at || null,
+        window_state: data.window_state || 'unknown',
+        window_expires_at: data.window_expires_at || null,
+        window_remaining_seconds: data.window_remaining_seconds || 0,
+      };
+      renderMessages();
+      renderThreadHeader();
+      renderSessionStrip();
+      renderContextRail();
+      refreshDebugFromLatestAssistant();
+      restoreComposerDraft();
+      await loadTemplateCandidates();
+    } catch (error) {
+      if (String(state.activeConversationId || '') !== conversationId) {
+        return;
+      }
+      markSyncFailure();
+      renderSessionStrip();
+      renderContextRail();
+      notify(error.message || 'Konuşma yüklenemedi.', 'error');
+    }
+  })();
+  state.liveConversationRequest = request;
+  state.liveConversationRequestId = conversationId;
   try {
-    const data = await apiFetch('/chat/conversation/' + encodeURIComponent(convId));
-    markSyncSuccess('conversation');
-    state.messages = (data.messages || []).map(m => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      created_at: m.created_at,
-      internal_json: m.internal_json || null,
-      attachments: Array.isArray(m.attachments) ? m.attachments : [],
-      model: m.model || null,
-      send_blocked: m.send_blocked || false,
-      approval_pending: m.approval_pending || false,
-      rejected: m.rejected || false,
-      internal_note: m.internal_note || false,
-      whatsapp_message_id: m.whatsapp_message_id || null,
-      local_status: m.local_status || 'unknown',
-      provider_status: m.provider_status || 'unknown',
-      provider_status_updated_at: m.provider_status_updated_at || null,
-      provider_sent_at: m.provider_sent_at || null,
-      delivered_at: m.delivered_at || null,
-      read_at: m.read_at || null,
-      failed_at: m.failed_at || null,
-      provider_error: m.provider_error || null,
-      provider_events: Array.isArray(m.provider_events) ? m.provider_events : [],
-      session_reopen_template_sent: m.session_reopen_template_sent || false,
-      session_reopen_template_name: m.session_reopen_template_name || null,
-      session_reopen_template_sent_at: m.session_reopen_template_sent_at || null,
-    }));
-    state.conversation = {
-      id: data.id,
-      phone_display: data.phone_display || '***',
-      language: data.language || '-',
-      state: data.state || '-',
-      intent: data.intent || '-',
-      risk_flags: data.risk_flags || [],
-      is_active: Boolean(data.is_active),
-      human_override: Boolean(data.human_override),
-      last_message_at: data.last_message_at || null,
-      last_inbound_at: data.last_inbound_at || null,
-      last_outbound_at: data.last_outbound_at || null,
-      delivery_state: data.delivery_state || 'unknown',
-      last_webhook_at: data.last_webhook_at || null,
-      window_state: data.window_state || 'unknown',
-      window_expires_at: data.window_expires_at || null,
-      window_remaining_seconds: data.window_remaining_seconds || 0,
-    };
-    renderMessages();
-    renderThreadHeader();
-    renderSessionStrip();
-    renderContextRail();
-    refreshDebugFromLatestAssistant();
-    restoreComposerDraft();
-    await loadTemplateCandidates();
-  } catch (error) {
-    markSyncFailure();
-    renderSessionStrip();
-    renderContextRail();
-    notify(error.message || 'Konuşma yüklenemedi.', 'error');
+    await request;
+  } finally {
+    if (state.liveConversationRequest === request) {
+      state.liveConversationRequest = null;
+      state.liveConversationRequestId = '';
+    }
   }
 }
 
