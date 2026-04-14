@@ -146,7 +146,7 @@ body{overflow:hidden}
 .inline-note{font-size:12px;color:#fcd34d}
 .required-mark{color:#f87171;font-weight:800;margin-left:3px}
 .hidden{display:none!important}
-.source-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(233,191,95,.16);color:#ffe49a;font-size:12px;font-weight:700}
+.source-badge{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:999px;background:#f6df9a;color:#6f4300;border:1px solid rgba(180,131,24,.34);box-shadow:0 4px 12px rgba(180,131,24,.12);font-size:13px;font-weight:800;line-height:1.35}
 .list{display:flex;flex-direction:column;gap:8px}
 .list-item{padding:10px 12px;border-radius:14px;background:rgba(2,6,23,.24);border:1px solid rgba(255,255,255,.08)}
 .list-item strong{display:block;font-size:12px}.list-item span{display:block;font-size:12px;color:rgba(255,255,255,.82);margin-top:3px}
@@ -342,6 +342,14 @@ body{overflow:hidden}
 .msg-action{height:32px;border-radius:999px;border:1px solid rgba(18,33,59,.12);background:#fff;padding:0 12px;font-size:12px;font-weight:800;color:var(--ink);cursor:pointer}
 .msg-action:hover{border-color:rgba(21,117,111,.34);color:var(--teal)}
 .msg-assistant .msg-action{background:rgba(255,255,255,.92)}
+.msg-assistant .msg-reply{background:rgba(8,61,58,.18);border:1px solid rgba(255,255,255,.18);border-left:3px solid rgba(255,255,255,.92)}
+.msg-assistant .msg-reply-label{color:#f8fafc}
+.msg-assistant .msg-reply-text{color:#ffffff;opacity:1}
+.msg-assistant .msg-time{color:#f8fafc;font-weight:700}
+.msg-assistant .msg-status-pill{background:rgba(8,61,58,.24);border:1px solid rgba(255,255,255,.22);color:#ffffff}
+.msg-assistant .msg-status-pill.is-success{background:rgba(8,61,58,.28);color:#ffffff}
+.msg-assistant .msg-status-pill.is-warning{background:rgba(124,88,0,.28);color:#fff7dd}
+.msg-assistant .msg-status-pill.is-danger{background:rgba(127,29,29,.28);color:#ffe2e2}
 .msg-internal-note .msg-action{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.12);color:#fff}
 .feedback-bar{display:none}
 .input-bar{gap:var(--space-3);padding:var(--space-3) var(--space-4) var(--space-4);background:rgba(255,255,255,.92)}
