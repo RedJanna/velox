@@ -518,6 +518,9 @@ const state = {
   templateSearch: '',
   selectedTemplateId: null,
   renderedMessagesSignature: '',
+  renderedThreadHeaderSignature: '',
+  renderedSessionStripSignature: '',
+  renderedContextRailSignature: '',
   sync: {
     lastPanelRefreshAt: null,
     lastConversationRefreshAt: null,
@@ -577,6 +580,45 @@ function buildMessagesRenderSignature() {
       whatsapp_message_id: message.whatsapp_message_id || '',
       attachment_count: Array.isArray(message.attachments) ? message.attachments.length : 0,
     }),
+  });
+}
+
+function buildThreadHeaderSignature() {
+  return JSON.stringify({
+    sourceType: state.sourceType,
+    operationMode: state.operationMode || '',
+    conversation: state.conversation || null,
+  });
+}
+
+function buildSessionStripSignature() {
+  return JSON.stringify({
+    sourceType: state.sourceType,
+    operationMode: state.operationMode || '',
+    conversation: state.conversation || null,
+    delivery: latestDeliverySummary(),
+    sync: getSyncSnapshot(),
+  });
+}
+
+function buildContextRailSignature() {
+  return JSON.stringify({
+    contextTab: state.contextTab,
+    operationMode: state.operationMode || '',
+    conversation: state.conversation || null,
+    delivery: latestDeliverySummary(),
+    messageCount: state.messages.length,
+    messages: state.messages.map(message => ({
+      id: message.id || '',
+      role: message.role || '',
+      created_at: message.created_at || '',
+      content: message.content || '',
+      internal_note: Boolean(message.internal_note),
+      internal_json: message.internal_json || null,
+      send_blocked: Boolean(message.send_blocked),
+      approval_pending: Boolean(message.approval_pending),
+      rejected: Boolean(message.rejected),
+    })),
   });
 }
 
@@ -1029,6 +1071,11 @@ function renderComposerHelper() {
 function renderThreadHeader() {
   const container = el('thread-header');
   if (!container) return;
+  const nextSignature = buildThreadHeaderSignature();
+  if (state.renderedThreadHeaderSignature === nextSignature) {
+    return;
+  }
+  state.renderedThreadHeaderSignature = nextSignature;
   const title = state.sourceType === 'live_test_chat'
     ? `Test: ${(el('phone-input')?.value || 'test_user_123').trim() || 'test_user_123'}`
     : getConversationDisplayTitle(state.conversation);
@@ -1056,6 +1103,11 @@ function renderThreadHeader() {
 function renderSessionStrip() {
   const container = el('session-strip');
   if (!container) return;
+  const nextSignature = buildSessionStripSignature();
+  if (state.renderedSessionStripSignature === nextSignature) {
+    return;
+  }
+  state.renderedSessionStripSignature = nextSignature;
   const conversation = state.conversation || {};
   if (!conversation || (!conversation.id && state.sourceType !== 'live_test_chat')) {
     container.innerHTML = '<span class="session-pill">Konuşma seçildiğinde oturum durumu burada görünecek.</span>';
@@ -1095,6 +1147,11 @@ function renderSessionStrip() {
 function renderContextRail() {
   const container = el('context-body');
   if (!container) return;
+  const nextSignature = buildContextRailSignature();
+  if (state.renderedContextRailSignature === nextSignature) {
+    return;
+  }
+  state.renderedContextRailSignature = nextSignature;
   document.querySelectorAll('.context-tab').forEach(btn => {
     btn.classList.toggle('is-active', btn.dataset.contextTab === state.contextTab);
   });
