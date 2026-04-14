@@ -35,9 +35,9 @@ button,input,select,textarea{font:inherit}
 .nav button.is-active{background:linear-gradient(135deg,rgba(29,143,134,.24),rgba(187,138,42,.18));box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
 .nav-label{display:flex;flex-direction:column;gap:3px}
 .nav-label strong{font-size:14px}
-.nav-label span{font-size:11px;color:rgba(239,246,255,.62)}
+.nav-label span{font-size:12px;color:rgba(239,246,255,.72)}
 .sidebar-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:16px}
-.sidebar-card h2{margin:0 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(239,246,255,.62)}
+.sidebar-card h2{margin:0 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:rgba(239,246,255,.72)}
 .sidebar-card p,.sidebar-card label,.sidebar-card small{color:rgba(239,246,255,.72)}
 .sidebar-select,.sidebar-button,.field input,.field select,.field textarea,.toolbar button,.inline-button{
   border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);transition:border-color .18s ease,box-shadow .18s ease
@@ -203,13 +203,13 @@ tbody tr:hover{background:#fffcf7}
 .profile-overview-card h4{margin:0;font-size:13px}
 .profile-overview-card p{margin:8px 0 0;font-size:12px;color:var(--muted);line-height:1.45}
 .profile-overview-metrics{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.profile-overview-metrics span{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);font-size:11px;font-weight:700;color:var(--muted)}
-.profile-overview-status{display:inline-flex;align-items:center;gap:8px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:800}
+.profile-overview-metrics span{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);font-size:12px;font-weight:700;color:var(--muted)}
+.profile-overview-status{display:inline-flex;align-items:center;gap:8px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:800}
 .profile-overview-status.complete{background:#ecfdf3;color:#166534}
 .profile-overview-status.incomplete{background:#eef2f7;color:#475569}
 .profile-overview-status.warning{background:#fff2dd;color:#92400e}
 .profile-overview-status.blocker{background:#fde7e5;color:#991b1b}
-.profile-section-badge{display:inline-flex;align-items:center;gap:6px;margin-left:8px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800}
+.profile-section-badge{display:inline-flex;align-items:center;gap:6px;margin-left:8px;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:800}
 .profile-section-badge.blocker{background:#fde7e5;color:#991b1b}
 .profile-section-badge.warning{background:#fff2dd;color:#92400e}
 .profile-issue-panel{display:flex;flex-direction:column;gap:10px;margin-top:14px}
@@ -242,11 +242,11 @@ tbody tr:hover{background:#fffcf7}
 .min-w-select{min-width:240px}
 .checkbox-field{width:20px;height:20px}
 .card-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
-.chatlab-frame{width:100%;height:calc(100vh - 140px);min-height:680px;border:none;border-radius:12px}
+.chatlab-frame{width:100%;height:clamp(560px,calc(100vh - 120px),1000px);min-height:0;border:none;border-radius:12px}
 .dialog-textarea{min-height:120px}
 .inline-flex-center{display:flex;align-items:center;gap:8px}
-.pill-closed{background:#e5e7eb;color:#6b7280;font-size:11px}
-.pill-warning{display:inline-block;padding:2px 6px;border-radius:8px;font-size:11px;background:#fff4db;color:#7c4b06}
+.pill-closed{background:#e5e7eb;color:#4b5563;font-size:12px}
+.pill-warning{display:inline-block;padding:2px 6px;border-radius:8px;font-size:12px;background:#fff4db;color:#7c4b06}
 .action-button-sm{font-size:12px;padding:6px 14px}
 @media(max-width:1240px){
   .card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
