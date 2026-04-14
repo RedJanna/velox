@@ -1441,7 +1441,7 @@ async function apiFetch(path, options = {}) {
       credentials: 'same-origin',
     });
   } catch (_error) {
-    throw new Error('Baglanti sorunu. Lutfen tekrar deneyin.');
+    throw new Error('Bağlantı sorunu. Lütfen tekrar deneyin.');
   }
   let data = null;
   let rawText = '';
@@ -1846,7 +1846,7 @@ function renderMessages() {
     roleRow.className = 'msg-role';
     let roleLabel = 'Sistem';
     if (isInternalNote) roleLabel = 'İç Not';
-    else if (isAIDraft) roleLabel = 'Yapay Zekâ Önerisi';
+    else if (isAIDraft) roleLabel = 'Yapay zekâ önerisi';
     else if (message.role === 'user') roleLabel = 'Misafir';
     else if (message.role === 'assistant') roleLabel = 'Gönderilen Yanıt';
     roleRow.textContent = roleLabel;
@@ -2995,7 +2995,7 @@ function openFaqDialog(bubble) {
 async function onFaqSubmit(event) {
   event.preventDefault();
   if (!state.hotelId) {
-    notify('Hotel bilgisi eksik. Lutfen admin panelden hotel seciniz.', 'error');
+    notify('Otel bilgisi eksik. Lütfen yönetim panelinden otel seçin.', 'error');
     return;
   }
   const topic = el('faq-topic').value.trim();
@@ -3031,7 +3031,7 @@ async function loadMode() {
     const data = await apiFetch('/chat/mode');
     updateModeUI(data.mode);
   } catch (error) {
-    notify('Mod bilgisi alinamadi.', 'error');
+    notify('Mod bilgisi alınamadı.', 'error');
   }
 }
 
@@ -3055,7 +3055,7 @@ async function changeMode(newMode) {
     updateModeUI(data.mode);
     notify('Mod degistirildi: ' + data.mode.toUpperCase(), 'success');
   } catch (error) {
-    notify(error.message || 'Mod degistirilemedi.', 'error');
+    notify(error.message || 'Mod değiştirilemedi.', 'error');
   }
 }
 
@@ -3113,9 +3113,9 @@ function renderConvModal(data) {
   const metaItems = [
     {label: data.phone_display, highlight: true},
     {label: 'Dil: ' + data.language},
-    {label: 'State: ' + data.state},
+    {label: 'Durum: ' + data.state},
     {label: 'Intent: ' + data.intent},
-    {label: data.is_active ? 'Aktif' : 'Kapali', highlight: data.is_active},
+    {label: data.is_active ? 'Aktif' : 'Kapalı', highlight: data.is_active},
   ];
   if (data.hotel_id) metaItems.push({label: 'Otel: ' + data.hotel_id});
   const flags = data.risk_flags || [];
@@ -3129,7 +3129,7 @@ function renderConvModal(data) {
   let lastAssistantMsg = null;
   const msgHtml = msgs.map(m => {
     const roleClass = m.role === 'user' ? 'conv-msg-user' : m.role === 'assistant' ? 'conv-msg-assistant' : 'conv-msg-system';
-    const roleName = m.role === 'user' ? 'Misafir' : m.role === 'assistant' ? 'Yapay Zekâ Önerisi' : 'Sistem';
+    const roleName = m.role === 'user' ? 'Misafir' : m.role === 'assistant' ? 'Yapay zekâ önerisi' : 'Sistem';
     const timeStr = m.created_at ? formatTime(m.created_at) : '';
     let statusHtml = '';
     if (m.role === 'assistant') {
@@ -3941,7 +3941,7 @@ async function boot() {
   try {
     await Promise.all([loadCatalog(), loadModels(), refreshImportFiles(), loadMetrics(), loadMode(), loadLiveFeed()]);
   } catch (error) {
-    notify(error.message || 'Panel baslatilamadi. Lutfen tekrar deneyin.', 'error');
+    notify(error.message || 'Panel başlatılamadı. Lütfen tekrar deneyin.', 'error');
     _booted = false;
     return;
   }
