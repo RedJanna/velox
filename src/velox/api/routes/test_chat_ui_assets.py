@@ -166,6 +166,7 @@ body{overflow:hidden}
 .mode-btn.is-active-mode[data-mode="off"]{background:#fee2e2;color:#991b1b}
 .live-feed-card{padding:10px 12px;border-radius:14px;background:rgba(2,6,23,.24);border:1px solid rgba(255,255,255,.08);margin-top:6px;cursor:pointer;transition:border-color .15s ease}
 .live-feed-card:hover{border-color:rgba(255,255,255,.2)}
+.live-feed-card:focus-visible{outline:2px solid rgba(99,102,241,.45);outline-offset:2px}
 .live-feed-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .live-feed-phone{font-size:12px;font-weight:700;color:#ffe49a}
 .live-feed-time{font-size:10px;color:rgba(255,255,255,.4)}
@@ -527,6 +528,8 @@ function rerenderQueueRail() {
   const container = el('live-feed-container');
   if (!container) return;
   renderLiveFeed(container, {conversations: state.liveConversations});
+  const activeCard = container.querySelector('.live-feed-card.is-active');
+  if (activeCard) activeCard.scrollIntoView({block: 'nearest'});
 }
 
 function queueDraftForConversation(conversationId) {
@@ -565,6 +568,62 @@ function queueNeedsAttention(conversation = {}) {
 function queueSessionReopenLabel(conversation = {}) {
   if (!conversation.session_reopen_template_sent) return '';
   return conversation.session_reopen_template_name || 'reopen sablonu';
+}
+
+function queueDeliveryTone(value = '') {
+  const normalized = String(value || '').toLowerCase();
+  if (normalized.includes('fail') || normalized.includes('error') || normalized.includes('reject')) return 'danger';
+  if (normalized === 'read' || normalized === 'delivered' || normalized === 'accepted') return 'success';
+  if (normalized === 'sent') return 'info';
+  if (normalized.includes('pending') || normalized.includes('approval')) return 'warning';
+  return 'muted';
+}
+
+function queueBadgeHtml(label, tone = 'muted') {
+  const styles = {
+    success: 'color:#166534;background:rgba(34,197,94,.12)',
+    warning: 'color:#b45309;background:rgba(245,158,11,.16)',
+    danger: 'color:#991b1b;background:rgba(239,68,68,.14)',
+    info: 'color:#075985;background:rgba(56,189,248,.14)',
+    accent: 'color:#6d28d9;background:rgba(196,181,253,.18)',
+    handoff: 'color:#854d0e;background:rgba(253,230,138,.28)',
+  };
+  const style = styles[tone] || '';
+  return '<span class="live-feed-badge"' + (style ? ' style="' + style + '"' : '') + '>' + escapeHtml(label) + '</span>';
+}
+
+function getVisibleQueueConversations(rawConversations = state.liveConversations) {
+  const rawConvs = rawConversations || [];
+  const queueSearch = String(state.queueSearch || '').trim().toLowerCase();
+  return rawConvs.filter(c => {
+    const blocked = c.send_blocked === 'true' || c.send_blocked === true || c.approval_pending === 'true' || c.approval_pending === true;
+    const human = queueHumanOverrideActive(c);
+    const attention = queueNeedsAttention(c);
+    if (state.queueFilter === 'approval' && !blocked) return false;
+    if (state.queueFilter === 'human' && !human) return false;
+    if (state.queueFilter === 'attention' && !attention) return false;
+    if (!queueSearch) return true;
+    const draftLabel = queueDraftLabel(c.id);
+    const reopenLabel = queueSessionReopenLabel(c);
+    const haystack = [c.phone_display, c.last_user_msg, c.last_assistant_msg, c.intent, c.state, c.provider_status, draftLabel, reopenLabel, human ? 'insan devri human override manual' : '', ...(c.risk_flags || [])].join(' ').toLowerCase();
+    return haystack.includes(queueSearch);
+  });
+}
+
+function activeQueueIndex(visibleConversations = getVisibleQueueConversations()) {
+  return visibleConversations.findIndex(conversation => String(conversation.id) === String(state.activeConversationId));
+}
+
+async function moveQueueSelection(step = 1) {
+  const visibleConversations = getVisibleQueueConversations();
+  if (!visibleConversations.length) return;
+  const currentIndex = activeQueueIndex(visibleConversations);
+  const nextIndex = currentIndex < 0
+    ? (step > 0 ? 0 : visibleConversations.length - 1)
+    : Math.min(Math.max(currentIndex + step, 0), visibleConversations.length - 1);
+  const nextConversation = visibleConversations[nextIndex];
+  if (!nextConversation) return;
+  await loadLiveConversation(nextConversation.id);
 }
 
 function renderQueueSummary(rawConversations = [], visibleConversations = rawConversations) {
@@ -3142,20 +3201,7 @@ async function loadLiveFeed() {
 
 function renderLiveFeed(container, data) {
   const rawConvs = data.conversations || [];
-  const queueSearch = String(state.queueSearch || '').trim().toLowerCase();
-  const convs = rawConvs.filter(c => {
-    const blocked = c.send_blocked === 'true' || c.send_blocked === true || c.approval_pending === 'true' || c.approval_pending === true;
-    const human = queueHumanOverrideActive(c);
-    const attention = queueNeedsAttention(c);
-    if (state.queueFilter === 'approval' && !blocked) return false;
-    if (state.queueFilter === 'human' && !human) return false;
-    if (state.queueFilter === 'attention' && !attention) return false;
-    if (!queueSearch) return true;
-    const draftLabel = queueDraftLabel(c.id);
-    const reopenLabel = queueSessionReopenLabel(c);
-    const haystack = [c.phone_display, c.last_user_msg, c.last_assistant_msg, c.intent, c.state, c.provider_status, draftLabel, reopenLabel, human ? 'insan devri human override manual' : '', ...(c.risk_flags || [])].join(' ').toLowerCase();
-    return haystack.includes(queueSearch);
-  });
+  const convs = getVisibleQueueConversations(rawConvs);
   renderQueueSummary(rawConvs, convs);
   if (!convs.length) {
     container.innerHTML = '<div class="feedback-muted">Bu filtreyle eslesen konusma yok.</div>';
@@ -3189,20 +3235,20 @@ function renderLiveFeed(container, data) {
     const flags = (c.risk_flags || []).map(f => '<span class="live-feed-badge">' + escapeHtml(f) + '</span>').join('');
 
     const windowBadge = c.window_state === 'closed'
-      ? '<span class="live-feed-badge" style="color:#991b1b">pencere kapali</span>'
+      ? queueBadgeHtml('pencere kapali', 'danger')
       : c.window_state === 'closing_soon'
-        ? '<span class="live-feed-badge" style="color:#b45309">pencere kapaniyor</span>'
-        : '<span class="live-feed-badge" style="color:#0f766e">pencere acik</span>';
-    const deliveryBadge = c.delivery_state ? '<span class="live-feed-badge">' + escapeHtml(String(c.delivery_state).replaceAll('_', ' ')) + '</span>' : '';
+        ? queueBadgeHtml('pencere kapaniyor', 'warning')
+        : queueBadgeHtml('pencere acik', 'success');
+    const deliveryBadge = c.delivery_state ? queueBadgeHtml(String(c.delivery_state).replaceAll('_', ' '), queueDeliveryTone(c.delivery_state)) : '';
     const providerBadge = c.provider_status && c.provider_status !== 'unknown'
-      ? '<span class="live-feed-badge">provider ' + escapeHtml(String(c.provider_status).replaceAll('_', ' ')) + '</span>'
+      ? queueBadgeHtml('provider ' + String(c.provider_status).replaceAll('_', ' '), queueDeliveryTone(c.provider_status))
       : '';
-    const webhookBadge = c.provider_status_updated_at ? '<span class="live-feed-badge">webhook ' + escapeHtml(formatRelativeTime(c.provider_status_updated_at)) + '</span>' : '';
-    const draftBadge = draftLabel ? '<span class="live-feed-badge" style="color:#c4b5fd">' + escapeHtml(draftLabel) + '</span>' : '';
-    const handoffBadge = human ? '<span class="live-feed-badge" style="color:#fde68a">insan devri</span>' : '';
-    const reopenBadge = reopenLabel ? '<span class="live-feed-badge" style="color:#38bdf8">reopen ' + escapeHtml(reopenLabel) + '</span>' : '';
+    const webhookBadge = c.provider_status_updated_at ? queueBadgeHtml('webhook ' + formatRelativeTime(c.provider_status_updated_at), 'info') : '';
+    const draftBadge = draftLabel ? queueBadgeHtml(draftLabel, 'accent') : '';
+    const handoffBadge = human ? queueBadgeHtml('insan devri', 'handoff') : '';
+    const reopenBadge = reopenLabel ? queueBadgeHtml('reopen ' + reopenLabel, 'info') : '';
 
-    return '<div class="live-feed-card' + (state.activeConversationId === c.id ? ' is-active' : '') + '" draggable="true" data-conv-id="' + escapeHtml(c.id) + '">' +
+    return '<div class="live-feed-card' + (state.activeConversationId === c.id ? ' is-active' : '') + '" draggable="true" tabindex="0" aria-label="' + escapeHtml(`${c.phone_display || 'Konusma'} kuyruk karti`) + '" data-conv-id="' + escapeHtml(c.id) + '">' +
       '<div class="live-feed-head">' +
         '<span class="live-feed-phone">' + escapeHtml(c.phone_display) + ' (' + c.msg_count + ' mesaj)</span>' +
         '<span class="live-feed-time">' + timeStr + '</span>' +
@@ -3368,6 +3414,32 @@ function wireEvents() {
       sendMessage();
     }
   });
+  document.addEventListener('keydown', async event => {
+    const target = event.target;
+    const tagName = String(target?.tagName || '').toLowerCase();
+    const editable = Boolean(target?.isContentEditable);
+    const typingContext = editable
+      || ['input', 'textarea', 'select', 'button'].includes(tagName)
+      || target?.closest?.('.feedback-studio')
+      || target?.closest?.('.template-panel')
+      || target?.closest?.('.conv-modal');
+    if (typingContext) return;
+
+    if (event.key === 'j' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      await moveQueueSelection(1);
+      return;
+    }
+    if (event.key === 'k' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      await moveQueueSelection(-1);
+      return;
+    }
+    if (event.key === 'Enter' && !state.activeConversationId) {
+      event.preventDefault();
+      await moveQueueSelection(1);
+    }
+  });
   el('msg-input').addEventListener('input', () => saveComposerDraft());
   el('reset-btn').addEventListener('click', resetConversation);
   el('export-btn').addEventListener('click', downloadConversation);
@@ -3475,6 +3547,14 @@ function wireEvents() {
     const card = event.target.closest('.live-feed-card');
     if (card && card.dataset.convId) {
       loadLiveConversation(card.dataset.convId);
+    }
+  });
+  el('live-feed-container').addEventListener('keydown', async event => {
+    const card = event.target.closest('.live-feed-card');
+    if (!card || !card.dataset.convId) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      await loadLiveConversation(card.dataset.convId);
     }
   });
   // Right-click copy on live feed messages
