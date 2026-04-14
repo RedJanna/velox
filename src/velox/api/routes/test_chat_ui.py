@@ -95,6 +95,23 @@ TEST_CHAT_HTML = (
     <div id="faq-dialog-result" class="meta-box hidden mt-sm"></div>
   </div>
 </dialog>
+<dialog id="shortcut-dialog" class="faq-dialog shortcut-dialog">
+  <div class="faq-dialog-card">
+    <div class="faq-dialog-head">
+      <h3>Klavye Kisayollari</h3>
+      <button id="shortcut-dialog-close" type="button" aria-label="Kapat">&times;</button>
+    </div>
+    <div class="shortcut-list" aria-label="Chat Lab kisayollari">
+      <div class="shortcut-row"><span class="shortcut-key">J / ↓</span><span>Sonraki konusma</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">K / ↑</span><span>Onceki konusma</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">Enter</span><span>Secili konusmayi ac</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">?</span><span>Bu yardimi ac / kapat</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">Shift + Enter</span><span>Satir atla</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">Enter</span><span>Composer icinde mesaji gonder</span></div>
+    </div>
+    <div class="feedback-muted">Kisayollar yazma alanlari ve dialog acikken devreye girmez.</div>
+  </div>
+</dialog>
 <div class="app">
   <div class="header header--workspace">
     <div class="header-brand">
@@ -156,7 +173,10 @@ TEST_CHAT_HTML = (
           <h2>Konusmalar</h2>
           <p>Canli kuyruk, onay bekleyen yanitlar ve dikkat gerektiren konusmalar</p>
         </div>
-        <button class="btn btn-ghost btn-mini" id="live-feed-refresh" type="button">Yenile</button>
+        <div class="queue-panel-actions">
+          <button class="btn btn-ghost btn-mini" id="shortcut-help-btn" type="button" aria-label="Klavye kisayollarini goster">Kisayollar</button>
+          <button class="btn btn-ghost btn-mini" id="live-feed-refresh" type="button">Yenile</button>
+        </div>
       </div>
       <div class="queue-toolbar">
         <div class="queue-tabs" id="queue-tabs">

@@ -243,6 +243,9 @@ body{overflow:hidden}
 .faq-dialog .field-stack{margin-top:0}
 .faq-dialog .field-stack label{color:var(--ink)}
 .faq-dialog .debug-input,.faq-dialog .debug-textarea,.faq-dialog .debug-select{background:rgba(255,255,255,.94);color:var(--ink)}
+.shortcut-list{display:flex;flex-direction:column;gap:10px}
+.shortcut-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 12px;border-radius:12px;background:rgba(18,33,59,.04);font-size:13px;color:var(--ink)}
+.shortcut-key{display:inline-flex;align-items:center;justify-content:center;min-width:110px;padding:6px 10px;border-radius:10px;background:rgba(18,33,59,.08);font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink)}
 .field-stack-sm{flex-direction:column;align-items:flex-start;gap:6px}
 .header--workspace{gap:18px;align-items:flex-start}
 .header--workspace .header-brand{align-items:flex-start}
@@ -253,6 +256,7 @@ body{overflow:hidden}
 .queue-panel-head,.context-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 18px 14px;border-bottom:1px solid rgba(18,33,59,.08)}
 .queue-panel-head h2,.context-panel-head h2{font-size:16px;font-weight:800;letter-spacing:.01em}
 .queue-panel-head p,.context-panel-head p{font-size:12px;line-height:1.45;color:var(--muted);margin-top:4px}
+.queue-panel-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .queue-toolbar{display:flex;flex-direction:column;gap:12px;padding:14px 18px;border-bottom:1px solid rgba(18,33,59,.08);background:rgba(248,250,252,.8)}
 .queue-tabs,.context-tabs,.composer-modebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .queue-tab,.context-tab,.composer-mode-btn{height:34px;border:1px solid rgba(18,33,59,.1);border-radius:999px;background:rgba(255,255,255,.9);padding:0 12px;font-size:12px;font-weight:800;color:var(--muted);cursor:pointer;transition:all .16s ease}
@@ -779,6 +783,21 @@ function getSyncSnapshot() {
     return {label: `Senkron gecikti · ${Math.floor(diffMs / 1000)} sn`, tone: 'warning'};
   }
   return {label: `Son yenileme ${formatRelativeTime(lastRefresh)}`, tone: 'muted'};
+}
+
+function isDialogOpen() {
+  return Array.from(document.querySelectorAll('dialog')).some(dialog => dialog.open);
+}
+
+function toggleShortcutDialog(forceOpen = null) {
+  const dialog = el('shortcut-dialog');
+  if (!dialog) return;
+  const shouldOpen = forceOpen === null ? !dialog.open : Boolean(forceOpen);
+  if (shouldOpen) {
+    if (!dialog.open) dialog.showModal();
+    return;
+  }
+  if (dialog.open) dialog.close();
 }
 
 function activeTemplateCandidate() {
@@ -3354,6 +3373,8 @@ function wireEvents() {
   _eventsBound = true;
   document.addEventListener('click', removeCtxMenu);
   el('faq-dialog-close').addEventListener('click', () => el('faq-dialog').close());
+  el('shortcut-dialog-close').addEventListener('click', () => toggleShortcutDialog(false));
+  el('shortcut-help-btn').addEventListener('click', () => toggleShortcutDialog(true));
   el('faq-dialog-form').addEventListener('submit', onFaqSubmit);
   el('messages').addEventListener('contextmenu', event => {
     const bubble = event.target.closest('.msg');
@@ -3431,12 +3452,19 @@ function wireEvents() {
     const target = event.target;
     const tagName = String(target?.tagName || '').toLowerCase();
     const editable = Boolean(target?.isContentEditable);
+    const shortcutDialogOpen = Boolean(el('shortcut-dialog')?.open);
     const typingContext = editable
       || ['input', 'textarea', 'select', 'button'].includes(tagName)
       || target?.closest?.('.feedback-studio')
       || target?.closest?.('.template-panel')
       || target?.closest?.('.conv-modal');
-    if (typingContext) return;
+    if (event.key === '?') {
+      if (typingContext && !shortcutDialogOpen) return;
+      event.preventDefault();
+      toggleShortcutDialog(!shortcutDialogOpen);
+      return;
+    }
+    if (typingContext || isDialogOpen()) return;
 
     if (event.key === 'j' || event.key === 'ArrowDown') {
       event.preventDefault();
