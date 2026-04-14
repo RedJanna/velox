@@ -277,9 +277,17 @@ body{overflow:hidden}
 .live-feed-card{position:relative;margin:0 0 8px;padding:12px 12px 11px;border-radius:16px;background:#fff;border:1px solid rgba(18,33,59,.08);box-shadow:0 6px 18px rgba(15,23,42,.045)}
 .live-feed-card:hover{border-color:rgba(21,117,111,.22);transform:translateY(-1px)}
 .live-feed-card.is-active{border-color:rgba(21,117,111,.45);box-shadow:0 10px 24px rgba(21,117,111,.11), inset 3px 0 0 rgba(21,117,111,.75)}
+.live-feed-card.is-attention{border-color:rgba(245,158,11,.28);box-shadow:0 8px 22px rgba(245,158,11,.08)}
+.live-feed-card.is-attention.is-active{box-shadow:0 10px 24px rgba(245,158,11,.12), inset 3px 0 0 rgba(245,158,11,.85)}
+.live-feed-card.is-human{background:linear-gradient(180deg,rgba(255,251,235,.96),#fff)}
+.live-feed-card.has-draft{border-style:dashed}
 .live-feed-head{align-items:flex-start;gap:10px}
 .live-feed-phone{font-size:12px;line-height:1.4;color:var(--ink)}
 .live-feed-time{font-size:10px;color:var(--muted)}
+.live-feed-priority{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:rgba(18,33,59,.06);font-size:10px;font-weight:800;color:var(--muted);white-space:nowrap}
+.live-feed-priority.is-attention{background:rgba(245,158,11,.18);color:#b45309}
+.live-feed-priority.is-human{background:rgba(253,230,138,.3);color:#854d0e}
+.live-feed-priority.is-draft{background:rgba(196,181,253,.22);color:#6d28d9}
 .live-feed-msgs{display:flex;flex-direction:column;gap:4px;margin-top:6px;font-size:11px;line-height:1.5}
 .live-feed-user,.live-feed-assistant{-webkit-line-clamp:2}
 .live-feed-user{color:var(--ink)}
@@ -3386,7 +3394,9 @@ function renderLiveFeed(container, data) {
     const blocked = c.send_blocked === 'true' || c.send_blocked === true || c.approval_pending === 'true' || c.approval_pending === true;
     const rejected = c.rejected === 'true' || c.rejected === true;
     const human = queueHumanOverrideActive(c);
+    const attention = queueNeedsAttention(c);
     const draftLabel = queueDraftLabel(c.id);
+    const hasDraft = Boolean(draftLabel);
     const reopenLabel = queueSessionReopenLabel(c);
     let statusTag;
     if (rejected) {
@@ -3418,11 +3428,24 @@ function renderLiveFeed(container, data) {
     const draftBadge = draftLabel ? queueBadgeHtml(draftLabel, 'accent') : '';
     const handoffBadge = human ? queueBadgeHtml('insan devri', 'handoff') : '';
     const reopenBadge = reopenLabel ? queueBadgeHtml('reopen ' + reopenLabel, 'info') : '';
+    let priorityBadge = '';
+    if (attention) {
+      priorityBadge = '<span class="live-feed-priority is-attention">Sorunlu</span>';
+    } else if (human) {
+      priorityBadge = '<span class="live-feed-priority is-human">Insan</span>';
+    } else if (hasDraft) {
+      priorityBadge = '<span class="live-feed-priority is-draft">Taslak</span>';
+    }
+    const cardClasses = ['live-feed-card'];
+    if (state.activeConversationId === c.id) cardClasses.push('is-active');
+    if (attention) cardClasses.push('is-attention');
+    if (human) cardClasses.push('is-human');
+    if (hasDraft) cardClasses.push('has-draft');
 
-    return '<div class="live-feed-card' + (state.activeConversationId === c.id ? ' is-active' : '') + '" draggable="true" tabindex="0" aria-label="' + escapeHtml(`${c.phone_display || 'Konusma'} kuyruk karti`) + '" data-conv-id="' + escapeHtml(c.id) + '">' +
+    return '<div class="' + cardClasses.join(' ') + '" draggable="true" tabindex="0" aria-label="' + escapeHtml(`${c.phone_display || 'Konusma'} kuyruk karti`) + '" data-conv-id="' + escapeHtml(c.id) + '">' +
       '<div class="live-feed-head">' +
         '<span class="live-feed-phone">' + escapeHtml(c.phone_display) + ' (' + c.msg_count + ' mesaj)</span>' +
-        '<span class="live-feed-time">' + timeStr + '</span>' +
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">' + priorityBadge + '<span class="live-feed-time">' + timeStr + '</span></div>' +
       '</div>' +
       '<div class="live-feed-msgs">' +
         '<div class="live-feed-user">Misafir: ' + userSnippet + '</div>' +
