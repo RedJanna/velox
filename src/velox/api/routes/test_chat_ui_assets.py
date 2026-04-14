@@ -517,6 +517,7 @@ const state = {
   templateTemplates: [],
   templateSearch: '',
   selectedTemplateId: null,
+  renderedMessagesSignature: '',
   sync: {
     lastPanelRefreshAt: null,
     lastConversationRefreshAt: null,
@@ -554,6 +555,29 @@ function currentConversationKey() {
 function clearComposerDraft(key = currentConversationKey()) {
   state.composerDrafts.delete(key);
   rerenderQueueRail();
+}
+
+function buildMessagesRenderSignature() {
+  return JSON.stringify({
+    sourceType: state.sourceType,
+    activeConversationId: state.activeConversationId || '',
+    messageCount: state.messages.length,
+    messages: state.messages.map(message => ({
+      id: message.id || '',
+      role: message.role || '',
+      content: message.content || '',
+      created_at: message.created_at || '',
+      status: message.status || '',
+      local_status: message.local_status || '',
+      provider_status: message.provider_status || '',
+      send_blocked: Boolean(message.send_blocked),
+      approval_pending: Boolean(message.approval_pending),
+      rejected: Boolean(message.rejected),
+      internal_note: Boolean(message.internal_note),
+      whatsapp_message_id: message.whatsapp_message_id || '',
+      attachment_count: Array.isArray(message.attachments) ? message.attachments.length : 0,
+    }),
+  });
 }
 
 function conversationRequiresTemplate() {
@@ -1819,6 +1843,11 @@ function hideTyping() {
 
 function renderMessages() {
   const container = el('messages');
+  const nextSignature = buildMessagesRenderSignature();
+  if (state.renderedMessagesSignature === nextSignature) {
+    return;
+  }
+  state.renderedMessagesSignature = nextSignature;
   container.innerHTML = '';
   if (state.messages.length === 0) {
     const visibleConversations = getVisibleQueueConversations();
