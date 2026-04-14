@@ -78,6 +78,12 @@ body{overflow:hidden}
 .typing span:nth-child(2){animation-delay:.2s}.typing span:nth-child(3){animation-delay:.4s}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:100%;color:var(--muted)}
 .empty-state svg{width:52px;height:52px;opacity:.35}
+.empty-card{display:flex;flex-direction:column;gap:12px;max-width:420px;padding:20px 22px;border-radius:20px;background:rgba(255,255,255,.96);border:1px solid rgba(18,33,59,.08);box-shadow:0 12px 32px rgba(15,23,42,.06);text-align:left}
+.empty-card strong{font-size:15px;color:var(--ink)}
+.empty-card p{font-size:13px;line-height:1.6;color:var(--muted)}
+.empty-actions{display:flex;flex-wrap:wrap;gap:8px}
+.empty-hints{display:flex;flex-wrap:wrap;gap:8px}
+.empty-hint{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:rgba(18,33,59,.06);font-size:11px;font-weight:700;color:var(--muted)}
 .msg-reply{padding:10px 12px;border-radius:14px;border-left:3px solid var(--amber);background:rgba(18,33,59,.06);font-size:12px;line-height:1.45}
 .msg-reply-label{display:block;font-weight:800;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
 .msg-reply-text{color:inherit;opacity:.82}
@@ -760,6 +766,19 @@ function getConversationSubtitle(conversation = null) {
   return parts.join(' · ') || 'Konusma ozeti hazir.';
 }
 
+function renderEmptyCard({title, body, actions = [], hints = []} = {}) {
+  return `
+    <div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+      <div class="empty-card">
+        <strong>${escapeHtml(title || 'Hazir')}</strong>
+        <p>${escapeHtml(body || '')}</p>
+        ${actions.length ? `<div class="empty-actions">${actions.map(action => `<button class="btn btn-ghost btn-mini" type="button" data-empty-action="${escapeHtml(action.action)}">${escapeHtml(action.label)}</button>`).join('')}</div>` : ''}
+        ${hints.length ? `<div class="empty-hints">${hints.map(hint => `<span class="empty-hint">${escapeHtml(hint)}</span>`).join('')}</div>` : ''}
+      </div>
+    </div>`;
+}
+
 function latestDeliverySummary() {
   const assistant = [...state.messages].reverse().find(message => message.role === 'assistant' && !message.internal_note);
   if (!assistant) return null;
@@ -858,6 +877,18 @@ function focusQueueSearch() {
 function applyContextTab(tab = 'guest') {
   state.contextTab = tab;
   renderContextRail();
+}
+
+function applyQueueFilter(filter = 'all') {
+  state.queueFilter = filter;
+  document.querySelectorAll('.queue-tab').forEach(item => {
+    item.classList.toggle('is-active', item.dataset.queueFilter === filter);
+  });
+}
+
+function clearQueueSearch() {
+  state.queueSearch = '';
+  if (el('queue-search')) el('queue-search').value = '';
 }
 
 function activeTemplateCandidate() {
@@ -1007,6 +1038,10 @@ function renderContextRail() {
       <div class="context-empty">
         <strong>Baglam hazir degil</strong>
         <p>Bir konusma acildiginda misafir, operasyon ve teslimat ozeti burada gorunecek.</p>
+        <div class="empty-hints">
+          <span class="empty-hint">G / O / L / A ile sekmeler</span>
+          <span class="empty-hint">D ile diagnostics</span>
+        </div>
       </div>`;
     return;
   }
@@ -1744,11 +1779,34 @@ function renderMessages() {
   const container = el('messages');
   container.innerHTML = '';
   if (state.messages.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
-        <p>${state.sourceType === 'live_conversation' ? 'Bu konusmada henuz mesaj yok.' : 'Soldaki kuyruktan bir konusma secin veya test kimligi ile yeni bir test baslatin.'}</p>
-      </div>`;
+    const visibleConversations = getVisibleQueueConversations();
+    if (state.sourceType === 'live_conversation') {
+      container.innerHTML = renderEmptyCard({
+        title: 'Bu konusmada henuz mesaj yok',
+        body: 'Misafir veya ajan mesaji geldiginde thread burada gorunecek. Oturum ve teslimat durumu ust seritte izlenmeye devam eder.',
+        hints: ['R ile yanit', 'N ile ic not', 'T ile sablon', 'D ile diagnostics'],
+      });
+    } else if (visibleConversations.length) {
+      container.innerHTML = renderEmptyCard({
+        title: 'Bir konusma secin',
+        body: 'Soldaki kuyruktan bir konusma acin veya klavye ile gezin. Aktif thread secildiginde mesaj akisi burada gorunecek.',
+        actions: [
+          {label: 'Ilk gorunur konusmayi ac', action: 'open-first-visible-conversation'},
+          {label: 'Aramayi odakla', action: 'focus-queue-search'},
+        ],
+        hints: ['J/K ile gezin', 'Enter ile ac', 'Ctrl/Cmd + K ile ara'],
+      });
+    } else {
+      container.innerHTML = renderEmptyCard({
+        title: 'Kuyruk su an bos',
+        body: 'Canli bir konusma geldiginde bu alan mesaj threadi olarak kullanilacak. Filtre veya arama aktifse once kuyrugu temizleyin.',
+        actions: [
+          {label: 'Aramayi temizle', action: 'clear-queue-search'},
+          {label: 'Filtreleri sifirla', action: 'reset-queue-filter'},
+        ],
+        hints: ['Yenile ile kuyrugu cek', 'Ctrl/Cmd + K ile ara'],
+      });
+    }
     renderThreadHeader();
     renderSessionStrip();
     renderContextRail();
@@ -3297,7 +3355,26 @@ function renderLiveFeed(container, data) {
   renderQueueSummary(rawConvs, convs);
   if (!convs.length) {
     const activeFiltered = activeQueueConversationFiltered(rawConvs, convs);
-    container.innerHTML = '<div class="feedback-muted">Bu filtreyle eslesen konusma yok.' + (activeFiltered ? ' Aktif konusma filtre disinda kaliyor.' : '') + '</div>';
+    const searchActive = Boolean(String(state.queueSearch || '').trim());
+    const filterActive = state.queueFilter !== 'all';
+    let title = 'Bu filtreyle eslesen konusma yok';
+    let body = 'Filtre veya arama sonucunda gorunen kuyruk su an bos.';
+    if (!rawConvs.length) {
+      title = 'Canli kuyrukta henuz konusma yok';
+      body = 'Yeni mesajlar geldiginde konusmalar burada listelenecek.';
+    } else if (activeFiltered) {
+      body += ' Aktif konusma filtre disinda kaliyor.';
+    }
+    const actions = [];
+    if (searchActive) actions.push({label: 'Aramayi temizle', action: 'clear-queue-search'});
+    if (filterActive) actions.push({label: 'Filtreleri sifirla', action: 'reset-queue-filter'});
+    actions.push({label: 'Yenile', action: 'refresh-queue'});
+    container.innerHTML = renderEmptyCard({
+      title,
+      body,
+      actions,
+      hints: ['Ctrl/Cmd + K ile ara', 'J/K ile gezin'],
+    });
     return;
   }
 
@@ -3445,6 +3522,23 @@ function wireEvents() {
     showCtxMenu(event, body.textContent, bubble);
   });
   el('messages').addEventListener('click', async event => {
+    const emptyActionBtn = event.target.closest('[data-empty-action]');
+    if (emptyActionBtn) {
+      const action = emptyActionBtn.dataset.emptyAction;
+      if (action === 'open-first-visible-conversation') {
+        const firstConversation = getVisibleQueueConversations()[0];
+        if (firstConversation?.id) await loadLiveConversation(firstConversation.id);
+      } else if (action === 'focus-queue-search') {
+        focusQueueSearch();
+      } else if (action === 'clear-queue-search') {
+        clearQueueSearch();
+        renderLiveFeed(el('live-feed-container'), {conversations: state.liveConversations});
+      } else if (action === 'reset-queue-filter') {
+        applyQueueFilter('all');
+        renderLiveFeed(el('live-feed-container'), {conversations: state.liveConversations});
+      }
+      return;
+    }
     const actionBtn = event.target.closest('[data-msg-action]');
     if (!actionBtn) return;
     const action = actionBtn.dataset.msgAction;
@@ -3593,8 +3687,7 @@ function wireEvents() {
   el('queue-tabs').addEventListener('click', event => {
     const btn = event.target.closest('.queue-tab');
     if (!btn) return;
-    state.queueFilter = btn.dataset.queueFilter || 'all';
-    document.querySelectorAll('.queue-tab').forEach(item => item.classList.toggle('is-active', item === btn));
+    applyQueueFilter(btn.dataset.queueFilter || 'all');
     renderLiveFeed(el('live-feed-container'), {conversations: state.liveConversations});
   });
   el('queue-search').addEventListener('input', event => {
@@ -3630,6 +3723,20 @@ function wireEvents() {
   el('metrics-refresh').addEventListener('click', loadMetrics);
   el('live-feed-refresh').addEventListener('click', loadLiveFeed);
   el('live-feed-container').addEventListener('click', async event => {
+    const emptyActionBtn = event.target.closest('[data-empty-action]');
+    if (emptyActionBtn) {
+      const action = emptyActionBtn.dataset.emptyAction;
+      if (action === 'clear-queue-search') {
+        clearQueueSearch();
+        renderLiveFeed(el('live-feed-container'), {conversations: state.liveConversations});
+      } else if (action === 'reset-queue-filter') {
+        applyQueueFilter('all');
+        renderLiveFeed(el('live-feed-container'), {conversations: state.liveConversations});
+      } else if (action === 'refresh-queue') {
+        await loadLiveFeed();
+      }
+      return;
+    }
     // Approve button
     const approveBtn = event.target.closest('.live-feed-approve-btn');
     if (approveBtn) {
