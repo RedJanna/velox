@@ -1264,11 +1264,52 @@ def _stay_hold_cancel_state(hold_row: dict[str, Any]) -> tuple[str | None, bool,
     return (None, False, "PMS rezervasyon kimliği bulunmadığı için iptal aksiyonu kapalı.")
 
 
-def _build_guest_info(conv_row: Any, hold_row: Any) -> dict[str, Any]:
+def _extract_reservation_hint_from_internal(internal_json: dict[str, Any]) -> dict[str, Any]:
+    """Extract reservation detail hints from approval.updated tool payloads."""
+    if not isinstance(internal_json, dict):
+        return {}
+    tool_results = internal_json.get("tool_results")
+    if not isinstance(tool_results, dict):
+        return {}
+    readback_payload = tool_results.get("booking_get_reservation")
+    if not isinstance(readback_payload, dict):
+        return {}
+    result_payload = readback_payload.get("result")
+    if not isinstance(result_payload, dict):
+        return {}
+    raw_data = result_payload.get("raw_data")
+    if not isinstance(raw_data, dict):
+        raw_data = {}
+
+    hint: dict[str, Any] = {}
+    hint["guest_name"] = (
+        str(raw_data.get("contact_name") or raw_data.get("guest_name") or "").strip() or None
+    )
+    hint["checkin_date"] = (
+        str(raw_data.get("checkin_date") or raw_data.get("checkin") or "").strip() or None
+    )
+    hint["checkout_date"] = (
+        str(raw_data.get("checkout_date") or raw_data.get("checkout") or "").strip() or None
+    )
+    hint["room_label"] = str(raw_data.get("room_type") or "").strip() or None
+    hint["board_label"] = str(raw_data.get("board_type") or "").strip() or None
+
+    total_price = result_payload.get("total_price")
+    if total_price in (None, ""):
+        total_price = raw_data.get("total_price")
+    hint["total_price"] = total_price
+    hint["currency_display"] = (
+        str(result_payload.get("currency_code") or raw_data.get("currency_code") or "").strip() or None
+    )
+    return hint
+
+
+def _build_guest_info(conv_row: Any, hold_row: Any, reservation_hint: dict[str, Any] | None = None) -> dict[str, Any]:
     """Build the Chat Lab guest rail payload from conversation and stay hold data."""
     language = str(conv_row["language"] or "tr").strip().lower() or "tr"
     hotel_id = int(conv_row["hotel_id"] or settings.elektra_hotel_id)
     profile = _load_profile_for_hotel(hotel_id)
+    resolved_hint = reservation_hint if isinstance(reservation_hint, dict) else {}
 
     if hold_row is None:
         return {
@@ -1314,12 +1355,45 @@ def _build_guest_info(conv_row: Any, hold_row: Any) -> dict[str, Any]:
         or str(hold_row.get("pms_reservation_id") or "").strip()
         or None
     )
+    has_pms_reservation = bool(
+        str(hold_row.get("pms_reservation_id") or "").strip() or str(hold_row.get("voucher_no") or "").strip()
+    )
+    checkin_value = draft.get("checkin_date") or resolved_hint.get("checkin_date")
+    checkout_value = draft.get("checkout_date") or resolved_hint.get("checkout_date")
+    checkin_date = _parse_iso_date(checkin_value)
+    checkout_date = _parse_iso_date(checkout_value)
+    nights = (checkout_date - checkin_date).days if checkin_date and checkout_date and checkout_date > checkin_date else 0
+
+    room_label = _profile_room_label(profile, draft.get("room_type_id"), language)
+    if room_label == "-":
+        room_label = str(resolved_hint.get("room_label") or "-")
+    board_label = _profile_board_label(profile, draft.get("board_type_id"), language)
+    if board_label == "-":
+        board_label = str(resolved_hint.get("board_label") or "-")
+
+    adults = int(draft.get("adults") or 0)
+    if adults <= 0:
+        adults = int(resolved_hint.get("adults") or 0)
+    children = len(draft.get("chd_ages") or [])
+    if children <= 0:
+        children = int(resolved_hint.get("children") or 0)
+
+    total_price = draft.get("total_price_eur")
+    if total_price in (None, ""):
+        total_price = resolved_hint.get("total_price")
+    currency_display = (
+        str(draft.get("currency_display") or resolved_hint.get("currency_display") or "EUR").strip() or "EUR"
+    )
 
     return {
         "available": True,
-        "info_status_label": "Misafir bilgi durumu: stay hold bağlı",
+        "info_status_label": (
+            "Misafir bilgi durumu: stay hold + PMS rezervasyonu bağlı"
+            if has_pms_reservation
+            else "Misafir bilgi durumu: stay hold bağlı"
+        ),
         "info_status_tone": "success" if reservation_reference else "warning",
-        "guest_name": str(draft.get("guest_name") or "").strip() or "-",
+        "guest_name": str(draft.get("guest_name") or resolved_hint.get("guest_name") or "").strip() or "-",
         "phone": str(draft.get("phone") or "").strip() or conv_row["phone_display"] or "***",
         "email": str(draft.get("email") or "").strip() or "-",
         "nationality": str(draft.get("nationality") or "").strip() or "-",
@@ -1327,13 +1401,13 @@ def _build_guest_info(conv_row: Any, hold_row: Any) -> dict[str, Any]:
         "checkin_date": checkin_date.isoformat() if checkin_date else "-",
         "checkout_date": checkout_date.isoformat() if checkout_date else "-",
         "nights": nights,
-        "adults": int(draft.get("adults") or 0),
-        "children": len(draft.get("chd_ages") or []),
-        "room_label": _profile_room_label(profile, draft.get("room_type_id"), language),
-        "board_label": _profile_board_label(profile, draft.get("board_type_id"), language),
+        "adults": adults,
+        "children": children,
+        "room_label": room_label,
+        "board_label": board_label,
         "total_price_display": (
-            f"{draft.get('total_price_eur')} {draft.get('currency_display') or 'EUR'}"
-            if draft.get("total_price_eur") not in (None, "")
+            f"{total_price} {currency_display}"
+            if total_price not in (None, "")
             else "-"
         ),
         "hold_id": str(hold_row.get("hold_id") or "").strip() or None,
@@ -1407,6 +1481,7 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
     last_user_message_at: datetime | None = None
     last_outbound_at: datetime | None = None
     latest_assistant_internal: dict[str, Any] = {}
+    reservation_hint: dict[str, Any] = {}
     for m in msg_rows:
         ij = _pj(m["internal_json"])
         if m["role"] == "user":
@@ -1414,6 +1489,10 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
         if m["role"] == "assistant":
             last_outbound_at = m["created_at"] or last_outbound_at
             latest_assistant_internal = ij
+        if m["role"] == "system":
+            extracted_hint = _extract_reservation_hint_from_internal(ij)
+            if extracted_hint:
+                reservation_hint = extracted_hint
         raw_attachments = ij.get("attachments") if isinstance(ij, dict) else None
         attachments: list[dict[str, Any]] = []
         if isinstance(raw_attachments, list):
@@ -1488,7 +1567,7 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
         "delivery_state": delivery_state,
         "last_webhook_at": str(latest_assistant_internal.get("provider_status_updated_at") or "").strip() or None,
         **service_window,
-        "guest_info": _build_guest_info(conv_row, hold_row),
+        "guest_info": _build_guest_info(conv_row, hold_row, reservation_hint),
         "messages": messages,
         "operation_mode": settings.operation_mode,
     }

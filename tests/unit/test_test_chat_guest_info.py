@@ -12,7 +12,7 @@ from velox.api.routes import test_chat
 
 
 class _ConversationDetailPool:
-    def __init__(self, *, hold_row: dict[str, object] | None) -> None:
+    def __init__(self, *, hold_row: dict[str, object] | None, msg_rows: list[dict[str, object]] | None = None) -> None:
         self.conversation_id = uuid4()
         now = datetime(2026, 4, 19, 12, 0, tzinfo=UTC)
         self.conv_row = {
@@ -29,7 +29,7 @@ class _ConversationDetailPool:
             "last_message_at": now,
         }
         self.hold_row = hold_row
-        self.msg_rows = [
+        self.msg_rows = msg_rows or [
             {
                 "id": uuid4(),
                 "role": "user",
@@ -142,3 +142,64 @@ async def test_conversation_detail_exposes_guest_info_status_when_hold_is_missin
     assert guest_info["approve_enabled"] is False
     assert guest_info["cancel_enabled"] is False
     assert "rezervasyon kaydı bağlı değil" in guest_info["info_status_label"].lower()
+
+
+@pytest.mark.asyncio
+async def test_conversation_detail_falls_back_to_system_event_reservation_data_when_draft_is_sparse() -> None:
+    hold_row = {
+        "hold_id": "S_HOLD_9013",
+        "status": "PAYMENT_PENDING",
+        "draft_json": {
+            "guest_name": "Udeneme UUdeneme",
+            "phone": "+90 532 555 12 34",
+        },
+        "pms_reservation_id": "91604489",
+        "voucher_no": "",
+        "reservation_no": "VLX-21966-2604-0013",
+        "manual_review_reason": None,
+        "approved_by": None,
+        "approved_at": None,
+        "rejected_reason": None,
+        "created_at": datetime(2026, 4, 19, 12, 0, tzinfo=UTC),
+    }
+    msg_rows = [
+        {
+            "id": uuid4(),
+            "role": "system",
+            "content": "SYSTEM_EVENT: approval.updated",
+            "internal_json": {
+                "event_type": "approval.updated",
+                "tool_results": {
+                    "booking_get_reservation": {
+                        "success": True,
+                        "result": {
+                            "total_price": "1330",
+                            "currency_code": "EUR",
+                            "raw_data": {
+                                "contact_name": "Udeneme UUdeneme",
+                                "checkin_date": "2026-10-01",
+                                "checkout_date": "2026-10-06",
+                                "room_type": "Premium",
+                                "board_type": "BB",
+                            },
+                        },
+                    }
+                },
+            },
+            "created_at": datetime(2026, 4, 19, 12, 1, tzinfo=UTC),
+        }
+    ]
+    pool = _ConversationDetailPool(hold_row=hold_row, msg_rows=msg_rows)
+
+    response = await test_chat.get_conversation_detail(_request(pool), str(pool.conversation_id))
+
+    guest_info = response["guest_info"]
+    assert guest_info["available"] is True
+    assert guest_info["info_status_label"] == "Misafir bilgi durumu: stay hold + PMS rezervasyonu bağlı"
+    assert guest_info["reservation_reference"] == "VLX-21966-2604-0013"
+    assert guest_info["checkin_date"] == "2026-10-01"
+    assert guest_info["checkout_date"] == "2026-10-06"
+    assert guest_info["nights"] == 5
+    assert guest_info["room_label"] == "Premium"
+    assert guest_info["board_label"] == "BB"
+    assert guest_info["total_price_display"] == "1330 EUR"
