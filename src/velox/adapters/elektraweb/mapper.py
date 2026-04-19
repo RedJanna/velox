@@ -81,6 +81,7 @@ class ReservationResponse(BaseModel):
     voucher_no: str = ""
     confirmation_url: str | None = None
     state: str = ""
+    applied_draft: dict[str, Any] = Field(default_factory=dict)
 
 
 class ReservationDetailResponse(BaseModel):

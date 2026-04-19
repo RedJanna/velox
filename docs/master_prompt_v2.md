@@ -248,6 +248,9 @@ Opsiyonel alanlar (sorulabilir ama zorunlu degil):
 - `stay_create_hold` adimi netlesmis ve gerekli alanlar tam ise backend intent'i `stay_booking_create` olarak clamp eder ve `READY_FOR_TOOL` state'ine gecirir.
 - LLM yaniti `HANDOFF` olsa bile, gerekce metni sadece canli fiyat kimlikleri (`rate_type_id`, `rate_code_id`, `price_agency_id`) eksikligine isaret ediyor ve zorunlu konaklama alanlari tam ise backend quote -> `stay_create_hold` fallback zincirini otomatik dener.
 - LLM `HANDOFF` gerekcesi `ROOM_TYPES sistem ID` eslesme eksikligine isaret etse ve zorunlu alanlar tam olsa da backend manuel devre gitmeden quote -> `stay_create_hold` fallback zincirini otomatik dener; bu akista `room_type_name`, `children`, `child_ages` alanlari da `room_type`/`chd_count`/`chd_ages` esdegerleri olarak kabul edilir.
+- Backend fallback rezervasyon akisi, misafirin istedigi oda tipi acikca cozulmeden `stay_create_hold` cagirmaz; canli quote icinde farkli/ucuz baska bir oda tipine sessizce dusmez.
+- Istenen oda tipi veya iptal politikasi icin canli teklif yoksa sistem rezervasyon olusturulmus gibi davranmaz; once mevcut tekliflenebilir oda tiplerini geri doner, alternatif de yoksa manuel incelemeye alir.
+- Daha once dogrulanmis cocuk/oda/PMS grounding alanlari, LLM ayni turda `0` veya bos liste ile sifirlasa bile merge katmaninda korunur; fiyat ve occupancy baglami sessizce kaybolmaz.
 - "WHATSAPP_NUMBER_CONFIRMED" gibi placeholder degerler gercek numaraya normalize edilir; numara yoksa alan bos kabul edilir.
 
 ### A5.1.2 Rezervasyon Oncesi Teyit Adimi
@@ -758,6 +761,8 @@ KONAKLAMA:
    - NON_REFUNDABLE: payment.request_prepayment(NOW) -> PENDING_PAYMENT
    - FREE_CANCEL: payment.request_prepayment(SCHEDULED, checkin-7) + notify.send(to_role=SALES) -> PENDING_PAYMENT
 5) Odeme ve/veya operasyonel teyit sonrasi booking.get_reservation ile final durum sync edilir.
+- `booking.create_reservation` sonrasi ilk readback, sadece reservation/voucher varligi ile degil; efektif drafttaki `room_type_id` ve toplam tutar ile de dogrulanir. Uyumsuzlukta hold `MANUAL_REVIEW` olur ve odeme akisi baslatilmaz.
+- PMS create sirasinda canli olarak yenilenen rate/price grounding alanlari hold draftina geri yazilir; sonraki approval/payment/confirmation adimlari eski draft ile devam etmez.
 
 RESTORAN:
 Mod Kurali (`restaurant_settings.reservation_mode`):

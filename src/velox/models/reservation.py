@@ -79,13 +79,24 @@ class StayDraft(BaseModel):
 
     @model_validator(mode="after")
     def validate_stay_dates_and_amount(self) -> StayDraft:
-        """Validate date ordering and minimum totals."""
+        """Validate date ordering, grounding identifiers, and minimum totals."""
         if self.checkout_date <= self.checkin_date:
             raise ValueError("checkout_date must be later than checkin_date")
         if self.adults < 1:
             raise ValueError("adults must be at least 1")
         if self.total_price_eur <= 0:
             raise ValueError("total_price_eur must be greater than 0")
+        required_positive_fields = {
+            "room_type_id": self.room_type_id,
+            "board_type_id": self.board_type_id,
+            "rate_type_id": self.rate_type_id,
+            "rate_code_id": self.rate_code_id,
+        }
+        for field_name, field_value in required_positive_fields.items():
+            if field_value <= 0:
+                raise ValueError(f"{field_name} must be greater than 0")
+        if self.price_agency_id is not None and self.price_agency_id <= 0:
+            raise ValueError("price_agency_id must be greater than 0 when provided")
         return self
 
 

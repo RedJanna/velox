@@ -437,3 +437,147 @@ async def test_process_approval_event_decodes_string_draft_json(
     assert create_call[1]["draft"]["guest_name"] == "Test User"
     assert create_call[1]["draft"]["room_type_id"] == 99
     assert create_call[1]["draft"]["reservation_no"] == "VLX-21966-2604-0004"
+
+
+@pytest.mark.asyncio
+async def test_process_approval_event_stay_readback_room_type_mismatch_goes_manual_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hold_row = {
+        "hold_id": "S_HOLD_0001",
+        "hotel_id": 21966,
+        "conversation_id": None,
+        "status": "PENDING_APPROVAL",
+        "approval_idempotency_key": None,
+        "draft_json": {
+            "phone": "",
+            "checkin_date": "2026-09-10",
+            "total_price_eur": 200,
+            "currency_display": "EUR",
+            "cancel_policy_type": "FREE_CANCEL",
+            "room_type_id": 396096,
+        },
+    }
+    processor, conn, dispatcher = _build_processor(hold_row, monkeypatch=monkeypatch)
+    dispatcher.readback_result = {
+        "reservation_id": "RSV-1",
+        "voucher_no": "V-1",
+        "total_price": 200,
+        "raw_data": {"room_type_id": 396097},
+    }
+
+    event = ApprovalEvent(
+        hotel_id=21966,
+        approval_request_id="APR-1",
+        approved=True,
+        approved_by_role="ADMIN",
+        timestamp=datetime.now(UTC),
+    )
+    result = await processor.process_approval_event(event)
+
+    assert result["status"] == "processed"
+    assert result["reconciliation_action"] == "manual_review"
+    assert [name for name, _ in dispatcher.calls] == ["booking_create_reservation", "booking_get_reservation"]
+    assert any(
+        "SET manual_review_reason = $2" in query and args[1] == "create_readback_mismatch"
+        for query, args in conn.executed
+    )
+
+
+@pytest.mark.asyncio
+async def test_process_approval_event_stay_readback_price_mismatch_goes_manual_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hold_row = {
+        "hold_id": "S_HOLD_0001",
+        "hotel_id": 21966,
+        "conversation_id": None,
+        "status": "PENDING_APPROVAL",
+        "approval_idempotency_key": None,
+        "draft_json": {
+            "phone": "",
+            "checkin_date": "2026-09-10",
+            "total_price_eur": 200,
+            "currency_display": "EUR",
+            "cancel_policy_type": "FREE_CANCEL",
+            "room_type_id": 396096,
+        },
+    }
+    processor, conn, dispatcher = _build_processor(hold_row, monkeypatch=monkeypatch)
+    dispatcher.readback_result = {
+        "reservation_id": "RSV-1",
+        "voucher_no": "V-1",
+        "total_price": 255,
+        "raw_data": {"room_type_id": 396096},
+    }
+
+    event = ApprovalEvent(
+        hotel_id=21966,
+        approval_request_id="APR-1",
+        approved=True,
+        approved_by_role="ADMIN",
+        timestamp=datetime.now(UTC),
+    )
+    result = await processor.process_approval_event(event)
+
+    assert result["status"] == "processed"
+    assert result["reconciliation_action"] == "manual_review"
+    assert [name for name, _ in dispatcher.calls] == ["booking_create_reservation", "booking_get_reservation"]
+    assert any(
+        "SET manual_review_reason = $2" in query and args[1] == "create_readback_mismatch"
+        for query, args in conn.executed
+    )
+
+
+@pytest.mark.asyncio
+async def test_process_approval_event_persists_applied_draft_before_payment_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hold_row = {
+        "hold_id": "S_HOLD_0001",
+        "hotel_id": 21966,
+        "conversation_id": None,
+        "status": "PENDING_APPROVAL",
+        "approval_idempotency_key": None,
+        "draft_json": {
+            "phone": "",
+            "checkin_date": "2026-09-10",
+            "total_price_eur": 200,
+            "currency_display": "EUR",
+            "cancel_policy_type": "FREE_CANCEL",
+            "room_type_id": 396096,
+        },
+    }
+    processor, conn, dispatcher = _build_processor(hold_row, monkeypatch=monkeypatch)
+    dispatcher.create_result = {
+        "reservation_id": "RSV-1",
+        "voucher_no": "V-1",
+        "applied_draft": {
+            "phone": "",
+            "checkin_date": "2026-09-10",
+            "total_price_eur": 255,
+            "currency_display": "EUR",
+            "cancel_policy_type": "FREE_CANCEL",
+            "room_type_id": 396096,
+        },
+    }
+    dispatcher.readback_result = {
+        "reservation_id": "RSV-1",
+        "voucher_no": "V-1",
+        "total_price": 255,
+        "raw_data": {"room_type_id": 396096},
+    }
+
+    event = ApprovalEvent(
+        hotel_id=21966,
+        approval_request_id="APR-1",
+        approved=True,
+        approved_by_role="ADMIN",
+        timestamp=datetime.now(UTC),
+    )
+    result = await processor.process_approval_event(event)
+
+    assert result["status"] == "processed"
+    payment_call = next(kwargs for name, kwargs in dispatcher.calls if name == "payment_request_prepayment")
+    assert payment_call["amount"] == 255.0
+    assert any("SET draft_json = $2::jsonb" in query for query, _args in conn.executed)

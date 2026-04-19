@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -138,3 +140,75 @@ async def test_clone_stay_hold_returns_404_when_source_missing(
         )
 
     assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_stay_hold_rejects_ungrounded_live_quote_data() -> None:
+    with pytest.raises(HTTPException) as exc:
+        await admin_holds.create_stay_hold_from_panel(
+            body=admin_holds.StayHoldCreateRequest(
+                hotel_id=21966,
+                guest_name="Test User",
+                phone="+905551112233",
+                email="test@example.com",
+                nationality="TR",
+                checkin_date=date(2026, 10, 1),
+                checkout_date=date(2026, 10, 6),
+                adults=2,
+                chd_ages=[],
+                total_price_eur=Decimal("710.00"),
+                room_type_id=396096,
+                board_type_id=2,
+                rate_type_id=24178,
+                rate_code_id=301002,
+                price_agency_id=0,
+                cancel_policy_type="FREE_CANCEL",
+                notes="yok",
+            ),
+            user=_admin_user(),
+        )
+
+    assert exc.value.status_code == 400
+    assert "grounding" in str(exc.value.detail).lower()
+
+
+@pytest.mark.asyncio
+async def test_clone_stay_hold_rejects_ungrounded_source_draft(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_hold = StayHold(
+        hold_id="S_HOLD_011",
+        hotel_id=21966,
+        conversation_id=None,
+        draft_json={
+            "guest_name": "Udeneme Uudeneme",
+            "phone": "+905304498453",
+            "email": "gonenomeralperen@gmail.com",
+            "checkin_date": "2026-10-01",
+            "checkout_date": "2026-10-06",
+            "adults": 2,
+            "chd_ages": [11, 12],
+            "total_price_eur": 1329.9,
+            "room_type_id": 11,
+            "board_type_id": 2,
+            "rate_type_id": 24178,
+            "rate_code_id": 183666,
+            "price_agency_id": 0,
+            "cancel_policy_type": "FREE_CANCEL",
+            "notes": "1 adet ekstra yatak talebi",
+            "reservation_no": "VLX-21966-2604-0011",
+        },
+        status=HoldStatus.PAYMENT_PENDING,
+        reservation_no="VLX-21966-2604-0011",
+    )
+    fake_repo = _FakeReservationRepository(source_hold)
+    monkeypatch.setattr(admin_holds, "ReservationRepository", lambda: fake_repo)
+
+    with pytest.raises(HTTPException) as exc:
+        await admin_holds.clone_stay_hold_from_panel(
+            hold_id="S_HOLD_011",
+            user=_admin_user(),
+        )
+
+    assert exc.value.status_code == 400
+    assert "grounding" in str(exc.value.detail).lower()

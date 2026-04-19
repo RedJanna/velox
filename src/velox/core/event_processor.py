@@ -313,6 +313,10 @@ class EventProcessor:
                     }
 
                 tool_results["booking_create_reservation"] = booking_result
+                applied_draft = booking_result.get("applied_draft") if isinstance(booking_result, dict) else None
+                if isinstance(applied_draft, dict) and applied_draft:
+                    draft = dict(applied_draft)
+                    await self._persist_stay_draft(conn, reference_id=reference_id, draft=draft)
                 provider_create_reservation_id = str(booking_result.get("reservation_id", "")).strip() or None
                 voucher_no = str(booking_result.get("voucher_no", "")).strip() or None
                 reservation_id: str | None = provider_create_reservation_id
@@ -388,6 +392,7 @@ class EventProcessor:
                 reservation_found_by_voucher = False
                 readback_reservation_id: str | None = None
                 readback_voucher: str | None = None
+                readback_mismatches: dict[str, Any] = {}
                 if isinstance(readback_result, dict):
                     readback_reservation_id = str(readback_result.get("reservation_id", "")).strip() or None
                     readback_voucher = str(readback_result.get("voucher_no", "")).strip() or None
@@ -397,8 +402,16 @@ class EventProcessor:
                     reservation_found_by_voucher = bool(
                         voucher_no and readback_voucher and readback_voucher == voucher_no
                     )
+                    readback_mismatches = self._readback_matches_stay_draft(draft, readback_result)
+                    if readback_mismatches and isinstance(tool_results.get("booking_get_reservation"), dict):
+                        tool_results["booking_get_reservation"]["mismatches"] = readback_mismatches
+                        logger.warning(
+                            "reservation_readback_payload_mismatch",
+                            hold_id=reference_id,
+                            mismatches=readback_mismatches,
+                        )
 
-                if not (reservation_found_by_id or reservation_found_by_voucher):
+                if not (reservation_found_by_id or reservation_found_by_voucher) or readback_mismatches:
                     await conn.execute(
                         """
                         UPDATE stay_holds
@@ -417,7 +430,11 @@ class EventProcessor:
                         conn,
                         reference_id=reference_id,
                         workflow_state=failed_state,
-                        manual_review_reason="create_unverified_after_readback",
+                        manual_review_reason=(
+                            "create_readback_mismatch"
+                            if readback_mismatches
+                            else "create_unverified_after_readback"
+                        ),
                         pms_create_completed=True,
                     )
                     user_message = (
@@ -959,6 +976,73 @@ class EventProcessor:
         if reservation_no and "reservation_no" not in draft:
             draft["reservation_no"] = reservation_no
         return draft
+
+    @staticmethod
+    async def _persist_stay_draft(
+        conn: asyncpg.Connection,
+        *,
+        reference_id: str,
+        draft: dict[str, Any],
+    ) -> None:
+        """Persist the effective draft used for PMS creation back onto the hold row."""
+        await conn.execute(
+            """
+            UPDATE stay_holds
+            SET draft_json = $2::jsonb,
+                updated_at = now()
+            WHERE hold_id = $1
+            """,
+            reference_id,
+            orjson.dumps(draft).decode(),
+            timeout=DB_TIMEOUT_SECONDS,
+        )
+
+    @staticmethod
+    def _readback_matches_stay_draft(draft: dict[str, Any], readback_result: dict[str, Any] | None) -> dict[str, Any]:
+        """Return structured mismatches when PMS readback diverges from the effective draft."""
+        if not isinstance(readback_result, dict):
+            return {}
+
+        raw_data = readback_result.get("raw_data")
+        if not isinstance(raw_data, dict):
+            raw_data = {}
+
+        def _to_float(value: Any) -> float | None:
+            if value in (None, "") or isinstance(value, bool):
+                return None
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+
+        mismatches: dict[str, Any] = {}
+        expected_room_type_id = int(draft.get("room_type_id") or 0)
+        actual_room_type_id = int(
+            raw_data.get("room_type_id")
+            or raw_data.get("given_room_type_id")
+            or raw_data.get("roomtypeid")
+            or raw_data.get("givenroomtypeid")
+            or 0
+        )
+        if expected_room_type_id > 0 and actual_room_type_id > 0 and actual_room_type_id != expected_room_type_id:
+            mismatches["room_type_id"] = {
+                "expected": expected_room_type_id,
+                "actual": actual_room_type_id,
+            }
+
+        expected_total = _to_float(draft.get("total_price_eur", draft.get("total_price")))
+        actual_total = (
+            _to_float(readback_result.get("total_price"))
+            or _to_float(raw_data.get("total_price"))
+            or _to_float(raw_data.get("discounted_price"))
+            or _to_float(raw_data.get("price"))
+        )
+        if expected_total is not None and actual_total is not None and abs(expected_total - actual_total) > 0.01:
+            mismatches["total_price"] = {
+                "expected": expected_total,
+                "actual": actual_total,
+            }
+        return mismatches
 
     @staticmethod
     def _resolve_scheduled_date(draft: dict[str, Any], due_mode: str) -> str | None:

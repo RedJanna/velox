@@ -10,7 +10,7 @@ from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from velox.adapters.elektraweb import endpoints as elektraweb
 from velox.api.middleware.auth import TokenData, check_permission, get_current_user
@@ -32,7 +32,7 @@ from velox.db.repositories.restaurant_floor_plan import (
     RestaurantStatusManager,
 )
 from velox.db.repositories.transfer import TransferRepository
-from velox.models.reservation import StayHold
+from velox.models.reservation import StayDraft, StayHold
 from velox.models.restaurant import (
     FloorPlanCreate,
     FloorPlanUpdate,
@@ -241,6 +241,13 @@ async def create_stay_hold_from_panel(
         "board_type_name": body.board_type_name,
         "notes": formatted_notes,
     }
+    try:
+        draft = StayDraft.model_validate(draft).model_dump(mode="json")
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Canli fiyat teklifi grounding bilgileri eksik veya gecersiz; stay hold olusturulamadi.",
+        ) from exc
     hold = StayHold(
         hold_id="",
         hotel_id=body.hotel_id,
@@ -275,6 +282,13 @@ async def clone_stay_hold_from_panel(
     # Must be regenerated from the new hold row to keep voucher sync consistent.
     cloned_draft.pop("reservation_no", None)
     cloned_draft["notes"] = format_customer_visible_note(cloned_draft.get("notes"))
+    try:
+        cloned_draft = StayDraft.model_validate(cloned_draft).model_dump(mode="json")
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Kaynak stay hold canli fiyat grounding bilgileri icermedigi icin klonlanamadi.",
+        ) from exc
 
     cloned_hold = StayHold(
         hold_id="",

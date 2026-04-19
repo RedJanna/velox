@@ -1664,14 +1664,49 @@ def _merge_entities_with_context(
     previous_entities: dict[str, Any] | None,
     current_entities: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Merge current entities into previous context without null/blank overwrites."""
+    """Merge current entities into previous context without erasing verified booking context."""
     merged: dict[str, Any] = dict(previous_entities or {})
+    preserve_positive_int_keys = {
+        "room_type_id",
+        "board_type_id",
+        "rate_type_id",
+        "rate_code_id",
+        "price_agency_id",
+        "adults",
+        "chd_count",
+        "children",
+    }
+    preserve_non_empty_list_keys = {"chd_ages", "child_ages"}
+
     for key, value in (current_entities or {}).items():
         if value is None:
             continue
         if isinstance(value, str) and not value.strip():
             continue
+
+        previous_value = merged.get(key)
+        if key in preserve_non_empty_list_keys:
+            if isinstance(value, list) and not value and isinstance(previous_value, list) and previous_value:
+                continue
+        elif key in preserve_positive_int_keys:
+            current_int = _to_int(value, 0)
+            previous_int = _to_int(previous_value, 0)
+            if current_int <= 0 and previous_int > 0:
+                continue
+
         merged[key] = value
+
+    normalized_child_ages = merged.get("chd_ages")
+    if not isinstance(normalized_child_ages, list):
+        normalized_child_ages = merged.get("child_ages")
+    if isinstance(normalized_child_ages, list) and normalized_child_ages:
+        age_count = sum(1 for age in normalized_child_ages if _to_int(age, -1) >= 0)
+        if age_count > 0:
+            if _to_int(merged.get("chd_count"), 0) <= 0:
+                merged["chd_count"] = age_count
+            if _to_int(merged.get("children"), 0) <= 0:
+                merged["children"] = age_count
+
     return merged
 
 
@@ -3977,6 +4012,68 @@ def _stay_hold_fields_present(entities: dict[str, Any]) -> bool:
     )
 
 
+def _stay_room_hint_present(entities: dict[str, Any]) -> bool:
+    """Return True when stay entities already contain a room preference hint."""
+    return bool(
+        str(entities.get("room_type") or entities.get("room_name") or entities.get("room_type_name") or "").strip()
+    ) or _to_int(entities.get("room_type_id"), 0) > 0
+
+
+def _message_supplies_stay_guest_details(user_text: str) -> bool:
+    """Detect contact-detail style replies that usually complete a stay draft."""
+    normalized = _canonical_text(user_text)
+    if not normalized:
+        return False
+    detail_tokens = (
+        "adsoyad",
+        "advesoyad",
+        "guestname",
+        "telno",
+        "telefon",
+        "phone",
+        "uyruk",
+        "nationality",
+        "email",
+        "eposta",
+        "fiyattipi",
+    )
+    hits = sum(1 for token in detail_tokens if token in normalized)
+    return hits >= 2 or "@" in user_text
+
+
+def _assistant_claims_stay_created(user_message: str) -> bool:
+    """Detect guest-facing stay success claims that require a real hold underneath."""
+    normalized = _canonical_text(user_message)
+    if not normalized:
+        return False
+    creation_tokens = (
+        "rezervasyonunuzolusturuldu",
+        "rezervasyonunolusturuldu",
+        "rezervasyonunuzonaylandi",
+        "reservationcreated",
+        "reservationconfirmed",
+    )
+    return any(token in normalized for token in creation_tokens)
+
+
+def _should_auto_submit_stay_hold_from_context(
+    internal_json: InternalJSON,
+    entities: dict[str, Any],
+    *,
+    user_text: str,
+    user_message: str,
+) -> bool:
+    """Recover a skipped stay hold when the guest already supplied complete booking details."""
+    state = str(internal_json.state or "").upper()
+    if state not in {"READY_FOR_TOOL", "NEEDS_CONFIRMATION", "PENDING_APPROVAL", "NEEDS_VERIFICATION"}:
+        return False
+    if not _stay_hold_fields_present(entities) or not _stay_room_hint_present(entities):
+        return False
+    if _assistant_claims_stay_created(user_message):
+        return True
+    return _message_supplies_stay_guest_details(user_text)
+
+
 def _should_auto_submit_stay_hold_from_handoff(
     internal_json: InternalJSON,
     entities: dict[str, Any],
@@ -4386,13 +4483,145 @@ def _resolve_requested_room_type_id(entities: dict[str, Any], profile: Any | Non
     return 0
 
 
+def _resolve_requested_room_type_label(
+    entities: dict[str, Any],
+    profile: Any | None,
+    requested_room_type_id: int,
+    language: str,
+) -> str:
+    """Resolve a human-readable room label for the requested stay room."""
+    if requested_room_type_id > 0 and profile is not None:
+        for room in getattr(profile, "room_types", []):
+            profile_room_id = _to_int(getattr(room, "id", 0), 0)
+            pms_room_id = _to_int(getattr(room, "pms_room_type_id", 0), 0)
+            if requested_room_type_id not in {profile_room_id, pms_room_id}:
+                continue
+            localized_name = getattr(room, "name", None)
+            if str(language or "tr").lower() == "en":
+                label = str(getattr(localized_name, "en", "") or getattr(localized_name, "tr", "") or "").strip()
+            else:
+                label = str(getattr(localized_name, "tr", "") or getattr(localized_name, "en", "") or "").strip()
+            if label:
+                return label
+    return str(entities.get("room_type") or entities.get("room_name") or entities.get("room_type_name") or "").strip()
+
+
+def _policy_label(cancel_policy_type: str, language: str) -> str:
+    """Format cancellation policy label for guest-facing fallback text."""
+    normalized = _normalize_cancel_policy(cancel_policy_type)
+    if str(language or "tr").lower() == "en":
+        return "free cancellation" if normalized == "FREE_CANCEL" else "non-refundable"
+    return "ucretsiz iptal" if normalized == "FREE_CANCEL" else "iptal edilemez"
+
+
+def _available_offer_room_type_ids(
+    offers: list[dict[str, Any]],
+    *,
+    cancel_policy_type: str,
+    profile: Any | None,
+) -> list[int]:
+    """Collect unique room type ids from live quote offers, keeping policy filtering when possible."""
+    if not offers:
+        return []
+    ids: list[int] = []
+    seen: set[int] = set()
+    preferred_policy_ids: list[int] = []
+    preferred_seen: set[int] = set()
+    normalized_policy = _normalize_cancel_policy(cancel_policy_type)
+    for offer in offers:
+        room_type_id = _to_int(offer.get("room_type_id"), 0)
+        if room_type_id <= 0:
+            continue
+        if room_type_id not in seen:
+            seen.add(room_type_id)
+            ids.append(room_type_id)
+        if normalized_policy and _resolve_quote_policy_key(offer, profile) == normalized_policy and room_type_id not in preferred_seen:
+            preferred_seen.add(room_type_id)
+            preferred_policy_ids.append(room_type_id)
+    return preferred_policy_ids or ids
+
+
+def _build_requested_room_offer_missing_response(
+    *,
+    conversation: Conversation,
+    entities: dict[str, Any],
+    language: str,
+    requested_room_type_id: int,
+    offers: list[dict[str, Any]],
+    cancel_policy_type: str,
+    profile: Any | None,
+) -> LLMResponse:
+    """Build a deterministic reply when the requested room/policy combination is not offerable."""
+    requested_label = _resolve_requested_room_type_label(entities, profile, requested_room_type_id, language)
+    matching_room_exists = any(
+        _to_int(offer.get("room_type_id"), 0) == requested_room_type_id for offer in offers
+    ) if requested_room_type_id > 0 else False
+    available_names = _format_available_room_names(
+        conversation.hotel_id,
+        _available_offer_room_type_ids(
+            offers,
+            cancel_policy_type=cancel_policy_type,
+            profile=profile,
+        ),
+    )
+    normalized_language = str(language or "tr").lower()
+    policy_text = _policy_label(cancel_policy_type, normalized_language)
+    if normalized_language == "en":
+        if matching_room_exists and requested_label:
+            lead = f"I could not find a {policy_text} offer for {requested_label} on those dates."
+            required_questions = ["cancel_policy_type"]
+            next_step = "collect_cancel_policy_preference"
+        else:
+            room_label = requested_label or "the requested room"
+            lead = f"I could not find a live offer for {room_label} on those dates."
+            required_questions = ["room_type"]
+            next_step = "collect_room_type_preference"
+        if available_names:
+            follow_up = "Currently offerable room types: " + ", ".join(available_names) + "."
+            closing = "Please tell me which one you want to continue with."
+        else:
+            follow_up = "I could not find an offerable alternative room type right now."
+            closing = "Our sales team will review this manually."
+        user_message = f"{lead}\n\n{follow_up}\n{closing}"
+    else:
+        if matching_room_exists and requested_label:
+            lead = f"{requested_label} icin bu tarihlerde {policy_text} teklif bulamadim."
+            required_questions = ["cancel_policy_type"]
+            next_step = "collect_cancel_policy_preference"
+        else:
+            room_label = requested_label or "istediginiz oda tipi"
+            lead = f"{room_label} icin bu tarihlerde canli teklif bulamadim."
+            required_questions = ["room_type"]
+            next_step = "collect_room_type_preference"
+        if available_names:
+            follow_up = "Su anda tekliflenebilen oda tipleri: " + ", ".join(available_names) + "."
+            closing = "Lutfen hangisiyle devam etmek istediginizi yazin."
+        else:
+            follow_up = "Su anda tekliflenebilen alternatif oda tipi goremedim."
+            closing = "Satis ekibimiz talebinizi manuel olarak inceleyecek."
+        user_message = f"{lead}\n\n{follow_up}\n{closing}"
+    return LLMResponse(
+        user_message=user_message,
+        internal_json=InternalJSON(
+            language=normalized_language,
+            intent="stay_booking_create",
+            state="HANDOFF" if not available_names else "NEEDS_VERIFICATION",
+            entities=entities,
+            required_questions=[] if not available_names else required_questions,
+            handoff={"needed": not bool(available_names), "reason": "requested_room_offer_unavailable"},
+            risk_flags=["TOOL_ERROR_REPEAT"] if not available_names else [],
+            next_step="manual_review_required" if not available_names else next_step,
+        ),
+    )
+
+
 def _select_offer_for_stay_hold(
     offers: list[dict[str, Any]],
     requested_room_type_id: int,
     cancel_policy_type: str,
     profile: Any | None,
 ) -> dict[str, Any] | None:
-    """Pick the best matching quote offer for hold creation."""
+    """Pick the best matching quote offer for hold creation without changing the requested room."""
     if not offers:
         return None
     non_contract_offers = [
@@ -4416,18 +4645,23 @@ def _select_offer_for_stay_hold(
                 return False
         return True
 
-    if cancel_policy_type:
-        candidate_sets: tuple[list[dict[str, Any]], ...] = (
-            [offer for offer in offers if _matches(offer, check_room=True, check_policy=True)],
+    if requested_room_type_id > 0:
+        candidate_sets: tuple[list[dict[str, Any]], ...]
+        if cancel_policy_type:
+            candidate_sets = (
+                [offer for offer in offers if _matches(offer, check_room=True, check_policy=True)],
+            )
+        else:
+            candidate_sets = (
+                [offer for offer in offers if _matches(offer, check_room=True, check_policy=False)],
+            )
+    elif cancel_policy_type:
+        candidate_sets = (
             [offer for offer in offers if _matches(offer, check_room=False, check_policy=True)],
         )
     else:
-        candidate_sets = (
-            [offer for offer in offers if _matches(offer, check_room=True, check_policy=True)],
-            [offer for offer in offers if _matches(offer, check_room=True, check_policy=False)],
-            [offer for offer in offers if _matches(offer, check_room=False, check_policy=True)],
-            list(offers),
-        )
+        candidate_sets = (list(offers),)
+
     for candidates in candidate_sets:
         if not candidates:
             continue
@@ -4456,6 +4690,7 @@ def _build_stay_draft_from_offer(
     board_type_id = _to_int(offer.get("board_type_id", entities.get("board_type_id", 0)), 0)
     rate_type_id = _to_int(offer.get("rate_type_id"), 0)
     rate_code_id = _to_int(offer.get("rate_code_id"), 0)
+    price_agency_id = _to_int(offer.get("price_agency_id"), 0)
     if (
         not checkin_date
         or not checkout_date
@@ -4466,6 +4701,7 @@ def _build_stay_draft_from_offer(
         or board_type_id <= 0
         or rate_type_id <= 0
         or rate_code_id <= 0
+        or price_agency_id <= 0
     ):
         return None
 
@@ -4492,7 +4728,7 @@ def _build_stay_draft_from_offer(
         "board_type_id": board_type_id,
         "rate_type_id": rate_type_id,
         "rate_code_id": rate_code_id,
-        "price_agency_id": offer.get("price_agency_id"),
+        "price_agency_id": price_agency_id,
         "currency_display": str(offer.get("currency_code") or entities.get("currency") or "EUR").upper(),
         "total_price_eur": float(total_price),
         "adults": adults,
@@ -4512,16 +4748,17 @@ async def _auto_submit_stay_hold(
     entities: dict[str, Any],
     language: str,
     dispatcher: Any,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], LLMResponse | None]:
     """Fallback: create stay hold deterministically when LLM skips tool calls."""
     profile = get_profile(conversation.hotel_id)
+    room_hint_present = _stay_room_hint_present(entities)
     requested_room_type_id = _resolve_requested_room_type_id(entities, profile)
 
     checkin_date = str(entities.get("checkin_date") or "").strip()
     checkout_date = str(entities.get("checkout_date") or "").strip()
     adults = _to_int(entities.get("adults"), 0)
     if not checkin_date or not checkout_date or adults <= 0:
-        return []
+        return [], None
 
     cancel_policy_type = _normalize_cancel_policy(entities.get("cancel_policy_type"))
     quote_language = str(entities.get("language") or language or "tr").upper()
@@ -4546,20 +4783,30 @@ async def _auto_submit_stay_hold(
     quote_result = await dispatcher.dispatch("booking_quote", **quote_args)
     if not isinstance(quote_result, dict):
         logger.warning("stay_hold_auto_submit_quote_failed")
-        return []
+        return [], None
     fallback_calls: list[dict[str, Any]] = [
         {"name": "booking_quote", "arguments": quote_args, "result": quote_result},
     ]
     if _is_out_of_season_tool_result(quote_result):
-        return fallback_calls
+        return fallback_calls, None
     if quote_result.get("error"):
         logger.warning("stay_hold_auto_submit_quote_failed")
-        return []
+        return [], None
 
     offers = quote_result.get("offers")
     if not isinstance(offers, list):
-        return []
+        return [], None
     parsed_offers = [offer for offer in offers if isinstance(offer, dict)]
+    if not room_hint_present or requested_room_type_id <= 0:
+        return fallback_calls, _build_requested_room_offer_missing_response(
+            conversation=conversation,
+            entities=entities,
+            language=language,
+            requested_room_type_id=requested_room_type_id,
+            offers=parsed_offers,
+            cancel_policy_type=cancel_policy_type,
+            profile=profile,
+        )
     selected_offer = _select_offer_for_stay_hold(
         parsed_offers,
         requested_room_type_id=requested_room_type_id,
@@ -4567,11 +4814,19 @@ async def _auto_submit_stay_hold(
         profile=profile,
     )
     if selected_offer is None:
-        return []
+        return fallback_calls, _build_requested_room_offer_missing_response(
+            conversation=conversation,
+            entities=entities,
+            language=language,
+            requested_room_type_id=requested_room_type_id,
+            offers=parsed_offers,
+            cancel_policy_type=cancel_policy_type,
+            profile=profile,
+        )
 
     draft = _build_stay_draft_from_offer(entities, selected_offer, cancel_policy_type)
     if draft is None:
-        return []
+        return [], None
 
     hold_args: dict[str, Any] = {
         "hotel_id": conversation.hotel_id,
@@ -4583,7 +4838,7 @@ async def _auto_submit_stay_hold(
     hold_result = await dispatcher.dispatch("stay_create_hold", **hold_args)
     if not isinstance(hold_result, dict) or hold_result.get("error"):
         logger.warning("stay_hold_auto_submit_create_failed")
-        return []
+        return [], None
 
     fallback_calls.append({"name": "stay_create_hold", "arguments": hold_args, "result": hold_result})
     approval_request_id = str(hold_result.get("approval_request_id") or "").strip()
@@ -4609,7 +4864,7 @@ async def _auto_submit_stay_hold(
         hold_id=hold_result.get("stay_hold_id"),
         approval_request_id=approval_request_id or None,
     )
-    return fallback_calls
+    return fallback_calls, None
 
 
 async def _run_message_pipeline(
@@ -5061,9 +5316,15 @@ async def _run_message_pipeline(
             and (
                 _should_auto_submit_stay_hold(parsed.internal_json)
                 or _should_auto_submit_stay_hold_from_handoff(parsed.internal_json, entities)
+                or _should_auto_submit_stay_hold_from_context(
+                    parsed.internal_json,
+                    entities,
+                    user_text=normalized_text,
+                    user_message=parsed.user_message,
+                )
             )
         ):
-            fallback_calls = await _auto_submit_stay_hold(
+            fallback_calls, fallback_response = await _auto_submit_stay_hold(
                 conversation=conversation,
                 entities=entities,
                 language=language,
@@ -5071,7 +5332,14 @@ async def _run_message_pipeline(
             )
             if fallback_calls:
                 executed_calls.extend(fallback_calls)
-            else:
+            if fallback_response is not None:
+                return _finalize_response(
+                    fallback_response,
+                    scope_decision=scope_result.decision,
+                    language_override=language,
+                    executed_calls=executed_calls,
+                )
+            if not fallback_calls:
                 logger.warning(
                     "stay_hold_submission_missing_after_pending_approval",
                     conversation_id=str(conversation.id) if conversation.id is not None else None,
@@ -5096,9 +5364,9 @@ async def _run_message_pipeline(
                         ),
                     ),
                     scope_decision=scope_result.decision,
-                language_override=language,
-                executed_calls=executed_calls,
-            )
+                    language_override=language,
+                    executed_calls=executed_calls,
+                )
         if (
             dispatcher is not None
             and not _executed_transfer_hold_submission(executed_calls)

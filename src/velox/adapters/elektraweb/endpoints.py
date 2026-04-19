@@ -784,6 +784,38 @@ def _with_price_override(draft: dict[str, Any], total_price: str | None) -> dict
     return updated
 
 
+def _draft_has_create_grounding(draft: dict[str, Any]) -> bool:
+    """Return True when the reservation draft is grounded to live PMS pricing identifiers."""
+    required_fields = (
+        "room_type_id",
+        "board_type_id",
+        "rate_type_id",
+        "rate_code_id",
+        "price_agency_id",
+    )
+    return all(_safe_int(draft.get(field_name)) > 0 for field_name in required_fields)
+
+
+def _assert_grounded_create_draft(hotel_id: int, draft: dict[str, Any]) -> None:
+    """Abort unsafe create attempts that are missing live PMS offer identifiers."""
+    if _draft_has_create_grounding(draft):
+        return
+    missing_fields = [
+        field_name
+        for field_name in ("room_type_id", "board_type_id", "rate_type_id", "rate_code_id", "price_agency_id")
+        if _safe_int(draft.get(field_name)) <= 0
+    ]
+    logger.error(
+        "elektraweb_create_reservation_missing_grounding",
+        hotel_id=hotel_id,
+        missing_fields=missing_fields,
+        room_type_id=_safe_int(draft.get("room_type_id")),
+    )
+    raise RuntimeError(
+        "Reservation draft is missing live PMS offer grounding: " + ", ".join(missing_fields)
+    )
+
+
 def _build_hoteladvisor_insert_payload(hotel_id: int, draft: dict[str, Any]) -> dict[str, Any]:
     """Build `/Insert/HOTEL_RES` payload for HotelAdvisor integration."""
     checkin_date = _normalize_iso_date(draft.get("checkin_date"))
@@ -1136,6 +1168,7 @@ async def _parse_create_response_and_sync_reservation_fields(
 ) -> ReservationResponse:
     """Parse create response and sync Elektra voucher and note card fields."""
     parsed = parse_reservation_create(raw_response)
+    parsed.applied_draft = dict(draft)
     target_voucher_no = _target_voucher_no_from_draft(draft)
     sync_result = await _sync_reservation_card_fields_best_effort(
         client,
@@ -1188,6 +1221,7 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
             room_type_id=_safe_int(draft.get("room_type_id")),
         )
 
+    _assert_grounded_create_draft(hotel_id, draft)
     booking_api_payload = _build_booking_api_create_payload(hotel_id, draft)
 
     paths = [
@@ -1335,6 +1369,7 @@ async def create_reservation(hotel_id: int, draft: dict[str, Any]) -> Reservatio
         insert_payload = _build_hoteladvisor_insert_payload(hotel_id, draft)
         raw = await client.post("/Insert/HOTEL_RES", json_body=insert_payload)
         parsed = parse_reservation_create(raw)
+        parsed.applied_draft = dict(draft)
         if parsed.reservation_id:
             guest_payload = _build_hoteladvisor_guest_payload(hotel_id, parsed.reservation_id, draft)
             if guest_payload is not None:
