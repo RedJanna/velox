@@ -98,6 +98,13 @@ async def test_conversation_detail_includes_guest_info_from_stay_hold(monkeypatc
     )
     monkeypatch.setattr(test_chat, "get_profile", lambda hotel_id: fake_profile)
     monkeypatch.setattr(test_chat, "load_all_profiles", lambda: {21966: fake_profile})
+    async def _fake_get_reservation(*, hotel_id: int, reservation_id: str | None = None, voucher_no: str | None = None):
+        assert hotel_id == 21966
+        assert reservation_id == "RES-44"
+        assert voucher_no is None
+        return SimpleNamespace(state="Reservation", raw_data={})
+
+    monkeypatch.setattr(test_chat, "get_reservation", _fake_get_reservation)
 
     hold_row = {
         "hold_id": "S_HOLD_9001",
@@ -157,7 +164,9 @@ async def test_conversation_detail_exposes_guest_info_status_when_hold_is_missin
 
 
 @pytest.mark.asyncio
-async def test_conversation_detail_falls_back_to_system_event_reservation_data_when_draft_is_sparse() -> None:
+async def test_conversation_detail_falls_back_to_system_event_reservation_data_when_draft_is_sparse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     hold_row = {
         "hold_id": "S_HOLD_9013",
         "status": "PAYMENT_PENDING",
@@ -203,6 +212,14 @@ async def test_conversation_detail_falls_back_to_system_event_reservation_data_w
     ]
     pool = _ConversationDetailPool(hold_row=hold_row, msg_rows=msg_rows)
 
+    async def _fake_get_reservation(*, hotel_id: int, reservation_id: str | None = None, voucher_no: str | None = None):
+        assert hotel_id == 21966
+        assert reservation_id == "91604489"
+        assert voucher_no is None
+        return SimpleNamespace(state="Reservation", raw_data={})
+
+    monkeypatch.setattr(test_chat, "get_reservation", _fake_get_reservation)
+
     response = await test_chat.get_conversation_detail(_request(pool), str(pool.conversation_id))
 
     guest_info = response["guest_info"]
@@ -218,7 +235,9 @@ async def test_conversation_detail_falls_back_to_system_event_reservation_data_w
 
 
 @pytest.mark.asyncio
-async def test_conversation_detail_loads_guest_info_from_same_phone_previous_conversation_hold() -> None:
+async def test_conversation_detail_loads_guest_info_from_same_phone_previous_conversation_hold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fallback_hold_row = {
         "hold_id": "S_HOLD_013",
         "status": "PAYMENT_PENDING",
@@ -244,6 +263,14 @@ async def test_conversation_detail_loads_guest_info_from_same_phone_previous_con
         "created_at": datetime(2026, 4, 19, 12, 0, tzinfo=UTC),
     }
     pool = _ConversationDetailPool(hold_row=None, fallback_hold_row=fallback_hold_row)
+
+    async def _fake_get_reservation(*, hotel_id: int, reservation_id: str | None = None, voucher_no: str | None = None):
+        assert hotel_id == 21966
+        assert reservation_id == "91604489"
+        assert voucher_no is None
+        return SimpleNamespace(state="Reservation", raw_data={})
+
+    monkeypatch.setattr(test_chat, "get_reservation", _fake_get_reservation)
 
     response = await test_chat.get_conversation_detail(_request(pool), str(pool.conversation_id))
 
@@ -280,8 +307,9 @@ async def test_conversation_detail_enriches_missing_guest_fields_from_live_pms_r
     async def _fake_get_reservation(*, hotel_id: int, reservation_id: str | None = None, voucher_no: str | None = None):
         assert hotel_id == 21966
         assert reservation_id == "91604489"
-        assert voucher_no == "VLX-21966-2604-0013"
+        assert voucher_no is None
         return SimpleNamespace(
+            state="Reservation",
             total_price=Decimal("1330"),
             raw_data={
                 "contact_name": "Udeneme UUdeneme",
@@ -309,3 +337,53 @@ async def test_conversation_detail_enriches_missing_guest_fields_from_live_pms_r
     assert guest_info["adults"] == 2
     assert guest_info["children"] == 2
     assert guest_info["total_price_display"] == "1330 EUR"
+
+
+@pytest.mark.asyncio
+async def test_conversation_detail_hides_guest_details_when_pms_reservation_is_cancelled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hold_row = {
+        "hold_id": "S_HOLD_013",
+        "status": "PAYMENT_PENDING",
+        "draft_json": {
+            "guest_name": "Udeneme UUdeneme",
+            "phone": "+905304498453",
+            "checkin_date": "2026-10-01",
+            "checkout_date": "2026-10-06",
+            "room_type_id": 438550,
+            "board_type_id": 1,
+            "total_price_eur": "1330",
+            "currency_display": "EUR",
+        },
+        "pms_reservation_id": "91604489",
+        "voucher_no": "",
+        "reservation_no": "VLX-21966-2604-0013",
+        "manual_review_reason": None,
+        "approved_by": None,
+        "approved_at": None,
+        "rejected_reason": None,
+        "created_at": datetime(2026, 4, 19, 12, 0, tzinfo=UTC),
+    }
+    pool = _ConversationDetailPool(hold_row=hold_row, msg_rows=[])
+
+    async def _fake_get_reservation(*, hotel_id: int, reservation_id: str | None = None, voucher_no: str | None = None):
+        assert hotel_id == 21966
+        assert reservation_id == "91604489"
+        assert voucher_no is None
+        return SimpleNamespace(state="Cancelled", raw_data={"status": "Cancelled"})
+
+    monkeypatch.setattr(test_chat, "get_reservation", _fake_get_reservation)
+
+    response = await test_chat.get_conversation_detail(_request(pool), str(pool.conversation_id))
+
+    guest_info = response["guest_info"]
+    assert guest_info["available"] is False
+    assert "pasif" in guest_info["info_status_label"].lower()
+    assert guest_info["hold_status_label"] == "PMS Rezervasyonu Pasif"
+    assert guest_info["checkin_date"] == "-"
+    assert guest_info["checkout_date"] == "-"
+    assert guest_info["room_label"] == "-"
+    assert guest_info["total_price_display"] == "-"
+    assert guest_info["approve_enabled"] is False
+    assert guest_info["cancel_enabled"] is False

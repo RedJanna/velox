@@ -1403,6 +1403,75 @@ def _merge_reservation_hints(base_hint: dict[str, Any], extra_hint: dict[str, An
     return merged
 
 
+def _extract_pms_reservation_state(payload: Any) -> str | None:
+    """Extract normalized PMS reservation state from Elektra payload."""
+    state = str(getattr(payload, "state", "") or "").strip()
+    if state:
+        return state
+    raw_data = getattr(payload, "raw_data", None)
+    if isinstance(raw_data, dict):
+        raw_state = str(raw_data.get("state") or raw_data.get("status") or raw_data.get("res_state") or "").strip()
+        return raw_state or None
+    return None
+
+
+def _is_passive_pms_state(state: str | None) -> bool:
+    """Return True when PMS reservation state is non-active/passive."""
+    normalized = str(state or "").strip().lower()
+    if not normalized:
+        return False
+    passive_markers = (
+        "cancel",
+        "iptal",
+        "no show",
+        "noshow",
+        "check out",
+        "checkout",
+        "closed",
+        "inactive",
+    )
+    return any(marker in normalized for marker in passive_markers)
+
+
+def _build_guest_info_inactive_pms(conv_row: Any, hold_row: Any, *, pms_state: str | None) -> dict[str, Any]:
+    """Return a guest info payload when PMS reservation exists but is passive."""
+    language = str(conv_row["language"] or "tr").strip().lower() or "tr"
+    state_label = str(pms_state or "PASIF").strip()
+    return {
+        "available": False,
+        "info_status_label": f"Misafir bilgi durumu: PMS rezervasyonu pasif ({state_label})",
+        "info_status_tone": "danger",
+        "guest_name": "-",
+        "phone": conv_row["phone_display"] or "***",
+        "email": "-",
+        "nationality": "-",
+        "language": language,
+        "checkin_date": "-",
+        "checkout_date": "-",
+        "nights": 0,
+        "adults": 0,
+        "children": 0,
+        "room_label": "-",
+        "board_label": "-",
+        "total_price_display": "-",
+        "hold_id": str(hold_row.get("hold_id") or "").strip() or None,
+        "hold_status": str(hold_row.get("status") or "").strip() or None,
+        "hold_status_label": "PMS Rezervasyonu Pasif",
+        "hold_status_tone": "danger",
+        "reservation_reference": None,
+        "status_detail": "Elektra PMS tarafında rezervasyon pasif olduğu için misafir detayları gösterilmiyor.",
+        "approve_enabled": False,
+        "approve_reason": "PMS rezervasyonu pasif olduğu için onay aksiyonu kapalı.",
+        "cancel_enabled": False,
+        "cancel_reason": "PMS rezervasyonu pasif olduğu için iptal aksiyonu kapalı.",
+        "cancel_action": None,
+        "pms_reservation_id": str(hold_row.get("pms_reservation_id") or "").strip() or None,
+        "voucher_no": str(hold_row.get("voucher_no") or "").strip() or None,
+        "reservation_no": str(hold_row.get("reservation_no") or "").strip() or None,
+        "pms_reservation_state": state_label,
+    }
+
+
 def _row_get_value(row: Any, key: str, default: Any = None) -> Any:
     """Safely read values from asyncpg.Record or dict rows."""
     if isinstance(row, dict):
@@ -1734,16 +1803,33 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
         provider_status=str(latest_assistant_internal.get("provider_status") or "").strip() or None,
     )
     guest_info = _build_guest_info(conv_row, hold_row, reservation_hint)
-    if hold_row is not None and _guest_info_needs_pms_enrichment(guest_info):
+    if hold_row is not None:
         reservation_id = str(hold_row["pms_reservation_id"] or "").strip() or None
         voucher_no = str(hold_row["voucher_no"] or "").strip() or str(hold_row["reservation_no"] or "").strip() or None
+        detail_payload: Any | None = None
         if reservation_id or voucher_no:
             try:
+                # PMS aktiflik kontrolünde reservation_id önceliklidir; voucher/reservation_no mismatch
+                # durumları false-negative üretmesin diye reservation_id varken voucher göndermiyoruz.
                 detail_payload = await get_reservation(
                     hotel_id=int(conv_row["hotel_id"] or settings.elektra_hotel_id),
                     reservation_id=reservation_id,
-                    voucher_no=voucher_no,
+                    voucher_no=voucher_no if reservation_id is None else None,
                 )
+            except Exception as exc:
+                logger.warning(
+                    "chatlab_guest_info_live_pms_fetch_failed",
+                    conversation_id=str(conv_uuid),
+                    hold_id=str(hold_row["hold_id"] or "").strip() or None,
+                    reservation_id=reservation_id,
+                    voucher_no=voucher_no,
+                    error=str(exc),
+                )
+        if detail_payload is not None:
+            pms_state = _extract_pms_reservation_state(detail_payload)
+            if _is_passive_pms_state(pms_state):
+                guest_info = _build_guest_info_inactive_pms(conv_row, hold_row, pms_state=pms_state)
+            elif _guest_info_needs_pms_enrichment(guest_info):
                 live_hint = _extract_reservation_hint_from_elektra_payload(detail_payload)
                 if live_hint:
                     reservation_hint = _merge_reservation_hints(reservation_hint, live_hint)
@@ -1755,15 +1841,6 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
                         reservation_id=reservation_id,
                         voucher_no=voucher_no,
                     )
-            except Exception as exc:
-                logger.warning(
-                    "chatlab_guest_info_live_pms_enrichment_failed",
-                    conversation_id=str(conv_uuid),
-                    hold_id=str(hold_row["hold_id"] or "").strip() or None,
-                    reservation_id=reservation_id,
-                    voucher_no=voucher_no,
-                    error=str(exc),
-                )
 
     return {
         "id": str(conv_row["id"]),
