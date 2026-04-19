@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Res
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field, model_validator
 
+from velox.adapters.elektraweb.endpoints import get_reservation
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.api.middleware.auth import require_role
 from velox.api.routes.test_chat_export import (
@@ -1330,6 +1331,89 @@ def _extract_reservation_hint_from_internal(internal_json: dict[str, Any]) -> di
     return hint
 
 
+def _extract_reservation_hint_from_elektra_payload(payload: Any) -> dict[str, Any]:
+    """Extract reservation hints from Elektra reservation detail payload."""
+    raw_data = getattr(payload, "raw_data", None)
+    if not isinstance(raw_data, dict):
+        raw_data = {}
+
+    def _pick(*keys: str) -> Any:
+        for key in keys:
+            value = raw_data.get(key)
+            if value not in (None, ""):
+                return value
+        return None
+
+    adults_value = _pick("adult_count", "adults", "pax_adult_count", "adult")
+    children_value = _pick("child_count", "children", "pax_child_count", "child")
+
+    hint: dict[str, Any] = {
+        "guest_name": (
+            str(
+                _pick("contact_name", "guest_name", "fullname", "full_name")
+                or getattr(payload, "guest_name", "")
+            ).strip()
+            or None
+        ),
+        "checkin_date": str(_pick("checkin_date", "checkin", "check_in", "arrival_date") or "").strip() or None,
+        "checkout_date": str(_pick("checkout_date", "checkout", "check_out", "departure_date") or "").strip() or None,
+        "room_label": str(_pick("room_type", "room_type_name", "room_name") or "").strip() or None,
+        "board_label": str(_pick("board_type", "board_type_name", "board_name", "board") or "").strip() or None,
+        "total_price": getattr(payload, "total_price", None) or _pick("total_price", "discounted_price", "price"),
+        "currency_display": str(_pick("currency_code", "currency", "currency_display") or "EUR").strip() or "EUR",
+    }
+    if adults_value not in (None, ""):
+        try:
+            hint["adults"] = int(adults_value)
+        except (TypeError, ValueError):
+            pass
+    if children_value not in (None, ""):
+        try:
+            hint["children"] = int(children_value)
+        except (TypeError, ValueError):
+            pass
+    return hint
+
+
+def _guest_info_needs_pms_enrichment(guest_info: dict[str, Any]) -> bool:
+    """Return True when reservation detail panel still has missing critical values."""
+    if not guest_info.get("available"):
+        return False
+    missing_dates = guest_info.get("checkin_date") in {None, "-", ""} or guest_info.get("checkout_date") in {
+        None,
+        "-",
+        "",
+    }
+    missing_stay_shape = int(guest_info.get("nights") or 0) <= 0
+    missing_room_or_board = guest_info.get("room_label") in {None, "-", ""} or guest_info.get("board_label") in {
+        None,
+        "-",
+        "",
+    }
+    missing_total = guest_info.get("total_price_display") in {None, "-", ""}
+    return bool(missing_dates or missing_stay_shape or missing_room_or_board or missing_total)
+
+
+def _merge_reservation_hints(base_hint: dict[str, Any], extra_hint: dict[str, Any]) -> dict[str, Any]:
+    """Merge hint dicts while preserving already-known values."""
+    merged = dict(base_hint)
+    for key, value in extra_hint.items():
+        if merged.get(key) in (None, "", "-") and value not in (None, "", "-"):
+            merged[key] = value
+    return merged
+
+
+def _row_get_value(row: Any, key: str, default: Any = None) -> Any:
+    """Safely read values from asyncpg.Record or dict rows."""
+    if isinstance(row, dict):
+        return row.get(key, default)
+    try:
+        value = row[key]
+    except Exception:
+        return default
+    return default if value is None else value
+
+
 def _build_guest_info(conv_row: Any, hold_row: Any, reservation_hint: dict[str, Any] | None = None) -> dict[str, Any]:
     """Build the Chat Lab guest rail payload from conversation and stay hold data."""
     language = str(conv_row["language"] or "tr").strip().lower() or "tr"
@@ -1384,27 +1468,40 @@ def _build_guest_info(conv_row: Any, hold_row: Any, reservation_hint: dict[str, 
     has_pms_reservation = bool(
         str(hold_row.get("pms_reservation_id") or "").strip() or str(hold_row.get("voucher_no") or "").strip()
     )
-    checkin_value = draft.get("checkin_date") or resolved_hint.get("checkin_date")
-    checkout_value = draft.get("checkout_date") or resolved_hint.get("checkout_date")
+    checkin_value = (
+        draft.get("checkin_date")
+        or _row_get_value(hold_row, "draft_checkin_date")
+        or resolved_hint.get("checkin_date")
+    )
+    checkout_value = (
+        draft.get("checkout_date")
+        or _row_get_value(hold_row, "draft_checkout_date")
+        or resolved_hint.get("checkout_date")
+    )
     checkin_date = _parse_iso_date(checkin_value)
     checkout_date = _parse_iso_date(checkout_value)
     nights = (checkout_date - checkin_date).days if checkin_date and checkout_date and checkout_date > checkin_date else 0
 
-    room_label = _profile_room_label(profile, draft.get("room_type_id"), language)
+    room_value = draft.get("room_type_id") or _row_get_value(hold_row, "draft_room_type_id")
+    room_label = _profile_room_label(profile, room_value, language)
     if room_label == "-":
         room_label = str(resolved_hint.get("room_label") or "-")
-    board_label = _profile_board_label(profile, draft.get("board_type_id"), language)
+    board_value = draft.get("board_type_id") or _row_get_value(hold_row, "draft_board_type_id")
+    board_label = _profile_board_label(profile, board_value, language)
     if board_label == "-":
         board_label = str(resolved_hint.get("board_label") or "-")
 
-    adults = int(draft.get("adults") or 0)
+    adults = int(draft.get("adults") or _row_get_value(hold_row, "draft_adults", 0) or 0)
     if adults <= 0:
         adults = int(resolved_hint.get("adults") or 0)
-    children = len(draft.get("chd_ages") or [])
+    draft_children = len(draft.get("chd_ages") or [])
+    if draft_children <= 0:
+        draft_children = int(_row_get_value(hold_row, "draft_children_count", 0) or 0)
+    children = draft_children
     if children <= 0:
         children = int(resolved_hint.get("children") or 0)
 
-    total_price = draft.get("total_price_eur")
+    total_price = draft.get("total_price_eur") or _row_get_value(hold_row, "draft_total_price_eur")
     if total_price in (None, ""):
         total_price = resolved_hint.get("total_price")
     currency_display = (
@@ -1481,7 +1578,18 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
     hold_row = await pool.fetchrow(
         """
         SELECT hold_id, status, draft_json, pms_reservation_id, voucher_no, reservation_no,
-               manual_review_reason, approved_by, approved_at, rejected_reason, created_at
+               manual_review_reason, approved_by, approved_at, rejected_reason, created_at,
+               draft_json->>'checkin_date' AS draft_checkin_date,
+               draft_json->>'checkout_date' AS draft_checkout_date,
+               draft_json->>'room_type_id' AS draft_room_type_id,
+               draft_json->>'board_type_id' AS draft_board_type_id,
+               draft_json->>'total_price_eur' AS draft_total_price_eur,
+               draft_json->>'adults' AS draft_adults,
+               CASE
+                 WHEN jsonb_typeof(draft_json->'chd_ages') = 'array'
+                   THEN jsonb_array_length(draft_json->'chd_ages')
+                 ELSE 0
+               END AS draft_children_count
         FROM stay_holds
         WHERE conversation_id = $1
         ORDER BY created_at DESC
@@ -1493,7 +1601,18 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
         hold_row = await pool.fetchrow(
             """
             SELECT sh.hold_id, sh.status, sh.draft_json, sh.pms_reservation_id, sh.voucher_no, sh.reservation_no,
-                   sh.manual_review_reason, sh.approved_by, sh.approved_at, sh.rejected_reason, sh.created_at
+                   sh.manual_review_reason, sh.approved_by, sh.approved_at, sh.rejected_reason, sh.created_at,
+                   sh.draft_json->>'checkin_date' AS draft_checkin_date,
+                   sh.draft_json->>'checkout_date' AS draft_checkout_date,
+                   sh.draft_json->>'room_type_id' AS draft_room_type_id,
+                   sh.draft_json->>'board_type_id' AS draft_board_type_id,
+                   sh.draft_json->>'total_price_eur' AS draft_total_price_eur,
+                   sh.draft_json->>'adults' AS draft_adults,
+                   CASE
+                     WHEN jsonb_typeof(sh.draft_json->'chd_ages') = 'array'
+                       THEN jsonb_array_length(sh.draft_json->'chd_ages')
+                     ELSE 0
+                   END AS draft_children_count
             FROM stay_holds sh
             JOIN conversations c ON c.id = sh.conversation_id
             WHERE c.hotel_id = $1
@@ -1614,6 +1733,37 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
         whatsapp_message_id=str(latest_assistant_internal.get("whatsapp_message_id") or "").strip() or None,
         provider_status=str(latest_assistant_internal.get("provider_status") or "").strip() or None,
     )
+    guest_info = _build_guest_info(conv_row, hold_row, reservation_hint)
+    if hold_row is not None and _guest_info_needs_pms_enrichment(guest_info):
+        reservation_id = str(hold_row["pms_reservation_id"] or "").strip() or None
+        voucher_no = str(hold_row["voucher_no"] or "").strip() or str(hold_row["reservation_no"] or "").strip() or None
+        if reservation_id or voucher_no:
+            try:
+                detail_payload = await get_reservation(
+                    hotel_id=int(conv_row["hotel_id"] or settings.elektra_hotel_id),
+                    reservation_id=reservation_id,
+                    voucher_no=voucher_no,
+                )
+                live_hint = _extract_reservation_hint_from_elektra_payload(detail_payload)
+                if live_hint:
+                    reservation_hint = _merge_reservation_hints(reservation_hint, live_hint)
+                    guest_info = _build_guest_info(conv_row, hold_row, reservation_hint)
+                    logger.info(
+                        "chatlab_guest_info_live_pms_enriched",
+                        conversation_id=str(conv_uuid),
+                        hold_id=str(hold_row["hold_id"] or "").strip() or None,
+                        reservation_id=reservation_id,
+                        voucher_no=voucher_no,
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "chatlab_guest_info_live_pms_enrichment_failed",
+                    conversation_id=str(conv_uuid),
+                    hold_id=str(hold_row["hold_id"] or "").strip() or None,
+                    reservation_id=reservation_id,
+                    voucher_no=voucher_no,
+                    error=str(exc),
+                )
 
     return {
         "id": str(conv_row["id"]),
@@ -1632,7 +1782,7 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
         "delivery_state": delivery_state,
         "last_webhook_at": str(latest_assistant_internal.get("provider_status_updated_at") or "").strip() or None,
         **service_window,
-        "guest_info": _build_guest_info(conv_row, hold_row, reservation_hint),
+        "guest_info": guest_info,
         "messages": messages,
         "operation_mode": settings.operation_mode,
     }
