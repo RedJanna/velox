@@ -12,11 +12,18 @@ from velox.api.routes import test_chat
 
 
 class _ConversationDetailPool:
-    def __init__(self, *, hold_row: dict[str, object] | None, msg_rows: list[dict[str, object]] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        hold_row: dict[str, object] | None,
+        fallback_hold_row: dict[str, object] | None = None,
+        msg_rows: list[dict[str, object]] | None = None,
+    ) -> None:
         self.conversation_id = uuid4()
         now = datetime(2026, 4, 19, 12, 0, tzinfo=UTC)
         self.conv_row = {
             "id": self.conversation_id,
+            "phone_hash": "phone_hash_905304498453",
             "phone_display": "+90 532 555 12 34",
             "language": "tr",
             "current_state": "PENDING_APPROVAL",
@@ -29,6 +36,7 @@ class _ConversationDetailPool:
             "last_message_at": now,
         }
         self.hold_row = hold_row
+        self.fallback_hold_row = fallback_hold_row
         self.msg_rows = msg_rows or [
             {
                 "id": uuid4(),
@@ -50,9 +58,12 @@ class _ConversationDetailPool:
         if "FROM conversations WHERE id = $1" in query:
             assert args == (self.conversation_id,)
             return self.conv_row
-        if "FROM stay_holds" in query:
+        if "FROM stay_holds" in query and "JOIN conversations c ON c.id = sh.conversation_id" not in query:
             assert args == (self.conversation_id,)
             return self.hold_row
+        if "JOIN conversations c ON c.id = sh.conversation_id" in query:
+            assert args == (21966, "phone_hash_905304498453")
+            return self.fallback_hold_row
         raise AssertionError(f"Unsupported fetchrow query: {query}")
 
     async def fetch(self, query: str, *args: object):
@@ -203,3 +214,33 @@ async def test_conversation_detail_falls_back_to_system_event_reservation_data_w
     assert guest_info["room_label"] == "Premium"
     assert guest_info["board_label"] == "BB"
     assert guest_info["total_price_display"] == "1330 EUR"
+
+
+@pytest.mark.asyncio
+async def test_conversation_detail_loads_guest_info_from_same_phone_previous_conversation_hold() -> None:
+    fallback_hold_row = {
+        "hold_id": "S_HOLD_013",
+        "status": "PAYMENT_PENDING",
+        "draft_json": {
+            "guest_name": "Udeneme UUdeneme",
+            "phone": "+905304498453",
+        },
+        "pms_reservation_id": "91604489",
+        "voucher_no": "",
+        "reservation_no": "VLX-21966-2604-0013",
+        "manual_review_reason": None,
+        "approved_by": None,
+        "approved_at": None,
+        "rejected_reason": None,
+        "created_at": datetime(2026, 4, 19, 12, 0, tzinfo=UTC),
+    }
+    pool = _ConversationDetailPool(hold_row=None, fallback_hold_row=fallback_hold_row)
+
+    response = await test_chat.get_conversation_detail(_request(pool), str(pool.conversation_id))
+
+    guest_info = response["guest_info"]
+    assert guest_info["available"] is True
+    assert guest_info["hold_id"] == "S_HOLD_013"
+    assert guest_info["pms_reservation_id"] == "91604489"
+    assert guest_info["reservation_reference"] == "VLX-21966-2604-0013"
+    assert guest_info["info_status_label"] == "Misafir bilgi durumu: stay hold + PMS rezervasyonu bağlı"

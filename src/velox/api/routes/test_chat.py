@@ -1264,6 +1264,32 @@ def _stay_hold_cancel_state(hold_row: dict[str, Any]) -> tuple[str | None, bool,
     return (None, False, "PMS rezervasyon kimliği bulunmadığı için iptal aksiyonu kapalı.")
 
 
+def _stay_hold_sort_priority(status: object) -> int:
+    """Return deterministic priority for cross-conversation hold fallback."""
+    normalized = str(status or "").strip().upper()
+    if normalized in {
+        HoldStatus.PAYMENT_PENDING.value,
+        HoldStatus.PMS_PENDING.value,
+        HoldStatus.PMS_CREATED.value,
+        HoldStatus.PENDING_APPROVAL.value,
+        HoldStatus.MANUAL_REVIEW.value,
+        HoldStatus.APPROVED.value,
+        HoldStatus.CONFIRMED.value,
+    }:
+        return 0
+    if normalized in {
+        HoldStatus.PAYMENT_EXPIRED.value,
+        HoldStatus.PMS_FAILED.value,
+    }:
+        return 1
+    if normalized in {
+        HoldStatus.CANCELLED.value,
+        HoldStatus.REJECTED.value,
+    }:
+        return 3
+    return 2
+
+
 def _extract_reservation_hint_from_internal(internal_json: dict[str, Any]) -> dict[str, Any]:
     """Extract reservation detail hints from approval.updated tool payloads."""
     if not isinstance(internal_json, dict):
@@ -1444,7 +1470,7 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
     conv_row = await pool.fetchrow(
         """
         SELECT id, phone_display, language, current_state, current_intent,
-               risk_flags, is_active, human_override, hotel_id, created_at, last_message_at
+               risk_flags, is_active, human_override, hotel_id, phone_hash, created_at, last_message_at
         FROM conversations WHERE id = $1
         """,
         conv_uuid,
@@ -1463,6 +1489,45 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
         """,
         conv_uuid,
     )
+    if hold_row is None:
+        hold_row = await pool.fetchrow(
+            """
+            SELECT sh.hold_id, sh.status, sh.draft_json, sh.pms_reservation_id, sh.voucher_no, sh.reservation_no,
+                   sh.manual_review_reason, sh.approved_by, sh.approved_at, sh.rejected_reason, sh.created_at
+            FROM stay_holds sh
+            JOIN conversations c ON c.id = sh.conversation_id
+            WHERE c.hotel_id = $1
+              AND c.phone_hash = $2
+            ORDER BY
+              CASE
+                WHEN upper(coalesce(sh.status, '')) IN (
+                  'PAYMENT_PENDING','PMS_PENDING','PMS_CREATED','PENDING_APPROVAL','MANUAL_REVIEW','APPROVED','CONFIRMED'
+                ) THEN 0
+                WHEN upper(coalesce(sh.status, '')) IN ('PAYMENT_EXPIRED','PMS_FAILED') THEN 1
+                WHEN upper(coalesce(sh.status, '')) IN ('CANCELLED','REJECTED') THEN 3
+                ELSE 2
+              END,
+              CASE
+                WHEN coalesce(sh.pms_reservation_id, '') <> ''
+                  OR coalesce(sh.voucher_no, '') <> ''
+                  OR coalesce(sh.reservation_no, '') <> '' THEN 0
+                ELSE 1
+              END,
+              sh.created_at DESC
+            LIMIT 1
+            """,
+            conv_row["hotel_id"],
+            conv_row["phone_hash"],
+        )
+        if hold_row is not None:
+            logger.info(
+                "chatlab_guest_info_fallback_hold_selected",
+                conversation_id=str(conv_uuid),
+                hotel_id=int(conv_row["hotel_id"] or settings.elektra_hotel_id),
+                hold_id=str(hold_row["hold_id"] or "").strip() or None,
+                hold_status=str(hold_row["status"] or "").strip() or None,
+                hold_priority=_stay_hold_sort_priority(hold_row["status"]),
+            )
 
     msg_rows = await pool.fetch(
         """
