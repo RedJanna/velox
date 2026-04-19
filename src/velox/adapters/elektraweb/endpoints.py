@@ -31,6 +31,14 @@ RES_NOTE_SYNC_TARGETS: dict[int, int] = {
     2: 1002,
     3: 1003,
 }
+RESERVATION_LIST_STATUSES: tuple[str, ...] = (
+    "Reservation",
+    "Waiting",
+    "InHouse",
+    "CheckOut",
+    "No Show",
+    "Cancelled",
+)
 
 
 def _requested_child_ages(chd_count: int, chd_ages: list[int] | None) -> list[int]:
@@ -329,6 +337,171 @@ def _reservation_lookup_params(
     if voucher_no:
         params["voucher-no"] = voucher_no
     return params
+
+
+def _reservation_list_window(
+    *,
+    checkin_date: str | None,
+    checkout_date: str | None,
+    days_back: int = 365,
+    days_forward: int = 730,
+) -> tuple[str, str]:
+    """Build reservation-list query window, preferring stay dates when available."""
+    normalized_checkin = _normalize_iso_date(checkin_date)
+    normalized_checkout = _normalize_iso_date(checkout_date)
+    try:
+        checkin_obj = date.fromisoformat(normalized_checkin) if normalized_checkin else None
+    except ValueError:
+        checkin_obj = None
+    try:
+        checkout_obj = date.fromisoformat(normalized_checkout) if normalized_checkout else None
+    except ValueError:
+        checkout_obj = None
+
+    if checkin_obj is None and checkout_obj is None:
+        return _utc_window_days(days_back=days_back, days_forward=days_forward)
+
+    anchor_start = checkin_obj or checkout_obj
+    anchor_end = checkout_obj or checkin_obj or anchor_start
+    assert anchor_start is not None
+    assert anchor_end is not None
+    from_check_in = f"{(anchor_start - timedelta(days=45)).isoformat()}T00:00:00"
+    to_check_in = f"{(anchor_end + timedelta(days=45)).isoformat()}T23:59:59"
+    return from_check_in, to_check_in
+
+
+def _phone_match(candidate: object, target: object) -> bool:
+    """Return True when phone values match after normalizing digits."""
+    candidate_digits = re.sub(r"\D+", "", str(candidate or ""))
+    target_digits = re.sub(r"\D+", "", str(target or ""))
+    if not candidate_digits or not target_digits:
+        return False
+    if candidate_digits == target_digits:
+        return True
+    return candidate_digits.endswith(target_digits[-10:]) or target_digits.endswith(candidate_digits[-10:])
+
+
+def _reservation_list_item_matches(
+    item: dict[str, Any],
+    *,
+    reservation_id: str | None,
+    voucher_no: str | None,
+    contact_phone: str | None,
+    checkin_date: str | None,
+    checkout_date: str | None,
+) -> bool:
+    """Match one reservation-list item against reservation identity and stay shape."""
+    reservation_id_str = str(reservation_id or "").strip()
+    voucher_no_str = str(voucher_no or "").strip()
+    item_reservation_id = str(
+        item.get("reservation_id")
+        or item.get("res_id")
+        or item.get("id")
+        or item.get("primary_key")
+        or ""
+    ).strip()
+    item_voucher_no = str(
+        item.get("voucher_no")
+        or item.get("voucher")
+        or item.get("voucher_number")
+        or ""
+    ).strip()
+    item_checkin_date = _normalize_iso_date(item.get("check_in_date") or item.get("checkin_date"))
+    item_checkout_date = _normalize_iso_date(item.get("check_out_date") or item.get("checkout_date"))
+
+    if reservation_id_str and item_reservation_id:
+        return item_reservation_id == reservation_id_str
+    if voucher_no_str and item_voucher_no:
+        return item_voucher_no == voucher_no_str
+
+    dates_match = bool(
+        (checkin_date and item_checkin_date == _normalize_iso_date(checkin_date))
+        or (checkout_date and item_checkout_date == _normalize_iso_date(checkout_date))
+    )
+    if contact_phone and dates_match and _phone_match(item.get("contact_phone"), contact_phone):
+        return True
+    return False
+
+
+def _reservation_detail_from_list_item(item: dict[str, Any], *, reservation_status: str) -> ReservationDetailResponse:
+    """Convert one normalized reservation-list row into reservation detail response."""
+    return ReservationDetailResponse(
+        success=True,
+        reservation_id=str(
+            item.get("reservation_id")
+            or item.get("res_id")
+            or item.get("id")
+            or item.get("primary_key")
+            or ""
+        ).strip(),
+        voucher_no=str(
+            item.get("voucher_no")
+            or item.get("voucher")
+            or item.get("voucher_number")
+            or ""
+        ).strip(),
+        total_price=(
+            item.get("reservation_total_price")
+            or item.get("reservation_paid_price")
+            or item.get("total_price")
+            or item.get("discounted_price")
+            or item.get("price")
+        ),
+        state=str(item.get("state") or item.get("status") or item.get("res_state") or reservation_status),
+        raw_data=item,
+    )
+
+
+async def find_reservation_list_match(
+    hotel_id: int,
+    *,
+    reservation_id: str | None = None,
+    voucher_no: str | None = None,
+    contact_phone: str | None = None,
+    checkin_date: str | None = None,
+    checkout_date: str | None = None,
+) -> ReservationDetailResponse | None:
+    """Search booking reservation-list across statuses and return first matching row."""
+    client = get_elektraweb_client()
+    from_check_in, to_check_in = _reservation_list_window(
+        checkin_date=checkin_date,
+        checkout_date=checkout_date,
+    )
+
+    for reservation_status in RESERVATION_LIST_STATUSES:
+        params = {
+            "from-check-in": from_check_in,
+            "to-check-in": to_check_in,
+            "reservation-status": reservation_status,
+        }
+        logger.info(
+            "elektraweb_reservation_list_match_attempt",
+            hotel_id=hotel_id,
+            reservation_status=reservation_status,
+            reservation_id=reservation_id,
+        )
+        raw = await client.get(f"/hotel/{hotel_id}/reservation-list", params=params)
+        normalized = normalize_keys(raw)
+        if isinstance(normalized, dict):
+            items = normalized.get("data")
+            rows = [item for item in items if isinstance(item, dict)] if isinstance(items, list) else [normalized]
+        elif isinstance(normalized, list):
+            rows = [item for item in normalized if isinstance(item, dict)]
+        else:
+            rows = []
+
+        for item in rows:
+            if not _reservation_list_item_matches(
+                item,
+                reservation_id=reservation_id,
+                voucher_no=voucher_no,
+                contact_phone=contact_phone,
+                checkin_date=checkin_date,
+                checkout_date=checkout_date,
+            ):
+                continue
+            return _reservation_detail_from_list_item(item, reservation_status=reservation_status)
+    return None
 
 
 def _split_guest_name(full_name: str) -> tuple[str, str]:

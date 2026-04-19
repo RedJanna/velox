@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Res
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field, model_validator
 
-from velox.adapters.elektraweb.endpoints import get_reservation
+from velox.adapters.elektraweb.endpoints import find_reservation_list_match
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.api.middleware.auth import require_role
 from velox.api.routes.test_chat_export import (
@@ -1359,7 +1359,8 @@ def _extract_reservation_hint_from_elektra_payload(payload: Any) -> dict[str, An
         "checkout_date": str(_pick("checkout_date", "checkout", "check_out", "departure_date") or "").strip() or None,
         "room_label": str(_pick("room_type", "room_type_name", "room_name") or "").strip() or None,
         "board_label": str(_pick("board_type", "board_type_name", "board_name", "board") or "").strip() or None,
-        "total_price": getattr(payload, "total_price", None) or _pick("total_price", "discounted_price", "price"),
+        "total_price": getattr(payload, "total_price", None)
+        or _pick("reservation_total_price", "total_price", "discounted_price", "price"),
         "currency_display": str(_pick("currency_code", "currency", "currency_display") or "EUR").strip() or "EUR",
     }
     if adults_value not in (None, ""):
@@ -1437,9 +1438,14 @@ def _build_guest_info_inactive_pms(conv_row: Any, hold_row: Any, *, pms_state: s
     """Return a guest info payload when PMS reservation exists but is passive."""
     language = str(conv_row["language"] or "tr").strip().lower() or "tr"
     state_label = str(pms_state or "PASIF").strip()
+    info_status_label = (
+        "Misafir bilgi durumu: PMS rezervasyonu bulunamadi veya pasif"
+        if state_label.upper() == "NOT_FOUND"
+        else f"Misafir bilgi durumu: PMS rezervasyonu pasif ({state_label})"
+    )
     return {
         "available": False,
-        "info_status_label": f"Misafir bilgi durumu: PMS rezervasyonu pasif ({state_label})",
+        "info_status_label": info_status_label,
         "info_status_tone": "danger",
         "guest_name": "-",
         "phone": conv_row["phone_display"] or "***",
@@ -1459,7 +1465,11 @@ def _build_guest_info_inactive_pms(conv_row: Any, hold_row: Any, *, pms_state: s
         "hold_status_label": "PMS Rezervasyonu Pasif",
         "hold_status_tone": "danger",
         "reservation_reference": None,
-        "status_detail": "Elektra PMS tarafında rezervasyon pasif olduğu için misafir detayları gösterilmiyor.",
+        "status_detail": (
+            "Elektra PMS tarafında rezervasyon bulunamadigi veya pasif oldugu icin misafir detaylari gosterilmiyor."
+            if state_label.upper() == "NOT_FOUND"
+            else "Elektra PMS tarafında rezervasyon pasif olduğu için misafir detayları gösterilmiyor."
+        ),
         "approve_enabled": False,
         "approve_reason": "PMS rezervasyonu pasif olduğu için onay aksiyonu kapalı.",
         "cancel_enabled": False,
@@ -1804,38 +1814,48 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
     )
     guest_info = _build_guest_info(conv_row, hold_row, reservation_hint)
     if hold_row is not None:
+        hold_draft = _parse_chat_payload(hold_row.get("draft_json"))
         reservation_id = str(hold_row["pms_reservation_id"] or "").strip() or None
         voucher_no = str(hold_row["voucher_no"] or "").strip() or str(hold_row["reservation_no"] or "").strip() or None
-        detail_payload: Any | None = None
+        list_payload: Any | None = None
         if reservation_id or voucher_no:
             try:
-                # PMS aktiflik kontrolünde reservation_id önceliklidir; voucher/reservation_no mismatch
-                # durumları false-negative üretmesin diye reservation_id varken voucher göndermiyoruz.
-                detail_payload = await get_reservation(
+                list_payload = await find_reservation_list_match(
                     hotel_id=int(conv_row["hotel_id"] or settings.elektra_hotel_id),
                     reservation_id=reservation_id,
-                    voucher_no=voucher_no if reservation_id is None else None,
+                    voucher_no=voucher_no,
+                    contact_phone=str(hold_draft.get("phone") or conv_row["phone_display"] or "").strip(),
+                    checkin_date=(
+                        str(hold_draft.get("checkin_date") or _row_get_value(hold_row, "draft_checkin_date") or "").strip()
+                        or None
+                    ),
+                    checkout_date=(
+                        str(hold_draft.get("checkout_date") or _row_get_value(hold_row, "draft_checkout_date") or "").strip()
+                        or None
+                    ),
                 )
             except Exception as exc:
                 logger.warning(
-                    "chatlab_guest_info_live_pms_fetch_failed",
+                    "chatlab_guest_info_live_pms_list_fetch_failed",
                     conversation_id=str(conv_uuid),
                     hold_id=str(hold_row["hold_id"] or "").strip() or None,
                     reservation_id=reservation_id,
                     voucher_no=voucher_no,
                     error=str(exc),
                 )
-        if detail_payload is not None:
-            pms_state = _extract_pms_reservation_state(detail_payload)
+        if list_payload is None and (reservation_id or voucher_no):
+            guest_info = _build_guest_info_inactive_pms(conv_row, hold_row, pms_state="NOT_FOUND")
+        elif list_payload is not None:
+            pms_state = _extract_pms_reservation_state(list_payload)
             if _is_passive_pms_state(pms_state):
                 guest_info = _build_guest_info_inactive_pms(conv_row, hold_row, pms_state=pms_state)
             elif _guest_info_needs_pms_enrichment(guest_info):
-                live_hint = _extract_reservation_hint_from_elektra_payload(detail_payload)
+                live_hint = _extract_reservation_hint_from_elektra_payload(list_payload)
                 if live_hint:
                     reservation_hint = _merge_reservation_hints(reservation_hint, live_hint)
                     guest_info = _build_guest_info(conv_row, hold_row, reservation_hint)
                     logger.info(
-                        "chatlab_guest_info_live_pms_enriched",
+                        "chatlab_guest_info_live_list_enriched",
                         conversation_id=str(conv_uuid),
                         hold_id=str(hold_row["hold_id"] or "").strip() or None,
                         reservation_id=reservation_id,
