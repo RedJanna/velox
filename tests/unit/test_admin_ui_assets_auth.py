@@ -132,13 +132,37 @@ def test_chat_lab_does_not_persist_admin_token_in_localstorage() -> None:
 
 
 def test_chat_lab_exposes_reply_action_in_context_menu() -> None:
-    assert "Yanitla" in TEST_CHAT_SCRIPT
+    assert "Yanıtla" in TEST_CHAT_SCRIPT
     assert "setReplyTarget" in TEST_CHAT_SCRIPT
 
 
 def test_chat_lab_renders_reply_preview_composer() -> None:
     assert 'id="reply-preview"' in TEST_CHAT_HTML
     assert 'id="reply-preview-clear"' in TEST_CHAT_HTML
+
+
+def test_chat_lab_live_feed_inactive_toggle_is_wired() -> None:
+    assert 'id="include-inactive-toggle"' in TEST_CHAT_HTML
+    assert "const includeInactiveToggle = el('include-inactive-toggle');" in TEST_CHAT_SCRIPT
+    assert "include_inactive=true" in TEST_CHAT_SCRIPT
+
+
+def test_chat_lab_script_has_single_wire_events_definition() -> None:
+    assert TEST_CHAT_SCRIPT.count("function wireEvents()") == 1
+
+
+def test_chat_lab_script_is_valid_javascript() -> None:
+    node_path = shutil.which("node")
+    assert node_path, "node is required for Chat Lab syntax checks"
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        script_path = Path(tmp_dir) / "chat_lab.js"
+        script_path.write_text(TEST_CHAT_SCRIPT, encoding="utf-8")
+        subprocess.run(
+            [node_path, "--check", str(script_path)],
+            check=True,
+            capture_output=True,
+        )
 
 
 def test_admin_panel_shared_label_helper_avoids_broken_regex_escape() -> None:
@@ -218,6 +242,10 @@ def test_admin_panel_script_loads_hotel_facts_status_and_publish_actions() -> No
     assert "CHILD_POLICY_OPTIONS" in ADMIN_PANEL_SCRIPT
     assert "BEDDING_AVAILABILITY_OPTIONS" in ADMIN_PANEL_SCRIPT
     assert "LAUNDRY_TURNAROUND_OPTIONS" in ADMIN_PANEL_SCRIPT
+
+
+def test_admin_panel_script_tracks_hash_navigation_for_chatlab() -> None:
+    assert "window.addEventListener('hashchange'" in ADMIN_PANEL_SCRIPT
     assert "SERVICE_POINT_OPTIONS" in ADMIN_PANEL_SCRIPT
     assert "buildRoomTypeSelectionOptions" in ADMIN_PANEL_SCRIPT
     assert "getActiveHotelProfileFaqIndex" in ADMIN_PANEL_SCRIPT

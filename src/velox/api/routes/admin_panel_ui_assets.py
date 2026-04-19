@@ -462,11 +462,16 @@ function bindEvents() {
   document.getElementById('closeDecision').addEventListener('click', () => refs.decisionDialog.close());
   window.addEventListener('message', async event => {
     if (event.data && event.data.type === 'chatlab:auth-required') {
-      // Re-obtain a fresh token and send it to the iframe
       await loadChatLab();
     }
     if (event.data && event.data.type === 'chatlab:faq-created') {
       if (state.currentView === 'faq') loadFaqs();
+    }
+  });
+  window.addEventListener('hashchange', () => {
+    const newView = window.location.hash.replace('#', '') || 'dashboard';
+    if (newView !== state.currentView) {
+      setView(newView);
     }
   });
   window.addEventListener('resize', closeSidebar);
@@ -1037,8 +1042,6 @@ function onHotelScopeChange() {
 async function loadChatLab() {
   const frame = document.getElementById('chatlab-frame');
   if (!frame) return;
-  // Obtain a fresh access token and pass it to the iframe via postMessage
-  // because iframe fetch may not send httpOnly cookies reliably.
   let tokenPayload;
   try {
     tokenPayload = await apiFetch('/session/refresh', {method: 'POST', body: {}, auth: false, allowRefresh: false, logoutOn401: false});

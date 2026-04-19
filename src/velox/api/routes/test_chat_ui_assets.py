@@ -281,6 +281,8 @@ body{overflow:hidden}
 .queue-panel-head h2,.context-panel-head h2{font-size:16px;font-weight:800;letter-spacing:.01em}
 .queue-panel-head p,.context-panel-head p{font-size:12px;line-height:1.45;color:var(--muted);margin-top:4px}
 .queue-panel-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.queue-toggle{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;white-space:nowrap}
+.queue-toggle input{accent-color:var(--teal)}
 .queue-toolbar{display:flex;flex-direction:column;gap:10px;padding:var(--space-3) var(--space-4);border-bottom:1px solid rgba(18,33,59,.08);background:rgba(248,250,252,.8)}
 .queue-tabs,.context-tabs,.composer-modebar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .queue-tab,.context-tab,.composer-mode-btn{height:var(--chip-h);border:1px solid rgba(18,33,59,.1);border-radius:999px;background:rgba(255,255,255,.9);padding:0 12px;font-size:12px;font-weight:800;color:var(--muted);cursor:pointer;transition:all .16s ease}
@@ -581,7 +583,7 @@ function buildMessagesRenderSignature() {
       internal_note: Boolean(message.internal_note),
       whatsapp_message_id: message.whatsapp_message_id || '',
       attachment_count: Array.isArray(message.attachments) ? message.attachments.length : 0,
-    }),
+    })),
   });
 }
 
@@ -3487,8 +3489,11 @@ async function sendModalMessage() {
 
 async function loadLiveFeed() {
   const container = el('live-feed-container');
+  const includeInactiveToggle = el('include-inactive-toggle');
+  const includeInactive = includeInactiveToggle?.checked ? true : false;
+  const query = includeInactive ? '&include_inactive=true' : '';
   try {
-    const data = await apiFetch('/chat/live-feed?limit=15');
+    const data = await apiFetch('/chat/live-feed?limit=15' + query);
     markSyncSuccess('panel');
     state.liveConversations = data.conversations || [];
     renderLiveFeed(container, data);
@@ -3891,6 +3896,8 @@ function wireEvents() {
   el('feedback-submit').addEventListener('click', submitFeedback);
   el('metrics-refresh').addEventListener('click', loadMetrics);
   el('live-feed-refresh').addEventListener('click', loadLiveFeed);
+  const includeInactiveToggle = el('include-inactive-toggle');
+  if (includeInactiveToggle) includeInactiveToggle.addEventListener('change', loadLiveFeed);
   el('live-feed-container').addEventListener('click', async event => {
     const emptyActionBtn = event.target.closest('[data-empty-action]');
     if (emptyActionBtn) {

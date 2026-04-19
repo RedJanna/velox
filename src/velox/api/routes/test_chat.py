@@ -982,17 +982,24 @@ async def set_operation_mode(body: SetModeRequest, request: Request) -> dict[str
 
 
 @router.get("/chat/live-feed")
-async def live_feed(request: Request, limit: int = 20) -> dict[str, Any]:
-    """Return recent real (non-test) conversations with their last messages."""
+async def live_feed(request: Request, limit: int = 20, include_inactive: bool = False) -> dict[str, Any]:
+    """Return recent real (non-test) conversations with their last messages.
+    
+    Args:
+        limit: Maximum number of conversations to return (1-50)
+        include_inactive: If true, also include closed/inactive conversations
+    """
     if getattr(request.app.state, "db_pool", None) is None:
         raise HTTPException(status_code=503, detail="Veritabanı kullanılamıyor")
 
     pool = request.app.state.db_pool
     capped_limit = min(max(limit, 1), 50)
 
+    is_active_filter = "" if include_inactive else "AND c.is_active = true"
+
     try:
         rows = await pool.fetch(
-            """
+            f"""
             SELECT c.id, c.phone_display, c.language, c.current_state,
                    c.current_intent, c.risk_flags, c.is_active,
                    c.human_override,
@@ -1004,39 +1011,39 @@ async def live_feed(request: Request, limit: int = 20) -> dict[str, Any]:
                    (SELECT m.content FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'user'
                     ORDER BY m.created_at DESC LIMIT 1) AS last_user_msg,
-                    (SELECT m.content FROM messages m
+                   (SELECT m.content FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS last_assistant_msg,
-                   (SELECT m.internal_json->>'send_blocked' FROM messages m
+                    (SELECT m.internal_json->>'send_blocked' FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS send_blocked,
-                   (SELECT m.internal_json->>'approval_pending' FROM messages m
+                    (SELECT m.internal_json->>'approval_pending' FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS approval_pending,
-                   (SELECT m.internal_json->>'whatsapp_message_id' FROM messages m
+                    (SELECT m.internal_json->>'whatsapp_message_id' FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS whatsapp_message_id,
-                   (SELECT m.internal_json->>'provider_status' FROM messages m
+                    (SELECT m.internal_json->>'provider_status' FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS provider_status,
-                   (SELECT m.internal_json->>'provider_status_updated_at' FROM messages m
+                    (SELECT m.internal_json->>'provider_status_updated_at' FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS provider_status_updated_at,
-                   (SELECT m.internal_json->>'session_reopen_template_sent' FROM messages m
+                    (SELECT m.internal_json->>'session_reopen_template_sent' FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS session_reopen_template_sent,
-                   (SELECT m.internal_json->>'session_reopen_template_name' FROM messages m
+                    (SELECT m.internal_json->>'session_reopen_template_name' FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS session_reopen_template_name,
-                   (SELECT m.id FROM messages m
+                    (SELECT m.id FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS last_assistant_msg_id,
-                   (SELECT m.internal_json->>'rejected' FROM messages m
+                    (SELECT m.internal_json->>'rejected' FROM messages m
                     WHERE m.conversation_id = c.id AND m.role = 'assistant'
                     ORDER BY m.created_at DESC LIMIT 1) AS rejected
             FROM conversations c
             WHERE c.phone_hash NOT LIKE 'test_%'
-              AND c.is_active = true
+              {is_active_filter}
             ORDER BY c.last_message_at DESC
             LIMIT $1
             """,

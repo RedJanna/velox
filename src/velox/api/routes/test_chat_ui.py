@@ -181,6 +181,10 @@ TEST_CHAT_HTML = (
           <p>Canlı kuyruk, onay bekleyen yanıtlar ve dikkat gerektiren konuşmalar</p>
         </div>
         <div class="queue-panel-actions">
+          <label class="queue-toggle">
+            <input type="checkbox" id="include-inactive-toggle">
+            <span>Pasif dahil</span>
+          </label>
           <button class="btn btn-ghost btn-mini" id="shortcut-help-btn" type="button" aria-label="Klavye kısayollarını göster">Kısayollar</button>
           <button class="btn btn-ghost btn-mini" id="live-feed-refresh" type="button">Yenile</button>
         </div>
