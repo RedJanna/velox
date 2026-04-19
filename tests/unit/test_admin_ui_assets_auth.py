@@ -1748,3 +1748,13 @@ console.log(JSON.stringify({
     assert result["alwaysOn"] == "24/7"
     assert result["breakfastValid"] is True
     assert result["seasonValid"] is True
+
+
+def test_chat_lab_guest_context_exposes_reservation_actions() -> None:
+    assert "guest_info" in TEST_CHAT_SCRIPT
+    assert "data-guest-action=\"approve\"" in TEST_CHAT_SCRIPT
+    assert "data-guest-action=\"cancel\"" in TEST_CHAT_SCRIPT
+    assert "Rezervasyon Onayla" in TEST_CHAT_SCRIPT
+    assert "Rezervasyon İptal Et" in TEST_CHAT_SCRIPT
+    assert "/api/v1/admin/holds/" in TEST_CHAT_SCRIPT
+    assert "/cancel-reservation" in TEST_CHAT_SCRIPT

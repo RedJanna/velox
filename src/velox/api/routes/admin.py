@@ -12,6 +12,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field, field_validator
 
+from velox.adapters.elektraweb.endpoints import cancel_reservation, get_reservation
 from velox.adapters.whatsapp.client import get_whatsapp_client
 from velox.api.middleware.auth import (
     TokenData,
@@ -175,6 +176,10 @@ class ApproveRequest(BaseModel):
 
 class RejectRequest(BaseModel):
     reason: str = Field(min_length=1)
+
+
+class CancelReservationRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)
 
 
 class ArchiveHoldsRequest(BaseModel):
@@ -2927,6 +2932,112 @@ async def reject_hold(
     return {"status": "rejected", "hold_id": hold_id, "reason": body.reason, "result": result}
 
 
+@router.post("/holds/{hold_id}/cancel-reservation")
+async def cancel_hold_reservation(
+    hold_id: str,
+    body: CancelReservationRequest,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Cancel a stay reservation in Elektra and sync local hold status."""
+    check_permission(user, "holds:reject")
+    _table, hold_type = _resolve_hold_target(hold_id)
+    if hold_type != "stay":
+        raise HTTPException(status_code=400, detail="Only stay holds support PMS reservation cancellation")
+
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        row = await _fetch_hold_row(conn, hold_type, hold_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Hold not found")
+        if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        current_status = str(row["status"])
+        if current_status in {HoldStatus.CANCELLED.value, HoldStatus.REJECTED.value}:
+            return {
+                "status": "already_processed",
+                "hold_id": hold_id,
+                "hold_type": hold_type,
+                "result": {
+                    "current_status": current_status,
+                    "message": "Rezervasyon zaten kapalı durumda; tekrar iptal çağrısı yapılmadı.",
+                },
+            }
+
+        allowed_statuses = {
+            HoldStatus.PENDING_APPROVAL.value,
+            HoldStatus.PMS_PENDING.value,
+            HoldStatus.PMS_CREATED.value,
+            HoldStatus.PMS_FAILED.value,
+            HoldStatus.PAYMENT_PENDING.value,
+            HoldStatus.PAYMENT_EXPIRED.value,
+            HoldStatus.MANUAL_REVIEW.value,
+            HoldStatus.APPROVED.value,
+            HoldStatus.CONFIRMED.value,
+        }
+        if current_status not in allowed_statuses:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Hold cannot be cancelled in current status (current: {current_status})",
+            )
+
+        hotel_id = int(row["hotel_id"])
+        reservation_id, voucher_no = await _resolve_stay_cancellation_reference(hotel_id, row)
+        try:
+            cancellation_result = await cancel_reservation(
+                hotel_id=hotel_id,
+                reservation_id=reservation_id,
+                reason=body.reason,
+            )
+        except Exception as exc:
+            logger.warning(
+                "admin_stay_cancel_reservation_failed",
+                hold_id=hold_id,
+                hotel_id=hotel_id,
+                error=str(exc),
+            )
+            raise HTTPException(status_code=502, detail="Elektra rezervasyon iptal işlemi başarısız oldu") from exc
+
+        await conn.execute(
+            """
+            UPDATE stay_holds
+            SET status = $2,
+                rejected_reason = $3,
+                archived_at = COALESCE(archived_at, now()),
+                archived_by = $4,
+                archived_reason = $3,
+                pms_reservation_id = COALESCE($5, pms_reservation_id),
+                voucher_no = COALESCE($6, voucher_no),
+                updated_at = now()
+            WHERE hold_id = $1
+            """,
+            hold_id,
+            HoldStatus.CANCELLED.value,
+            body.reason,
+            user.display_name or user.username,
+            reservation_id,
+            voucher_no,
+        )
+
+    logger.info(
+        "admin_stay_cancel_reservation_succeeded",
+        hold_id=hold_id,
+        hotel_id=hotel_id,
+        reservation_id=reservation_id,
+        voucher_no=voucher_no,
+        requested_by=user.username,
+    )
+    return {
+        "status": "cancelled",
+        "hold_id": hold_id,
+        "hold_type": hold_type,
+        "reservation_id": reservation_id,
+        "voucher_no": voucher_no,
+        "result": cancellation_result,
+    }
+
+
 @router.post("/holds/archive")
 async def archive_holds(
     body: ArchiveHoldsRequest,
@@ -3120,6 +3231,43 @@ async def update_ticket(
             ticket_id,
         )
     return {"status": "updated", "ticket_id": ticket_id}
+
+
+async def _resolve_stay_cancellation_reference(hotel_id: int, hold_row: Any) -> tuple[str, str | None]:
+    """Resolve the PMS reservation reference needed for Elektra cancellation."""
+    reservation_id = str(hold_row.get("pms_reservation_id") or "").strip() or None
+    voucher_no = str(hold_row.get("voucher_no") or "").strip() or None
+
+    if reservation_id:
+        return reservation_id, voucher_no
+    if not voucher_no:
+        raise HTTPException(
+            status_code=409,
+            detail="PMS rezervasyon kimliği bulunamadığı için Elektra iptal çağrısı yapılamıyor",
+        )
+
+    try:
+        reservation_detail = await get_reservation(
+            hotel_id=hotel_id,
+            voucher_no=voucher_no,
+        )
+    except Exception as exc:
+        logger.warning(
+            "admin_stay_cancel_lookup_failed",
+            hotel_id=hotel_id,
+            voucher_no=voucher_no,
+            error=str(exc),
+        )
+        raise HTTPException(status_code=502, detail="Elektra rezervasyon detayı alınamadı") from exc
+
+    resolved_reservation_id = str(reservation_detail.reservation_id or "").strip() or None
+    resolved_voucher_no = str(reservation_detail.voucher_no or voucher_no or "").strip() or None
+    if not resolved_reservation_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Elektra rezervasyon kimliği çözümlenemedi; iptal işlemi durduruldu",
+        )
+    return resolved_reservation_id, resolved_voucher_no
 
 
 async def _fetch_hold_row(conn: Any, hold_type: str, hold_id: str) -> Any:

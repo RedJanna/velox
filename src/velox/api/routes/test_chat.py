@@ -2,7 +2,7 @@
 
 import asyncio
 import contextlib
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from string import Formatter
 from typing import Annotated, Any
@@ -39,7 +39,7 @@ from velox.api.routes.whatsapp_webhook import (
     _run_message_pipeline,
     _should_activate_handoff_lock,
 )
-from velox.config.constants import Role
+from velox.config.constants import HoldStatus, Role
 from velox.config.settings import settings
 from velox.core.chat_lab_attachments import (
     ChatLabAttachmentError,
@@ -1098,12 +1098,265 @@ async def live_feed(request: Request, limit: int = 20, include_inactive: bool = 
     }
 
 
+_STAY_STATUS_LABELS: dict[str, str] = {
+    HoldStatus.PENDING_APPROVAL.value: "Onay Bekliyor",
+    HoldStatus.PMS_PENDING.value: "PMS İşleniyor",
+    HoldStatus.PMS_CREATED.value: "PMS Oluşturuldu",
+    HoldStatus.PMS_FAILED.value: "PMS Hatası",
+    HoldStatus.PAYMENT_PENDING.value: "Ödeme Bekliyor",
+    HoldStatus.PAYMENT_EXPIRED.value: "Ödeme Süresi Doldu",
+    HoldStatus.MANUAL_REVIEW.value: "İnceleme Gerekli",
+    HoldStatus.APPROVED.value: "Onaylandı",
+    HoldStatus.REJECTED.value: "Reddedildi",
+    HoldStatus.CONFIRMED.value: "Kesinleşti",
+    HoldStatus.CANCELLED.value: "İptal Edildi",
+}
+_STAY_STATUS_TONES: dict[str, str] = {
+    HoldStatus.PENDING_APPROVAL.value: "warning",
+    HoldStatus.PMS_PENDING.value: "warning",
+    HoldStatus.PMS_CREATED.value: "info",
+    HoldStatus.PMS_FAILED.value: "danger",
+    HoldStatus.PAYMENT_PENDING.value: "warning",
+    HoldStatus.PAYMENT_EXPIRED.value: "danger",
+    HoldStatus.MANUAL_REVIEW.value: "danger",
+    HoldStatus.APPROVED.value: "info",
+    HoldStatus.REJECTED.value: "danger",
+    HoldStatus.CONFIRMED.value: "success",
+    HoldStatus.CANCELLED.value: "danger",
+}
+_APPROVE_ACTIONABLE_STAY_STATUSES = {
+    HoldStatus.PENDING_APPROVAL.value,
+    HoldStatus.APPROVED.value,
+    HoldStatus.MANUAL_REVIEW.value,
+    HoldStatus.PMS_FAILED.value,
+}
+
+
+def _parse_chat_payload(raw: object) -> dict[str, Any]:
+    """Decode stringified JSON blobs used by admin-facing payloads."""
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, (str, bytes, bytearray)):
+        try:
+            decoded = orjson.loads(raw)
+        except Exception:
+            return {}
+        return decoded if isinstance(decoded, dict) else {}
+    return {}
+
+
+def _load_profile_for_hotel(hotel_id: int) -> Any | None:
+    """Resolve hotel profile from cache and refresh once when needed."""
+    profile = get_profile(hotel_id)
+    if profile is not None:
+        return profile
+    load_all_profiles()
+    return get_profile(hotel_id)
+
+
+def _localized_profile_value(value: object, language: str, fallback: str = "-") -> str:
+    """Return localized profile text while preserving safe fallbacks."""
+    if value is None:
+        return fallback
+    localized = getattr(value, language, None)
+    if isinstance(localized, str) and localized.strip():
+        return localized.strip()
+    tr_value = getattr(value, "tr", None)
+    if isinstance(tr_value, str) and tr_value.strip():
+        return tr_value.strip()
+    en_value = getattr(value, "en", None)
+    if isinstance(en_value, str) and en_value.strip():
+        return en_value.strip()
+    text = str(value).strip()
+    return text or fallback
+
+
+def _profile_room_label(profile: Any | None, raw_value: object, language: str) -> str:
+    """Translate stored room identifiers into human-readable labels."""
+    if raw_value in (None, ""):
+        return "-"
+    value = str(raw_value).strip()
+    if profile is not None:
+        for room in getattr(profile, "room_types", []):
+            candidates = {
+                str(getattr(room, "id", "")).strip(),
+                str(getattr(room, "pms_room_type_id", "")).strip(),
+            }
+            if value in candidates:
+                return _localized_profile_value(getattr(room, "name", None), language, fallback=value)
+    return value
+
+
+def _profile_board_label(profile: Any | None, raw_value: object, language: str) -> str:
+    """Translate stored board identifiers into human-readable labels."""
+    if raw_value in (None, ""):
+        return "-"
+    value = str(raw_value).strip()
+    if profile is not None:
+        for board in getattr(profile, "board_types", []):
+            candidates = {
+                str(getattr(board, "id", "")).strip(),
+                str(getattr(board, "code", "")).strip(),
+            }
+            if value in candidates:
+                return _localized_profile_value(getattr(board, "name", None), language, fallback=value)
+    return value
+
+
+def _parse_iso_date(value: object) -> date | None:
+    """Parse YYYY-MM-DD values emitted by stay drafts."""
+    if value in (None, ""):
+        return None
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError:
+        return None
+
+
+def _stay_status_meta(status: object) -> tuple[str, str]:
+    """Map stay workflow states into UI badge metadata."""
+    normalized = str(status or "").strip().upper()
+    if not normalized:
+        return ("Durum Bilinmiyor", "muted")
+    return (
+        _STAY_STATUS_LABELS.get(normalized, normalized.replace("_", " ").title()),
+        _STAY_STATUS_TONES.get(normalized, "muted"),
+    )
+
+
+def _stay_hold_approve_state(hold_row: dict[str, Any]) -> tuple[bool, str]:
+    """Mirror admin approve constraints so Chat Lab buttons match backend rules."""
+    current_status = str(hold_row.get("status") or "").strip().upper()
+    if current_status in {
+        HoldStatus.PMS_PENDING.value,
+        HoldStatus.PMS_CREATED.value,
+        HoldStatus.PAYMENT_PENDING.value,
+        HoldStatus.CONFIRMED.value,
+    }:
+        return (False, "Rezervasyon zaten işlenmiş durumda.")
+    if current_status not in _APPROVE_ACTIONABLE_STAY_STATUSES:
+        return (False, "Bu statüde onay aksiyonu kullanılamaz.")
+    manual_review_reason = str(hold_row.get("manual_review_reason") or "").strip()
+    if current_status == HoldStatus.MANUAL_REVIEW.value:
+        create_state_uncertain = manual_review_reason in {
+            "create_missing_identifiers",
+            "create_unverified_after_readback",
+        }
+        if hold_row.get("pms_reservation_id") or hold_row.get("voucher_no") or create_state_uncertain:
+            return (False, "Belirsiz PMS durumu nedeniyle manuel inceleme gerekli.")
+    return (True, "")
+
+
+def _stay_hold_cancel_state(hold_row: dict[str, Any]) -> tuple[str | None, bool, str]:
+    """Choose the cancel action that should be exposed to Chat Lab."""
+    current_status = str(hold_row.get("status") or "").strip().upper()
+    if current_status in {HoldStatus.CANCELLED.value, HoldStatus.REJECTED.value}:
+        return (None, False, "Rezervasyon zaten kapatılmış durumda.")
+    if hold_row.get("pms_reservation_id") or hold_row.get("voucher_no"):
+        return ("cancel_reservation", True, "")
+    if current_status in {
+        HoldStatus.PENDING_APPROVAL.value,
+        HoldStatus.PAYMENT_PENDING.value,
+    }:
+        return ("reject_hold", True, "PMS kaydı oluşmadığı için yerel hold iptal edilecek.")
+    return (None, False, "PMS rezervasyon kimliği bulunmadığı için iptal aksiyonu kapalı.")
+
+
+def _build_guest_info(conv_row: Any, hold_row: Any) -> dict[str, Any]:
+    """Build the Chat Lab guest rail payload from conversation and stay hold data."""
+    language = str(conv_row["language"] or "tr").strip().lower() or "tr"
+    hotel_id = int(conv_row["hotel_id"] or settings.elektra_hotel_id)
+    profile = _load_profile_for_hotel(hotel_id)
+
+    if hold_row is None:
+        return {
+            "available": False,
+            "info_status_label": "Misafir bilgi durumu: rezervasyon kaydı bağlı değil",
+            "info_status_tone": "muted",
+            "guest_name": "-",
+            "phone": conv_row["phone_display"] or "***",
+            "email": "-",
+            "nationality": "-",
+            "language": language,
+            "checkin_date": "-",
+            "checkout_date": "-",
+            "nights": 0,
+            "adults": 0,
+            "children": 0,
+            "room_label": "-",
+            "board_label": "-",
+            "total_price_display": "-",
+            "hold_id": None,
+            "hold_status": None,
+            "hold_status_label": "Rezervasyon Kaydı Yok",
+            "hold_status_tone": "muted",
+            "reservation_reference": None,
+            "status_detail": "Bu konuşma için henüz stay hold veya Elektra rezervasyonu bağlanmadı.",
+            "approve_enabled": False,
+            "approve_reason": "Onaylanacak bir stay hold bulunmuyor.",
+            "cancel_enabled": False,
+            "cancel_reason": "İptal edilecek bir stay hold bulunmuyor.",
+            "cancel_action": None,
+        }
+
+    draft = _parse_chat_payload(hold_row.get("draft_json"))
+    status_label, status_tone = _stay_status_meta(hold_row.get("status"))
+    approve_enabled, approve_reason = _stay_hold_approve_state(hold_row)
+    cancel_action, cancel_enabled, cancel_reason = _stay_hold_cancel_state(hold_row)
+    checkin_date = _parse_iso_date(draft.get("checkin_date"))
+    checkout_date = _parse_iso_date(draft.get("checkout_date"))
+    nights = (checkout_date - checkin_date).days if checkin_date and checkout_date and checkout_date > checkin_date else 0
+    reservation_reference = (
+        str(hold_row.get("voucher_no") or "").strip()
+        or str(hold_row.get("reservation_no") or "").strip()
+        or str(hold_row.get("pms_reservation_id") or "").strip()
+        or None
+    )
+
+    return {
+        "available": True,
+        "info_status_label": "Misafir bilgi durumu: stay hold bağlı",
+        "info_status_tone": "success" if reservation_reference else "warning",
+        "guest_name": str(draft.get("guest_name") or "").strip() or "-",
+        "phone": str(draft.get("phone") or "").strip() or conv_row["phone_display"] or "***",
+        "email": str(draft.get("email") or "").strip() or "-",
+        "nationality": str(draft.get("nationality") or "").strip() or "-",
+        "language": language,
+        "checkin_date": checkin_date.isoformat() if checkin_date else "-",
+        "checkout_date": checkout_date.isoformat() if checkout_date else "-",
+        "nights": nights,
+        "adults": int(draft.get("adults") or 0),
+        "children": len(draft.get("chd_ages") or []),
+        "room_label": _profile_room_label(profile, draft.get("room_type_id"), language),
+        "board_label": _profile_board_label(profile, draft.get("board_type_id"), language),
+        "total_price_display": (
+            f"{draft.get('total_price_eur')} {draft.get('currency_display') or 'EUR'}"
+            if draft.get("total_price_eur") not in (None, "")
+            else "-"
+        ),
+        "hold_id": str(hold_row.get("hold_id") or "").strip() or None,
+        "hold_status": str(hold_row.get("status") or "").strip() or None,
+        "hold_status_label": status_label,
+        "hold_status_tone": status_tone,
+        "reservation_reference": reservation_reference,
+        "pms_reservation_id": str(hold_row.get("pms_reservation_id") or "").strip() or None,
+        "voucher_no": str(hold_row.get("voucher_no") or "").strip() or None,
+        "reservation_no": str(hold_row.get("reservation_no") or "").strip() or None,
+        "status_detail": cancel_reason or approve_reason or "Rezervasyon aksiyonları mevcut durum ve PMS kayıtlarına göre hazırlanmıştır.",
+        "approve_enabled": approve_enabled,
+        "approve_reason": approve_reason,
+        "cancel_enabled": cancel_enabled,
+        "cancel_reason": cancel_reason,
+        "cancel_action": cancel_action,
+    }
+
+
 @router.get("/chat/conversation/{conversation_id}")
 async def get_conversation_detail(request: Request, conversation_id: str) -> dict[str, Any]:
     """Return full conversation with all messages for the detail modal."""
     from uuid import UUID as _UUID
-
-    import orjson
 
     pool = getattr(request.app.state, "db_pool", None)
     if pool is None:
@@ -1125,6 +1378,18 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
     if conv_row is None:
         raise HTTPException(status_code=404, detail="Konuşma bulunamadı")
 
+    hold_row = await pool.fetchrow(
+        """
+        SELECT hold_id, status, draft_json, pms_reservation_id, voucher_no, reservation_no,
+               manual_review_reason, approved_by, approved_at, rejected_reason, created_at
+        FROM stay_holds
+        WHERE conversation_id = $1
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        conv_uuid,
+    )
+
     msg_rows = await pool.fetch(
         """
         SELECT id, role, content, internal_json, created_at
@@ -1136,17 +1401,7 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
     )
 
     def _pj(raw: object) -> dict[str, Any]:
-        if raw is None:
-            return {}
-        if isinstance(raw, dict):
-            return raw
-        if isinstance(raw, (str, bytes, bytearray)):
-            try:
-                result = orjson.loads(raw)
-                return result if isinstance(result, dict) else {}
-            except Exception:
-                return {}
-        return {}
+        return _parse_chat_payload(raw)
 
     messages = []
     last_user_message_at: datetime | None = None
@@ -1233,6 +1488,7 @@ async def get_conversation_detail(request: Request, conversation_id: str) -> dic
         "delivery_state": delivery_state,
         "last_webhook_at": str(latest_assistant_internal.get("provider_status_updated_at") or "").strip() or None,
         **service_window,
+        "guest_info": _build_guest_info(conv_row, hold_row),
         "messages": messages,
         "operation_mode": settings.operation_mode,
     }
@@ -1359,8 +1615,6 @@ async def list_chat_templates(
 async def reject_and_flag_message(request: Request) -> dict[str, Any]:
     """Reject an assistant message: mark as rejected and ensure send_blocked."""
     from uuid import UUID as _UUID
-
-    import orjson
 
     body = await request.json()
     conv_id = body.get("conversation_id")
@@ -1762,8 +2016,6 @@ async def add_note_to_conversation(body: ConversationNoteRequest, request: Reque
 async def approve_and_send_message(request: Request) -> dict[str, Any]:
     """Approve a pending assistant message and send it via WhatsApp."""
     from uuid import UUID as _UUID
-
-    import orjson
 
     from velox.adapters.whatsapp.client import get_whatsapp_client
 

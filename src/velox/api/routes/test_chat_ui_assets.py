@@ -386,6 +386,28 @@ body{overflow:hidden}
 .context-row span:last-child{color:#13253e;text-align:right;font-weight:600}
 .context-tag-row{display:flex;flex-wrap:wrap;gap:8px}
 .context-tag{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:rgba(18,33,59,.06);font-size:12px;font-weight:700;color:var(--muted)}
+.guest-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.guest-card-title{display:flex;flex-direction:column;gap:4px}
+.guest-card-title strong{font-size:14px;color:var(--ink)}
+.guest-card-title span{font-size:12px;line-height:1.5;color:var(--muted)}
+.guest-status-badge{display:inline-flex;align-items:center;justify-content:center;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+.guest-status-badge.is-success{background:rgba(34,197,94,.14);color:#166534}
+.guest-status-badge.is-warning{background:rgba(245,158,11,.16);color:#b45309}
+.guest-status-badge.is-danger{background:rgba(239,68,68,.12);color:#b91c1c}
+.guest-status-badge.is-info{background:rgba(37,99,235,.12);color:#1d4ed8}
+.guest-status-badge.is-muted{background:rgba(18,33,59,.08);color:var(--muted)}
+.guest-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.guest-field{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:14px;border:1px solid rgba(18,33,59,.08);background:rgba(18,33,59,.03);min-width:0}
+.guest-field.full{grid-column:1 / -1}
+.guest-field span{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.guest-field strong{font-size:13px;line-height:1.45;color:var(--ink);word-break:break-word}
+.guest-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.guest-action-btn{height:36px;border-radius:12px;border:1px solid rgba(18,33,59,.12);padding:0 12px;font-size:12px;font-weight:800;cursor:pointer;transition:transform .15s ease,opacity .15s ease}
+.guest-action-btn:hover{transform:translateY(-1px)}
+.guest-action-btn.primary{background:var(--teal);border-color:var(--teal);color:#fff}
+.guest-action-btn.danger{background:#fff1f2;border-color:rgba(220,38,38,.18);color:#b91c1c}
+.guest-action-btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+.guest-action-note{font-size:12px;line-height:1.5;color:var(--muted)}
 .audit-timeline{display:flex;flex-direction:column;gap:10px}
 .audit-item{padding:12px;border-radius:14px;border:1px solid rgba(18,33,59,.08);background:rgba(248,250,252,.9)}
 .audit-item.is-success{border-color:rgba(21,117,111,.22);background:rgba(21,117,111,.06)}
@@ -429,6 +451,7 @@ body{overflow:hidden}
   .context-panel{display:flex}
   .msg{max-width:90%}
   .composer-chip{max-width:100%}
+  .guest-grid,.guest-actions{grid-template-columns:minmax(0,1fr)}
 }
 """
 
@@ -878,6 +901,97 @@ function getConversationSubtitle(conversation = null) {
   return parts.join(' · ') || 'Konuşma özeti hazır.';
 }
 
+function guestToneClass(tone = 'muted') {
+  const normalized = String(tone || 'muted').toLowerCase();
+  if (['success', 'warning', 'danger', 'info'].includes(normalized)) return `is-${normalized}`;
+  return 'is-muted';
+}
+
+function guestStatusBadgeHtml(label, tone = 'muted') {
+  return `<span class="guest-status-badge ${guestToneClass(tone)}">${escapeHtml(label || '-')}</span>`;
+}
+
+function renderGuestField(label, value, {full = false} = {}) {
+  return `<div class="guest-field${full ? ' full' : ''}"><span>${escapeHtml(label || '-')}</span><strong>${escapeHtml(value || '-')}</strong></div>`;
+}
+
+function formatGuestParty(guestInfo = {}) {
+  const adults = Number(guestInfo.adults || 0);
+  const children = Number(guestInfo.children || 0);
+  if (!adults && !children) return '-';
+  return `${adults} yetişkin${children ? ` • ${children} çocuk` : ''}`;
+}
+
+function renderGuestContext(conversation, tags) {
+  const guestInfo = conversation?.guest_info || {};
+  const guestName = guestInfo.guest_name || getConversationDisplayTitle(conversation);
+  const infoStatus = guestInfo.info_status_label || 'Misafir bilgi durumu: veri bekleniyor';
+  const infoTone = guestInfo.info_status_tone || 'muted';
+  const holdStatusLabel = guestInfo.hold_status_label || 'Rezervasyon Kaydı Yok';
+  const holdStatusTone = guestInfo.hold_status_tone || 'muted';
+  const reservationReference = guestInfo.reservation_reference || guestInfo.voucher_no || guestInfo.pms_reservation_id || '-';
+  const actionNote = guestInfo.status_detail || guestInfo.cancel_reason || guestInfo.approve_reason || 'Rezervasyon aksiyonları için uygun veri bekleniyor.';
+  const approveDisabled = !guestInfo.approve_enabled || !guestInfo.hold_id;
+  const cancelDisabled = !guestInfo.cancel_enabled || !guestInfo.hold_id;
+  const approveReason = approveDisabled ? (guestInfo.approve_reason || 'Onay aksiyonu kullanılamıyor.') : 'Rezervasyon onay akışı başlatılacak.';
+  const cancelReason = cancelDisabled ? (guestInfo.cancel_reason || 'İptal aksiyonu kullanılamıyor.') : (guestInfo.cancel_action === 'cancel_reservation' ? 'Elektra PMS üzerinde iptal çağrısı yapılacak.' : 'PMS kaydı oluşmadan önce hold iptal edilecek.');
+  return `
+    <div class="context-card">
+      <div class="guest-card-head">
+        <div class="guest-card-title">
+          <strong>${escapeHtml(guestName || '-')}</strong>
+          <span>${escapeHtml(infoStatus)}</span>
+        </div>
+        ${guestStatusBadgeHtml(holdStatusLabel, holdStatusTone || infoTone)}
+      </div>
+      <div class="guest-grid">
+        ${renderGuestField('Telefon', guestInfo.phone || conversation.phone_display || '-')}
+        ${renderGuestField('E-posta', guestInfo.email || '-')}
+        ${renderGuestField('Dil', guestInfo.language || conversation.language || '-')}
+        ${renderGuestField('Uyruk', guestInfo.nationality || '-')}
+      </div>
+    </div>
+    <div class="context-card">
+      <div class="guest-card-head">
+        <div class="guest-card-title">
+          <strong>Rezervasyon Detayları</strong>
+          <span>${escapeHtml(guestInfo.available ? 'Stay hold ve PMS referansları konuşma ile eşlendi.' : 'Konuşma için bağlı stay hold bulunamadı.')}</span>
+        </div>
+        ${guestStatusBadgeHtml(infoStatus, infoTone)}
+      </div>
+      <div class="guest-grid">
+        ${renderGuestField('Tarih', `${guestInfo.checkin_date || '-'} → ${guestInfo.checkout_date || '-'}`)}
+        ${renderGuestField('Konaklama', guestInfo.nights ? `${guestInfo.nights} gece` : '-')}
+        ${renderGuestField('Kişi', formatGuestParty(guestInfo))}
+        ${renderGuestField('Toplam', guestInfo.total_price_display || '-')}
+        ${renderGuestField('Oda', guestInfo.room_label || '-')}
+        ${renderGuestField('Pansiyon', guestInfo.board_label || '-')}
+        ${renderGuestField('Referans', reservationReference, {full: true})}
+      </div>
+    </div>
+    <div class="context-card">
+      <div class="guest-card-head">
+        <div class="guest-card-title">
+          <strong>Rezervasyon Aksiyonları</strong>
+          <span>${escapeHtml(actionNote)}</span>
+        </div>
+        ${guestInfo.hold_id ? guestStatusBadgeHtml(guestInfo.hold_id, 'info') : guestStatusBadgeHtml('Hold Yok', 'muted')}
+      </div>
+      <div class="guest-actions">
+        <button class="guest-action-btn primary" type="button" data-guest-action="approve" data-hold-id="${escapeHtml(guestInfo.hold_id || '')}" ${approveDisabled ? 'disabled' : ''}>Rezervasyon Onayla</button>
+        <button class="guest-action-btn danger" type="button" data-guest-action="cancel" data-hold-id="${escapeHtml(guestInfo.hold_id || '')}" ${cancelDisabled ? 'disabled' : ''}>Rezervasyon İptal Et</button>
+      </div>
+      <div class="guest-grid mt-xs">
+        ${renderGuestField('Onay Durumu', approveReason, {full: true})}
+        ${renderGuestField('İptal Durumu', cancelReason, {full: true})}
+      </div>
+    </div>
+    <div class="context-card">
+      <h3>Etiketler</h3>
+      <div class="context-tag-row">${tags.length ? tags.map(tag => `<span class="context-tag">${escapeHtml(tag)}</span>`).join('') : '<span class="context-tag">Etiket yok</span>'}</div>
+    </div>`;
+}
+
 function renderEmptyCard({title, body, actions = [], hints = []} = {}) {
   return `
     <div class="empty-state">
@@ -1175,21 +1289,7 @@ function renderContextRail() {
   const tags = [...new Set([...(conversation.risk_flags || []), conversation.intent || '', conversation.state || ''])].filter(Boolean);
   const delivery = latestDeliverySummary();
   if (state.contextTab === 'guest') {
-    container.innerHTML = `
-      <div class="context-card">
-        <h3>Misafir Özeti</h3>
-        <div class="context-list">
-          <div class="context-row"><span>Kimlik</span><span>${escapeHtml(getConversationDisplayTitle(conversation))}</span></div>
-          <div class="context-row"><span>Dil</span><span>${escapeHtml(conversation.language || '-')}</span></div>
-          <div class="context-row"><span>Son aktivite</span><span>${escapeHtml(formatRelativeTime(conversation.last_message_at))}</span></div>
-          <div class="context-row"><span>Konuşma</span><span>${conversation.is_active ? 'Aktif' : 'Kapalı'}</span></div>
-          <div class="context-row"><span>İnsan devri</span><span>${conversation.human_override ? 'Aktif' : 'Kapalı'}</span></div>
-        </div>
-      </div>
-      <div class="context-card">
-        <h3>Etiketler</h3>
-        <div class="context-tag-row">${tags.length ? tags.map(tag => `<span class="context-tag">${escapeHtml(tag)}</span>`).join('') : '<span class="context-tag">Etiket yok</span>'}</div>
-      </div>`;
+    container.innerHTML = renderGuestContext(conversation, tags);
     return;
   }
   if (state.contextTab === 'operations') {
@@ -2761,6 +2861,7 @@ async function loadLiveConversation(convId) {
         window_state: data.window_state || 'unknown',
         window_expires_at: data.window_expires_at || null,
         window_remaining_seconds: data.window_remaining_seconds || 0,
+        guest_info: data.guest_info || null,
       };
       renderMessages();
       renderThreadHeader();
@@ -3882,6 +3983,78 @@ function wireEvents() {
     const btn = event.target.closest('.context-tab');
     if (!btn) return;
     applyContextTab(btn.dataset.contextTab || 'guest');
+  });
+  el('context-body').addEventListener('click', async event => {
+    const actionBtn = event.target.closest('[data-guest-action]');
+    if (!actionBtn) return;
+    const conversationId = state.activeConversationId;
+    const guestInfo = state.conversation?.guest_info || {};
+    const holdId = actionBtn.dataset.holdId || guestInfo.hold_id || '';
+    if (!conversationId || !holdId) return;
+
+    const action = actionBtn.dataset.guestAction || '';
+    let path = '';
+    let payload = null;
+    let confirmMessage = '';
+    let successMessage = '';
+
+    if (action === 'approve') {
+      if (!guestInfo.approve_enabled) {
+        notify(guestInfo.approve_reason || 'Rezervasyon onay akışı şu an kapalı.', 'warn');
+        return;
+      }
+      path = '/api/v1/admin/holds/' + encodeURIComponent(holdId) + '/approve';
+      payload = {notes: 'chat_lab_guest_info_approve'};
+      confirmMessage = 'Bu rezervasyon için onay akışını başlatmak istiyor musunuz?';
+      successMessage = 'Rezervasyon onay akışı başlatıldı.';
+    } else if (action === 'cancel') {
+      if (!guestInfo.cancel_enabled) {
+        notify(guestInfo.cancel_reason || 'Rezervasyon iptal akışı şu an kapalı.', 'warn');
+        return;
+      }
+      if (guestInfo.cancel_action === 'cancel_reservation') {
+        path = '/api/v1/admin/holds/' + encodeURIComponent(holdId) + '/cancel-reservation';
+        payload = {reason: 'chat_lab_guest_info_cancel'};
+        confirmMessage = 'Bu rezervasyon Elektra PMS üzerinden iptal edilecek. Devam edilsin mi?';
+        successMessage = 'Rezervasyon Elektra üzerinden iptal edildi.';
+      } else if (guestInfo.cancel_action === 'reject_hold') {
+        path = '/api/v1/admin/holds/' + encodeURIComponent(holdId) + '/reject';
+        payload = {reason: 'chat_lab_guest_info_cancel'};
+        confirmMessage = 'Bu hold PMS kaydı oluşmadan iptal edilecek. Devam edilsin mi?';
+        successMessage = 'Rezervasyon talebi iptal edildi.';
+      } else {
+        notify(guestInfo.cancel_reason || 'Rezervasyon iptal akışı şu an kapalı.', 'warn');
+        return;
+      }
+    } else {
+      return;
+    }
+
+    if (typeof window.confirm === 'function' && !window.confirm(confirmMessage)) {
+      return;
+    }
+
+    const originalLabel = actionBtn.textContent;
+    actionBtn.disabled = true;
+    actionBtn.textContent = action === 'approve' ? 'İşleniyor...' : 'İptal Ediliyor...';
+    try {
+      const data = await apiFetch(path, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+      });
+      if (data?.status === 'already_processed') {
+        notify(data?.result?.message || 'Rezervasyon zaten işlenmiş durumda.', 'warn');
+      } else {
+        notify(successMessage, 'success');
+      }
+      await loadLiveFeed();
+      await loadLiveConversation(conversationId);
+    } catch (error) {
+      notify(error.message || 'Rezervasyon aksiyonu başarısız.', 'error');
+      actionBtn.disabled = false;
+      actionBtn.textContent = originalLabel;
+    }
   });
   el('role-mapping-submit').addEventListener('click', () => loadSelectedImport(currentRoleMapping()));
   el('feedback-category').addEventListener('change', () => {
