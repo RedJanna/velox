@@ -18,7 +18,13 @@ from typing import Any
 import structlog
 
 from velox.adapters.whatsapp.client import get_whatsapp_client
-from velox.core.hotel_profile_loader import get_all_profiles, get_profile
+from velox.core.conversation_idle_policy import (
+    get_idle_close_threshold_seconds,
+    get_idle_reset_config,
+    get_idle_warning_threshold_seconds,
+    render_idle_reset_message,
+)
+from velox.core.hotel_profile_loader import get_all_profiles
 from velox.db.repositories.conversation import ConversationRepository
 from velox.models.hotel_profile import ConversationIdleResetConfig
 
@@ -31,27 +37,6 @@ CHECK_INTERVAL_SECONDS = 60
 # been sent during this process lifetime.  Cleared automatically when the
 # conversation is closed or when the process restarts.
 _warned_conversation_ids: set[str] = set()
-
-
-def _get_idle_config(hotel_id: int) -> ConversationIdleResetConfig:
-    """Return the idle-reset config for a hotel, falling back to defaults."""
-    profile = get_profile(hotel_id)
-    if profile is not None:
-        return profile.conversation_idle_reset
-    return ConversationIdleResetConfig()
-
-
-def _pick_message(config: ConversationIdleResetConfig, language: str, kind: str) -> str:
-    """Pick the appropriate message template by language and kind.
-
-    *kind* is either ``"warning"`` or ``"closed"``.
-    """
-    lang = language.casefold()[:2] if language else "tr"
-    if kind == "warning":
-        return config.warning_message_en if lang == "en" else config.warning_message_tr
-    return config.closed_message_en if lang == "en" else config.closed_message_tr
-
-
 def _compute_idle_query_bounds() -> tuple[int, int, int]:
     """Return warning-range and close-threshold bounds across hotel configs.
 
@@ -114,7 +99,7 @@ async def _process_warnings(repo: ConversationRepository) -> int:
         if conv_id_str in _warned_conversation_ids:
             continue
 
-        cfg = _get_idle_config(conv.hotel_id)
+        cfg = get_idle_reset_config(conv.hotel_id)
         if not cfg.enabled:
             continue
 
@@ -124,12 +109,12 @@ async def _process_warnings(repo: ConversationRepository) -> int:
         if last.tzinfo is None:
             last = last.replace(tzinfo=UTC)
         elapsed = (datetime.now(UTC) - last).total_seconds()
-        hotel_warning_threshold = max(0, int(cfg.idle_timeout_minutes - cfg.warning_before_minutes) * 60)
-        hotel_close_threshold = max(0, int(cfg.idle_timeout_minutes) * 60)
+        hotel_warning_threshold = get_idle_warning_threshold_seconds(conv.hotel_id)
+        hotel_close_threshold = get_idle_close_threshold_seconds(conv.hotel_id)
         if elapsed < hotel_warning_threshold or elapsed >= hotel_close_threshold:
             continue
 
-        body = _pick_message(cfg, conv.language, "warning")
+        body = render_idle_reset_message(cfg, conv.language, "warning")
         ok = await _send_whatsapp_safe(conv.phone_display, body, context={
             "conversation_id": conv_id_str,
             "hotel_id": conv.hotel_id,
@@ -160,7 +145,7 @@ async def _process_closes(repo: ConversationRepository) -> int:
         if conv.id is None:
             continue
 
-        cfg = _get_idle_config(conv.hotel_id)
+        cfg = get_idle_reset_config(conv.hotel_id)
         if not cfg.enabled:
             continue
 
@@ -170,7 +155,7 @@ async def _process_closes(repo: ConversationRepository) -> int:
         if last.tzinfo is None:
             last = last.replace(tzinfo=UTC)
         elapsed = (datetime.now(UTC) - last).total_seconds()
-        hotel_close_threshold = max(0, int(cfg.idle_timeout_minutes) * 60)
+        hotel_close_threshold = get_idle_close_threshold_seconds(conv.hotel_id)
         if elapsed < hotel_close_threshold:
             continue
 
@@ -178,7 +163,7 @@ async def _process_closes(repo: ConversationRepository) -> int:
 
         # Send farewell message before closing
         if conv.phone_display:
-            body = _pick_message(cfg, conv.language, "closed")
+            body = render_idle_reset_message(cfg, conv.language, "closed")
             await _send_whatsapp_safe(conv.phone_display, body, context={
                 "conversation_id": conv_id_str,
                 "hotel_id": conv.hotel_id,

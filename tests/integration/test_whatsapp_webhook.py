@@ -9,6 +9,7 @@ from uuid import uuid4
 import httpx
 import pytest
 from fastapi import FastAPI
+from pydantic import ValidationError
 
 from velox.adapters.whatsapp.webhook import IncomingMessage
 from velox.api.routes import whatsapp_webhook
@@ -16,6 +17,7 @@ from velox.config.constants import EscalationLevel, RestaurantReservationMode, R
 from velox.core.burst_buffer import AggregatedMessage
 from velox.models.conversation import Conversation, InternalJSON, LLMResponse, Message
 from velox.models.escalation import EscalationResult
+from velox.models.hotel_profile import ConversationIdleResetConfig, HotelProfile, LocalizedText
 from velox.models.media import AudioTranscriptionResult, InboundMediaItem
 
 
@@ -188,6 +190,110 @@ async def test_create_or_get_conversation_resets_after_20_minutes_of_inactivity(
     assert result.language == "en"
 
 
+@pytest.mark.asyncio
+async def test_create_or_get_conversation_uses_hotel_specific_timeout() -> None:
+    from velox.core import conversation_idle_policy as idle_policy
+
+    incoming = IncomingMessage(
+        message_id="m-hotel-timeout",
+        phone="905551112233",
+        display_name="Guest",
+        text="hello",
+        timestamp=int(time.time()),
+        message_type="text",
+    )
+    active = Conversation(
+        id=uuid4(),
+        hotel_id=21966,
+        phone_hash="hash",
+        phone_display="905551112233",
+        language="tr",
+        last_message_at=datetime.now(UTC) - timedelta(minutes=21),
+    )
+    repository = _FakeConversationLifecycleRepository(active_conversation=active)
+    profile = HotelProfile(
+        hotel_id=21966,
+        hotel_name=LocalizedText(tr="Kassandra", en="Kassandra"),
+        conversation_idle_reset=ConversationIdleResetConfig(
+            enabled=True,
+            idle_timeout_minutes=30,
+            warning_before_minutes=10,
+        ),
+    )
+
+    original_get_profile = idle_policy.get_profile
+    idle_policy.get_profile = lambda hotel_id: profile if hotel_id == 21966 else None
+    try:
+        result = await whatsapp_webhook._create_or_get_conversation(repository, incoming, 21966)
+    finally:
+        idle_policy.get_profile = original_get_profile
+
+    assert result.id == active.id
+    assert repository.closed_ids == []
+    assert repository.created_conversations == []
+
+
+@pytest.mark.asyncio
+async def test_create_or_get_conversation_skips_reset_when_idle_reset_disabled() -> None:
+    from velox.core import conversation_idle_policy as idle_policy
+
+    incoming = IncomingMessage(
+        message_id="m-disabled",
+        phone="905551112233",
+        display_name="Guest",
+        text="Merhaba",
+        timestamp=int(time.time()),
+        message_type="text",
+    )
+    active = Conversation(
+        id=uuid4(),
+        hotel_id=21966,
+        phone_hash="hash",
+        phone_display="905551112233",
+        language="tr",
+        last_message_at=datetime.now(UTC) - timedelta(minutes=45),
+    )
+    repository = _FakeConversationLifecycleRepository(active_conversation=active)
+    profile = HotelProfile(
+        hotel_id=21966,
+        hotel_name=LocalizedText(tr="Kassandra", en="Kassandra"),
+        conversation_idle_reset=ConversationIdleResetConfig(
+            enabled=False,
+            idle_timeout_minutes=20,
+            warning_before_minutes=5,
+        ),
+    )
+
+    original_get_profile = idle_policy.get_profile
+    idle_policy.get_profile = lambda hotel_id: profile if hotel_id == 21966 else None
+    try:
+        result = await whatsapp_webhook._create_or_get_conversation(repository, incoming, 21966)
+    finally:
+        idle_policy.get_profile = original_get_profile
+
+    assert result.id == active.id
+    assert repository.closed_ids == []
+    assert repository.created_conversations == []
+
+
+def test_conversation_idle_reset_config_rejects_invalid_warning_window() -> None:
+    with pytest.raises(ValidationError):
+        ConversationIdleResetConfig(
+            enabled=True,
+            idle_timeout_minutes=20,
+            warning_before_minutes=20,
+        )
+
+
+def test_conversation_idle_reset_config_rejects_too_small_timeout() -> None:
+    with pytest.raises(ValidationError):
+        ConversationIdleResetConfig(
+            enabled=True,
+            idle_timeout_minutes=4,
+            warning_before_minutes=1,
+        )
+
+
 # ── Proactive idle-reset (background loop) tests ───────────────────────────
 
 
@@ -250,7 +356,6 @@ async def test_idle_reset_loop_closes_and_sends_farewell(monkeypatch: pytest.Mon
 
     monkeypatch.setattr(idle_mod, "ConversationRepository", lambda: fake_repo)
     monkeypatch.setattr(idle_mod, "get_whatsapp_client", lambda: fake_wa)
-    monkeypatch.setattr(idle_mod, "get_profile", lambda _hid: None)  # use defaults
 
     call_count = 0
 
@@ -297,7 +402,6 @@ async def test_idle_reset_loop_sends_warning_before_close(monkeypatch: pytest.Mo
 
     monkeypatch.setattr(idle_mod, "ConversationRepository", lambda: fake_repo)
     monkeypatch.setattr(idle_mod, "get_whatsapp_client", lambda: fake_wa)
-    monkeypatch.setattr(idle_mod, "get_profile", lambda _hid: None)
 
     call_count = 0
 
@@ -331,7 +435,6 @@ async def test_idle_reset_loop_skips_when_no_stale_conversations(monkeypatch: py
     fake_repo = _FakeIdleResetRepository()
 
     monkeypatch.setattr(idle_mod, "ConversationRepository", lambda: fake_repo)
-    monkeypatch.setattr(idle_mod, "get_profile", lambda _hid: None)
 
     call_count = 0
 
@@ -356,8 +459,6 @@ async def test_idle_reset_disabled_per_hotel_skips_everything(monkeypatch: pytes
     """When conversation_idle_reset.enabled=False for a hotel, no warning
     or close should happen."""
     from velox.core import conversation_idle_reset as idle_mod
-    from velox.models.hotel_profile import ConversationIdleResetConfig, HotelProfile, LocalizedText
-
     stale_conv = Conversation(
         id=uuid4(),
         hotel_id=99999,
@@ -376,7 +477,7 @@ async def test_idle_reset_disabled_per_hotel_skips_everything(monkeypatch: pytes
     )
     monkeypatch.setattr(idle_mod, "ConversationRepository", lambda: fake_repo)
     monkeypatch.setattr(idle_mod, "get_whatsapp_client", lambda: fake_wa)
-    monkeypatch.setattr(idle_mod, "get_profile", lambda _hid: disabled_profile)
+    monkeypatch.setattr(idle_mod, "get_idle_reset_config", lambda _hid: disabled_profile.conversation_idle_reset)
 
     call_count = 0
 
@@ -404,7 +505,6 @@ async def test_idle_reset_loop_uses_hotel_range_bounds_for_candidate_queries(
     import asyncio
 
     from velox.core import conversation_idle_reset as idle_mod
-    from velox.models.hotel_profile import ConversationIdleResetConfig, HotelProfile, LocalizedText
 
     fake_repo = _FakeIdleResetRepository()
 
@@ -433,7 +533,7 @@ async def test_idle_reset_loop_uses_hotel_range_bounds_for_candidate_queries(
     }
     monkeypatch.setattr(idle_mod, "ConversationRepository", lambda: fake_repo)
     monkeypatch.setattr(idle_mod, "get_all_profiles", lambda: profiles)
-    monkeypatch.setattr(idle_mod, "get_profile", lambda hid: profiles.get(hid))
+    monkeypatch.setattr(idle_mod, "get_idle_reset_config", lambda hid: profiles[hid].conversation_idle_reset)
 
     call_count = 0
 

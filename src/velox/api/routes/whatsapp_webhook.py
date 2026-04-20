@@ -27,6 +27,7 @@ from velox.config.constants import (
 )
 from velox.config.settings import settings
 from velox.core.burst_buffer import AggregatedMessage, BufferedMessage, enqueue_or_fallback
+from velox.core.conversation_idle_policy import get_idle_close_threshold_seconds, get_idle_reset_config
 from velox.core.fallback_response_library import out_of_scope_refusal, response_validation_fallback
 from velox.core.hotel_profile_loader import get_profile
 from velox.core.media_pipeline import MediaPipelineService
@@ -62,7 +63,6 @@ router = APIRouter(prefix="/webhook/whatsapp", tags=["whatsapp"])
 DEDUPE_TTL_SECONDS = 3600
 MAX_TEXT_LENGTH = 4096
 WEBHOOK_MAX_AGE_SECONDS = 300
-CONVERSATION_IDLE_RESET_SECONDS = 20 * 60
 TICKET_DEDUPE_KEY_MAX_LENGTH = 200
 RESTAURANT_MANUAL_MODE_KEYWORDS = (
     "restoran",
@@ -5659,17 +5659,23 @@ async def _create_or_get_conversation(
     phone_hash = _hash_phone(incoming.phone)
     conversation = await repository.get_active_by_phone(hotel_id, phone_hash)
     if conversation is not None:
+        idle_reset_config = get_idle_reset_config(hotel_id)
+        if not idle_reset_config.enabled:
+            return conversation
+
         last_message_at = conversation.last_message_at
         if last_message_at.tzinfo is None:
             last_message_at = last_message_at.replace(tzinfo=UTC)
         inactivity_seconds = (datetime.now(UTC) - last_message_at).total_seconds()
-        if inactivity_seconds >= CONVERSATION_IDLE_RESET_SECONDS and conversation.id is not None:
+        idle_timeout_seconds = get_idle_close_threshold_seconds(hotel_id)
+        if inactivity_seconds >= idle_timeout_seconds and conversation.id is not None:
             await repository.close(conversation.id)
             logger.info(
                 "conversation_auto_reset_after_inactivity",
                 hotel_id=hotel_id,
                 conversation_id=str(conversation.id),
                 inactivity_seconds=int(inactivity_seconds),
+                idle_timeout_seconds=idle_timeout_seconds,
             )
         else:
             return conversation

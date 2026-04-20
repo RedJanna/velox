@@ -1760,6 +1760,25 @@ function renderPolicyCard(title, description, fieldsHtml) {
   `;
 }
 
+function renderIdleResetSummary(cfg) {
+  const timeout = Number(cfg.idle_timeout_minutes ?? 20);
+  const warningBefore = Number(cfg.warning_before_minutes ?? 5);
+  const warningAt = Math.max(timeout - warningBefore, 0);
+  const invalidWindow = warningBefore >= timeout;
+  const statusCopy = cfg.enabled
+    ? `Warning gönderimi son bot mesajından ${warningAt} dakika sonra, otomatik kapanış ${timeout} dakika sonra gerçekleşir.`
+    : 'Otomatik sıfırlama kapalı. Aktif konuşmalar süre nedeniyle otomatik kapanmaz.';
+
+  return `
+    <div class="helper-box">
+      <strong>Çalışan Zamanlama</strong>
+      <p class="muted">${escapeHtml(statusCopy)}</p>
+      ${invalidWindow ? '<p class="muted">Uyarı süresi, zaman aşımı süresinden küçük olmalıdır.</p>' : ''}
+      <p class="muted">Warning metninde dinamik süre göstermek için <span class="mono">{minutes_remaining}</span> kullanabilirsiniz.</p>
+    </div>
+  `;
+}
+
 function renderHotelProfileIdleResetSection() {
   const cfg = asObject(state.hotelProfileDraft?.conversation_idle_reset);
   return `
@@ -1767,6 +1786,7 @@ function renderHotelProfileIdleResetSection() {
       <strong>Konuşma Sıfırlama Ayarları</strong>
       <p class="muted">Müşteri, botun son yanıtından sonra belirli bir süre içinde yanıt vermezse konuşma otomatik olarak kapatılır. Kapanmadan önce bir uyarı mesajı gönderilir.</p>
     </div>
+    ${renderIdleResetSummary(cfg)}
     <div class="profile-section-grid mt-md">
       ${renderCheckboxField('Otomatik Sıfırlama Aktif', 'conversation_idle_reset.enabled', cfg.enabled ?? true, {help: 'Kapalıyken konuşmalar hiçbir zaman otomatik olarak sıfırlanmaz.'})}
       ${renderTextField('Zaman Aşımı (dakika)', 'conversation_idle_reset.idle_timeout_minutes', cfg.idle_timeout_minutes ?? 20, {type: 'number', numberKind: 'int', min: 5, max: 1440, help: 'Müşteriden yanıt gelmezse konuşmanın kapatılacağı süre (dakika).'})}

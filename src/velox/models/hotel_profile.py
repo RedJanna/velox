@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from velox.config.constants import SUPPORTED_LANGUAGES
 
@@ -180,6 +180,21 @@ class ConversationIdleResetConfig(ProfileModel):
     closed_message_en: str = (
         "Your conversation has been automatically closed. Feel free to message us anytime to start a new conversation."
     )
+
+    @model_validator(mode="after")
+    def validate_thresholds(self) -> "ConversationIdleResetConfig":
+        """Enforce sane timing relationships for idle reset behavior."""
+        if self.idle_timeout_minutes < 5:
+            raise ValueError("conversation_idle_reset.idle_timeout_minutes must be at least 5")
+        if self.idle_timeout_minutes > 1440:
+            raise ValueError("conversation_idle_reset.idle_timeout_minutes must be at most 1440")
+        if self.warning_before_minutes < 1:
+            raise ValueError("conversation_idle_reset.warning_before_minutes must be at least 1")
+        if self.warning_before_minutes >= self.idle_timeout_minutes:
+            raise ValueError(
+                "conversation_idle_reset.warning_before_minutes must be smaller than idle_timeout_minutes"
+            )
+        return self
 
 
 class HotelProfile(ProfileModel):
