@@ -3797,6 +3797,45 @@ def test_deterministic_quote_reply_filters_out_unavailable_room_types(monkeypatc
     assert "Superior (30m2)" not in messages[0]
 
 
+def test_deterministic_quote_reply_limits_to_explicitly_requested_room_type(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit room-type pricing requests must stay limited to the requested room only."""
+    profile = SimpleNamespace(
+        room_types=[
+            SimpleNamespace(id=1, pms_room_type_id=396094, name=SimpleNamespace(tr="Deluxe", en="Deluxe"), size_m2=25),
+            SimpleNamespace(id=2, pms_room_type_id=396097, name=SimpleNamespace(tr="Superior", en="Superior"), size_m2=30),
+        ],
+    )
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: profile)
+
+    executed_calls = [
+        {
+            "name": "booking_quote",
+            "arguments": '{"checkin_date":"2026-06-03","checkout_date":"2026-06-07","adults":2}',
+            "result": (
+                '{"offers":['
+                '{"room_type_id":396094,"room_type":"DELUXE","rate_type_id":24171,"rate_type":"İptal Edilemez","price":"500","discounted_price":"500","currency_code":"EUR","room_area":25,"cancel_possible":false},'
+                '{"room_type_id":396094,"room_type":"DELUXE","rate_type_id":24178,"rate_type":"Ücretsiz İptal","price":"550","discounted_price":"550","currency_code":"EUR","room_area":25,"cancel_possible":true},'
+                '{"room_type_id":396097,"room_type":"SUPERIOR","rate_type_id":24171,"rate_type":"İptal Edilemez","price":"600","discounted_price":"600","currency_code":"EUR","room_area":30,"cancel_possible":false},'
+                '{"room_type_id":396097,"room_type":"SUPERIOR","rate_type_id":24178,"rate_type":"Ücretsiz İptal","price":"650","discounted_price":"650","currency_code":"EUR","room_area":30,"cancel_possible":true}'
+                ']}'
+            ),
+        },
+    ]
+
+    messages = whatsapp_webhook._build_deterministic_turkish_stay_quote_messages(
+        21966,
+        executed_calls,
+        user_text="3 Haziran giris 4 gece Deluxe oda fiyati nedir?",
+        entities={"room_type": "Deluxe"},
+    )
+
+    assert len(messages) == 1
+    assert "Deluxe (25m2)" in messages[0]
+    assert "Superior (30m2)" not in messages[0]
+
+
 def test_deterministic_quote_reply_returns_no_availability_when_sellable_none(monkeypatch: pytest.MonkeyPatch) -> None:
     """If no sellable room exists, quote message should become explicit no-availability notice."""
     profile = SimpleNamespace(

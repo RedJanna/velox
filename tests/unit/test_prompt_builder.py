@@ -104,6 +104,9 @@ def test_build_messages_includes_hotel_conversational_flow_rules() -> None:
     assert "Show at most 5 list items in one message." in joined
     assert "Ask at most 2 follow-up question(s) per turn." in joined
     assert "avoid_repeating_confirmed_facts=true" in joined
+    assert "include every eligible and available room type suitable for the requested occupancy" in joined
+    assert "keep the reply limited to that room type only" in joined
+    assert "compact shortlist" not in joined
 
 
 def test_build_system_prompt_is_compact_and_grounded() -> None:

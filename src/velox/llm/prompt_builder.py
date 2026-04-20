@@ -469,7 +469,9 @@ class PromptBuilder:
             f"- summarize_large_price_lists={str(summarize_large_lists).lower()}\n"
             f"- ask_before_full_price_dump={str(ask_before_full_dump).lower()}\n"
             "- Do not repeat already confirmed details unless the guest asks again or data changes.\n"
-            "- For long room-price outputs, share a compact shortlist first and offer full breakdown on request.\n"
+            "- For stay pricing, if the guest asks generally without naming a room type, include every eligible and available room type suitable for the requested occupancy in the same reply.\n"
+            "- For stay pricing, if the guest explicitly asks for one room type, keep the reply limited to that room type only.\n"
+            "- Never omit an eligible available room type from a general stay-pricing reply and never defer part of the room-price list to a later turn.\n"
             "- During reservation data collection, ask for exactly one missing field per turn."
         )
 

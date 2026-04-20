@@ -824,6 +824,9 @@ TRANSFER:
   - Sellable offer varsa fiyat mesaji devam eder.
   - Sellable offer yoksa "müsait degil" mesaji verilir.
 - Amaç: provider endpoint tutarsizliginda yanlis negatif "müsait degil" yanitini engellemek.
+- Misafir sadece tarih/gece/kisi/genel konaklama talebi verdiyse ve belirli bir oda tipi istemediyse, fiyat yaniti uygun kisi sayisi icin tekliflenebilen tum oda tiplerini icermelidir.
+- Genel fiyat yanitinda tekliflenebilir ve uygun bir oda tipi atlanirsa bu hata kabul edilir; tum uygun ve müsait oda tipleri listelenmelidir.
+- Misafir belirli bir oda tipini acikca istediyse, fiyat yaniti yalnizca o oda tipiyle sinirli kalir; ek oda tipleri gereksiz yere eklenmez.
 
 ---
 

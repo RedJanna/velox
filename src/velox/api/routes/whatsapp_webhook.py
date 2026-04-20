@@ -3013,10 +3013,13 @@ def _build_offer_blocks_for_payload(
     offers_for_call: list[dict[str, Any]],
     profile: Any | None,
     room_order: dict[int, int],
+    requested_room_type_id: int = 0,
 ) -> str | None:
     """Build deterministic room blocks from merged quote offers."""
     grouped_offers: dict[Any, dict[str, Any]] = {}
     for offer in offers_for_call:
+        if requested_room_type_id > 0 and _to_int(offer.get("room_type_id"), 0) != requested_room_type_id:
+            continue
         policy_key = _resolve_quote_policy_key(offer, profile)
         if policy_key not in {"FREE_CANCEL", "NON_REFUNDABLE"}:
             continue
@@ -3078,6 +3081,7 @@ def _build_stay_quote_message_for_payload(
     profile: Any | None,
     room_order: dict[int, int],
     room_header: str | None = None,
+    requested_room_type_id: int = 0,
 ) -> str | None:
     """Build one Turkish customer-facing quote message for one room occupancy."""
     arguments_raw = payload.get("arguments")
@@ -3085,7 +3089,12 @@ def _build_stay_quote_message_for_payload(
     offers = payload.get("offers")
     if not isinstance(offers, list):
         return None
-    offer_blocks = _build_offer_blocks_for_payload(offers, profile=profile, room_order=room_order)
+    offer_blocks = _build_offer_blocks_for_payload(
+        offers,
+        profile=profile,
+        room_order=room_order,
+        requested_room_type_id=requested_room_type_id,
+    )
     if not offer_blocks:
         return None
 
@@ -3112,6 +3121,9 @@ def _build_stay_quote_message_for_payload(
 def _build_deterministic_turkish_stay_quote_messages(
     hotel_id: int,
     executed_calls: list[dict[str, Any]],
+    *,
+    user_text: str = "",
+    entities: dict[str, Any] | None = None,
 ) -> list[str]:
     """Format Turkish quote replies as one or multiple customer messages."""
     payloads = _extract_quote_call_payloads(executed_calls)
@@ -3135,6 +3147,14 @@ def _build_deterministic_turkish_stay_quote_messages(
     grouped_payloads = _group_quote_payloads(payloads)
 
     profile = get_profile(hotel_id)
+    explicit_room_request = False
+    requested_room_type_id = 0
+    if isinstance(entities, dict):
+        explicit_room_request, requested_room_type_id = _guest_explicitly_requested_room_type(
+            user_text,
+            entities,
+            profile,
+        )
     room_order: dict[int, int] = {}
     if profile is not None:
         room_order = {
@@ -3147,6 +3167,7 @@ def _build_deterministic_turkish_stay_quote_messages(
             grouped_payloads[0],
             profile=profile,
             room_order=room_order,
+            requested_room_type_id=requested_room_type_id if explicit_room_request else 0,
         )
         return [single_message] if single_message else []
 
@@ -3157,6 +3178,7 @@ def _build_deterministic_turkish_stay_quote_messages(
             profile=profile,
             room_order=room_order,
             room_header=f"{index}. Oda",
+            requested_room_type_id=requested_room_type_id if explicit_room_request else 0,
         )
         if message:
             messages.append(message)
@@ -3166,9 +3188,17 @@ def _build_deterministic_turkish_stay_quote_messages(
 def _build_deterministic_turkish_stay_quote_reply(
     hotel_id: int,
     executed_calls: list[dict[str, Any]],
+    *,
+    user_text: str = "",
+    entities: dict[str, Any] | None = None,
 ) -> str | None:
     """Return the first deterministic Turkish quote message for compatibility."""
-    messages = _build_deterministic_turkish_stay_quote_messages(hotel_id, executed_calls)
+    messages = _build_deterministic_turkish_stay_quote_messages(
+        hotel_id,
+        executed_calls,
+        user_text=user_text,
+        entities=entities,
+    )
     if not messages:
         return None
     return messages[0]
@@ -4506,6 +4536,47 @@ def _resolve_requested_room_type_label(
     return str(entities.get("room_type") or entities.get("room_name") or entities.get("room_type_name") or "").strip()
 
 
+def _guest_explicitly_requested_room_type(
+    user_text: str,
+    entities: dict[str, Any],
+    profile: Any | None,
+) -> tuple[bool, int]:
+    """Return whether the current guest message explicitly names one room type."""
+    requested_room_type_id = _resolve_requested_room_type_id(entities, profile)
+    if requested_room_type_id <= 0:
+        return False, 0
+
+    normalized_user_text = _canonical_text(user_text)
+    if not normalized_user_text:
+        return False, 0
+
+    candidate_names: set[str] = set()
+    for field_name in ("room_type", "room_name", "room_type_name"):
+        candidate = _canonical_text(str(entities.get(field_name) or ""))
+        if candidate:
+            candidate_names.add(candidate)
+
+    if profile is not None:
+        for room in getattr(profile, "room_types", []):
+            profile_room_id = _to_int(getattr(room, "id", 0), 0)
+            pms_room_id = _to_int(getattr(room, "pms_room_type_id", 0), 0)
+            if requested_room_type_id not in {profile_room_id, pms_room_id}:
+                continue
+            localized_name = getattr(room, "name", None)
+            for raw_name in (
+                getattr(localized_name, "tr", ""),
+                getattr(localized_name, "en", ""),
+            ):
+                candidate = _canonical_text(str(raw_name or ""))
+                if candidate:
+                    candidate_names.add(candidate)
+
+    for candidate_name in candidate_names:
+        if candidate_name and candidate_name in normalized_user_text:
+            return True, requested_room_type_id
+    return False, requested_room_type_id
+
+
 def _policy_label(cancel_policy_type: str, language: str) -> str:
     """Format cancellation policy label for guest-facing fallback text."""
     normalized = _normalize_cancel_policy(cancel_policy_type)
@@ -5445,6 +5516,8 @@ async def _run_message_pipeline(
             deterministic_messages = _build_deterministic_turkish_stay_quote_messages(
                 conversation.hotel_id,
                 executed_calls,
+                user_text=original_user_text,
+                entities=parsed.internal_json.entities if isinstance(parsed.internal_json.entities, dict) else None,
             )
             if deterministic_messages:
                 normalized_messages = [

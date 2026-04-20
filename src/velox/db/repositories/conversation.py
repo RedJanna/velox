@@ -57,8 +57,8 @@ class ConversationRepository:
         row = await fetchrow(
             """
             INSERT INTO conversations (hotel_id, phone_hash, phone_display, language,
-                                       current_state, current_intent, entities_json, risk_flags)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                                       current_state, current_intent, entities_json, risk_flags, is_active)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING id, created_at, updated_at
             """,
             conv.hotel_id,
@@ -69,6 +69,7 @@ class ConversationRepository:
             conv.current_intent.value if conv.current_intent else None,
             orjson.dumps(conv.entities_json).decode(),
             conv.risk_flags,
+            conv.is_active,
         )
         if row is None:
             raise RuntimeError("Failed to create conversation.")
