@@ -57,7 +57,7 @@ from velox.core.chat_lab_feedback import (
 from velox.core.chat_lab_metrics import compute_feedback_metrics
 from velox.core.chat_lab_report import ChatLabReportError, ChatLabReportService
 from velox.core.hotel_profile_loader import get_profile, load_all_profiles
-from velox.core.template_engine import get_all_templates, load_templates
+from velox.core.template_engine import create_template_definition, find_template_by_id, get_all_templates, load_templates
 from velox.db.repositories.conversation import ConversationRepository
 from velox.llm.client import get_llm_client
 from velox.models.chat_lab_feedback import (
@@ -116,6 +116,37 @@ class TestChatRequest(BaseModel):
             raise ValueError("Mesaj veya en az bir dosya gerekli.")
         if len(self.attachments) > 5:
             raise ValueError("Tek mesajda en fazla 5 dosya gönderilebilir.")
+        return self
+
+
+class ChatTemplateCreateRequest(BaseModel):
+    """Payload for creating one Chat Lab template entry."""
+
+    title: str = Field(min_length=1, max_length=120)
+    template_id: str | None = Field(default=None, min_length=1, max_length=120)
+    intent: str = Field(default="", max_length=120)
+    state: str = Field(default="", max_length=120)
+    language: str = Field(default="tr", min_length=2, max_length=10)
+    template: str = Field(min_length=1, max_length=4000)
+
+
+class ConversationManualSendRequest(BaseModel):
+    """Manual send payload for a live WhatsApp conversation."""
+
+    conversation_id: str = Field(min_length=1)
+    message: str = Field(default="", max_length=4096)
+    attachments: list[dict[str, Any]] = Field(default_factory=list)
+    template_id: str | None = Field(default=None, min_length=1, max_length=120)
+
+    @model_validator(mode="after")
+    def validate_payload(self) -> "ConversationManualSendRequest":
+        has_message = bool(str(self.message or "").strip())
+        has_attachments = bool(self.attachments)
+        has_template = bool(str(self.template_id or "").strip())
+        if not has_message and not has_attachments and not has_template:
+            raise ValueError("conversation_id ile birlikte message, template_id veya attachments alanı zorunludur")
+        if has_template and has_attachments:
+            raise ValueError("Sablon gonderiminde ek kullanilamaz.")
         return self
 
 
@@ -361,6 +392,34 @@ def _build_template_preview(template_text: str, variables: dict[str, str]) -> st
     with contextlib.suppress(Exception):
         return template_text.format_map(safe_values)
     return template_text
+
+
+def _build_template_send_variables(
+    *,
+    hotel_name: str,
+    latest_user_text: str,
+) -> dict[str, str]:
+    """Build a best-effort variable map for template rendering."""
+    now_local = datetime.now().strftime("%Y-%m-%d")
+    summary = latest_user_text.strip() or "-"
+    return {
+        "hotel_name": hotel_name,
+        "summary": summary,
+        "name": "Misafir",
+        "date": now_local,
+    }
+
+
+def _render_template_for_send(template_text: str, variables: dict[str, str]) -> str:
+    """Render a template for outbound send and reject unresolved placeholders."""
+    missing_fields = [field for field in _extract_template_fields(template_text) if field not in variables]
+    if missing_fields:
+        missing_label = ", ".join(sorted(missing_fields))
+        raise HTTPException(status_code=400, detail=f"Sablon alanlari cozumlenemedi: {missing_label}")
+    try:
+        return template_text.format_map(variables)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Sablon gonderime hazir degil: {exc}") from exc
 
 
 def _is_session_reopen_error(error: httpx.HTTPStatusError) -> bool:
@@ -1974,6 +2033,7 @@ async def list_chat_templates(
         candidates.append(
             {
                 "id": template.id,
+                "title": getattr(template, "title", template.id),
                 "intent": template.intent,
                 "state": template.state,
                 "language": template.language,
@@ -2000,6 +2060,34 @@ async def list_chat_templates(
         },
         "templates": candidates,
     }
+
+
+@router.post("/chat/templates")
+async def create_chat_template(body: ChatTemplateCreateRequest) -> dict[str, Any]:
+    """Persist one new template entry from Chat Lab."""
+    try:
+        entry = create_template_definition(
+            title=body.title,
+            template_id=body.template_id,
+            intent=body.intent,
+            state=body.state,
+            language=body.language,
+            template_text=body.template,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("chat_lab_template_create_failed")
+        raise HTTPException(status_code=500, detail="Sablon kaydedilemedi.") from exc
+
+    logger.info(
+        "chat_lab_template_created",
+        template_id=entry["id"],
+        language=entry["language"],
+        intent=entry["intent"] or None,
+        state=entry["state"] or None,
+    )
+    return {"status": "created", "template": entry}
 
 
 @router.post("/chat/reject-message")
@@ -2181,18 +2269,22 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
 
     from velox.adapters.whatsapp.client import get_whatsapp_client
 
-    body = await request.json()
-    conv_id = body.get("conversation_id")
-    message = body.get("message", "").strip()
-    raw_attachments = body.get("attachments") or []
+    raw_body = await request.json()
+    try:
+        body = ConversationManualSendRequest.model_validate(raw_body)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    conv_id = body.conversation_id
+    message = body.message.strip()
+    template_id = str(body.template_id or "").strip() or None
+    raw_attachments = body.attachments or []
     attachment_ids: list[str] = []
     if isinstance(raw_attachments, list):
         for item in raw_attachments:
             candidate = str(item.get("asset_id") or "").strip() if isinstance(item, dict) else str(item or "").strip()
             if candidate:
                 attachment_ids.append(candidate)
-    if not conv_id or (not message and not attachment_ids):
-        raise HTTPException(status_code=400, detail="conversation_id ile birlikte message veya attachments alanı zorunludur")
 
     pool = getattr(request.app.state, "db_pool", None)
     if pool is None:
@@ -2214,7 +2306,7 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
 
     async with pool.acquire() as conn:
         conv_row = await conn.fetchrow(
-            "SELECT id, phone_display FROM conversations WHERE id = $1", conv_uuid,
+            "SELECT id, phone_display, hotel_id FROM conversations WHERE id = $1", conv_uuid,
         )
         if conv_row is None:
             raise HTTPException(status_code=404, detail="Konuşma bulunamadı")
@@ -2241,6 +2333,41 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
         if not phone or "*" in phone:
             raise HTTPException(status_code=400, detail="Gerçek telefon numarası bulunamadı")
 
+        latest_user_text = str(
+            await conn.fetchval(
+                "SELECT content FROM messages WHERE conversation_id = $1 AND role = 'user' ORDER BY created_at DESC LIMIT 1",
+                conv_uuid,
+            )
+            or ""
+        )
+
+    template_meta: dict[str, str] | None = None
+    if template_id:
+        template = find_template_by_id(template_id)
+        if template is None:
+            load_templates()
+            template = find_template_by_id(template_id)
+        if template is None:
+            raise HTTPException(status_code=404, detail="Secilen sablon bulunamadi")
+
+        profile = get_profile(int(conv_row["hotel_id"] or settings.elektra_hotel_id))
+        if profile is None:
+            load_all_profiles()
+            profile = get_profile(int(conv_row["hotel_id"] or settings.elektra_hotel_id))
+        hotel_name = "-"
+        if profile is not None:
+            hotel_name = str(profile.hotel_name.tr or profile.hotel_name.en or "-")
+        template_variables = _build_template_send_variables(
+            hotel_name=hotel_name,
+            latest_user_text=latest_user_text,
+        )
+        message = _render_template_for_send(template.template, template_variables)
+        template_meta = {
+            "template_id": template.id,
+            "template_title": getattr(template, "title", template.id),
+            "template_language": template.language,
+        }
+
     # Send via WhatsApp
     whatsapp_client = get_whatsapp_client()
     outbound_events: list[dict[str, Any]] = []
@@ -2259,6 +2386,7 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
                     "content": message,
                     "whatsapp_message_id": _extract_whatsapp_message_id(text_result),
                     "attachments": [],
+                    "template_meta": template_meta or {},
                 }
             )
 
@@ -2339,6 +2467,9 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
                 "sent_by": "admin",
                 "whatsapp_message_id": event.get("whatsapp_message_id"),
                 "attachments": event.get("attachments") or [],
+                "template_id": (event.get("template_meta") or {}).get("template_id"),
+                "template_title": (event.get("template_meta") or {}).get("template_title"),
+                "template_language": (event.get("template_meta") or {}).get("template_language"),
                 "session_reopen_template_sent": bool(reopen_state.get("sent")),
                 "session_reopen_template_name": reopen_state.get("template_name"),
                 "session_reopen_template_sent_at": reopen_state.get("sent_at"),
@@ -2358,6 +2489,8 @@ async def send_message_to_conversation(request: Request) -> dict[str, Any]:
         "status": "sent",
         "conversation_id": str(conv_id),
         "message_ids": sent_ids,
+        "template_id": (template_meta or {}).get("template_id"),
+        "template_title": (template_meta or {}).get("template_title"),
         "session_reopen_template_sent": bool(reopen_state.get("sent")),
         "session_reopen_template_name": reopen_state.get("template_name"),
     }

@@ -119,6 +119,49 @@ TEST_CHAT_HTML = (
     <div class="feedback-muted">Yazı alanı veya iletişim kutusu açıkken kısayollar devre dışı kalır.</div>
   </div>
 </dialog>
+<dialog id="template-dialog" class="faq-dialog">
+  <div class="faq-dialog-card">
+    <div class="faq-dialog-head">
+      <h3>Yeni Şablon</h3>
+      <button id="template-dialog-close" type="button" aria-label="Kapat">&times;</button>
+    </div>
+    <form id="template-dialog-form">
+      <div class="field-stack">
+        <label for="template-title">Şablon Başlığı</label>
+        <input id="template-title" class="debug-input" type="text" required maxlength="120" placeholder="Örn: Geç check-out bilgilendirme">
+      </div>
+      <div class="field-stack">
+        <label for="template-id">Şablon Kimliği (opsiyonel)</label>
+        <input id="template-id" class="debug-input" type="text" maxlength="120" placeholder="Boş bırakırsanız başlıktan üretilir">
+      </div>
+      <div class="field-stack">
+        <label for="template-intent">Intent</label>
+        <input id="template-intent" class="debug-input" type="text" maxlength="120" placeholder="Örn: late_checkout">
+      </div>
+      <div class="field-stack">
+        <label for="template-state">State</label>
+        <input id="template-state" class="debug-input" type="text" maxlength="120" placeholder="Örn: INFO">
+      </div>
+      <div class="field-stack">
+        <label for="template-language">Dil</label>
+        <select id="template-language" class="debug-select">
+          <option value="tr" selected>TR</option>
+          <option value="en">EN</option>
+          <option value="de">DE</option>
+          <option value="ru">RU</option>
+          <option value="ar">AR</option>
+        </select>
+      </div>
+      <div class="field-stack">
+        <label for="template-body">Şablon Metni</label>
+        <textarea id="template-body" class="debug-textarea" rows="6" maxlength="4000" required placeholder="Misafire gidecek şablon metnini yazın..."></textarea>
+      </div>
+      <div class="feedback-muted">İsterseniz <span class="mono">{hotel_name}</span>, <span class="mono">{date}</span>, <span class="mono">{name}</span>, <span class="mono">{summary}</span> alanlarını kullanabilirsiniz.</div>
+      <button class="btn btn-save btn-block mt-md" type="submit">Şablonu Kaydet</button>
+    </form>
+    <div id="template-dialog-result" class="meta-box hidden mt-sm"></div>
+  </div>
+</dialog>
 <div class="app">
   <div class="header header--workspace">
     <div class="header-brand">
@@ -236,9 +279,12 @@ TEST_CHAT_HTML = (
           <div class="template-panel-head">
             <div class="template-panel-copy">
               <strong>Şablon modu</strong>
-              <p>Servis penceresi kapalıysa aşağıdaki şablon önerilerini inceleyin. Gerçek gönderimde ise onaylı Meta pencere açma şablonu kullanılır.</p>
+              <p>Servis penceresi kapalıysa aşağıdaki şablon önerilerini inceleyin. Seçili şablon canlı konuşmada doğrudan gönderilebilir; pencere kapalıysa önce onaylı Meta pencere açma şablonu kullanılır.</p>
             </div>
-            <span class="template-panel-badge">Salt okunur</span>
+            <div class="template-panel-actions">
+              <button id="template-create-btn" class="btn btn-ghost btn-mini" type="button">Yeni Şablon</button>
+              <span class="template-panel-badge">Canlı gönderim açık</span>
+            </div>
           </div>
           <input id="template-search" class="header-input template-search" type="text" placeholder="Şablon ara" aria-label="Şablon ara">
           <div id="template-list" class="template-list">
@@ -248,6 +294,7 @@ TEST_CHAT_HTML = (
             <strong>Önizleme</strong>
             <p>Bir şablon seçtiğinizde içerik burada görünecek.</p>
           </div>
+          <button id="template-send-btn" class="btn btn-primary btn-block" type="button" aria-label="Seçili şablonu gönder">Seçili Şablonu Gönder</button>
         </div>
         <input id="attachment-input" type="file" class="hidden" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,.txt,.ogg,.mp3,.m4a,.mp4,.webm" aria-label="Dosya seç">
         <div class="input-row">

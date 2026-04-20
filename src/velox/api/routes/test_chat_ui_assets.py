@@ -359,6 +359,7 @@ body{overflow:hidden}
 .composer-helper.hidden,.template-panel.hidden{display:none!important}
 .template-panel-copy strong{display:block;font-size:12px;color:var(--ink);margin-bottom:4px}
 .template-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.template-panel-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .template-panel-badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:rgba(18,33,59,.08);font-size:12px;font-weight:800;color:var(--muted);white-space:nowrap}
 .template-search{margin-top:12px}
 .template-list{display:flex;flex-direction:column;gap:8px;margin-top:12px;max-height:220px;overflow:auto;padding-right:4px}
@@ -1174,11 +1175,11 @@ function renderComposerHelper() {
   if (!helper) return;
   let text = '';
   if (conversationRequiresTemplate() && state.composerMode === 'template') {
-    text = 'Servis penceresi kapalı. Gönderimde önce onaylı Meta pencere açma şablonu, ardından yazdığınız mesaj kullanılır.';
+    text = 'Servis penceresi kapalı. Seçili şablon gönderilir; Meta pencere kapalıysa önce onaylı pencere açma şablonu devreye girer.';
   } else if (state.composerMode === 'internal_note') {
     text = 'İç not olarak kaydedilir; misafire gönderilmez.';
   } else if (state.composerMode === 'template') {
-    text = 'Şablon modu, kapalı pencere durumunda pencere açma şablonuyla birlikte kullanılır.';
+    text = 'Şablon modunda listeden başlığa göre seçim yapıp seçili şablonu misafire gönderebilirsiniz.';
   } else if (state.composerMode === 'ai_draft') {
     text = 'Yapay zekâ taslağı bu modda düzenlenir; göndermeden önce son kontrol sizde kalır.';
   }
@@ -1467,18 +1468,20 @@ function renderTemplatePanel(errorMessage = '') {
   const listEl = el('template-list');
   const previewEl = el('template-preview');
   const searchEl = el('template-search');
+  const sendBtn = el('template-send-btn');
   if (!listEl || !previewEl) return;
   if (searchEl && searchEl.value !== state.templateSearch) searchEl.value = state.templateSearch;
   if (state.composerMode !== 'template') return;
   const needle = String(state.templateSearch || '').trim().toLowerCase();
   const items = state.templateTemplates.filter(item => {
     if (!needle) return true;
-    const haystack = [item.id, item.intent, item.state, item.language, item.preview, ...(item.fields || [])].join(' ').toLowerCase();
+    const haystack = [item.id, item.title, item.intent, item.state, item.language, item.preview, ...(item.fields || [])].join(' ').toLowerCase();
     return haystack.includes(needle);
   });
   if (errorMessage) {
     listEl.innerHTML = `<div class="feedback-muted">${escapeHtml(errorMessage)}</div>`;
     previewEl.innerHTML = '<strong>Önizleme</strong><p>Şablonlar şu anda getirilemedi.</p>';
+    if (sendBtn) sendBtn.disabled = true;
     return;
   }
   if (!items.length) {
@@ -1487,13 +1490,15 @@ function renderTemplatePanel(errorMessage = '') {
       : 'Bu filtreyle eşleşen şablon bulunamadı.';
     listEl.innerHTML = `<div class="feedback-muted">${escapeHtml(emptyText)}</div>`;
     previewEl.innerHTML = '<strong>Önizleme</strong><p>Görüntülenecek şablon yok.</p>';
+    if (sendBtn) sendBtn.disabled = true;
     return;
   }
   const selected = items.find(item => item.id === state.selectedTemplateId) || items[0];
+  if (sendBtn) sendBtn.disabled = !(state.sourceType === 'live_conversation' && state.activeConversationId && selected?.id);
   listEl.innerHTML = items.map(item => `
     <div class="template-card ${item.id === selected.id ? 'is-selected' : ''}" data-template-id="${escapeHtml(item.id)}">
       <div class="template-card-head">
-        <div class="template-card-title">${escapeHtml(item.id)}</div>
+        <div class="template-card-title">${escapeHtml(item.title || item.id)}</div>
         ${item.recommended ? '<span class="template-pill is-recommended">önerilen</span>' : ''}
       </div>
       <div class="template-card-meta">
@@ -1505,10 +1510,68 @@ function renderTemplatePanel(errorMessage = '') {
     </div>
   `).join('');
   previewEl.innerHTML = `
-    <strong>${escapeHtml(selected.id)}</strong>
+    <strong>${escapeHtml(selected.title || selected.id)}</strong>
     <div>${escapeHtml(selected.preview || selected.body || '-')}</div>
-    <small>Alanlar: ${escapeHtml((selected.fields || []).length ? selected.fields.join(', ') : 'değişken yok')} · Gönderim entegrasyonu sonraki adımda açılacak.</small>
+    <small>Alanlar: ${escapeHtml((selected.fields || []).length ? selected.fields.join(', ') : 'değişken yok')} · Kimlik: ${escapeHtml(selected.id)}</small>
   `;
+}
+
+function openTemplateDialog() {
+  el('template-title').value = '';
+  el('template-id').value = '';
+  el('template-intent').value = state.conversation?.intent || '';
+  el('template-state').value = state.conversation?.state || '';
+  el('template-language').value = state.conversation?.language || 'tr';
+  el('template-body').value = '';
+  el('template-dialog-result').classList.add('hidden');
+  el('template-dialog-result').textContent = '';
+  el('template-dialog').showModal();
+}
+
+async function onTemplateSubmit(event) {
+  event.preventDefault();
+  const payload = {
+    title: el('template-title').value.trim(),
+    template_id: el('template-id').value.trim() || null,
+    intent: el('template-intent').value.trim(),
+    state: el('template-state').value.trim(),
+    language: el('template-language').value,
+    template: el('template-body').value.trim(),
+  };
+  const submitBtn = el('template-dialog-form').querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Kaydediliyor...';
+  try {
+    const response = await apiFetch('/chat/templates', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    state.selectedTemplateId = response.template?.id || null;
+    await loadTemplateCandidates();
+    notify('Yeni şablon kaydedildi.', 'success');
+    el('template-dialog').close();
+  } catch (error) {
+    el('template-dialog-result').classList.remove('hidden');
+    el('template-dialog-result').textContent = error.message || 'Şablon kaydedilemedi.';
+    notify(error.message || 'Şablon kaydedilemedi.', 'error');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Şablonu Kaydet';
+  }
+}
+
+async function sendSelectedTemplate() {
+  if (state.sourceType !== 'live_conversation' || !state.activeConversationId) {
+    notify('Şablon gönderimi yalnızca canlı konuşmalarda kullanılabilir.', 'warn');
+    return;
+  }
+  const selected = activeTemplateCandidate();
+  if (!selected?.id) {
+    notify('Önce bir şablon seçin.', 'warn');
+    return;
+  }
+  await sendLiveConversationMessage('', [], selected.id);
 }
 
 function flagLevel(flag) {
@@ -2429,7 +2492,7 @@ function setComposerMode(isLive) {
   const attachBtn = el('attach-btn');
   const voiceBtn = el('voice-btn');
   const exportBtn = el('export-btn');
-  const templateTextEnabled = state.sourceType === 'live_conversation' && state.composerMode === 'template';
+  const templateTextEnabled = false;
   messageInput.disabled = !composerEnabled || (state.composerMode === 'template' && !templateTextEnabled);
   sendBtn.disabled = !composerEnabled;
   attachBtn.disabled = !composerEnabled || state.composerMode === 'template';
@@ -2444,7 +2507,7 @@ function setComposerMode(isLive) {
     messageInput.placeholder = state.composerMode === 'internal_note'
       ? 'Konuşma için ekip içi not yazın...'
       : state.composerMode === 'template'
-        ? 'Mesajınızı yazın; gönderimde önce pencere açma şablonu kullanılacak.'
+        ? 'Seçili şablon doğrudan gönderilir.'
         : 'Canlı konuşmaya mesaj yazın...';
     el('source-banner').textContent = 'Canlı kuyruk konuşması açık.';
   } else if (isLive) {
@@ -2528,6 +2591,8 @@ function sendMessage() {
       notify('Şablon modu yalnızca canlı konuşmalarda kullanılabilir.', 'warn');
       return;
     }
+    sendSelectedTemplate();
+    return;
   }
   const message = el('msg-input').value.trim();
   const attachments = state.composerAttachments
@@ -2619,12 +2684,13 @@ async function persistInternalNote(message) {
   }
 }
 
-async function sendLiveConversationMessage(message, attachments) {
+async function sendLiveConversationMessage(message, attachments, templateId = null) {
   const payload = {
     conversation_id: state.activeConversationId,
     message: message,
     attachments: attachments.map(item => ({asset_id: item.asset_id})),
   };
+  if (templateId) payload.template_id = templateId;
   const input = el('msg-input');
   const sendBtn = el('send-btn');
   sendBtn.disabled = true;
@@ -2641,6 +2707,8 @@ async function sendLiveConversationMessage(message, attachments) {
     clearComposerDraft();
     if (data?.session_reopen_template_sent) {
       notify(`Meta pencere açma şablonu (${data.session_reopen_template_name || 'hello_world'}) gönderildi, ardından mesaj iletildi.`, 'success');
+    } else if (data?.template_title) {
+      notify(`Şablon gönderildi: ${data.template_title}`, 'success');
     } else {
       notify('Mesaj canlı konuşmaya gönderildi.', 'success');
     }
@@ -3786,9 +3854,13 @@ function wireEvents() {
   _eventsBound = true;
   document.addEventListener('click', removeCtxMenu);
   el('faq-dialog-close').addEventListener('click', () => el('faq-dialog').close());
+  el('template-dialog-close').addEventListener('click', () => el('template-dialog').close());
   el('shortcut-dialog-close').addEventListener('click', () => toggleShortcutDialog(false));
   el('shortcut-help-btn').addEventListener('click', () => toggleShortcutDialog(true));
   el('faq-dialog-form').addEventListener('submit', onFaqSubmit);
+  el('template-dialog-form').addEventListener('submit', onTemplateSubmit);
+  el('template-create-btn').addEventListener('click', openTemplateDialog);
+  el('template-send-btn').addEventListener('click', sendSelectedTemplate);
   el('messages').addEventListener('contextmenu', event => {
     const bubble = event.target.closest('.msg');
     if (!bubble) return;
