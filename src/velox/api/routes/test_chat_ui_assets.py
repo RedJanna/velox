@@ -263,8 +263,12 @@ body{overflow:hidden}
 .shortcut-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 12px;border-radius:12px;background:rgba(18,33,59,.04);font-size:13px;color:var(--ink)}
 .shortcut-key{display:inline-flex;align-items:center;justify-content:center;min-width:110px;padding:6px 10px;border-radius:10px;background:rgba(18,33,59,.08);font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink)}
 .field-stack-sm{flex-direction:column;align-items:flex-start;gap:6px}
-.header--workspace{display:grid;grid-template-columns:minmax(280px,340px) minmax(0,1fr);gap:18px;align-items:start;justify-content:space-between}
+.header--workspace{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:18px;align-items:center;justify-content:space-between}
 .header--workspace .header-brand{align-items:flex-start;min-width:0}
+.header-status{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.header-status-pill{display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;background:rgba(18,33,59,.06);border:1px solid rgba(18,33,59,.08);font-size:12px;font-weight:800;color:#415269;white-space:nowrap}
+.header-utility{display:flex;align-items:center;justify-content:flex-end;gap:10px}
+.workspace-panel-toggle{white-space:nowrap}
 .header--workspace .header-controls{
   margin-left:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
   gap:14px;align-items:stretch;min-width:0
@@ -470,6 +474,27 @@ body{overflow:hidden}
 .audit-item-title{font-size:12px;font-weight:800;color:var(--ink)}
 .audit-item-time{font-size:12px;color:#526274;white-space:nowrap}
 .audit-item-detail{margin-top:6px;font-size:12px;line-height:1.5;color:#526274}
+.workspace-flyout-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.workspace-flyout-title{display:flex;flex-direction:column;gap:4px;min-width:0}
+.workspace-flyout-close{width:36px;height:36px;border:none;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-size:22px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.workspace-flyout-close:hover{background:rgba(255,255,255,.18)}
+.workspace-flyout-tabs{display:flex;gap:8px;padding:0 18px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.workspace-flyout-tab{height:34px;border:none;border-radius:999px;background:rgba(255,255,255,.08);padding:0 14px;font-size:12px;font-weight:800;color:rgba(255,255,255,.74);cursor:pointer;transition:all .16s ease}
+.workspace-flyout-tab:hover{background:rgba(255,255,255,.14);color:#fff}
+.workspace-flyout-tab.is-active{background:rgba(255,255,255,.18);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.workspace-flyout-body{flex:1;min-height:0;overflow:hidden}
+.workspace-tab-panel{height:100%;min-height:0}
+#workspace-settings-panel{padding:18px;display:flex;flex-direction:column;gap:14px;overflow:auto}
+#workspace-settings-panel .control-cluster{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08);box-shadow:none}
+#workspace-settings-panel .control-cluster-head strong{color:#fff}
+#workspace-settings-panel .control-cluster-head p{color:rgba(255,255,255,.72)}
+#workspace-settings-panel .field label{color:rgba(255,255,255,.74)}
+#workspace-settings-panel .header-select,#workspace-settings-panel .header-input{background:rgba(255,255,255,.96)}
+#workspace-settings-panel .btn-ghost,#workspace-settings-panel .btn-toggle{background:rgba(255,255,255,.12);color:#fff}
+#workspace-settings-panel .btn-reset{background:rgba(220,38,38,.16);color:#fecaca}
+#workspace-settings-panel .control-cluster-grid-core{grid-template-columns:1fr}
+#workspace-settings-panel .control-cluster-grid-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+#workspace-diagnostics-panel .debug-body{height:100%}
 .debug-panel{position:fixed;top:0;right:0;bottom:0;z-index:80;width:min(480px,92vw);display:flex;flex-direction:column;background:linear-gradient(180deg,#152238 0%,#0f172a 100%);color:#fff;border-left:1px solid rgba(255,255,255,.08);transform:translateX(0);transition:transform .2s ease,opacity .2s ease;box-shadow:-24px 0 44px rgba(15,23,42,.26)}
 .debug-panel.collapsed{transform:translateX(100%);opacity:0;pointer-events:none;width:min(480px,92vw);overflow:hidden}
 .debug-body{padding:18px 18px 28px;overflow:auto}
@@ -478,21 +503,13 @@ body{overflow:hidden}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes bounce{to{opacity:.35;transform:translateY(-4px)}}
 @media(max-width:1500px){
-  .header--workspace{grid-template-columns:minmax(260px,320px) minmax(0,1fr)}
-  .header--workspace .header-controls{grid-template-columns:minmax(0,1fr)}
-  .control-cluster-core,.control-cluster-mode,.control-cluster-actions{grid-column:1 / -1}
-  .control-cluster-grid-actions{grid-template-columns:repeat(4,minmax(0,1fr))}
-  .control-imports{grid-column:span 2}
   .main{grid-template-columns:minmax(300px,340px) minmax(0,1fr) minmax(292px,332px)}
 }
 @media(max-width:1240px){
   .header{padding:14px 18px}
   .header--workspace{grid-template-columns:1fr}
   .header--workspace .header-brand{max-width:none}
-  .control-cluster-grid-core{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .control-source{grid-column:1 / -1}
-  .control-cluster-grid-actions{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .control-imports{grid-column:span 1}
+  .header-status,.header-utility{justify-content:flex-start}
   .main{grid-template-columns:minmax(296px,336px) minmax(0,1fr)}
   .context-panel{display:none}
   .template-panel-grid{grid-template-columns:1fr}
@@ -503,9 +520,8 @@ body{overflow:hidden}
   .app{height:auto;min-height:100vh}
   .header{gap:12px}
   .header--workspace .header-brand{min-width:0}
-  .header--workspace .header-controls{grid-template-columns:1fr;width:100%}
-  .control-cluster-grid-core,.control-cluster-grid-actions{grid-template-columns:1fr}
-  .control-source,.control-imports,.control-reset,.control-export-format,.control-export,.control-diagnostics{grid-column:auto}
+  .header-status,.header-utility{width:100%}
+  #workspace-settings-panel .control-cluster-grid-actions{grid-template-columns:1fr}
   .header-select,.header-input{width:100%}
   .main{grid-template-columns:1fr;min-height:calc(100vh - 170px);padding:12px}
   .queue-panel{max-height:clamp(38vh,50vh,60vh)}
@@ -620,6 +636,8 @@ const state = {
     lastConversationRefreshAt: null,
     connectionState: 'idle',
   },
+  workspaceFlyoutOpen: false,
+  workspaceFlyoutTab: 'settings',
 };
 const CATEGORY_PRIORITY = ['yanlis_bilgi', 'eksik_bilgi', 'baglam_kopuklugu', 'intent_iskalama', 'mantik_celiskisi', 'format_ihlali', 'gevezelik', 'alakasiz_yanit', 'uydurma_bilgi', 'ton_politika_ihlali', 'ozel_kategori'];
 const CATEGORY_TAG_SUGGESTIONS = {
@@ -1135,6 +1153,83 @@ function toggleShortcutDialog(forceOpen = null) {
   if (dialog.open) dialog.close();
 }
 
+function renderWorkspaceSummary() {
+  const modeLabels = {
+    test: 'Mod: Test',
+    ai: 'Mod: Otomatik',
+    approval: 'Mod: Onay',
+    off: 'Mod: Kapalı',
+  };
+  const modeIndicator = el('workspace-mode-indicator');
+  if (modeIndicator) {
+    modeIndicator.textContent = modeLabels[state.operationMode] || ('Mod: ' + String(state.operationMode || '-'));
+  }
+  const diagnosticsOpen = state.workspaceFlyoutOpen && state.workspaceFlyoutTab === 'diagnostics';
+  el('workspace-panel-toggle')?.setAttribute('aria-expanded', String(state.workspaceFlyoutOpen));
+  el('toggle-debug')?.setAttribute('aria-expanded', String(diagnosticsOpen));
+}
+
+function renderWorkspaceFlyout() {
+  const panel = el('debug-panel');
+  if (!panel) return;
+  const normalizedTab = state.workspaceFlyoutTab === 'diagnostics' ? 'diagnostics' : 'settings';
+  const isDiagnostics = normalizedTab === 'diagnostics';
+  state.workspaceFlyoutTab = normalizedTab;
+  panel.classList.toggle('collapsed', !state.workspaceFlyoutOpen);
+  panel.setAttribute('aria-hidden', String(!state.workspaceFlyoutOpen));
+  panel.dataset.workspaceTab = normalizedTab;
+  document.querySelectorAll('#workspace-flyout-tabs [data-workspace-tab]').forEach(btn => {
+    const isActive = btn.dataset.workspaceTab === normalizedTab;
+    btn.classList.toggle('is-active', isActive);
+    btn.setAttribute('aria-selected', String(isActive));
+    btn.setAttribute('tabindex', isActive ? '0' : '-1');
+  });
+  el('workspace-settings-panel')?.classList.toggle('hidden', isDiagnostics);
+  el('workspace-settings-panel')?.classList.toggle('is-active', !isDiagnostics);
+  el('workspace-diagnostics-panel')?.classList.toggle('hidden', !isDiagnostics);
+  el('workspace-diagnostics-panel')?.classList.toggle('is-active', isDiagnostics);
+  if (el('workspace-flyout-heading')) {
+    el('workspace-flyout-heading').textContent = isDiagnostics ? 'Tanılama' : 'Çalışma Ayarları';
+  }
+  if (el('workspace-flyout-description')) {
+    el('workspace-flyout-description').textContent = isDiagnostics
+      ? 'Teknik durum, geri bildirim ve metrik görünümü'
+      : 'Ortam kontrolleri ve teknik araçlar';
+  }
+  renderWorkspaceSummary();
+}
+
+function setWorkspaceFlyoutTab(tab = 'settings') {
+  state.workspaceFlyoutTab = tab === 'diagnostics' ? 'diagnostics' : 'settings';
+  renderWorkspaceFlyout();
+}
+
+function openWorkspaceFlyout(tab = 'settings') {
+  state.workspaceFlyoutOpen = true;
+  state.workspaceFlyoutTab = tab === 'diagnostics' ? 'diagnostics' : 'settings';
+  renderWorkspaceFlyout();
+  requestAnimationFrame(() => {
+    const focusTarget = document.querySelector('#workspace-flyout-tabs .workspace-flyout-tab.is-active') || el('workspace-flyout-close');
+    focusTarget?.focus?.();
+  });
+}
+
+function closeWorkspaceFlyout() {
+  if (!state.workspaceFlyoutOpen) return;
+  state.workspaceFlyoutOpen = false;
+  renderWorkspaceFlyout();
+  el('workspace-panel-toggle')?.focus?.();
+}
+
+function toggleWorkspaceFlyout(tab = 'settings') {
+  const normalizedTab = tab === 'diagnostics' ? 'diagnostics' : 'settings';
+  if (state.workspaceFlyoutOpen && state.workspaceFlyoutTab === normalizedTab) {
+    closeWorkspaceFlyout();
+    return;
+  }
+  openWorkspaceFlyout(normalizedTab);
+}
+
 function handleEscapeShortcut() {
   if (el('shortcut-dialog')?.open) {
     toggleShortcutDialog(false);
@@ -1144,12 +1239,12 @@ function handleEscapeShortcut() {
     el('faq-dialog').close();
     return true;
   }
-  if (!el('debug-panel')?.classList.contains('collapsed')) {
-    toggleDebug();
-    return true;
-  }
   if (!el('conv-detail-overlay')?.classList.contains('hidden')) {
     closeConvModal();
+    return true;
+  }
+  if (state.workspaceFlyoutOpen) {
+    closeWorkspaceFlyout();
     return true;
   }
   if (state.replyTarget) {
@@ -2587,6 +2682,7 @@ function setComposerMode(isLive) {
     messageInput.placeholder = 'İçe aktarılan kayıt görünümü salt okunurdur. Yeni mesaj için "Yeni test" seçin.';
     el('source-banner').textContent = 'İçe aktarılan kayıt açık: ' + (state.importFile || '-');
   }
+  renderWorkspaceSummary();
   renderComposerModeBar();
   renderComposerHelper();
   renderReplyPreview();
@@ -2946,6 +3042,7 @@ async function loadLiveConversation(convId) {
     setComposerMode(true);
     renderRoleMappingPanel(null);
     el('source-banner').textContent = 'Canlı konuşma görüntüleniyor.';
+    renderWorkspaceSummary();
     try {
       const data = await apiFetch('/chat/conversation/' + encodeURIComponent(conversationId));
       if (String(state.activeConversationId || '') !== conversationId) {
@@ -3263,10 +3360,14 @@ async function changeModel() {
 // isoToLocalInput provided by UI_SHARED_SCRIPT
 
 function toggleDebug(forceOpen = null) {
-  const panel = el('debug-panel');
-  const shouldOpen = forceOpen === null ? panel.classList.contains('collapsed') : Boolean(forceOpen);
-  panel.classList.toggle('collapsed', !shouldOpen);
-  el('toggle-debug').setAttribute('aria-expanded', String(!panel.classList.contains('collapsed')));
+  const shouldOpen = forceOpen === null
+    ? !(state.workspaceFlyoutOpen && state.workspaceFlyoutTab === 'diagnostics')
+    : Boolean(forceOpen);
+  if (!shouldOpen) {
+    closeWorkspaceFlyout();
+    return;
+  }
+  openWorkspaceFlyout('diagnostics');
 }
 
 function removeCtxMenu() {
@@ -3421,6 +3522,7 @@ function updateModeUI(mode) {
   document.querySelectorAll('.mode-btn').forEach(btn => {
     btn.classList.toggle('is-active-mode', btn.dataset.mode === mode);
   });
+  renderWorkspaceSummary();
 }
 
 async function changeMode(newMode) {
@@ -3933,6 +4035,13 @@ function wireEvents() {
   el('template-dialog-close').addEventListener('click', () => el('template-dialog').close());
   el('shortcut-dialog-close').addEventListener('click', () => toggleShortcutDialog(false));
   el('shortcut-help-btn').addEventListener('click', () => toggleShortcutDialog(true));
+  el('workspace-panel-toggle').addEventListener('click', () => toggleWorkspaceFlyout('settings'));
+  el('workspace-flyout-close').addEventListener('click', closeWorkspaceFlyout);
+  el('workspace-flyout-tabs').addEventListener('click', event => {
+    const btn = event.target.closest('[data-workspace-tab]');
+    if (!btn) return;
+    setWorkspaceFlyoutTab(btn.dataset.workspaceTab || 'settings');
+  });
   el('faq-dialog-form').addEventListener('submit', onFaqSubmit);
   el('template-dialog-form').addEventListener('submit', onTemplateSubmit);
   el('template-create-btn').addEventListener('click', openTemplateDialog);
@@ -4024,7 +4133,8 @@ function wireEvents() {
       || ['input', 'textarea', 'select', 'button'].includes(tagName)
       || target?.closest?.('.feedback-studio')
       || target?.closest?.('.template-panel')
-      || target?.closest?.('.conv-modal');
+      || target?.closest?.('.conv-modal')
+      || target?.closest?.('.workspace-flyout');
     if (event.key === '?') {
       if (typingContext && !shortcutDialogOpen) return;
       event.preventDefault();
@@ -4403,6 +4513,8 @@ async function boot() {
   _booted = true;
   startInteractiveLabelObserver(document.body);
   wireEvents();
+  renderWorkspaceFlyout();
+  renderWorkspaceSummary();
   renderCategoryOptions();
   renderTagOptions();
   renderThreadHeader();

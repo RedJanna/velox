@@ -172,75 +172,13 @@ TEST_CHAT_HTML = (
         <h1>Velox Chat Lab</h1>
         <p>WhatsApp benzeri operasyon akışı, canlı kuyruk ve inceleme arayüzü</p>
       </div>
-      <div class="source-badge" id="source-banner">Canlı kuyruk hazır.</div>
     </div>
-    <div class="header-controls">
-      <section class="control-cluster control-cluster-core" aria-label="Çalışma kaynağı">
-        <div class="control-cluster-head">
-          <div>
-            <strong>Çalışma Kaynağı</strong>
-            <p>Modeli, test kimliğini ve aktif konuşma kaynağını bu bloktan yönetin.</p>
-          </div>
-        </div>
-        <div class="control-cluster-grid control-cluster-grid-core">
-          <div class="field field-stack-sm control-model">
-            <label for="model-select">Test modeli</label>
-            <select id="model-select" class="header-select header-select-model">
-              <option>Yükleniyor...</option>
-            </select>
-          </div>
-          <div class="field field-stack-sm control-id">
-            <label for="phone-input">Test kimliği</label>
-            <input type="text" id="phone-input" class="header-input" value="test_user_123">
-          </div>
-          <div class="field field-stack-sm control-source">
-            <label for="import-select">Kaynak</label>
-            <select id="import-select" class="header-select header-select-import">
-              <option value="">Yeni test</option>
-            </select>
-          </div>
-        </div>
-      </section>
-      <section class="control-cluster control-cluster-mode" aria-label="Çalışma modu">
-        <div class="control-cluster-head">
-          <div>
-            <strong>Çalışma Modu</strong>
-            <p>Mesajın yalnızca test edilmesi, otomatik yanıtlanması veya onaya düşmesi burada belirlenir.</p>
-          </div>
-        </div>
-        <div class="field field-stack-sm control-mode">
-          <label>Mod</label>
-          <div class="mode-switch" id="mode-switch">
-            <button class="mode-btn" data-mode="test" type="button" title="Test: mesaj alınır, yapay zekâ yanıt üretir ama göndermez">Test</button>
-            <button class="mode-btn" data-mode="ai" type="button" title="Otomatik: mesaj alınır, yapay zekâ yanıt üretir ve gönderir">Otomatik</button>
-            <button class="mode-btn" data-mode="approval" type="button" title="Onay: yapay zekâ yanıt üretir, yönetici onaylayana kadar göndermez">Onay</button>
-            <button class="mode-btn" data-mode="off" type="button" title="Kapalı: sadece veri kaydedilir, yanıt üretilmez">Kapalı</button>
-          </div>
-        </div>
-      </section>
-      <section class="control-cluster control-cluster-actions" aria-label="Araçlar ve aksiyonlar">
-        <div class="control-cluster-head">
-          <div>
-            <strong>Operasyon Araçları</strong>
-            <p>İçe aktarım, sıfırlama, dışa aktarım ve tanılama işlemlerini bu blokta toplayın.</p>
-          </div>
-        </div>
-        <div class="control-cluster-grid control-cluster-grid-actions">
-          <button class="btn btn-ghost control-action control-imports" id="refresh-imports" type="button" aria-label="İçe aktarım listesini yenile">İçe Aktarımlar</button>
-          <button class="btn btn-reset control-action control-reset" id="reset-btn" type="button" aria-label="Konuşmayı sıfırla">Sıfırla</button>
-          <div class="field field-stack-sm control-export-format">
-            <label for="save-format">Dışa Aktarım</label>
-            <select id="save-format" class="header-select">
-              <option value="md">.md</option>
-              <option value="txt">.txt</option>
-              <option value="json">.json</option>
-              <option value="pdf">.pdf</option>
-            </select>
-          </div>
-          <button class="btn btn-save control-action control-export" id="export-btn" type="button" aria-label="Konuşma kaydını dışa aktar">Dışa Aktar</button>
-          <button class="btn btn-toggle control-action control-diagnostics" id="toggle-debug" type="button" aria-label="Tanılama panelini aç veya kapat">Tanılama</button>
-        </div>
-      </section>
+    <div class="header-status" aria-live="polite">
+      <div class="source-badge" id="source-banner">Canlı kuyruk hazır.</div>
+      <div class="header-status-pill" id="workspace-mode-indicator">Mod: Test</div>
+    </div>
+    <div class="header-utility">
+      <button class="btn btn-ghost workspace-panel-toggle" id="workspace-panel-toggle" type="button" aria-label="Çalışma ayarlarını aç" aria-expanded="false" aria-controls="debug-panel">Çalışma Ayarları</button>
     </div>
   </div>
 
@@ -369,15 +307,89 @@ TEST_CHAT_HTML = (
   </div>
 </div>
 
-<div class="debug-panel collapsed" id="debug-panel">
-  <div class="debug-header">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-    <div>
-      <strong>Tanılama</strong>
-      <span>Chat Lab hata ayıklama, geri bildirim, metrik ve rapor alanları</span>
+<div class="workspace-flyout debug-panel collapsed" id="debug-panel" role="dialog" aria-modal="false" aria-label="Çalışma ayarları ve tanılama paneli">
+  <div class="workspace-flyout-header debug-header">
+    <div class="workspace-flyout-title">
+      <strong id="workspace-flyout-heading">Çalışma Ayarları</strong>
+      <span id="workspace-flyout-description">Ortam kontrolleri ve teknik araçlar</span>
     </div>
+    <button class="workspace-flyout-close" id="workspace-flyout-close" type="button" aria-label="Paneli kapat">&times;</button>
   </div>
-  <div class="debug-body">
+  <div class="workspace-flyout-tabs" id="workspace-flyout-tabs" role="tablist" aria-label="Çalışma paneli sekmeleri">
+    <button class="workspace-flyout-tab is-active" id="workspace-tab-settings" data-workspace-tab="settings" type="button" role="tab" aria-selected="true" aria-controls="workspace-settings-panel">Ortam</button>
+    <button class="workspace-flyout-tab" id="workspace-tab-diagnostics" data-workspace-tab="diagnostics" type="button" role="tab" aria-selected="false" aria-controls="workspace-diagnostics-panel">Tanılama</button>
+  </div>
+  <div class="workspace-flyout-body">
+    <div id="workspace-settings-panel" class="workspace-tab-panel" role="tabpanel" aria-labelledby="workspace-tab-settings">
+      <section class="control-cluster control-cluster-core" aria-label="Çalışma kaynağı">
+        <div class="control-cluster-head">
+          <div>
+            <strong>Çalışma Kaynağı</strong>
+            <p>Modeli, test kimliğini ve aktif konuşma kaynağını bu bloktan yönetin.</p>
+          </div>
+        </div>
+        <div class="control-cluster-grid control-cluster-grid-core">
+          <div class="field field-stack-sm control-model">
+            <label for="model-select">Test modeli</label>
+            <select id="model-select" class="header-select header-select-model">
+              <option>Yükleniyor...</option>
+            </select>
+          </div>
+          <div class="field field-stack-sm control-id">
+            <label for="phone-input">Test kimliği</label>
+            <input type="text" id="phone-input" class="header-input" value="test_user_123">
+          </div>
+          <div class="field field-stack-sm control-source">
+            <label for="import-select">Kaynak</label>
+            <select id="import-select" class="header-select header-select-import">
+              <option value="">Yeni test</option>
+            </select>
+          </div>
+        </div>
+      </section>
+      <section class="control-cluster control-cluster-mode" aria-label="Çalışma modu">
+        <div class="control-cluster-head">
+          <div>
+            <strong>Çalışma Modu</strong>
+            <p>Mesajın yalnızca test edilmesi, otomatik yanıtlanması veya onaya düşmesi burada belirlenir.</p>
+          </div>
+        </div>
+        <div class="field field-stack-sm control-mode">
+          <label>Mod</label>
+          <div class="mode-switch" id="mode-switch">
+            <button class="mode-btn" data-mode="test" type="button" title="Test: mesaj alınır, yapay zekâ yanıt üretir ama göndermez">Test</button>
+            <button class="mode-btn" data-mode="ai" type="button" title="Otomatik: mesaj alınır, yapay zekâ yanıt üretir ve gönderir">Otomatik</button>
+            <button class="mode-btn" data-mode="approval" type="button" title="Onay: yapay zekâ yanıt üretir, yönetici onaylayana kadar göndermez">Onay</button>
+            <button class="mode-btn" data-mode="off" type="button" title="Kapalı: sadece veri kaydedilir, yanıt üretilmez">Kapalı</button>
+          </div>
+        </div>
+      </section>
+      <section class="control-cluster control-cluster-actions" aria-label="Araçlar ve aksiyonlar">
+        <div class="control-cluster-head">
+          <div>
+            <strong>Operasyon Araçları</strong>
+            <p>İçe aktarım, sıfırlama, dışa aktarım ve tanılama işlemlerini bu blokta toplayın.</p>
+          </div>
+        </div>
+        <div class="control-cluster-grid control-cluster-grid-actions">
+          <button class="btn btn-ghost control-action control-imports" id="refresh-imports" type="button" aria-label="İçe aktarım listesini yenile">İçe Aktarımlar</button>
+          <button class="btn btn-reset control-action control-reset" id="reset-btn" type="button" aria-label="Konuşmayı sıfırla">Sıfırla</button>
+          <div class="field field-stack-sm control-export-format">
+            <label for="save-format">Dışa Aktarım</label>
+            <select id="save-format" class="header-select">
+              <option value="md">.md</option>
+              <option value="txt">.txt</option>
+              <option value="json">.json</option>
+              <option value="pdf">.pdf</option>
+            </select>
+          </div>
+          <button class="btn btn-save control-action control-export" id="export-btn" type="button" aria-label="Konuşma kaydını dışa aktar">Dışa Aktar</button>
+          <button class="btn btn-toggle control-action control-diagnostics" id="toggle-debug" type="button" aria-label="Tanılama sekmesine geç">Tanılama</button>
+        </div>
+      </section>
+    </div>
+    <div id="workspace-diagnostics-panel" class="workspace-tab-panel hidden" role="tabpanel" aria-labelledby="workspace-tab-diagnostics">
+      <div class="debug-body">
     <div class="debug-section">
       <h3>Konuşma durumu</h3>
       <div class="debug-value" id="d-state"><span class="debug-badge badge-state">-</span></div>
@@ -493,6 +505,8 @@ TEST_CHAT_HTML = (
       </div>
       <button class="btn btn-primary btn-block mt-md" id="report-submit" type="button">Genel Rapor Oluştur</button>
       <div class="list mt-sm" id="report-result" aria-live="polite"></div>
+    </div>
+      </div>
     </div>
   </div>
 </div>
