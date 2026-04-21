@@ -26,7 +26,6 @@ body{overflow:hidden}
 .header-copy{grid-area:copy}
 .header-copy h1{font-size:var(--text-xl);font-weight:800;letter-spacing:.01em;line-height:1.2}
 .header-copy p{font-size:13px;line-height:1.55;color:var(--muted);margin-top:4px;max-width:46ch}
-.header-controls{margin-left:auto;display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
 .field{display:flex;align-items:center;gap:8px}
 .field label{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .header-select,.header-input,.input-bar textarea,.debug-input,.debug-select,.debug-textarea{
@@ -117,8 +116,6 @@ body{overflow:hidden}
 .btn-voice.is-recording{background:#fee2e2;color:#991b1b}
 .btn-send{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center}
 .btn-send svg{width:20px;height:20px;fill:currentColor}
-.debug-panel{width:410px;display:flex;flex-direction:column;background:linear-gradient(180deg,#152238 0%,#0f172a 100%);color:#fff;border-left:1px solid rgba(255,255,255,.06)}
-.debug-panel.collapsed{width:0;border:none;overflow:hidden}
 .debug-header{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
 .debug-header strong{font-size:14px}.debug-header span{font-size:12px;color:rgba(255,255,255,.82)}
 .debug-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
@@ -269,10 +266,6 @@ body{overflow:hidden}
 .header-status-pill{display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;background:rgba(18,33,59,.06);border:1px solid rgba(18,33,59,.08);font-size:12px;font-weight:800;color:#415269;white-space:nowrap}
 .header-utility{display:flex;align-items:center;justify-content:flex-end;gap:10px}
 .workspace-panel-toggle{white-space:nowrap}
-.header--workspace .header-controls{
-  margin-left:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
-  gap:14px;align-items:stretch;min-width:0
-}
 .control-cluster{
   display:flex;flex-direction:column;gap:12px;padding:15px 16px;border-radius:20px;
   background:rgba(255,255,255,.74);border:1px solid rgba(18,33,59,.08);box-shadow:0 12px 28px rgba(15,23,42,.05);min-width:0
@@ -284,7 +277,6 @@ body{overflow:hidden}
 .control-cluster-grid{display:grid;gap:12px;align-items:end}
 .control-cluster-grid-core{grid-template-columns:minmax(0,1.2fr) minmax(0,.9fr) minmax(0,1fr)}
 .control-cluster-grid-actions{grid-template-columns:repeat(6,minmax(0,1fr))}
-.header-controls .field{min-width:0}
 .control-model,.control-source,.control-id,.control-mode,.control-export-format{min-width:0}
 .control-mode{width:100%}
 .control-action{width:100%}
@@ -474,6 +466,7 @@ body{overflow:hidden}
 .audit-item-title{font-size:12px;font-weight:800;color:var(--ink)}
 .audit-item-time{font-size:12px;color:#526274;white-space:nowrap}
 .audit-item-detail{margin-top:6px;font-size:12px;line-height:1.5;color:#526274}
+.workspace-scrim{position:fixed;inset:0;z-index:72;background:rgba(15,23,42,.22);backdrop-filter:blur(2px)}
 .workspace-flyout-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .workspace-flyout-title{display:flex;flex-direction:column;gap:4px;min-width:0}
 .workspace-flyout-close{width:36px;height:36px;border:none;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-size:22px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -488,6 +481,7 @@ body{overflow:hidden}
 #workspace-settings-panel .control-cluster{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08);box-shadow:none}
 #workspace-settings-panel .control-cluster-head strong{color:#fff}
 #workspace-settings-panel .control-cluster-head p{color:rgba(255,255,255,.72)}
+#workspace-settings-panel .control-cluster-meta{font-size:12px;line-height:1.55;color:rgba(255,255,255,.74)}
 #workspace-settings-panel .field label{color:rgba(255,255,255,.74)}
 #workspace-settings-panel .header-select,#workspace-settings-panel .header-input{background:rgba(255,255,255,.96)}
 #workspace-settings-panel .btn-ghost,#workspace-settings-panel .btn-toggle{background:rgba(255,255,255,.12);color:#fff}
@@ -1160,9 +1154,30 @@ function renderWorkspaceSummary() {
     approval: 'Mod: Onay',
     off: 'Mod: Kapalı',
   };
+  const modeDescriptions = {
+    test: 'Test modunda yanıt üretilir ancak gerçek misafire gönderilmez.',
+    ai: 'Otomatik modda uygun yanıtlar canlı konuşmaya doğrudan gönderilir.',
+    approval: 'Onay modunda yanıt önce operatör onayına düşer, sonra gönderilir.',
+    off: 'Kapalı modda sistem konuşmayı izler ancak yeni yanıt üretmez.',
+  };
   const modeIndicator = el('workspace-mode-indicator');
   if (modeIndicator) {
     modeIndicator.textContent = modeLabels[state.operationMode] || ('Mod: ' + String(state.operationMode || '-'));
+  }
+  const sourceSummary = el('workspace-source-summary');
+  if (sourceSummary) {
+    if (state.sourceType === 'live_conversation') {
+      const sourceLabel = state.conversation?.phone_display || state.activeConversationId || 'canlı konuşma';
+      sourceSummary.textContent = 'Aktif kaynak: ' + sourceLabel + ' canlı konuşması.';
+    } else if (state.importFile) {
+      sourceSummary.textContent = 'Aktif kaynak: içe aktarılan kayıt ' + state.importFile + '.';
+    } else {
+      sourceSummary.textContent = 'Aktif kaynak: yeni test oturumu (' + ((el('phone-input')?.value || 'test_user_123').trim() || 'test_user_123') + ').';
+    }
+  }
+  const modeSummary = el('workspace-mode-summary');
+  if (modeSummary) {
+    modeSummary.textContent = modeDescriptions[state.operationMode] || 'Seçili mod davranışı burada özetlenir.';
   }
   const diagnosticsOpen = state.workspaceFlyoutOpen && state.workspaceFlyoutTab === 'diagnostics';
   el('workspace-panel-toggle')?.setAttribute('aria-expanded', String(state.workspaceFlyoutOpen));
@@ -1178,6 +1193,8 @@ function renderWorkspaceFlyout() {
   panel.classList.toggle('collapsed', !state.workspaceFlyoutOpen);
   panel.setAttribute('aria-hidden', String(!state.workspaceFlyoutOpen));
   panel.dataset.workspaceTab = normalizedTab;
+  el('workspace-scrim')?.classList.toggle('hidden', !state.workspaceFlyoutOpen);
+  el('workspace-scrim')?.setAttribute('aria-hidden', String(!state.workspaceFlyoutOpen));
   document.querySelectorAll('#workspace-flyout-tabs [data-workspace-tab]').forEach(btn => {
     const isActive = btn.dataset.workspaceTab === normalizedTab;
     btn.classList.toggle('is-active', isActive);
@@ -4037,6 +4054,7 @@ function wireEvents() {
   el('shortcut-help-btn').addEventListener('click', () => toggleShortcutDialog(true));
   el('workspace-panel-toggle').addEventListener('click', () => toggleWorkspaceFlyout('settings'));
   el('workspace-flyout-close').addEventListener('click', closeWorkspaceFlyout);
+  el('workspace-scrim').addEventListener('click', closeWorkspaceFlyout);
   el('workspace-flyout-tabs').addEventListener('click', event => {
     const btn = event.target.closest('[data-workspace-tab]');
     if (!btn) return;

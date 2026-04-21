@@ -307,6 +307,7 @@ TEST_CHAT_HTML = (
   </div>
 </div>
 
+<div id="workspace-scrim" class="workspace-scrim hidden" aria-hidden="true"></div>
 <div class="workspace-flyout debug-panel collapsed" id="debug-panel" role="dialog" aria-modal="false" aria-label="Çalışma ayarları ve tanılama paneli">
   <div class="workspace-flyout-header debug-header">
     <div class="workspace-flyout-title">
@@ -346,6 +347,7 @@ TEST_CHAT_HTML = (
             </select>
           </div>
         </div>
+        <p class="control-cluster-meta" id="workspace-source-summary">Yeni test kaydı kullanılacak.</p>
       </section>
       <section class="control-cluster control-cluster-mode" aria-label="Çalışma modu">
         <div class="control-cluster-head">
@@ -363,6 +365,7 @@ TEST_CHAT_HTML = (
             <button class="mode-btn" data-mode="off" type="button" title="Kapalı: sadece veri kaydedilir, yanıt üretilmez">Kapalı</button>
           </div>
         </div>
+        <p class="control-cluster-meta" id="workspace-mode-summary">Test modunda yanıt üretilir ancak gerçek misafire gönderilmez.</p>
       </section>
       <section class="control-cluster control-cluster-actions" aria-label="Araçlar ve aksiyonlar">
         <div class="control-cluster-head">
