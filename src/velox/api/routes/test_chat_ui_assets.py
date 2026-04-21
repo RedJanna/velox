@@ -20,6 +20,7 @@ radial-gradient(circle at right top,rgba(21,117,111,.07),transparent 22%),
 linear-gradient(180deg,#f7f4ec 0%,#eef3f8 100%);color:var(--ink)}
 body{overflow:hidden}
 .app{display:flex;flex-direction:column;height:100dvh;min-height:0}
+.app.is-workspace-dimmed{filter:saturate(.94) brightness(.985);transition:filter .18s ease}
 .header{display:flex;align-items:flex-start;gap:var(--space-5);padding:18px 24px;border-bottom:1px solid rgba(18,33,59,.08);background:rgba(255,255,255,.78);backdrop-filter:blur(18px)}
 .header-brand{display:grid;grid-template-columns:auto 1fr;grid-template-areas:'icon copy' '. badge';gap:12px 14px}
 .header-brand > svg{grid-area:icon}
@@ -650,8 +651,10 @@ const CATEGORY_TAG_SUGGESTIONS = {
 const L3_FLAGS = ['LEGAL_REQUEST','SECURITY_INCIDENT','THREAT_SELF_HARM','MEDICAL_EMERGENCY'];
 const L2_FLAGS = ['PAYMENT_CONFUSION','CHARGEBACK','REFUND_DISPUTE','ANGRY_COMPLAINT','FRAUD_SIGNAL','GROUP_BOOKING','CONTRACT_QUESTION','REPEAT_COMPLAINT','SOCIAL_MEDIA_THREAT','PRICE_MATCH','SYSTEM_ERROR','DOUBLE_CHARGE','TOOL_ERROR_REPEAT','TOOL_UNAVAILABLE'];
 const L1_FLAGS = ['VIP_REQUEST','ALLERGY_ALERT','ACCESSIBILITY_NEED','CHILD_SAFETY','CAPACITY_LIMIT','WEATHER_ALERT','SPECIAL_EVENT_FLAG','DIETARY_RESTRICTION'];
+const WORKSPACE_FLYOUT_FOCUSABLE = 'button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 const el = id => document.getElementById(id);
+let _workspaceFlyoutReturnFocus = null;
 
 // escapeHtml, formatMessageHtml, formatTime provided by UI_SHARED_SCRIPT
 const fmtTime = formatTime;
@@ -1184,6 +1187,57 @@ function renderWorkspaceSummary() {
   el('toggle-debug')?.setAttribute('aria-expanded', String(diagnosticsOpen));
 }
 
+function getVisibleWorkspaceFlyoutElements() {
+  const panel = el('debug-panel');
+  if (!panel || panel.classList.contains('collapsed')) return [];
+  return Array.from(panel.querySelectorAll(WORKSPACE_FLYOUT_FOCUSABLE)).filter(node => {
+    if (!(node instanceof HTMLElement)) return false;
+    if (node.closest('.hidden')) return false;
+    return node.getClientRects().length > 0;
+  });
+}
+
+function focusWorkspaceFlyoutTab(tab = state.workspaceFlyoutTab) {
+  const target = document.querySelector(`#workspace-flyout-tabs [data-workspace-tab="${tab === 'diagnostics' ? 'diagnostics' : 'settings'}"]`);
+  target?.focus?.();
+}
+
+function handleWorkspaceFlyoutTabKeydown(event) {
+  const currentTab = event.target.closest?.('#workspace-flyout-tabs [data-workspace-tab]');
+  if (!currentTab) return;
+  const tabs = Array.from(document.querySelectorAll('#workspace-flyout-tabs [data-workspace-tab]'));
+  if (!tabs.length) return;
+  const currentIndex = tabs.indexOf(currentTab);
+  if (currentIndex < 0) return;
+  let nextIndex = currentIndex;
+  if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+  else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+  else if (event.key === 'Home') nextIndex = 0;
+  else if (event.key === 'End') nextIndex = tabs.length - 1;
+  else return;
+  event.preventDefault();
+  const nextTab = tabs[nextIndex];
+  setWorkspaceFlyoutTab(nextTab.dataset.workspaceTab || 'settings');
+  nextTab.focus();
+}
+
+function trapWorkspaceFlyoutFocus(event) {
+  if (event.key !== 'Tab' || !state.workspaceFlyoutOpen) return;
+  const focusable = getVisibleWorkspaceFlyoutElements();
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+    return;
+  }
+  if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 function renderWorkspaceFlyout() {
   const panel = el('debug-panel');
   if (!panel) return;
@@ -1195,6 +1249,7 @@ function renderWorkspaceFlyout() {
   panel.dataset.workspaceTab = normalizedTab;
   el('workspace-scrim')?.classList.toggle('hidden', !state.workspaceFlyoutOpen);
   el('workspace-scrim')?.setAttribute('aria-hidden', String(!state.workspaceFlyoutOpen));
+  document.querySelector('.app')?.classList.toggle('is-workspace-dimmed', state.workspaceFlyoutOpen);
   document.querySelectorAll('#workspace-flyout-tabs [data-workspace-tab]').forEach(btn => {
     const isActive = btn.dataset.workspaceTab === normalizedTab;
     btn.classList.toggle('is-active', isActive);
@@ -1222,11 +1277,14 @@ function setWorkspaceFlyoutTab(tab = 'settings') {
 }
 
 function openWorkspaceFlyout(tab = 'settings') {
+  if (!state.workspaceFlyoutOpen) {
+    _workspaceFlyoutReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
   state.workspaceFlyoutOpen = true;
   state.workspaceFlyoutTab = tab === 'diagnostics' ? 'diagnostics' : 'settings';
   renderWorkspaceFlyout();
   requestAnimationFrame(() => {
-    const focusTarget = document.querySelector('#workspace-flyout-tabs .workspace-flyout-tab.is-active') || el('workspace-flyout-close');
+    const focusTarget = document.querySelector('#workspace-flyout-tabs .workspace-flyout-tab.is-active') || getVisibleWorkspaceFlyoutElements()[0] || el('workspace-flyout-close');
     focusTarget?.focus?.();
   });
 }
@@ -1235,7 +1293,11 @@ function closeWorkspaceFlyout() {
   if (!state.workspaceFlyoutOpen) return;
   state.workspaceFlyoutOpen = false;
   renderWorkspaceFlyout();
-  el('workspace-panel-toggle')?.focus?.();
+  const returnTarget = _workspaceFlyoutReturnFocus && document.contains(_workspaceFlyoutReturnFocus)
+    ? _workspaceFlyoutReturnFocus
+    : el('workspace-panel-toggle');
+  _workspaceFlyoutReturnFocus = null;
+  returnTarget?.focus?.();
 }
 
 function toggleWorkspaceFlyout(tab = 'settings') {
@@ -4055,6 +4117,10 @@ function wireEvents() {
   el('workspace-panel-toggle').addEventListener('click', () => toggleWorkspaceFlyout('settings'));
   el('workspace-flyout-close').addEventListener('click', closeWorkspaceFlyout);
   el('workspace-scrim').addEventListener('click', closeWorkspaceFlyout);
+  el('debug-panel').addEventListener('keydown', event => {
+    handleWorkspaceFlyoutTabKeydown(event);
+    trapWorkspaceFlyoutFocus(event);
+  });
   el('workspace-flyout-tabs').addEventListener('click', event => {
     const btn = event.target.closest('[data-workspace-tab]');
     if (!btn) return;
