@@ -113,6 +113,147 @@ globalThis.fetch = async () => ({ ok: true, status: 200, text: async () => '', j
     return json.loads(result.stdout.decode("utf-8").strip())
 
 
+def _run_chat_lab_script_harness(harness: str) -> dict[str, object]:
+    node_path = shutil.which("node")
+    assert node_path, "node is required for Chat Lab runtime harness checks"
+
+    prelude = """
+class SimpleClassList {
+  constructor(initial = []) {
+    this._classes = new Set(initial.filter(Boolean));
+  }
+  add(...classes) { classes.filter(Boolean).forEach(item => this._classes.add(item)); }
+  remove(...classes) { classes.filter(Boolean).forEach(item => this._classes.delete(item)); }
+  contains(item) { return this._classes.has(item); }
+  toggle(item, force) {
+    if (force === undefined) {
+      if (this._classes.has(item)) {
+        this._classes.delete(item);
+        return false;
+      }
+      this._classes.add(item);
+      return true;
+    }
+    if (force) this._classes.add(item);
+    else this._classes.delete(item);
+    return Boolean(force);
+  }
+  toString() { return Array.from(this._classes).join(' '); }
+}
+
+class HTMLElement {
+  constructor(id = '') {
+    this.id = id;
+    this.value = '';
+    this.innerHTML = '';
+    this.hidden = false;
+    this.dataset = {};
+    this.textContent = '';
+    this.checked = false;
+    this.disabled = false;
+    this.style = {};
+    this.attributes = {};
+    this.children = [];
+    this.classList = new SimpleClassList();
+  }
+  addEventListener() {}
+  removeEventListener() {}
+  setAttribute(name, value) { this.attributes[name] = String(value); }
+  getAttribute(name) { return this.attributes[name] || ''; }
+  hasAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attributes, name); }
+  closest(selector) {
+    if (selector === '.hidden' && this.classList.contains('hidden')) return this;
+    return null;
+  }
+  querySelectorAll(selector) {
+    if (selector === 'button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex=\"-1\"])') {
+      return this.children.filter(child => !child.disabled && !child.classList.contains('hidden'));
+    }
+    return [];
+  }
+  querySelector() { return null; }
+  focus() { globalThis.document.activeElement = this; }
+  blur() {}
+  scrollIntoView() {}
+  getClientRects() { return this.classList.contains('hidden') ? [] : [1]; }
+}
+
+class Element extends HTMLElement {}
+globalThis.HTMLElement = HTMLElement;
+globalThis.Element = Element;
+globalThis.MutationObserver = undefined;
+
+const __storage = new Map();
+const __elements = {};
+const __tabs = [];
+globalThis.window = {
+  parent: null,
+  ADMIN_PANEL_CONFIG: {},
+  localStorage: {
+    getItem(key) { return __storage.has(key) ? __storage.get(key) : null; },
+    setItem(key, value) { __storage.set(key, String(value)); },
+    removeItem(key) { __storage.delete(key); },
+  },
+  location: { hash: '#chatlab', href: 'https://test.local/admin#chatlab', origin: 'https://test.local' },
+  history: { replaceState() {} },
+  matchMedia() { return { matches: false }; },
+  addEventListener() {},
+  removeEventListener() {},
+  setInterval,
+  clearInterval,
+  setTimeout,
+  clearTimeout,
+  requestAnimationFrame(callback) { callback(); return 1; },
+  confirm() { return true; },
+  prompt() { return ''; },
+};
+window.parent = window;
+globalThis.confirm = window.confirm;
+globalThis.navigator = { userAgent: 'node-chat-harness' };
+globalThis.document = {
+  cookie: '',
+  title: 'Chat Lab',
+  hidden: false,
+  visibilityState: 'visible',
+  body: new Element('body'),
+  activeElement: new HTMLElement('active'),
+  addEventListener() {},
+  removeEventListener() {},
+  contains(node) { return Object.values(__elements).includes(node); },
+  getElementById(id) { return __elements[id] || null; },
+  querySelector(selector) {
+    if (selector === '.app') return __elements.appShell || null;
+    if (selector === '#workspace-flyout-tabs .workspace-flyout-tab.is-active') {
+      return __tabs.find(tab => tab.classList.contains('is-active')) || null;
+    }
+    return null;
+  },
+  querySelectorAll(selector) {
+    if (selector === '#workspace-flyout-tabs [data-workspace-tab]') return __tabs;
+    return [];
+  },
+};
+globalThis.FormData = class FormData {
+  constructor() { this._entries = []; }
+  entries() { return this._entries[Symbol.iterator](); }
+  get() { return null; }
+};
+globalThis.fetch = async () => ({ ok: true, status: 200, text: async () => '', json: async () => ({}) });
+globalThis.__elements = __elements;
+globalThis.__tabs = __tabs;
+"""
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        script_path = Path(tmp_dir) / "chat_harness.js"
+        script_path.write_text(prelude + TEST_CHAT_SCRIPT + "\n" + harness, encoding="utf-8")
+        result = subprocess.run(
+            [node_path, str(script_path)],
+            check=True,
+            capture_output=True,
+        )
+    return json.loads(result.stdout.decode("utf-8").strip())
+
+
 def test_admin_panel_notifications_use_notify_helper() -> None:
     assert "toast(" not in ADMIN_PANEL_SCRIPT
     assert "notify(" in ADMIN_PANEL_SCRIPT
@@ -214,6 +355,95 @@ def test_chat_lab_script_drops_legacy_debug_panel_names() -> None:
     assert "function toggleDebug(" not in TEST_CHAT_SCRIPT
     assert "el('debug-panel')" not in TEST_CHAT_SCRIPT
     assert 'id="toggle-debug"' not in TEST_CHAT_HTML
+
+
+def test_chat_lab_workspace_flyout_runtime_updates_modal_and_tab_state() -> None:
+    harness = """
+function register(id, classes = []) {
+  const node = new HTMLElement(id);
+  node.classList = new SimpleClassList(classes);
+  __elements[id] = node;
+  return node;
+}
+const appShell = register('appShell', ['app']);
+const panel = register('workspace-flyout', ['workspace-flyout']);
+const scrim = register('workspace-scrim', ['workspace-scrim']);
+const settingsPanel = register('workspace-settings-panel', ['workspace-tab-panel', 'workspace-console']);
+const diagnosticsPanel = register('workspace-diagnostics-panel', ['workspace-tab-panel', 'workspace-console', 'hidden']);
+const heading = register('workspace-flyout-heading');
+const description = register('workspace-flyout-description');
+const toggle = register('workspace-panel-toggle');
+const diagnosticsToggle = register('workspace-open-diagnostics');
+const modeIndicator = register('workspace-mode-indicator');
+const modeChip = register('workspace-mode-chip');
+const sourceSummary = register('workspace-source-summary');
+const modeSummary = register('workspace-mode-summary');
+const phoneInput = register('phone-input');
+phoneInput.value = 'smoke_user';
+const tabSettings = register('workspace-tab-settings', ['workspace-flyout-tab']);
+tabSettings.dataset.workspaceTab = 'settings';
+const tabDiagnostics = register('workspace-tab-diagnostics', ['workspace-flyout-tab']);
+tabDiagnostics.dataset.workspaceTab = 'diagnostics';
+__tabs.push(tabSettings, tabDiagnostics);
+
+state.operationMode = 'approval';
+state.workspaceFlyoutOpen = true;
+state.workspaceFlyoutTab = 'diagnostics';
+state.sourceType = 'live_test_chat';
+state.importFile = '';
+renderWorkspaceFlyout();
+
+const openState = {
+  panelModal: panel.getAttribute('aria-modal'),
+  panelHidden: panel.getAttribute('aria-hidden'),
+  appHidden: appShell.getAttribute('aria-hidden'),
+  appInert: Boolean(appShell.inert),
+  settingsHidden: settingsPanel.classList.contains('hidden'),
+  diagnosticsHidden: diagnosticsPanel.classList.contains('hidden'),
+  diagnosticsTabSelected: tabDiagnostics.getAttribute('aria-selected'),
+  heading: heading.textContent,
+  modeIndicatorClasses: modeIndicator.classList.toString(),
+  modeChipClasses: modeChip.classList.toString(),
+  diagnosticsExpanded: diagnosticsToggle.getAttribute('aria-expanded'),
+};
+
+state.workspaceFlyoutOpen = false;
+state.workspaceFlyoutTab = 'settings';
+renderWorkspaceFlyout();
+
+const closedState = {
+  panelModal: panel.getAttribute('aria-modal'),
+  panelHidden: panel.getAttribute('aria-hidden'),
+  appHidden: appShell.getAttribute('aria-hidden'),
+  appInert: Boolean(appShell.inert),
+  panelCollapsed: panel.classList.contains('collapsed'),
+  settingsHidden: settingsPanel.classList.contains('hidden'),
+  diagnosticsHidden: diagnosticsPanel.classList.contains('hidden'),
+  toggleExpanded: toggle.getAttribute('aria-expanded'),
+};
+
+console.log(JSON.stringify({ openState, closedState }));
+"""
+    result = _run_chat_lab_script_harness(harness)
+    assert result["openState"]["panelModal"] == "true"
+    assert result["openState"]["panelHidden"] == "false"
+    assert result["openState"]["appHidden"] == "true"
+    assert result["openState"]["appInert"] is True
+    assert result["openState"]["settingsHidden"] is True
+    assert result["openState"]["diagnosticsHidden"] is False
+    assert result["openState"]["diagnosticsTabSelected"] == "true"
+    assert result["openState"]["heading"] == "Tanılama"
+    assert "is-mode-approval" in result["openState"]["modeIndicatorClasses"]
+    assert "is-mode-approval" in result["openState"]["modeChipClasses"]
+    assert result["openState"]["diagnosticsExpanded"] == "true"
+    assert result["closedState"]["panelModal"] == "false"
+    assert result["closedState"]["panelHidden"] == "true"
+    assert result["closedState"]["appHidden"] == "false"
+    assert result["closedState"]["appInert"] is False
+    assert result["closedState"]["panelCollapsed"] is True
+    assert result["closedState"]["settingsHidden"] is False
+    assert result["closedState"]["diagnosticsHidden"] is True
+    assert result["closedState"]["toggleExpanded"] == "false"
 
 
 def test_chat_lab_script_is_valid_javascript() -> None:

@@ -51,8 +51,8 @@ body{overflow:hidden}
 .main{display:flex;flex:1;min-height:0}
 .chat-panel{flex:1;display:flex;flex-direction:column;min-width:0}
 .messages{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:12px}
-.messages::-webkit-scrollbar,.debug-body::-webkit-scrollbar{width:7px}
-.messages::-webkit-scrollbar-thumb,.debug-body::-webkit-scrollbar-thumb{background:rgba(100,116,139,.28);border-radius:999px}
+.messages::-webkit-scrollbar,.workspace-console::-webkit-scrollbar{width:7px}
+.messages::-webkit-scrollbar-thumb,.workspace-console::-webkit-scrollbar-thumb{background:rgba(100,116,139,.28);border-radius:999px}
 .msg{max-width:76%;display:flex;flex-direction:column;gap:8px;padding:14px 16px;border-radius:20px;box-shadow:var(--shadow);animation:fadeIn .22s ease}
 .msg-user{align-self:flex-end;background:linear-gradient(135deg,var(--teal),var(--teal-2));color:#fff;border-bottom-right-radius:6px}
 .msg-assistant{align-self:flex-start;background:rgba(255,255,255,.96);border:1px solid rgba(18,33,59,.08);border-bottom-left-radius:6px}
@@ -117,11 +117,6 @@ body{overflow:hidden}
 .btn-voice.is-recording{background:#fee2e2;color:#991b1b}
 .btn-send{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center}
 .btn-send svg{width:20px;height:20px;fill:currentColor}
-.debug-header{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
-.debug-header strong{font-size:14px}.debug-header span{font-size:12px;color:rgba(255,255,255,.82)}
-.debug-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
-.debug-section{padding:14px;border-radius:18px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.06)}
-.debug-section h3{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.82);margin-bottom:8px}
 .debug-value{font-size:13px;line-height:1.55}
 .debug-json,.meta-box{font-family:var(--mono);font-size:12px;white-space:pre-wrap;word-break:break-word;color:#bfdbfe;background:rgba(2,6,23,.35);border-radius:14px;padding:10px;max-height:220px;overflow:auto}
 .meta-box{color:#e2e8f0}
@@ -271,17 +266,6 @@ body{overflow:hidden}
 .header-status-pill.is-mode-off{background:rgba(239,68,68,.1);border-color:rgba(248,113,113,.16);color:#b91c1c}
 .header-utility{display:flex;align-items:center;justify-content:flex-end;gap:10px}
 .workspace-panel-toggle{white-space:nowrap;background:linear-gradient(180deg,#fff,#f4f7fb);border:1px solid rgba(18,33,59,.08);box-shadow:0 12px 24px rgba(15,23,42,.08)}
-.control-cluster{
-  display:flex;flex-direction:column;gap:12px;padding:15px 16px;border-radius:20px;
-  background:rgba(255,255,255,.74);border:1px solid rgba(18,33,59,.08);box-shadow:0 12px 28px rgba(15,23,42,.05);min-width:0
-}
-.control-cluster-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-.control-cluster-head strong{display:block;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#314155}
-.control-cluster-head p{margin-top:4px;font-size:12px;line-height:1.55;color:var(--muted)}
-.control-cluster-core{grid-column:1 / -1}
-.control-cluster-grid{display:grid;gap:12px;align-items:end}
-.control-cluster-grid-core{grid-template-columns:minmax(0,1.2fr) minmax(0,.9fr) minmax(0,1fr)}
-.control-cluster-grid-actions{grid-template-columns:repeat(6,minmax(0,1fr))}
 .control-model,.control-source,.control-id,.control-mode,.control-export-format{min-width:0}
 .control-mode{width:100%}
 .control-action{width:100%}
