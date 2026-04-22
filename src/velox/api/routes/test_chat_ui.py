@@ -309,16 +309,24 @@ TEST_CHAT_HTML = (
 
 <div id="workspace-scrim" class="workspace-scrim hidden" aria-hidden="true"></div>
 <div class="workspace-flyout collapsed" id="workspace-flyout" role="dialog" aria-modal="false" aria-hidden="true" aria-label="Çalışma ayarları ve tanılama paneli">
-  <div class="workspace-flyout-header">
-    <div class="workspace-flyout-title">
-      <strong id="workspace-flyout-heading">Çalışma Ayarları</strong>
-      <span id="workspace-flyout-description">Ortam kontrolleri ve teknik araçlar</span>
+  <div class="workspace-flyout-topbar">
+    <div class="workspace-flyout-header">
+      <div class="workspace-flyout-title">
+        <div class="workspace-flyout-meta">
+          <span class="workspace-flyout-kicker">Workspace Console</span>
+          <span class="workspace-flyout-sync" id="workspace-flyout-sync">Panel senkronu bekleniyor</span>
+        </div>
+        <strong id="workspace-flyout-heading">Çalışma Ayarları</strong>
+        <span id="workspace-flyout-description">Ortam kontrolleri ve teknik araçlar</span>
+      </div>
+      <button class="workspace-flyout-close" id="workspace-flyout-close" type="button" aria-label="Paneli kapat">&times;</button>
     </div>
-    <button class="workspace-flyout-close" id="workspace-flyout-close" type="button" aria-label="Paneli kapat">&times;</button>
-  </div>
-  <div class="workspace-flyout-tabs" id="workspace-flyout-tabs" role="tablist" aria-label="Çalışma paneli sekmeleri">
-    <button class="workspace-flyout-tab is-active" id="workspace-tab-settings" data-workspace-tab="settings" type="button" role="tab" aria-selected="true" aria-controls="workspace-settings-panel">Ortam</button>
-    <button class="workspace-flyout-tab" id="workspace-tab-diagnostics" data-workspace-tab="diagnostics" type="button" role="tab" aria-selected="false" aria-controls="workspace-diagnostics-panel">Tanılama</button>
+    <div class="workspace-flyout-tabs-shell">
+      <div class="workspace-flyout-tabs" id="workspace-flyout-tabs" role="tablist" aria-label="Çalışma paneli sekmeleri">
+        <button class="workspace-flyout-tab is-active" id="workspace-tab-settings" data-workspace-tab="settings" type="button" role="tab" aria-selected="true" aria-controls="workspace-settings-panel">Ortam</button>
+        <button class="workspace-flyout-tab" id="workspace-tab-diagnostics" data-workspace-tab="diagnostics" type="button" role="tab" aria-selected="false" aria-controls="workspace-diagnostics-panel">Tanılama</button>
+      </div>
+    </div>
   </div>
   <div class="workspace-flyout-body">
     <div id="workspace-settings-panel" class="workspace-tab-panel workspace-console" role="tabpanel" aria-labelledby="workspace-tab-settings">
@@ -327,21 +335,23 @@ TEST_CHAT_HTML = (
           <span class="workspace-hero-kicker">Kontrol Merkezi</span>
           <span class="workspace-status-chip" id="workspace-mode-chip">Test modu</span>
         </div>
-        <div class="workspace-hero-copy">
-          <h2>Canlı çalışma akışını buradan yönetin</h2>
-          <p>Kaynak, model ve gönderim politikasını aynı yüzeyde güncelleyin. En sık kullanılan seçimler üstte, operasyon araçları ortada, riskli işlemler en altta tutulur.</p>
-        </div>
-        <div class="workspace-overview-grid">
-          <article class="workspace-overview-card">
-            <span class="workspace-overview-label">Aktif kaynak</span>
-            <strong class="workspace-overview-value" id="workspace-source-summary">Yeni test kaydı kullanılacak.</strong>
-            <span class="workspace-overview-note">Canlı konuşma, yeni test veya içe aktarılan kayıt seçebilirsiniz.</span>
-          </article>
-          <article class="workspace-overview-card">
-            <span class="workspace-overview-label">Gönderim politikası</span>
-            <strong class="workspace-overview-value" id="workspace-mode-summary">Test modunda yanıt üretilir ancak gerçek misafire gönderilmez.</strong>
-            <span class="workspace-overview-note">Mod değişiklikleri tüm çalışma alanına anında uygulanır.</span>
-          </article>
+        <div class="workspace-hero-grid">
+          <div class="workspace-hero-copy">
+            <h2>Canlı çalışma akışını buradan yönetin</h2>
+            <p>En sık kullanılan seçimleri üstte toplayın, gönderim seviyesini tek bakışta görün ve operasyon araçlarına ayrı bir bloktan erişin.</p>
+          </div>
+          <div class="workspace-overview-grid">
+            <article class="workspace-overview-card">
+              <span class="workspace-overview-label">Aktif kaynak</span>
+              <strong class="workspace-overview-value" id="workspace-source-summary">Yeni test kaydı kullanılacak.</strong>
+              <span class="workspace-overview-note">Canlı konuşma, yeni test veya içe aktarılan kayıt seçebilirsiniz.</span>
+            </article>
+            <article class="workspace-overview-card">
+              <span class="workspace-overview-label">Gönderim politikası</span>
+              <strong class="workspace-overview-value" id="workspace-mode-summary">Test modunda yanıt üretilir ancak gerçek misafire gönderilmez.</strong>
+              <span class="workspace-overview-note">Mod değişiklikleri tüm çalışma alanına anında uygulanır.</span>
+            </article>
+          </div>
         </div>
       </section>
 
@@ -359,16 +369,19 @@ TEST_CHAT_HTML = (
             <select id="model-select" class="header-select header-select-model">
               <option>Yükleniyor...</option>
             </select>
+            <span class="workspace-field-note">Bu seçim, test ve canlı önizleme akışında kullanılacak yanıt motorunu belirler.</span>
           </div>
           <div class="workspace-field">
             <label for="phone-input">Test kimliği</label>
             <input type="text" id="phone-input" class="header-input" value="test_user_123">
+            <span class="workspace-field-note">Yalnızca yeni test oturumlarında görünen tanımlayıcıdır.</span>
           </div>
           <div class="workspace-field">
             <label for="import-select">Kaynak</label>
             <select id="import-select" class="header-select header-select-import">
               <option value="">Yeni test</option>
             </select>
+            <span class="workspace-field-note">Yeni test, içe aktarım veya canlı konuşma kaynağını seçin.</span>
           </div>
         </div>
       </section>
@@ -387,10 +400,22 @@ TEST_CHAT_HTML = (
             <span>En güvenli başlangıç test modudur; canlı akışta otomatik veya onay moduna yalnızca ihtiyaç varsa geçin.</span>
           </div>
           <div class="mode-switch workspace-mode-switch" id="mode-switch">
-            <button class="mode-btn" data-mode="test" type="button" title="Test: mesaj alınır, yapay zekâ yanıt üretir ama göndermez">Test</button>
-            <button class="mode-btn" data-mode="ai" type="button" title="Otomatik: mesaj alınır, yapay zekâ yanıt üretir ve gönderir">Otomatik</button>
-            <button class="mode-btn" data-mode="approval" type="button" title="Onay: yapay zekâ yanıt üretir, yönetici onaylayana kadar göndermez">Onay</button>
-            <button class="mode-btn" data-mode="off" type="button" title="Kapalı: sadece veri kaydedilir, yanıt üretilmez">Kapalı</button>
+            <button class="mode-btn" data-mode="test" type="button" title="Test: mesaj alınır, yapay zekâ yanıt üretir ama göndermez">
+              <span class="mode-btn-title">Test</span>
+              <span class="mode-btn-note">Yanıt üretir, misafire göndermez.</span>
+            </button>
+            <button class="mode-btn" data-mode="ai" type="button" title="Otomatik: mesaj alınır, yapay zekâ yanıt üretir ve gönderir">
+              <span class="mode-btn-title">Otomatik</span>
+              <span class="mode-btn-note">Uygun yanıtları doğrudan gönderir.</span>
+            </button>
+            <button class="mode-btn" data-mode="approval" type="button" title="Onay: yapay zekâ yanıt üretir, yönetici onaylayana kadar göndermez">
+              <span class="mode-btn-title">Onay</span>
+              <span class="mode-btn-note">Gönderimden önce operatör onayı ister.</span>
+            </button>
+            <button class="mode-btn" data-mode="off" type="button" title="Kapalı: sadece veri kaydedilir, yanıt üretilmez">
+              <span class="mode-btn-title">Kapalı</span>
+              <span class="mode-btn-note">Akışı izler, yeni yanıt üretmez.</span>
+            </button>
           </div>
         </div>
       </section>

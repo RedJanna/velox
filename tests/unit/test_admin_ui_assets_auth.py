@@ -287,6 +287,7 @@ def test_chat_lab_renders_workspace_flyout_shell() -> None:
     assert 'id="workspace-panel-toggle"' in TEST_CHAT_HTML
     assert 'id="workspace-scrim"' in TEST_CHAT_HTML
     assert 'id="workspace-flyout"' in TEST_CHAT_HTML
+    assert 'id="workspace-flyout-sync"' in TEST_CHAT_HTML
     assert 'id="workspace-flyout-tabs"' in TEST_CHAT_HTML
     assert 'id="workspace-settings-panel"' in TEST_CHAT_HTML
     assert 'id="workspace-diagnostics-panel"' in TEST_CHAT_HTML
@@ -315,13 +316,15 @@ def test_chat_lab_workspace_flyout_uses_premium_console_layout() -> None:
 def test_chat_lab_workspace_flyout_styles_define_console_shell() -> None:
     assert ".workspace-console" in TEST_CHAT_STYLE
     assert ".workspace-flyout{" in TEST_CHAT_STYLE
+    assert ".workspace-flyout-topbar" in TEST_CHAT_STYLE
     assert ".workspace-hero" in TEST_CHAT_STYLE
+    assert ".workspace-hero-grid" in TEST_CHAT_STYLE
     assert ".workspace-diagnostics-hero" in TEST_CHAT_STYLE
     assert ".workspace-signal-grid" in TEST_CHAT_STYLE
     assert ".workspace-overview-card" in TEST_CHAT_STYLE
     assert ".workspace-section" in TEST_CHAT_STYLE
     assert ".workspace-section-danger" in TEST_CHAT_STYLE
-    assert "width:min(580px,96vw)" in TEST_CHAT_STYLE
+    assert "width:min(640px,96vw)" in TEST_CHAT_STYLE
     assert "linear-gradient(180deg,#13233e 0%,#101d34 14%,#0c1526 100%)" in TEST_CHAT_STYLE
 
 
