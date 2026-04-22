@@ -321,73 +321,132 @@ TEST_CHAT_HTML = (
     <button class="workspace-flyout-tab" id="workspace-tab-diagnostics" data-workspace-tab="diagnostics" type="button" role="tab" aria-selected="false" aria-controls="workspace-diagnostics-panel">Tanılama</button>
   </div>
   <div class="workspace-flyout-body">
-    <div id="workspace-settings-panel" class="workspace-tab-panel" role="tabpanel" aria-labelledby="workspace-tab-settings">
-      <section class="control-cluster control-cluster-core" aria-label="Çalışma kaynağı">
-        <div class="control-cluster-head">
-          <div>
-            <strong>Çalışma Kaynağı</strong>
-            <p>Modeli, test kimliğini ve aktif konuşma kaynağını bu bloktan yönetin.</p>
+    <div id="workspace-settings-panel" class="workspace-tab-panel workspace-console" role="tabpanel" aria-labelledby="workspace-tab-settings">
+      <section class="workspace-hero" aria-label="Çalışma ayarları özeti">
+        <div class="workspace-hero-top">
+          <span class="workspace-hero-kicker">Kontrol Merkezi</span>
+          <span class="workspace-status-chip" id="workspace-mode-chip">Test modu</span>
+        </div>
+        <div class="workspace-hero-copy">
+          <h2>Canlı çalışma akışını buradan yönetin</h2>
+          <p>Kaynak, model ve gönderim politikasını aynı yüzeyde güncelleyin. En sık kullanılan seçimler üstte, operasyon araçları ortada, riskli işlemler en altta tutulur.</p>
+        </div>
+        <div class="workspace-overview-grid">
+          <article class="workspace-overview-card">
+            <span class="workspace-overview-label">Aktif kaynak</span>
+            <strong class="workspace-overview-value" id="workspace-source-summary">Yeni test kaydı kullanılacak.</strong>
+            <span class="workspace-overview-note">Canlı konuşma, yeni test veya içe aktarılan kayıt seçebilirsiniz.</span>
+          </article>
+          <article class="workspace-overview-card">
+            <span class="workspace-overview-label">Gönderim politikası</span>
+            <strong class="workspace-overview-value" id="workspace-mode-summary">Test modunda yanıt üretilir ancak gerçek misafire gönderilmez.</strong>
+            <span class="workspace-overview-note">Mod değişiklikleri tüm çalışma alanına anında uygulanır.</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="workspace-section" aria-label="Kaynak ve model">
+        <div class="workspace-section-head">
+          <span class="workspace-section-index">01</span>
+          <div class="workspace-section-copy">
+            <strong class="workspace-section-title">Kaynak ve model</strong>
+            <p class="workspace-section-text">Hangi veriyle çalıştığınızı ve hangi modelin yanıt üreteceğini burada belirleyin.</p>
           </div>
         </div>
-        <div class="control-cluster-grid control-cluster-grid-core">
-          <div class="field field-stack-sm control-model">
+        <div class="workspace-fields workspace-fields-split">
+          <div class="workspace-field workspace-field-span">
             <label for="model-select">Test modeli</label>
             <select id="model-select" class="header-select header-select-model">
               <option>Yükleniyor...</option>
             </select>
           </div>
-          <div class="field field-stack-sm control-id">
+          <div class="workspace-field">
             <label for="phone-input">Test kimliği</label>
             <input type="text" id="phone-input" class="header-input" value="test_user_123">
           </div>
-          <div class="field field-stack-sm control-source">
+          <div class="workspace-field">
             <label for="import-select">Kaynak</label>
             <select id="import-select" class="header-select header-select-import">
               <option value="">Yeni test</option>
             </select>
           </div>
         </div>
-        <p class="control-cluster-meta" id="workspace-source-summary">Yeni test kaydı kullanılacak.</p>
       </section>
-      <section class="control-cluster control-cluster-mode" aria-label="Çalışma modu">
-        <div class="control-cluster-head">
-          <div>
-            <strong>Çalışma Modu</strong>
-            <p>Mesajın yalnızca test edilmesi, otomatik yanıtlanması veya onaya düşmesi burada belirlenir.</p>
+
+      <section class="workspace-section" aria-label="Gönderim modu">
+        <div class="workspace-section-head">
+          <span class="workspace-section-index">02</span>
+          <div class="workspace-section-copy">
+            <strong class="workspace-section-title">Gönderim modu</strong>
+            <p class="workspace-section-text">Yanıtların canlı misafire nasıl ve ne zaman gideceğini burada tanımlayın.</p>
           </div>
         </div>
-        <div class="field field-stack-sm control-mode">
-          <label>Mod</label>
-          <div class="mode-switch" id="mode-switch">
+        <div class="workspace-mode-shell">
+          <div class="workspace-mode-note">
+            <strong>Gönderim seviyesi</strong>
+            <span>En güvenli başlangıç test modudur; canlı akışta otomatik veya onay moduna yalnızca ihtiyaç varsa geçin.</span>
+          </div>
+          <div class="mode-switch workspace-mode-switch" id="mode-switch">
             <button class="mode-btn" data-mode="test" type="button" title="Test: mesaj alınır, yapay zekâ yanıt üretir ama göndermez">Test</button>
             <button class="mode-btn" data-mode="ai" type="button" title="Otomatik: mesaj alınır, yapay zekâ yanıt üretir ve gönderir">Otomatik</button>
             <button class="mode-btn" data-mode="approval" type="button" title="Onay: yapay zekâ yanıt üretir, yönetici onaylayana kadar göndermez">Onay</button>
             <button class="mode-btn" data-mode="off" type="button" title="Kapalı: sadece veri kaydedilir, yanıt üretilmez">Kapalı</button>
           </div>
         </div>
-        <p class="control-cluster-meta" id="workspace-mode-summary">Test modunda yanıt üretilir ancak gerçek misafire gönderilmez.</p>
       </section>
-      <section class="control-cluster control-cluster-actions" aria-label="Araçlar ve aksiyonlar">
-        <div class="control-cluster-head">
-          <div>
-            <strong>Operasyon Araçları</strong>
-            <p>İçe aktarım, sıfırlama, dışa aktarım ve tanılama işlemlerini bu blokta toplayın.</p>
+
+      <section class="workspace-section" aria-label="Araçlar ve çıktı">
+        <div class="workspace-section-head">
+          <span class="workspace-section-index">03</span>
+          <div class="workspace-section-copy">
+            <strong class="workspace-section-title">Araçlar ve çıktı</strong>
+            <p class="workspace-section-text">Kaynak listesini güncelleyin, tanılamaya geçin ve konuşma kaydını dışa aktarın.</p>
           </div>
         </div>
-        <div class="control-cluster-grid control-cluster-grid-actions">
-          <button class="btn btn-ghost control-action control-imports" id="refresh-imports" type="button" aria-label="İçe aktarım listesini yenile">İçe Aktarımlar</button>
-          <button class="btn btn-reset control-action control-reset" id="reset-btn" type="button" aria-label="Konuşmayı sıfırla">Sıfırla</button>
-          <div class="field field-stack-sm control-export-format">
-            <label for="save-format">Dışa Aktarım</label>
-            <select id="save-format" class="header-select">
-              <option value="md">.md</option>
-              <option value="txt">.txt</option>
-              <option value="json">.json</option>
-              <option value="pdf">.pdf</option>
-            </select>
+        <div class="workspace-action-stack">
+          <div class="workspace-action-card">
+            <div class="workspace-action-copy">
+              <strong>Kaynak listesini güncelle</strong>
+              <span>Yeni içe aktarımlar ve aktif konuşmalar için paneli anında yeniler.</span>
+            </div>
+            <button class="btn btn-ghost control-action control-imports" id="refresh-imports" type="button" aria-label="İçe aktarım listesini yenile">Listeyi Yenile</button>
           </div>
-          <button class="btn btn-save control-action control-export" id="export-btn" type="button" aria-label="Konuşma kaydını dışa aktar">Dışa Aktar</button>
-          <button class="btn btn-toggle control-action control-diagnostics" id="toggle-debug" type="button" aria-label="Tanılama sekmesine geç">Tanılama</button>
+          <div class="workspace-action-card">
+            <div class="workspace-action-copy">
+              <strong>Tanılama görünümüne geç</strong>
+              <span>Akış durumu, metrikler ve teknik ayrıntıları ayrı sekmede açar.</span>
+            </div>
+            <button class="btn btn-toggle control-action control-diagnostics" id="toggle-debug" type="button" aria-label="Tanılama sekmesine geç">Tanılamayı Aç</button>
+          </div>
+          <div class="workspace-action-footer">
+            <div class="workspace-field">
+              <label for="save-format">Dışa aktarım biçimi</label>
+              <select id="save-format" class="header-select">
+                <option value="md">.md</option>
+                <option value="txt">.txt</option>
+                <option value="json">.json</option>
+                <option value="pdf">.pdf</option>
+              </select>
+            </div>
+            <button class="btn btn-save control-action control-export" id="export-btn" type="button" aria-label="Konuşma kaydını dışa aktar">Kaydı Dışa Aktar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="workspace-section workspace-section-danger" aria-label="Riskli işlemler">
+        <div class="workspace-section-head">
+          <span class="workspace-section-index">04</span>
+          <div class="workspace-section-copy">
+            <strong class="workspace-section-title">Riskli işlemler</strong>
+            <p class="workspace-section-text">Geri dönüşü olmayan aksiyonları yalnızca gerektiğinde bu bloktan çalıştırın.</p>
+          </div>
+        </div>
+        <div class="workspace-danger-card">
+          <div class="workspace-action-copy">
+            <strong>Konuşmayı sıfırla</strong>
+            <span>Geçerli oturumu temizler ve yeni bir başlangıç akışı oluşturur. Bu işlem geri alınamaz.</span>
+          </div>
+          <button class="btn btn-reset control-action control-reset" id="reset-btn" type="button" aria-label="Konuşmayı sıfırla">Sıfırla</button>
         </div>
       </section>
     </div>

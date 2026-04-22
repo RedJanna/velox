@@ -13,7 +13,7 @@ from velox.api.routes.admin_panel_restaurant_assets import ADMIN_RESTAURANT_SCRI
 from velox.api.routes.admin_panel_ui import render_admin_panel_html
 from velox.api.routes.admin_panel_ui_assets import ADMIN_PANEL_SCRIPT, ADMIN_PANEL_STYLE
 from velox.api.routes.test_chat_ui import TEST_CHAT_HTML
-from velox.api.routes.test_chat_ui_assets import TEST_CHAT_SCRIPT
+from velox.api.routes.test_chat_ui_assets import TEST_CHAT_SCRIPT, TEST_CHAT_STYLE
 
 
 def _run_admin_panel_script_harness(harness: str) -> dict[str, object]:
@@ -151,6 +151,27 @@ def test_chat_lab_renders_workspace_flyout_shell() -> None:
     assert 'id="workspace-mode-summary"' in TEST_CHAT_HTML
     assert 'data-workspace-tab="settings"' in TEST_CHAT_HTML
     assert 'data-workspace-tab="diagnostics"' in TEST_CHAT_HTML
+
+
+def test_chat_lab_workspace_flyout_uses_premium_console_layout() -> None:
+    assert 'class="workspace-hero"' in TEST_CHAT_HTML
+    assert 'class="workspace-overview-grid"' in TEST_CHAT_HTML
+    assert 'class="workspace-section workspace-section-danger"' in TEST_CHAT_HTML
+    assert 'id="workspace-mode-chip"' in TEST_CHAT_HTML
+    assert "Kaynak ve model" in TEST_CHAT_HTML
+    assert "Gönderim modu" in TEST_CHAT_HTML
+    assert "Araçlar ve çıktı" in TEST_CHAT_HTML
+    assert "Riskli işlemler" in TEST_CHAT_HTML
+
+
+def test_chat_lab_workspace_flyout_styles_define_console_shell() -> None:
+    assert ".workspace-console" in TEST_CHAT_STYLE
+    assert ".workspace-hero" in TEST_CHAT_STYLE
+    assert ".workspace-overview-card" in TEST_CHAT_STYLE
+    assert ".workspace-section" in TEST_CHAT_STYLE
+    assert ".workspace-section-danger" in TEST_CHAT_STYLE
+    assert "width:min(580px,96vw)" in TEST_CHAT_STYLE
+    assert "linear-gradient(180deg,#13233e 0%,#101d34 14%,#0c1526 100%)" in TEST_CHAT_STYLE
 
 
 def test_chat_lab_live_feed_inactive_toggle_is_wired() -> None:
