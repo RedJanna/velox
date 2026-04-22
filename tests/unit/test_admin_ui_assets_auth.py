@@ -209,6 +209,7 @@ globalThis.window = {
 };
 window.parent = window;
 globalThis.confirm = window.confirm;
+globalThis.requestAnimationFrame = window.requestAnimationFrame;
 globalThis.navigator = { userAgent: 'node-chat-harness' };
 globalThis.document = {
   cookie: '',
@@ -444,6 +445,111 @@ console.log(JSON.stringify({ openState, closedState }));
     assert result["closedState"]["settingsHidden"] is False
     assert result["closedState"]["diagnosticsHidden"] is True
     assert result["closedState"]["toggleExpanded"] == "false"
+
+
+def test_chat_lab_workspace_flyout_runtime_keyboard_navigation_and_focus_wrap() -> None:
+    harness = """
+function register(id, classes = []) {
+  const node = new HTMLElement(id);
+  node.classList = new SimpleClassList(classes);
+  __elements[id] = node;
+  return node;
+}
+const appShell = register('appShell', ['app']);
+const panel = register('workspace-flyout', ['workspace-flyout', 'collapsed']);
+const scrim = register('workspace-scrim', ['workspace-scrim', 'hidden']);
+const settingsPanel = register('workspace-settings-panel', ['workspace-tab-panel', 'workspace-console']);
+const diagnosticsPanel = register('workspace-diagnostics-panel', ['workspace-tab-panel', 'workspace-console', 'hidden']);
+const heading = register('workspace-flyout-heading');
+const description = register('workspace-flyout-description');
+const toggle = register('workspace-panel-toggle');
+const diagnosticsToggle = register('workspace-open-diagnostics');
+const closeButton = register('workspace-flyout-close');
+const modeIndicator = register('workspace-mode-indicator');
+const modeChip = register('workspace-mode-chip');
+const sourceSummary = register('workspace-source-summary');
+const modeSummary = register('workspace-mode-summary');
+const phoneInput = register('phone-input');
+phoneInput.value = 'keyboard_user';
+const tabSettings = register('workspace-tab-settings', ['workspace-flyout-tab']);
+tabSettings.dataset.workspaceTab = 'settings';
+const tabDiagnostics = register('workspace-tab-diagnostics', ['workspace-flyout-tab']);
+tabDiagnostics.dataset.workspaceTab = 'diagnostics';
+panel.children = [tabSettings, tabDiagnostics, closeButton];
+__tabs.push(tabSettings, tabDiagnostics);
+
+document.activeElement = toggle;
+state.operationMode = 'ai';
+state.sourceType = 'live_test_chat';
+openWorkspaceFlyout('settings');
+
+const afterOpen = {
+  tab: state.workspaceFlyoutTab,
+  activeElement: document.activeElement.id,
+  returnFocusStored: Boolean(_workspaceFlyoutReturnFocus && _workspaceFlyoutReturnFocus.id === 'workspace-panel-toggle'),
+};
+
+let navPrevented = false;
+handleWorkspaceFlyoutTabKeydown({
+  key: 'ArrowRight',
+  target: { closest() { return tabSettings; } },
+  preventDefault() { navPrevented = true; },
+});
+
+const afterArrowRight = {
+  tab: state.workspaceFlyoutTab,
+  activeElement: document.activeElement.id,
+  prevented: navPrevented,
+};
+
+let wrapForwardPrevented = false;
+document.activeElement = closeButton;
+trapWorkspaceFlyoutFocus({
+  key: 'Tab',
+  shiftKey: false,
+  preventDefault() { wrapForwardPrevented = true; },
+});
+
+const afterWrapForward = {
+  activeElement: document.activeElement.id,
+  prevented: wrapForwardPrevented,
+};
+
+let wrapBackwardPrevented = false;
+document.activeElement = tabSettings;
+trapWorkspaceFlyoutFocus({
+  key: 'Tab',
+  shiftKey: true,
+  preventDefault() { wrapBackwardPrevented = true; },
+});
+
+const afterWrapBackward = {
+  activeElement: document.activeElement.id,
+  prevented: wrapBackwardPrevented,
+};
+
+closeWorkspaceFlyout();
+
+const afterClose = {
+  flyoutOpen: state.workspaceFlyoutOpen,
+  activeElement: document.activeElement.id,
+};
+
+console.log(JSON.stringify({ afterOpen, afterArrowRight, afterWrapForward, afterWrapBackward, afterClose }));
+"""
+    result = _run_chat_lab_script_harness(harness)
+    assert result["afterOpen"]["tab"] == "settings"
+    assert result["afterOpen"]["activeElement"] == "workspace-tab-settings"
+    assert result["afterOpen"]["returnFocusStored"] is True
+    assert result["afterArrowRight"]["tab"] == "diagnostics"
+    assert result["afterArrowRight"]["activeElement"] == "workspace-tab-diagnostics"
+    assert result["afterArrowRight"]["prevented"] is True
+    assert result["afterWrapForward"]["activeElement"] == "workspace-tab-settings"
+    assert result["afterWrapForward"]["prevented"] is True
+    assert result["afterWrapBackward"]["activeElement"] == "workspace-flyout-close"
+    assert result["afterWrapBackward"]["prevented"] is True
+    assert result["afterClose"]["flyoutOpen"] is False
+    assert result["afterClose"]["activeElement"] == "workspace-panel-toggle"
 
 
 def test_chat_lab_script_is_valid_javascript() -> None:
