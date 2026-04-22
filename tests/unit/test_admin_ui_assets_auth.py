@@ -144,6 +144,7 @@ def test_chat_lab_renders_reply_preview_composer() -> None:
 def test_chat_lab_renders_workspace_flyout_shell() -> None:
     assert 'id="workspace-panel-toggle"' in TEST_CHAT_HTML
     assert 'id="workspace-scrim"' in TEST_CHAT_HTML
+    assert 'id="workspace-flyout"' in TEST_CHAT_HTML
     assert 'id="workspace-flyout-tabs"' in TEST_CHAT_HTML
     assert 'id="workspace-settings-panel"' in TEST_CHAT_HTML
     assert 'id="workspace-diagnostics-panel"' in TEST_CHAT_HTML
@@ -156,17 +157,25 @@ def test_chat_lab_renders_workspace_flyout_shell() -> None:
 def test_chat_lab_workspace_flyout_uses_premium_console_layout() -> None:
     assert 'class="workspace-hero"' in TEST_CHAT_HTML
     assert 'class="workspace-overview-grid"' in TEST_CHAT_HTML
+    assert 'workspace-diagnostics-hero' in TEST_CHAT_HTML
+    assert 'workspace-signal-grid' in TEST_CHAT_HTML
     assert 'class="workspace-section workspace-section-danger"' in TEST_CHAT_HTML
     assert 'id="workspace-mode-chip"' in TEST_CHAT_HTML
+    assert 'id="workspace-open-diagnostics"' in TEST_CHAT_HTML
     assert "Kaynak ve model" in TEST_CHAT_HTML
     assert "Gönderim modu" in TEST_CHAT_HTML
     assert "Araçlar ve çıktı" in TEST_CHAT_HTML
     assert "Riskli işlemler" in TEST_CHAT_HTML
+    assert "Tanılama Merkezi" in TEST_CHAT_HTML
+    assert "Geri bildirim stüdyosu" in TEST_CHAT_HTML
 
 
 def test_chat_lab_workspace_flyout_styles_define_console_shell() -> None:
     assert ".workspace-console" in TEST_CHAT_STYLE
+    assert ".workspace-flyout{" in TEST_CHAT_STYLE
     assert ".workspace-hero" in TEST_CHAT_STYLE
+    assert ".workspace-diagnostics-hero" in TEST_CHAT_STYLE
+    assert ".workspace-signal-grid" in TEST_CHAT_STYLE
     assert ".workspace-overview-card" in TEST_CHAT_STYLE
     assert ".workspace-section" in TEST_CHAT_STYLE
     assert ".workspace-section-danger" in TEST_CHAT_STYLE
@@ -189,11 +198,22 @@ def test_chat_lab_script_wires_workspace_flyout_keyboard_flow() -> None:
     assert "workspaceFlyoutTab: 'settings'" in TEST_CHAT_SCRIPT
     assert "function renderWorkspaceFlyout()" in TEST_CHAT_SCRIPT
     assert "function toggleWorkspaceFlyout(tab = 'settings')" in TEST_CHAT_SCRIPT
+    assert "function toggleWorkspaceDiagnostics(forceOpen = null)" in TEST_CHAT_SCRIPT
     assert "function handleWorkspaceFlyoutTabKeydown(event)" in TEST_CHAT_SCRIPT
     assert "function trapWorkspaceFlyoutFocus(event)" in TEST_CHAT_SCRIPT
     assert "el('workspace-scrim').addEventListener('click', closeWorkspaceFlyout);" in TEST_CHAT_SCRIPT
+    assert "el('workspace-flyout').addEventListener('keydown', event => {" in TEST_CHAT_SCRIPT
+    assert "el('workspace-open-diagnostics').addEventListener('click', toggleWorkspaceDiagnostics);" in TEST_CHAT_SCRIPT
+    assert "panel.setAttribute('aria-modal', String(state.workspaceFlyoutOpen));" in TEST_CHAT_SCRIPT
     assert "handleWorkspaceFlyoutTabKeydown(event);" in TEST_CHAT_SCRIPT
     assert "trapWorkspaceFlyoutFocus(event);" in TEST_CHAT_SCRIPT
+
+
+def test_chat_lab_script_drops_legacy_debug_panel_names() -> None:
+    assert 'id="debug-panel"' not in TEST_CHAT_HTML
+    assert "function toggleDebug(" not in TEST_CHAT_SCRIPT
+    assert "el('debug-panel')" not in TEST_CHAT_SCRIPT
+    assert 'id="toggle-debug"' not in TEST_CHAT_HTML
 
 
 def test_chat_lab_script_is_valid_javascript() -> None:

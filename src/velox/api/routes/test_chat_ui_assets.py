@@ -472,6 +472,8 @@ body{overflow:hidden}
 .audit-item-time{font-size:12px;color:#526274;white-space:nowrap}
 .audit-item-detail{margin-top:6px;font-size:12px;line-height:1.5;color:#526274}
 .workspace-scrim{position:fixed;inset:0;z-index:72;background:rgba(6,12,24,.48);backdrop-filter:blur(10px)}
+.workspace-flyout{position:fixed;top:0;right:0;bottom:0;z-index:80;width:min(580px,96vw);display:flex;flex-direction:column;background:linear-gradient(180deg,#13233e 0%,#101d34 14%,#0c1526 100%);color:#fff;border-left:1px solid rgba(255,255,255,.08);transform:translateX(0);transition:transform .22s ease,opacity .22s ease;box-shadow:-28px 0 56px rgba(4,10,20,.36)}
+.workspace-flyout.collapsed{transform:translateX(100%);opacity:0;pointer-events:none;overflow:hidden}
 .workspace-flyout-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:24px 24px 18px}
 .workspace-flyout-title{display:flex;flex-direction:column;gap:6px;min-width:0}
 .workspace-flyout-title strong{font-size:19px;font-weight:800;letter-spacing:.01em;color:#fff}
@@ -484,11 +486,14 @@ body{overflow:hidden}
 .workspace-flyout-tab.is-active{background:linear-gradient(135deg,rgba(231,191,95,.28),rgba(42,157,143,.22));color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 12px 24px rgba(15,23,42,.18)}
 .workspace-flyout-body{flex:1;min-height:0;overflow:hidden}
 .workspace-tab-panel{height:100%;min-height:0}
-#workspace-settings-panel{padding:0 24px 24px;display:flex;flex-direction:column;gap:18px;overflow:auto}
+#workspace-settings-panel,#workspace-diagnostics-panel{padding:0 24px 24px;display:flex;flex-direction:column;gap:18px;overflow:auto}
 .workspace-console{scrollbar-width:thin}
 .workspace-hero{display:flex;flex-direction:column;gap:18px;padding:24px;border-radius:28px;background:
 linear-gradient(145deg,rgba(231,191,95,.2),rgba(42,157,143,.15) 42%,rgba(255,255,255,.08)),
 linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.14);box-shadow:0 24px 48px rgba(4,10,20,.22),inset 0 1px 0 rgba(255,255,255,.05)}
+.workspace-diagnostics-hero{background:
+linear-gradient(145deg,rgba(64,145,255,.18),rgba(42,157,143,.14) 48%,rgba(255,255,255,.08)),
+linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03))}
 .workspace-hero-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .workspace-hero-kicker{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;background:rgba(7,18,36,.34);border:1px solid rgba(255,255,255,.08);font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#c8d5e6}
 .workspace-status-chip{display:inline-flex;align-items:center;padding:8px 14px;border-radius:999px;background:rgba(255,255,255,.95);font-size:12px;font-weight:800;color:#243449;box-shadow:0 10px 24px rgba(4,10,20,.18)}
@@ -496,6 +501,7 @@ linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px s
 .workspace-status-chip.is-mode-ai{background:#d9fbef;color:#0f766e}
 .workspace-status-chip.is-mode-approval{background:#e1e7ff;color:#3730a3}
 .workspace-status-chip.is-mode-off{background:#ffe2e2;color:#991b1b}
+.workspace-status-chip-diagnostics{background:#dce8ff;color:#213a7a}
 .workspace-hero-copy h2{font-size:28px;font-weight:800;line-height:1.08;letter-spacing:-.02em;color:#fff;max-width:12ch}
 .workspace-hero-copy p{margin-top:10px;font-size:14px;line-height:1.7;color:rgba(255,255,255,.78);max-width:48ch}
 .workspace-overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -540,10 +546,30 @@ linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px s
 .workspace-section-danger{background:linear-gradient(180deg,rgba(127,29,29,.24),rgba(69,10,10,.18));border-color:rgba(248,113,113,.18)}
 .workspace-danger-card{background:rgba(127,29,29,.16);border-color:rgba(248,113,113,.12)}
 #workspace-settings-panel .workspace-danger-card .btn-reset{background:#fff;color:#991b1b;box-shadow:0 14px 26px rgba(69,10,10,.18)}
-#workspace-diagnostics-panel .debug-body{height:100%;padding:0 24px 24px;display:flex;flex-direction:column;gap:14px}
-.debug-panel{position:fixed;top:0;right:0;bottom:0;z-index:80;width:min(580px,96vw);display:flex;flex-direction:column;background:linear-gradient(180deg,#13233e 0%,#101d34 14%,#0c1526 100%);color:#fff;border-left:1px solid rgba(255,255,255,.08);transform:translateX(0);transition:transform .22s ease,opacity .22s ease;box-shadow:-28px 0 56px rgba(4,10,20,.36)}
-.debug-panel.collapsed{transform:translateX(100%);opacity:0;pointer-events:none;width:min(580px,96vw);overflow:hidden}
-.debug-body{padding:18px 18px 28px;overflow:auto}
+.workspace-signal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.workspace-signal-card{display:flex;flex-direction:column;gap:8px;padding:16px 18px;border-radius:22px;background:rgba(7,18,36,.28);border:1px solid rgba(255,255,255,.08)}
+.workspace-signal-card-wide{grid-column:1 / -1}
+.workspace-signal-card-accent{background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(42,157,143,.16));border-color:rgba(191,219,254,.16)}
+.workspace-signal-label{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#c0ccdb}
+.workspace-signal-value{font-size:15px;font-weight:800;line-height:1.5;color:#fff;min-height:24px}
+.workspace-signal-value .debug-badge{font-size:12px}
+.workspace-signal-note{font-size:12px;line-height:1.55;color:rgba(255,255,255,.62)}
+.workspace-signal-flags{display:flex;flex-wrap:wrap;gap:6px}
+.workspace-diagnostics-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.workspace-diagnostics-card{display:flex;flex-direction:column;gap:14px;padding:18px;border-radius:22px;background:rgba(7,18,36,.24);border:1px solid rgba(255,255,255,.08);min-width:0}
+.workspace-diagnostics-card-tall{min-height:240px}
+.workspace-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.workspace-card-head strong{display:block;font-size:14px;font-weight:800;color:#fff}
+.workspace-card-head span{display:block;margin-top:4px;font-size:12px;line-height:1.55;color:rgba(255,255,255,.66)}
+.workspace-mono-box{font-family:var(--mono);font-size:12px;white-space:pre-wrap;word-break:break-word;color:#bfdbfe;background:rgba(2,6,23,.35);border-radius:16px;padding:14px;max-height:320px;min-height:176px;overflow:auto}
+.workspace-studio-shell{display:flex;flex-direction:column;gap:14px}
+.workspace-feedback-stack{display:flex;flex-direction:column;gap:14px}
+.workspace-empty-note{padding:14px 16px;border-radius:18px;background:rgba(7,18,36,.2);border:1px dashed rgba(255,255,255,.14);font-size:12px;line-height:1.65;color:rgba(255,255,255,.72)}
+.workspace-inline-note{font-size:12px;line-height:1.55;color:rgba(255,255,255,.72)}
+.workspace-report-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.workspace-section-head-wide{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.workspace-section-head-main{display:flex;align-items:flex-start;gap:14px;min-width:0}
+.workspace-section-head-wide .btn{flex-shrink:0}
 .btn-toggle{display:inline-flex;align-items:center;justify-content:center}
 @keyframes pulse{from{opacity:.8}to{opacity:1}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -560,8 +586,9 @@ linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px s
   .context-panel{display:none}
   .template-panel-grid{grid-template-columns:1fr}
   .msg{max-width:86%}
-  .workspace-overview-grid,.workspace-fields-split,.workspace-action-footer{grid-template-columns:1fr}
+  .workspace-overview-grid,.workspace-fields-split,.workspace-action-footer,.workspace-signal-grid,.workspace-diagnostics-grid,.workspace-report-grid{grid-template-columns:1fr}
   .workspace-action-card,.workspace-danger-card{flex-direction:column;align-items:stretch}
+  .workspace-section-head-wide{flex-direction:column;align-items:stretch}
   .workspace-action-card .btn,.workspace-danger-card .btn,#workspace-settings-panel .workspace-action-footer .btn-save{width:100%;min-width:0}
 }
 @media(max-width:980px){
@@ -571,10 +598,10 @@ linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px s
   .header--workspace .header-brand{min-width:0}
   .header-status,.header-utility{width:100%}
   .workspace-flyout-header,.workspace-flyout-tabs{padding-left:18px;padding-right:18px}
-  #workspace-settings-panel,#workspace-diagnostics-panel .debug-body{padding-left:18px;padding-right:18px}
+  #workspace-settings-panel,#workspace-diagnostics-panel{padding-left:18px;padding-right:18px}
   .workspace-hero,.workspace-section{padding:18px}
   .workspace-hero-copy h2{font-size:24px;max-width:none}
-  .workspace-overview-grid,.workspace-fields-split,.workspace-action-footer,#workspace-settings-panel .workspace-mode-switch{grid-template-columns:1fr}
+  .workspace-overview-grid,.workspace-fields-split,.workspace-action-footer,.workspace-signal-grid,.workspace-diagnostics-grid,.workspace-report-grid,#workspace-settings-panel .workspace-mode-switch{grid-template-columns:1fr}
   .header-select,.header-input{width:100%}
   .main{grid-template-columns:1fr;min-height:calc(100vh - 170px);padding:12px}
   .queue-panel{max-height:clamp(38vh,50vh,60vh)}
@@ -1257,11 +1284,11 @@ function renderWorkspaceSummary() {
   }
   const diagnosticsOpen = state.workspaceFlyoutOpen && state.workspaceFlyoutTab === 'diagnostics';
   el('workspace-panel-toggle')?.setAttribute('aria-expanded', String(state.workspaceFlyoutOpen));
-  el('toggle-debug')?.setAttribute('aria-expanded', String(diagnosticsOpen));
+  el('workspace-open-diagnostics')?.setAttribute('aria-expanded', String(diagnosticsOpen));
 }
 
 function getVisibleWorkspaceFlyoutElements() {
-  const panel = el('debug-panel');
+  const panel = el('workspace-flyout');
   if (!panel || panel.classList.contains('collapsed')) return [];
   return Array.from(panel.querySelectorAll(WORKSPACE_FLYOUT_FOCUSABLE)).filter(node => {
     if (!(node instanceof HTMLElement)) return false;
@@ -1312,17 +1339,27 @@ function trapWorkspaceFlyoutFocus(event) {
 }
 
 function renderWorkspaceFlyout() {
-  const panel = el('debug-panel');
+  const panel = el('workspace-flyout');
   if (!panel) return;
   const normalizedTab = state.workspaceFlyoutTab === 'diagnostics' ? 'diagnostics' : 'settings';
   const isDiagnostics = normalizedTab === 'diagnostics';
   state.workspaceFlyoutTab = normalizedTab;
   panel.classList.toggle('collapsed', !state.workspaceFlyoutOpen);
   panel.setAttribute('aria-hidden', String(!state.workspaceFlyoutOpen));
+  panel.setAttribute('aria-modal', String(state.workspaceFlyoutOpen));
   panel.dataset.workspaceTab = normalizedTab;
   el('workspace-scrim')?.classList.toggle('hidden', !state.workspaceFlyoutOpen);
   el('workspace-scrim')?.setAttribute('aria-hidden', String(!state.workspaceFlyoutOpen));
-  document.querySelector('.app')?.classList.toggle('is-workspace-dimmed', state.workspaceFlyoutOpen);
+  const appShell = document.querySelector('.app');
+  appShell?.classList.toggle('is-workspace-dimmed', state.workspaceFlyoutOpen);
+  if (appShell) {
+    appShell.setAttribute('aria-hidden', String(state.workspaceFlyoutOpen));
+    try {
+      appShell.inert = state.workspaceFlyoutOpen;
+    } catch (_) {
+      // `inert` is best-effort; aria-hidden + focus trap still apply.
+    }
+  }
   document.querySelectorAll('#workspace-flyout-tabs [data-workspace-tab]').forEach(btn => {
     const isActive = btn.dataset.workspaceTab === normalizedTab;
     btn.classList.toggle('is-active', isActive);
@@ -3511,7 +3548,7 @@ async function changeModel() {
 
 // isoToLocalInput provided by UI_SHARED_SCRIPT
 
-function toggleDebug(forceOpen = null) {
+function toggleWorkspaceDiagnostics(forceOpen = null) {
   const shouldOpen = forceOpen === null
     ? !(state.workspaceFlyoutOpen && state.workspaceFlyoutTab === 'diagnostics')
     : Boolean(forceOpen);
@@ -4190,7 +4227,7 @@ function wireEvents() {
   el('workspace-panel-toggle').addEventListener('click', () => toggleWorkspaceFlyout('settings'));
   el('workspace-flyout-close').addEventListener('click', closeWorkspaceFlyout);
   el('workspace-scrim').addEventListener('click', closeWorkspaceFlyout);
-  el('debug-panel').addEventListener('keydown', event => {
+  el('workspace-flyout').addEventListener('keydown', event => {
     handleWorkspaceFlyoutTabKeydown(event);
     trapWorkspaceFlyoutFocus(event);
   });
@@ -4330,7 +4367,7 @@ function wireEvents() {
     }
     if (event.key === 'd' || event.key === 'D') {
       event.preventDefault();
-      toggleDebug();
+      toggleWorkspaceDiagnostics();
       return;
     }
     if (event.key === 'g' || event.key === 'G') {
@@ -4662,7 +4699,7 @@ function wireEvents() {
       loadHistory();
     }
   });
-  el('toggle-debug').addEventListener('click', toggleDebug);
+  el('workspace-open-diagnostics').addEventListener('click', toggleWorkspaceDiagnostics);
 }
 
 async function boot() {

@@ -178,7 +178,7 @@ TEST_CHAT_HTML = (
       <div class="header-status-pill" id="workspace-mode-indicator">Mod: Test</div>
     </div>
     <div class="header-utility">
-      <button class="btn btn-ghost workspace-panel-toggle" id="workspace-panel-toggle" type="button" aria-label="Çalışma ayarlarını aç" aria-expanded="false" aria-controls="debug-panel">Çalışma Ayarları</button>
+      <button class="btn btn-ghost workspace-panel-toggle" id="workspace-panel-toggle" type="button" aria-label="Çalışma ayarlarını aç" aria-expanded="false" aria-controls="workspace-flyout">Çalışma Ayarları</button>
     </div>
   </div>
 
@@ -308,8 +308,8 @@ TEST_CHAT_HTML = (
 </div>
 
 <div id="workspace-scrim" class="workspace-scrim hidden" aria-hidden="true"></div>
-<div class="workspace-flyout debug-panel collapsed" id="debug-panel" role="dialog" aria-modal="false" aria-label="Çalışma ayarları ve tanılama paneli">
-  <div class="workspace-flyout-header debug-header">
+<div class="workspace-flyout collapsed" id="workspace-flyout" role="dialog" aria-modal="false" aria-hidden="true" aria-label="Çalışma ayarları ve tanılama paneli">
+  <div class="workspace-flyout-header">
     <div class="workspace-flyout-title">
       <strong id="workspace-flyout-heading">Çalışma Ayarları</strong>
       <span id="workspace-flyout-description">Ortam kontrolleri ve teknik araçlar</span>
@@ -416,7 +416,7 @@ TEST_CHAT_HTML = (
               <strong>Tanılama görünümüne geç</strong>
               <span>Akış durumu, metrikler ve teknik ayrıntıları ayrı sekmede açar.</span>
             </div>
-            <button class="btn btn-toggle control-action control-diagnostics" id="toggle-debug" type="button" aria-label="Tanılama sekmesine geç">Tanılamayı Aç</button>
+            <button class="btn btn-toggle control-action control-diagnostics" id="workspace-open-diagnostics" type="button" aria-label="Tanılama sekmesine geç" aria-controls="workspace-flyout" aria-expanded="false">Tanılamayı Aç</button>
           </div>
           <div class="workspace-action-footer">
             <div class="workspace-field">
@@ -450,125 +450,171 @@ TEST_CHAT_HTML = (
         </div>
       </section>
     </div>
-    <div id="workspace-diagnostics-panel" class="workspace-tab-panel hidden" role="tabpanel" aria-labelledby="workspace-tab-diagnostics">
-      <div class="debug-body">
-    <div class="debug-section">
-      <h3>Konuşma durumu</h3>
-      <div class="debug-value" id="d-state"><span class="debug-badge badge-state">-</span></div>
-    </div>
-    <div class="debug-section">
-      <h3>Intent</h3>
-      <div class="debug-value" id="d-intent"><span class="debug-badge badge-intent">-</span></div>
-    </div>
-    <div class="debug-section">
-      <h3>Language</h3>
-      <div class="debug-value" id="d-lang"><span class="debug-badge badge-lang">-</span></div>
-    </div>
-    <div class="debug-section">
-      <h3>Risk işaretleri</h3>
-      <div class="debug-flags" id="d-flags"><span class="feedback-muted">Risk işareti yok</span></div>
-    </div>
-    <div class="debug-section">
-      <h3>Sonraki adım</h3>
-      <div class="debug-value" id="d-next">-</div>
-    </div>
-    <div class="debug-section">
-      <h3>İç veri (tam JSON)</h3>
-      <div class="debug-json" id="d-full">{}</div>
-    </div>
-    <div class="debug-section hidden" id="role-mapping-panel">
-      <div class="studio-head">
-        <div>
-          <h3>Rol eşleştirme</h3>
-          <p id="role-mapping-note">İçe aktarılan JSON için rol eşleştirmesi gerekiyor.</p>
+    <div id="workspace-diagnostics-panel" class="workspace-tab-panel workspace-console hidden" role="tabpanel" aria-labelledby="workspace-tab-diagnostics">
+      <section class="workspace-hero workspace-diagnostics-hero" aria-label="Tanılama özeti">
+        <div class="workspace-hero-top">
+          <span class="workspace-hero-kicker">Tanılama Merkezi</span>
+          <span class="workspace-status-chip workspace-status-chip-diagnostics">Canlı gözlem</span>
         </div>
-      </div>
-      <div id="role-mapping-fields"></div>
-      <button class="btn btn-primary btn-block mt-sm" id="role-mapping-submit" type="button">İçe Aktarmayı Onayla</button>
-    </div>
-    <div class="debug-section">
-      <div class="studio-head">
-        <div>
-          <h3>Geri Bildirim Alanı</h3>
-          <p>Asistan mesajını seçin, kategori ve etiketleri girin, ardından geri bildirimi kaydedin.</p>
+        <div class="workspace-hero-copy">
+          <h2>Akışı, kaliteyi ve sinyalleri aynı panelde izleyin</h2>
+          <p>Konuşma durumu, iç veri, rol eşleştirme, geri bildirim ve rapor üretimi tek bakışta erişilebilir halde tutulur.</p>
         </div>
-      </div>
-      <div id="feedback-empty" class="feedback-muted">Bir asistan mesajının altındaki 1-5 puan düğmelerinden birini seçin.</div>
-      <div id="feedback-active" class="hidden">
-        <div class="feedback-chip" id="feedback-rating-chip">Puan seçilmedi</div>
-        <div class="feedback-muted mt-xs" id="feedback-rating-help">-</div>
-        <div class="meta-box mt-sm" id="feedback-meta"></div>
-        <div class="field-stack">
-          <label for="feedback-category" id="lbl-category">Hata kategorisi</label>
-          <select id="feedback-category" class="debug-select"></select>
-          <div class="helper-card" id="feedback-category-help"><strong>Seçim yardımı</strong>Ana problem türünü seçin; buna göre etiket önerileri hazırlanır.</div>
+        <div class="workspace-signal-grid">
+          <article class="workspace-signal-card">
+            <span class="workspace-signal-label">Konuşma durumu</span>
+            <div class="workspace-signal-value" id="d-state"><span class="debug-badge badge-state">-</span></div>
+            <span class="workspace-signal-note">Aktif oturumun mevcut state bilgisi.</span>
+          </article>
+          <article class="workspace-signal-card">
+            <span class="workspace-signal-label">Intent</span>
+            <div class="workspace-signal-value" id="d-intent"><span class="debug-badge badge-intent">-</span></div>
+            <span class="workspace-signal-note">Algılanan niyet ve ana akış yönü.</span>
+          </article>
+          <article class="workspace-signal-card">
+            <span class="workspace-signal-label">Dil</span>
+            <div class="workspace-signal-value" id="d-lang"><span class="debug-badge badge-lang">-</span></div>
+            <span class="workspace-signal-note">Yanıt üretiminde kullanılan dil bağlamı.</span>
+          </article>
+          <article class="workspace-signal-card">
+            <span class="workspace-signal-label">Sonraki adım</span>
+            <div class="workspace-signal-value" id="d-next">-</div>
+            <span class="workspace-signal-note">Sistemin sıradaki aksiyon önerisi.</span>
+          </article>
+          <article class="workspace-signal-card workspace-signal-card-wide workspace-signal-card-accent">
+            <span class="workspace-signal-label">Risk işaretleri</span>
+            <div class="workspace-signal-value workspace-signal-flags" id="d-flags"><span class="workspace-empty-note">Risk işareti yok</span></div>
+            <span class="workspace-signal-note">Escalation, güvenlik veya bağlam sapmalarını anında görün.</span>
+          </article>
         </div>
-        <div class="field-stack hidden" id="feedback-custom-category-row">
-          <label for="feedback-custom-category">Özel kategori</label>
-          <input id="feedback-custom-category" class="debug-input" type="text" placeholder="Kategori açıklaması">
-        </div>
-        <div class="field-stack">
-          <label id="lbl-tags">Hata etiketleri</label>
-          <div class="tag-toolbar">
-            <div class="feedback-muted" id="feedback-tags-note">Kategori seçildiğinde ilgili etiketler otomatik önerilir.</div>
-            <button class="btn btn-ghost btn-mini" id="apply-tag-suggestions" type="button">Önerileri Uygula</button>
+      </section>
+
+      <section class="workspace-section" aria-label="İçe aktarma ve bağlam denetimi">
+        <div class="workspace-section-head">
+          <span class="workspace-section-index">D1</span>
+          <div class="workspace-section-copy">
+            <strong class="workspace-section-title">İçe aktarma ve bağlam denetimi</strong>
+            <p class="workspace-section-text">Ham iç veriyi inceleyin ve gerekiyorsa içe aktarılan roller için eşleştirme onayı verin.</p>
           </div>
-          <div class="checkbox-grid" id="feedback-tags"></div>
         </div>
-        <div class="field-stack">
-          <label for="feedback-custom-tags">Özel etiketler</label>
-          <input id="feedback-custom-tags" class="debug-input" type="text" placeholder="Virgülle ayırın">
+        <div class="workspace-diagnostics-grid">
+          <article class="workspace-diagnostics-card workspace-diagnostics-card-tall">
+            <div class="workspace-card-head">
+              <div>
+                <strong>İç veri</strong>
+                <span>Tam JSON çıktısı ve karar bağlamı</span>
+              </div>
+            </div>
+            <div class="workspace-mono-box" id="d-full">{}</div>
+          </article>
+          <article class="workspace-diagnostics-card hidden" id="role-mapping-panel">
+            <div class="workspace-card-head">
+              <div>
+                <strong>Rol eşleştirme</strong>
+                <span id="role-mapping-note">İçe aktarılan JSON için rol eşleştirmesi gerekiyor.</span>
+              </div>
+            </div>
+            <div id="role-mapping-fields"></div>
+            <button class="btn btn-primary btn-block mt-md" id="role-mapping-submit" type="button">İçe Aktarmayı Onayla</button>
+          </article>
         </div>
-        <div class="field-stack">
-          <label for="feedback-gold-standard" id="lbl-gold">Referans yanıt</label>
-          <textarea id="feedback-gold-standard" class="debug-textarea" placeholder="Doğru bilgiyi veya ideal yanıtı yazın..."></textarea>
-          <div class="inline-note">1-4 puan için zorunludur.</div>
+      </section>
+
+      <section class="workspace-section" aria-label="Geri bildirim stüdyosu">
+        <div class="workspace-section-head">
+          <span class="workspace-section-index">D2</span>
+          <div class="workspace-section-copy">
+            <strong class="workspace-section-title">Geri bildirim stüdyosu</strong>
+            <p class="workspace-section-text">Asistan yanıtını puanlayın, hata tipini sınıflandırın ve referans yanıt ekleyin.</p>
+          </div>
         </div>
-        <div class="field-stack">
-          <label for="feedback-notes">Yönetici notu</label>
-          <textarea id="feedback-notes" class="debug-textarea" placeholder="İsteğe bağlı not..."></textarea>
+        <div class="workspace-studio-shell">
+          <div id="feedback-empty" class="workspace-empty-note">Bir asistan mesajının altındaki 1-5 puan düğmelerinden birini seçin.</div>
+          <div id="feedback-active" class="workspace-feedback-stack hidden">
+            <div class="feedback-chip" id="feedback-rating-chip">Puan seçilmedi</div>
+            <div class="workspace-inline-note" id="feedback-rating-help">-</div>
+            <div class="meta-box" id="feedback-meta"></div>
+            <div class="field-stack">
+              <label for="feedback-category" id="lbl-category">Hata kategorisi</label>
+              <select id="feedback-category" class="debug-select"></select>
+              <div class="helper-card" id="feedback-category-help"><strong>Seçim yardımı</strong>Ana problem türünü seçin; buna göre etiket önerileri hazırlanır.</div>
+            </div>
+            <div class="field-stack hidden" id="feedback-custom-category-row">
+              <label for="feedback-custom-category">Özel kategori</label>
+              <input id="feedback-custom-category" class="debug-input" type="text" placeholder="Kategori açıklaması">
+            </div>
+            <div class="field-stack">
+              <label id="lbl-tags">Hata etiketleri</label>
+              <div class="tag-toolbar">
+                <div class="workspace-inline-note" id="feedback-tags-note">Kategori seçildiğinde ilgili etiketler otomatik önerilir.</div>
+                <button class="btn btn-ghost btn-mini" id="apply-tag-suggestions" type="button">Önerileri Uygula</button>
+              </div>
+              <div class="checkbox-grid" id="feedback-tags"></div>
+            </div>
+            <div class="field-stack">
+              <label for="feedback-custom-tags">Özel etiketler</label>
+              <input id="feedback-custom-tags" class="debug-input" type="text" placeholder="Virgülle ayırın">
+            </div>
+            <div class="field-stack">
+              <label for="feedback-gold-standard" id="lbl-gold">Referans yanıt</label>
+              <textarea id="feedback-gold-standard" class="debug-textarea" placeholder="Doğru bilgiyi veya ideal yanıtı yazın..."></textarea>
+              <div class="inline-note">1-4 puan için zorunludur.</div>
+            </div>
+            <div class="field-stack">
+              <label for="feedback-notes">Yönetici notu</label>
+              <textarea id="feedback-notes" class="debug-textarea" placeholder="İsteğe bağlı not..."></textarea>
+            </div>
+            <div class="field-stack hidden" id="approved-example-row">
+              <label class="check-item">
+                <input id="feedback-approved-example" type="checkbox" checked>
+                <span class="check-copy"><strong>Onaylı örnek</strong><span>5 puanlı yanıtı onaylı örnek havuzuna ekler.</span></span>
+              </label>
+            </div>
+            <button class="btn btn-save btn-block mt-md" id="feedback-submit" type="button">Geri Bildirimi Kaydet</button>
+            <div class="meta-box hidden mt-sm" id="feedback-result" aria-live="polite"></div>
+          </div>
         </div>
-        <div class="field-stack hidden" id="approved-example-row">
-          <label class="check-item">
-            <input id="feedback-approved-example" type="checkbox" checked>
-            <span class="check-copy"><strong>Onaylı örnek</strong><span>5 puanlı yanıtı onaylı örnek havuzuna ekler.</span></span>
-          </label>
+      </section>
+
+      <section class="workspace-section" aria-label="Geri bildirim metrikleri">
+        <div class="workspace-section-head workspace-section-head-wide">
+          <div class="workspace-section-head-main">
+            <span class="workspace-section-index">D3</span>
+            <div class="workspace-section-copy">
+              <strong class="workspace-section-title">Geri bildirim metrikleri</strong>
+              <p class="workspace-section-text">Toplam geri bildirim, puan dağılımı, kategori ve dil bazlı özet istatistikler.</p>
+            </div>
+          </div>
+          <button class="btn btn-ghost btn-mini" id="metrics-refresh" type="button">Yenile</button>
         </div>
-        <button class="btn btn-save btn-block mt-md" id="feedback-submit" type="button">Geri Bildirimi Kaydet</button>
-        <div class="meta-box hidden mt-sm" id="feedback-result" aria-live="polite"></div>
-      </div>
-    </div>
-    <div class="debug-section">
-      <div class="studio-head">
-        <div>
-          <h3>Geri Bildirim Metrikleri</h3>
-          <p>Toplam geri bildirim, puan dağılımı, kategori ve dil bazlı özet istatistikler.</p>
+        <div class="workspace-diagnostics-card">
+          <div id="metrics-container">
+            <div class="workspace-empty-note">Metrikler yükleniyor...</div>
+          </div>
         </div>
-        <button class="btn btn-ghost btn-mini" id="metrics-refresh" type="button">Yenile</button>
-      </div>
-      <div id="metrics-container">
-        <div class="feedback-muted">Metrikler yükleniyor...</div>
-      </div>
-    </div>
-    <div class="debug-section">
-      <div class="studio-head">
-        <div>
-          <h3>Genel Rapor</h3>
-          <p>Olumsuz geri bildirim kayıtlarını tarih aralığına göre gruplayıp öneri raporu oluşturur.</p>
+      </section>
+
+      <section class="workspace-section" aria-label="Genel rapor">
+        <div class="workspace-section-head">
+          <span class="workspace-section-index">D4</span>
+          <div class="workspace-section-copy">
+            <strong class="workspace-section-title">Genel rapor</strong>
+            <p class="workspace-section-text">Olumsuz geri bildirim kayıtlarını tarih aralığına göre gruplayıp öneri raporu oluşturun.</p>
+          </div>
         </div>
-      </div>
-      <div class="field-stack">
-        <label for="report-date-from">Başlangıç</label>
-        <input id="report-date-from" class="debug-input" type="datetime-local">
-      </div>
-      <div class="field-stack">
-        <label for="report-date-to">Bitiş</label>
-        <input id="report-date-to" class="debug-input" type="datetime-local">
-      </div>
-      <button class="btn btn-primary btn-block mt-md" id="report-submit" type="button">Genel Rapor Oluştur</button>
-      <div class="list mt-sm" id="report-result" aria-live="polite"></div>
-    </div>
-      </div>
+        <div class="workspace-report-grid">
+          <div class="workspace-field">
+            <label for="report-date-from">Başlangıç</label>
+            <input id="report-date-from" class="debug-input" type="datetime-local">
+          </div>
+          <div class="workspace-field">
+            <label for="report-date-to">Bitiş</label>
+            <input id="report-date-to" class="debug-input" type="datetime-local">
+          </div>
+        </div>
+        <button class="btn btn-primary btn-block mt-md" id="report-submit" type="button">Genel Rapor Oluştur</button>
+        <div class="list mt-sm" id="report-result" aria-live="polite"></div>
+      </section>
     </div>
   </div>
 </div>
