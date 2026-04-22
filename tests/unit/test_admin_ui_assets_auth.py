@@ -141,6 +141,18 @@ def test_chat_lab_renders_reply_preview_composer() -> None:
     assert 'id="reply-preview-clear"' in TEST_CHAT_HTML
 
 
+def test_chat_lab_renders_workspace_flyout_shell() -> None:
+    assert 'id="workspace-panel-toggle"' in TEST_CHAT_HTML
+    assert 'id="workspace-scrim"' in TEST_CHAT_HTML
+    assert 'id="workspace-flyout-tabs"' in TEST_CHAT_HTML
+    assert 'id="workspace-settings-panel"' in TEST_CHAT_HTML
+    assert 'id="workspace-diagnostics-panel"' in TEST_CHAT_HTML
+    assert 'id="workspace-source-summary"' in TEST_CHAT_HTML
+    assert 'id="workspace-mode-summary"' in TEST_CHAT_HTML
+    assert 'data-workspace-tab="settings"' in TEST_CHAT_HTML
+    assert 'data-workspace-tab="diagnostics"' in TEST_CHAT_HTML
+
+
 def test_chat_lab_live_feed_inactive_toggle_is_wired() -> None:
     assert 'id="include-inactive-toggle"' in TEST_CHAT_HTML
     assert "const includeInactiveToggle = el('include-inactive-toggle');" in TEST_CHAT_SCRIPT
@@ -149,6 +161,18 @@ def test_chat_lab_live_feed_inactive_toggle_is_wired() -> None:
 
 def test_chat_lab_script_has_single_wire_events_definition() -> None:
     assert TEST_CHAT_SCRIPT.count("function wireEvents()") == 1
+
+
+def test_chat_lab_script_wires_workspace_flyout_keyboard_flow() -> None:
+    assert "workspaceFlyoutOpen: false" in TEST_CHAT_SCRIPT
+    assert "workspaceFlyoutTab: 'settings'" in TEST_CHAT_SCRIPT
+    assert "function renderWorkspaceFlyout()" in TEST_CHAT_SCRIPT
+    assert "function toggleWorkspaceFlyout(tab = 'settings')" in TEST_CHAT_SCRIPT
+    assert "function handleWorkspaceFlyoutTabKeydown(event)" in TEST_CHAT_SCRIPT
+    assert "function trapWorkspaceFlyoutFocus(event)" in TEST_CHAT_SCRIPT
+    assert "el('workspace-scrim').addEventListener('click', closeWorkspaceFlyout);" in TEST_CHAT_SCRIPT
+    assert "handleWorkspaceFlyoutTabKeydown(event);" in TEST_CHAT_SCRIPT
+    assert "trapWorkspaceFlyoutFocus(event);" in TEST_CHAT_SCRIPT
 
 
 def test_chat_lab_script_is_valid_javascript() -> None:
