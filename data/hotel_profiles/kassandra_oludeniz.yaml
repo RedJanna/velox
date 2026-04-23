@@ -1241,6 +1241,34 @@ location:
   google_maps_hotel: https://maps.app.goo.gl/YhDZEnhxzfnB1WgeA
   google_maps_restaurant: https://maps.app.goo.gl/pMiKmhV57YVvAghe6
 timezone: Europe/Istanbul
+assistant:
+  menu_scope_prompt: '[RESTAURANT_MENU_STRICT_MODE]
+
+
+    Restoran menusu ile ilgili sorularda tek kaynak:
+
+    1) HOTEL_PROFILE.restaurant.menu (varsa)
+
+    2) MENU_TEXT_CONTEXT bolumunde verilen menu metin dosyalari
+
+
+    Kurallar:
+
+    - Sadece kaynakta acikca gecen urun, icerik, aciklama, icecek ve fiyat bilgisini
+    ver.
+
+    - Kaynakta olmayan urun/fiyat/icerik uydurma, tahmin etme, genelleme yapma.
+
+    - Bilgi kaynakta yoksa durustce "bu bilgi menu metninde acikca yer almiyor" de.
+
+    - Harici bilgi veya internet bilgisi kullanma.
+
+
+    [END_RESTAURANT_MENU_STRICT_MODE]'
+  menu_source_documents:
+  - data/menu_texts/hotel_21966/alacarte.txt
+  - data/menu_texts/hotel_21966/wines.txt
+  - data/menu_texts/hotel_21966/snack.txt
 highlights:
 - beachside
 - central_location
@@ -1252,6 +1280,7 @@ hotel_name:
   tr: Kassandra Oludeniz
 hotel_type: boutique
 restaurant:
+  menu: {}
   name: Kassandra Restoran
   hours:
     lunch: 12:00-17:00
@@ -1585,12 +1614,12 @@ conversation_idle_reset:
   closed_message_tr: Konuşmanız otomatik olarak kapatılmıştır. Yeni bir konuşma başlatmak
     için istediğiniz zaman yazabilirsiniz.
   warning_message_en: We haven't received a response for a while. Your conversation
-    will be automatically closed in 5 minutes. Please send a message if you'd like
+    will be automatically closed in 1 minute. Please send a message if you'd like
     to continue.
-  warning_message_tr: Uzun süredir yanıt alamadık. Konuşmanız 5 dakika içinde otomatik
+  warning_message_tr: Uzun süredir yanıt alamadık. Konuşmanız 1 dakika içinde otomatik
     olarak kapanacaktır. Devam etmek isterseniz lütfen bir mesaj gönderin.
-  idle_timeout_minutes: 20
-  warning_before_minutes: 5
+  idle_timeout_minutes: 30
+  warning_before_minutes: 1
 hotel_conversational_flow:
   style: concise_premium
   max_list_items: 5
@@ -1599,22 +1628,3 @@ hotel_conversational_flow:
   ask_before_full_price_dump: true
   summarize_large_price_lists: true
   avoid_repeating_confirmed_facts: true
-assistant:
-  menu_source_documents:
-  - data/menu_texts/hotel_21966/alacarte.txt
-  - data/menu_texts/hotel_21966/wines.txt
-  - data/menu_texts/hotel_21966/snack.txt
-  menu_scope_prompt: |-
-    [RESTAURANT_MENU_STRICT_MODE]
-
-    Restoran menusu ile ilgili sorularda tek kaynak:
-    1) HOTEL_PROFILE.restaurant.menu (varsa)
-    2) MENU_TEXT_CONTEXT bolumunde verilen menu metin dosyalari
-
-    Kurallar:
-    - Sadece kaynakta acikca gecen urun, icerik, aciklama, icecek ve fiyat bilgisini ver.
-    - Kaynakta olmayan urun/fiyat/icerik uydurma, tahmin etme, genelleme yapma.
-    - Bilgi kaynakta yoksa durustce "bu bilgi menu metninde acikca yer almiyor" de.
-    - Harici bilgi veya internet bilgisi kullanma.
-
-    [END_RESTAURANT_MENU_STRICT_MODE]

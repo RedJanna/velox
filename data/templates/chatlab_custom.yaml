@@ -1,0 +1,6 @@
+- id: karsilama
+  title: karşılama
+  intent: karşılama
+  state: ''
+  language: tr
+  template: hoşgeldiniz
