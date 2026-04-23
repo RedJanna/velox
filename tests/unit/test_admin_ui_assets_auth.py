@@ -285,6 +285,8 @@ def test_chat_lab_renders_reply_preview_composer() -> None:
 
 def test_chat_lab_renders_workspace_flyout_shell() -> None:
     assert 'id="workspace-panel-toggle"' in TEST_CHAT_HTML
+    assert 'id="workspace-diagnostics-toggle"' in TEST_CHAT_HTML
+    assert 'class="workspace-utility-nav"' in TEST_CHAT_HTML
     assert 'id="workspace-scrim"' in TEST_CHAT_HTML
     assert 'id="workspace-flyout"' in TEST_CHAT_HTML
     assert 'id="workspace-flyout-sync"' in TEST_CHAT_HTML
@@ -316,6 +318,8 @@ def test_chat_lab_workspace_flyout_uses_premium_console_layout() -> None:
 def test_chat_lab_workspace_flyout_styles_define_console_shell() -> None:
     assert ".workspace-console" in TEST_CHAT_STYLE
     assert ".workspace-flyout{" in TEST_CHAT_STYLE
+    assert ".workspace-utility-nav" in TEST_CHAT_STYLE
+    assert ".workspace-utility-link.is-active" in TEST_CHAT_STYLE
     assert ".workspace-flyout-topbar" in TEST_CHAT_STYLE
     assert ".workspace-hero" in TEST_CHAT_STYLE
     assert ".workspace-hero-grid" in TEST_CHAT_STYLE
@@ -348,6 +352,7 @@ def test_chat_lab_script_wires_workspace_flyout_keyboard_flow() -> None:
     assert "function trapWorkspaceFlyoutFocus(event)" in TEST_CHAT_SCRIPT
     assert "el('workspace-scrim').addEventListener('click', closeWorkspaceFlyout);" in TEST_CHAT_SCRIPT
     assert "el('workspace-flyout').addEventListener('keydown', event => {" in TEST_CHAT_SCRIPT
+    assert "el('workspace-diagnostics-toggle').addEventListener('click', () => toggleWorkspaceFlyout('diagnostics'));" in TEST_CHAT_SCRIPT
     assert "el('workspace-open-diagnostics').addEventListener('click', toggleWorkspaceDiagnostics);" in TEST_CHAT_SCRIPT
     assert "panel.setAttribute('aria-modal', String(state.workspaceFlyoutOpen));" in TEST_CHAT_SCRIPT
     assert "handleWorkspaceFlyoutTabKeydown(event);" in TEST_CHAT_SCRIPT
@@ -377,6 +382,7 @@ const diagnosticsPanel = register('workspace-diagnostics-panel', ['workspace-tab
 const heading = register('workspace-flyout-heading');
 const description = register('workspace-flyout-description');
 const toggle = register('workspace-panel-toggle');
+const headerDiagnosticsToggle = register('workspace-diagnostics-toggle');
 const diagnosticsToggle = register('workspace-open-diagnostics');
 const modeIndicator = register('workspace-mode-indicator');
 const modeChip = register('workspace-mode-chip');
@@ -408,6 +414,7 @@ const openState = {
   heading: heading.textContent,
   modeIndicatorClasses: modeIndicator.classList.toString(),
   modeChipClasses: modeChip.classList.toString(),
+  headerDiagnosticsExpanded: headerDiagnosticsToggle.getAttribute('aria-expanded'),
   diagnosticsExpanded: diagnosticsToggle.getAttribute('aria-expanded'),
 };
 
@@ -424,6 +431,7 @@ const closedState = {
   settingsHidden: settingsPanel.classList.contains('hidden'),
   diagnosticsHidden: diagnosticsPanel.classList.contains('hidden'),
   toggleExpanded: toggle.getAttribute('aria-expanded'),
+  headerDiagnosticsExpanded: headerDiagnosticsToggle.getAttribute('aria-expanded'),
 };
 
 console.log(JSON.stringify({ openState, closedState }));
@@ -439,6 +447,7 @@ console.log(JSON.stringify({ openState, closedState }));
     assert result["openState"]["heading"] == "Tanılama"
     assert "is-mode-approval" in result["openState"]["modeIndicatorClasses"]
     assert "is-mode-approval" in result["openState"]["modeChipClasses"]
+    assert result["openState"]["headerDiagnosticsExpanded"] == "true"
     assert result["openState"]["diagnosticsExpanded"] == "true"
     assert result["closedState"]["panelModal"] == "false"
     assert result["closedState"]["panelHidden"] == "true"
@@ -448,6 +457,7 @@ console.log(JSON.stringify({ openState, closedState }));
     assert result["closedState"]["settingsHidden"] is False
     assert result["closedState"]["diagnosticsHidden"] is True
     assert result["closedState"]["toggleExpanded"] == "false"
+    assert result["closedState"]["headerDiagnosticsExpanded"] == "false"
 
 
 def test_chat_lab_workspace_flyout_runtime_keyboard_navigation_and_focus_wrap() -> None:
@@ -466,6 +476,7 @@ const diagnosticsPanel = register('workspace-diagnostics-panel', ['workspace-tab
 const heading = register('workspace-flyout-heading');
 const description = register('workspace-flyout-description');
 const toggle = register('workspace-panel-toggle');
+const headerDiagnosticsToggle = register('workspace-diagnostics-toggle');
 const diagnosticsToggle = register('workspace-open-diagnostics');
 const closeButton = register('workspace-flyout-close');
 const modeIndicator = register('workspace-mode-indicator');

@@ -265,7 +265,13 @@ body{overflow:hidden}
 .header-status-pill.is-mode-approval{background:rgba(99,102,241,.14);border-color:rgba(129,140,248,.22);color:#4338ca}
 .header-status-pill.is-mode-off{background:rgba(239,68,68,.1);border-color:rgba(248,113,113,.16);color:#b91c1c}
 .header-utility{display:flex;align-items:center;justify-content:flex-end;gap:10px}
-.workspace-panel-toggle{white-space:nowrap;background:linear-gradient(180deg,#fff,#f4f7fb);border:1px solid rgba(18,33,59,.08);box-shadow:0 12px 24px rgba(15,23,42,.08)}
+.workspace-utility-nav{display:grid;grid-template-columns:repeat(2,minmax(118px,1fr));gap:6px;padding:5px;border-radius:20px;background:rgba(255,255,255,.74);border:1px solid rgba(18,33,59,.08);box-shadow:0 14px 28px rgba(15,23,42,.08)}
+.workspace-utility-link{min-height:52px;border:none;border-radius:16px;background:transparent;padding:8px 12px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;color:#506176;cursor:pointer;transition:background .16s ease,color .16s ease,box-shadow .16s ease,transform .16s ease;text-align:left;white-space:nowrap}
+.workspace-utility-link span{font-size:12px;font-weight:900;letter-spacing:.01em;color:inherit}
+.workspace-utility-link small{font-size:10px;font-weight:800;line-height:1.2;color:rgba(80,97,118,.72)}
+.workspace-utility-link:hover{background:rgba(21,117,111,.08);color:var(--teal);transform:translateY(-1px)}
+.workspace-utility-link.is-active{background:linear-gradient(180deg,#fff,#f4f7fb);color:#13253e;box-shadow:0 10px 22px rgba(15,23,42,.1)}
+.workspace-utility-link.is-active small{color:#5d6d7f}
 .control-model,.control-source,.control-id,.control-mode,.control-export-format{min-width:0}
 .control-mode{width:100%}
 .control-action{width:100%}
@@ -581,6 +587,7 @@ linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03))}
   .header--workspace{grid-template-columns:1fr}
   .header--workspace .header-brand{max-width:none}
   .header-status,.header-utility{justify-content:flex-start}
+  .workspace-utility-nav{width:100%;max-width:420px}
   .main{grid-template-columns:minmax(296px,336px) minmax(0,1fr)}
   .context-panel{display:none}
   .template-panel-grid{grid-template-columns:1fr}
@@ -596,6 +603,8 @@ linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03))}
   .header{gap:12px}
   .header--workspace .header-brand{min-width:0}
   .header-status,.header-utility{width:100%}
+  .workspace-utility-nav{grid-template-columns:1fr 1fr;max-width:none}
+  .workspace-utility-link{min-height:48px}
   .workspace-flyout-topbar{padding-left:18px;padding-right:18px}
   #workspace-settings-panel,#workspace-diagnostics-panel{padding-left:18px;padding-right:18px}
   .workspace-hero,.workspace-section{padding:18px}
@@ -1289,8 +1298,12 @@ function renderWorkspaceSummary() {
     if (syncSnapshot.tone === 'warning') syncBadge.classList.add('is-warning');
     else if (state.sync.lastPanelRefreshAt) syncBadge.classList.add('is-online');
   }
+  const settingsOpen = state.workspaceFlyoutOpen && state.workspaceFlyoutTab === 'settings';
   const diagnosticsOpen = state.workspaceFlyoutOpen && state.workspaceFlyoutTab === 'diagnostics';
-  el('workspace-panel-toggle')?.setAttribute('aria-expanded', String(state.workspaceFlyoutOpen));
+  el('workspace-panel-toggle')?.setAttribute('aria-expanded', String(settingsOpen));
+  el('workspace-panel-toggle')?.classList.toggle('is-active', settingsOpen);
+  el('workspace-diagnostics-toggle')?.setAttribute('aria-expanded', String(diagnosticsOpen));
+  el('workspace-diagnostics-toggle')?.classList.toggle('is-active', diagnosticsOpen);
   el('workspace-open-diagnostics')?.setAttribute('aria-expanded', String(diagnosticsOpen));
 }
 
@@ -4232,6 +4245,7 @@ function wireEvents() {
   el('shortcut-dialog-close').addEventListener('click', () => toggleShortcutDialog(false));
   el('shortcut-help-btn').addEventListener('click', () => toggleShortcutDialog(true));
   el('workspace-panel-toggle').addEventListener('click', () => toggleWorkspaceFlyout('settings'));
+  el('workspace-diagnostics-toggle').addEventListener('click', () => toggleWorkspaceFlyout('diagnostics'));
   el('workspace-flyout-close').addEventListener('click', closeWorkspaceFlyout);
   el('workspace-scrim').addEventListener('click', closeWorkspaceFlyout);
   el('workspace-flyout').addEventListener('keydown', event => {

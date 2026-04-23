@@ -178,7 +178,16 @@ TEST_CHAT_HTML = (
       <div class="header-status-pill" id="workspace-mode-indicator">Mod: Test</div>
     </div>
     <div class="header-utility">
-      <button class="btn btn-ghost workspace-panel-toggle" id="workspace-panel-toggle" type="button" aria-label="Çalışma ayarlarını aç" aria-expanded="false" aria-controls="workspace-flyout">Çalışma Ayarları</button>
+      <div class="workspace-utility-nav" role="group" aria-label="Chat Lab çalışma araçları">
+        <button class="workspace-utility-link workspace-panel-toggle" id="workspace-panel-toggle" type="button" aria-label="Çalışma ayarlarını aç" aria-expanded="false" aria-controls="workspace-flyout">
+          <span>Ayarlar</span>
+          <small>Kaynak ve mod</small>
+        </button>
+        <button class="workspace-utility-link" id="workspace-diagnostics-toggle" type="button" aria-label="Tanılama panelini aç" aria-expanded="false" aria-controls="workspace-flyout">
+          <span>Tanılama</span>
+          <small>Sinyaller ve raporlar</small>
+        </button>
+      </div>
     </div>
   </div>
 
