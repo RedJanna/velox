@@ -65,6 +65,7 @@ def render_admin_panel_html() -> str:
         <button data-nav="notifications"><span class="nav-label"><strong>Bildirim Ayarları</strong><span>WhatsApp bildirim numaraları</span></span><span>08</span></button>
         <button data-nav="system"><span class="nav-label"><strong>Sistem Durumu</strong><span>Sunucu ve bağlantı kontrolleri</span></span><span>09</span></button>
         <button data-nav="chatlab"><span class="nav-label"><strong>Test Paneli</strong><span>Canlı test ve değerlendirme</span></span><span>10</span></button>
+        <button data-nav="debug"><span class="nav-label"><strong>Hata Raporları</strong><span>Canlı tarama bulguları</span></span><span>11</span></button>
       </nav>
 
       <section class="sidebar-card">
@@ -98,6 +99,8 @@ def render_admin_panel_html() -> str:
         </div>
         <div class="topbar-actions">
           <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Gezinme menüsü" aria-expanded="false">Menü</button>
+          <button id="debugStartButton" class="action-button secondary" type="button">Hata Taraması</button>
+          <div id="debugTopbarStatus" class="badge info" hidden>Boşta</div>
           <div class="topbar-aside">
             <div class="badge info">Merkezi yönetim</div>
             <div class="badge warn">Onay gerektiren işlemler görünür</div>
@@ -876,6 +879,70 @@ def render_admin_panel_html() -> str:
 
         </section>
 
+        <section data-view="debug" class="section-grid" hidden>
+          <div class="debug-summary-grid">
+            <article class="overview-card">
+              <h4>Aktif Run</h4>
+              <strong id="debugActiveRunStatus">-</strong>
+              <span id="debugActiveRunMeta">Henüz tarama başlatılmadı.</span>
+            </article>
+            <article class="overview-card">
+              <h4>Toplam Bulgu</h4>
+              <strong id="debugSummaryFindings">0</strong>
+              <span id="debugSummaryCounts">Critical 0 / High 0 / Medium 0 / Low 0</span>
+            </article>
+            <article class="overview-card">
+              <h4>Kapsam</h4>
+              <strong id="debugSummaryScope">-</strong>
+              <span id="debugSummaryScopeMeta">Aktif run seçildiğinde kapsam burada görünür.</span>
+            </article>
+          </div>
+
+          <div class="debug-layout">
+            <article class="module-card debug-column">
+              <div class="module-header">
+                <div><h3>Run Listesi</h3><p>Kuyruktaki ve tamamlanan taramaları bu panelden takip edin.</p></div>
+                <div class="module-actions">
+                  <button id="debugRefreshButton" class="inline-button secondary" type="button">Yenile</button>
+                </div>
+              </div>
+              <div id="debugRunList" class="debug-run-list">
+                <div class="empty-state">
+                  <h4>Henüz hata taraması yok</h4>
+                  <p>Topbardaki Hata Taraması butonundan yeni bir run başlatabilirsiniz.</p>
+                </div>
+              </div>
+            </article>
+
+            <article class="module-card debug-column">
+              <div class="module-header">
+                <div><h3>Bulgular</h3><p>Seçili run için tespit edilen issue kayıtları burada listelenir.</p></div>
+                <div class="module-actions">
+                  <span id="debugFindingCountBadge" class="pill info">0 kayıt</span>
+                </div>
+              </div>
+              <div id="debugFindingList" class="debug-finding-list">
+                <div class="empty-state">
+                  <h4>Bulgu bekleniyor</h4>
+                  <p>Bu run için henüz bulgu üretilmedi.</p>
+                </div>
+              </div>
+            </article>
+
+            <article class="module-card debug-column">
+              <div class="module-header">
+                <div><h3>Detay</h3><p>Run veya bulgu seçildiğinde teknik özet ve önerilen düzeltme burada görünür.</p></div>
+              </div>
+              <div id="debugDetailPanel" class="helper-panel">
+                <div class="empty-state">
+                  <h4>Seçim bekleniyor</h4>
+                  <p>Detay görmek için soldan bir run veya ortadan bir bulgu seçin.</p>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
         <section data-view="chatlab" class="section-grid" hidden>
           <iframe id="chatlab-frame" class="chatlab-frame"></iframe>
         </section>
@@ -973,6 +1040,76 @@ def render_admin_panel_html() -> str:
         <div class="dialog-actions">
           <button id="closeDecision" class="inline-button secondary" type="button">Vazgeç</button>
           <button class="inline-button danger" type="submit">Reddi Uygula</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="debugRunDialog" class="dialog" aria-label="Canlı hata taraması">
+    <div class="dialog-card">
+      <div class="dialog-head">
+        <h3>Canlı Hata Taraması</h3>
+        <p>Bu işlem canlı veriyi değiştirmez. Sadece hata ve kalite raporu üretir.</p>
+      </div>
+      <form id="debugRunForm" class="field-grid" method="dialog">
+        <div class="field full">
+          <label>Kapsam</label>
+          <div class="choice-group">
+            <label class="choice-card">
+              <input id="debugScopeAllPanel" name="debug_scope_target" type="radio" value="all_panel" checked>
+              <span>Tüm panel</span>
+            </label>
+            <label class="choice-card">
+              <input id="debugScopeCurrentView" name="debug_scope_target" type="radio" value="current_view">
+              <span>Aktif görünüm</span>
+            </label>
+          </div>
+        </div>
+        <div class="field full">
+          <label class="toggle-row" for="debugIncludeChatLab">
+            <span class="toggle-copy">
+              <strong>Chat Lab iframe dahil</strong>
+              <small>Tarama sırasında test paneli iframe içeriğini de tarar.</small>
+            </span>
+            <span class="switch">
+              <input id="debugIncludeChatLab" name="include_chatlab_iframe" type="checkbox" checked>
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </span>
+          </label>
+        </div>
+        <div class="field full">
+          <label class="toggle-row" for="debugIncludePopups">
+            <span class="toggle-copy">
+              <strong>Popup ve yeni pencereleri izle</strong>
+              <small>Yeni sekme, popup ve dialog yüzeyleri varsa rapora dahil edilir.</small>
+            </span>
+            <span class="switch">
+              <input id="debugIncludePopups" name="include_popups" type="checkbox" checked>
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </span>
+          </label>
+        </div>
+        <div class="field full">
+          <label class="toggle-row" for="debugIncludeModals">
+            <span class="toggle-copy">
+              <strong>Modal ve flyout davranışlarını dahil et</strong>
+              <small>Overlay, drawer ve panel açma/kapama akışları güvenli modda test edilir.</small>
+            </span>
+            <span class="switch">
+              <input id="debugIncludeModals" name="include_modals" type="checkbox" checked>
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </span>
+          </label>
+        </div>
+        <div class="field full">
+          <div class="helper-box">
+            <strong>Report-only koruması açık</strong>
+            <p>Kaydetme, gönderme, onaylama ve silme gibi canlı veri etkileyen adımlar debug oturumunda engellenecektir.</p>
+          </div>
+        </div>
+        <div class="field full dialog-actions">
+          <button id="debugRunCancelButton" class="inline-button secondary" type="button">İptal</button>
+          <button class="inline-button primary" type="submit">Taramayı Başlat</button>
         </div>
       </form>
     </div>

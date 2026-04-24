@@ -243,6 +243,24 @@ tbody tr:hover{background:#fffcf7}
 .checkbox-field{width:20px;height:20px}
 .card-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .chatlab-frame{width:100%;height:clamp(560px,calc(100vh - 120px),1000px);min-height:0;border:none;border-radius:12px}
+.debug-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.debug-layout{display:grid;grid-template-columns:minmax(260px,.9fr) minmax(320px,1.1fr) minmax(320px,1fr);gap:18px}
+.debug-column{min-height:460px}
+.debug-run-list,.debug-finding-list{display:flex;flex-direction:column;gap:10px}
+.debug-run-card,.debug-finding-card{border:1px solid var(--line);border-radius:18px;background:var(--surface-2);padding:14px;cursor:pointer;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.debug-run-card:hover,.debug-finding-card:hover{border-color:rgba(15,118,110,.26);transform:translateY(-1px)}
+.debug-run-card.is-active,.debug-finding-card.is-active{border-color:rgba(15,118,110,.38);box-shadow:0 12px 24px rgba(15,118,110,.08);background:#f2fbfa}
+.debug-run-card header,.debug-finding-card header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.debug-run-card h4,.debug-finding-card h4{margin:0;font-size:14px}
+.debug-card-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.debug-card-meta span{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:12px;color:var(--muted)}
+.debug-detail-section{padding:14px 16px;border-radius:18px;background:var(--surface-2);border:1px solid var(--line)}
+.debug-detail-section strong{display:block;margin-bottom:8px}
+.debug-detail-section pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:12px;line-height:1.55}
+.debug-detail-grid{display:flex;flex-direction:column;gap:12px}
+.debug-empty-compact{padding:18px;border:1px dashed var(--line-strong);border-radius:18px;background:#fffaf0}
+.debug-empty-compact h4{margin:0 0 8px;font-size:15px}
+.debug-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .dialog-textarea{min-height:120px}
 .inline-flex-center{display:flex;align-items:center;gap:8px}
 .pill-closed{background:#e5e7eb;color:#4b5563;font-size:12px}
@@ -261,7 +279,7 @@ tbody tr:hover{background:#fffcf7}
   .topbar-aside{justify-content:flex-start}
   .table-shell{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
   .table-shell table{min-width:640px}
-  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid{grid-template-columns:1fr}
+  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid,.debug-summary-grid,.debug-layout{grid-template-columns:1fr}
   .topbar{padding:18px 20px;border-radius:24px;flex-direction:column}
   .card-grid{grid-template-columns:1fr}
   .status-strip{grid-template-columns:1fr}
@@ -335,6 +353,13 @@ const state = {
   systemOverview: null,
   sessionStatus: null,
   sessionPreferences: null,
+  debugRuns: [],
+  activeDebugRunId: '',
+  activeDebugFindingId: '',
+  debugRunDetail: null,
+  debugFindings: [],
+  debugPollingHandle: null,
+  debugWorkerReady: false,
   refreshPromise: null,
   liveRefreshHandle: null,
   _authKeepAliveTimer: null,
@@ -373,6 +398,10 @@ function bindRefs() {
     'hotelProfileMeta','hotelProfileSections','hotelProfileSectionBody','hotelFactsConflict','hotelFactsStatus','hotelFactsHistory','hotelFactsEvents','hotelFactsVersionDetail','publishHotelFacts','slotFilters','slotDisplayInterval','slotTableBody','slotSummaryCards','slotCreateForm','slotDeleteForm','systemChecks','systemMeta',
     'sessionSummary','sessionPreferencesForm','sessionRememberToggle','sessionPreferenceFields',
     'systemVerificationOptions','systemSessionOptions','sessionOtpField','trustedDevicePanel','forgetDeviceButton',
+    'debugStartButton','debugTopbarStatus','debugActiveRunStatus','debugActiveRunMeta','debugSummaryFindings','debugSummaryCounts',
+    'debugSummaryScope','debugRefreshButton','debugRunList','debugFindingCountBadge','debugFindingList','debugDetailPanel',
+    'debugRunDialog','debugRunForm','debugScopeAllPanel','debugScopeCurrentView','debugIncludeChatLab','debugIncludePopups',
+    'debugIncludeModals','debugRunCancelButton',
     'logoutButton','reloadButton','decisionDialog','decisionForm','decisionTitle','decisionLead','decisionReason',
     'decisionHoldId','decisionMode'
   ].forEach(id => refs[id] = document.getElementById(id));
@@ -398,6 +427,15 @@ function bindEvents() {
   refs.sessionPreferencesForm?.addEventListener('submit', onSessionPreferencesSave);
   refs.sessionRememberToggle?.addEventListener('change', toggleSessionPreferenceState);
   refs.forgetDeviceButton?.addEventListener('click', forgetTrustedDevice);
+  refs.debugStartButton?.addEventListener('click', openDebugRunModal);
+  refs.debugRunCancelButton?.addEventListener('click', closeDebugRunModal);
+  refs.debugRunForm?.addEventListener('submit', onDebugRunSubmit);
+  refs.debugRefreshButton?.addEventListener('click', () => {
+    loadDebugRuns({preserveSelection: true}).catch(error => notify(error.message, 'error'));
+  });
+  refs.debugRunList?.addEventListener('click', onDebugRunListClick);
+  refs.debugFindingList?.addEventListener('click', onDebugFindingListClick);
+  refs.debugDetailPanel?.addEventListener('click', onDebugDetailClick);
   refs.reloadButton?.addEventListener('click', reloadConfig);
   refs.logoutButton?.addEventListener('click', logout);
   refs.conversationFilters?.addEventListener('submit', event => {
@@ -907,7 +945,7 @@ async function hydrateSession() {
   window.localStorage.setItem(HOTEL_KEY, state.selectedHotelId);
   populateHotelSelectors();
   showPanel();
-  await Promise.all([loadDashboard(), loadSystemOverview(), loadSessionPreferences()]);
+  await Promise.all([loadDashboard(), loadSystemOverview(), loadSessionPreferences(), loadDebugRuns({preserveSelection: false})]);
   setView(state.currentView || 'dashboard');
 }
 
@@ -936,6 +974,7 @@ function populateHotelSelectors() {
 
 function showAuth() {
   clearLiveRefresh();
+  stopDebugPolling();
   stopAuthKeepAlive();
   refs.sidebar.hidden = true;
   refs.topbar.hidden = true;
@@ -960,6 +999,9 @@ function showPanel() {
 function setView(view) {
   state.currentView = view;
   window.location.hash = view;
+  if (view !== 'debug') {
+    stopDebugPolling();
+  }
   document.querySelectorAll('[data-view]').forEach(section => {
     section.hidden = section.dataset.view !== view;
   });
@@ -978,6 +1020,7 @@ function setView(view) {
     notifications: ['Bildirim Ayarları', 'Rezervasyon onayları için WhatsApp bildirim numaralarını yönetin.'],
     system: ['Sistem Durumu', 'Sunucu sağlığı, alan adı ve güvenlik ayarlarını kontrol edin.'],
     chatlab: ['Test Paneli', 'Yapay zekâyı canlı test edin, puanlayın ve raporlayın.'],
+    debug: ['Hata Raporları', 'Canlı panelde başlatılan report-only taramaların bulgularını inceleyin.'],
   }[view] || ['Yönetim Paneli', 'Yönetim merkezi'];
 
   refs.pageTitle.textContent = meta[0];
@@ -997,6 +1040,7 @@ function setView(view) {
   if (view === 'notifications') loadNotifPhones();
   if (view === 'system') loadSystemOverview();
   if (view === 'chatlab') loadChatLab();
+  if (view === 'debug') loadDebugRuns({preserveSelection: true});
   scheduleLiveRefresh();
 }
 
@@ -1037,6 +1081,389 @@ function onHotelScopeChange() {
   window.localStorage.setItem(HOTEL_KEY, state.selectedHotelId);
   refs.hotelScope.textContent = state.selectedHotelId || '-';
   setView(state.currentView);
+}
+
+function openDebugRunModal() {
+  if (!refs.debugRunDialog) return;
+  if (refs.debugStartButton?.disabled) {
+    notify('Bu otel için zaten aktif bir hata taraması var.', 'warn');
+    if (state.currentView !== 'debug') setView('debug');
+    return;
+  }
+  refs.debugScopeAllPanel.checked = true;
+  refs.debugScopeCurrentView.checked = false;
+  refs.debugIncludeChatLab.checked = true;
+  refs.debugIncludePopups.checked = true;
+  refs.debugIncludeModals.checked = true;
+  refs.debugRunDialog.showModal();
+}
+
+function closeDebugRunModal() {
+  refs.debugRunDialog?.close();
+}
+
+function buildDebugRunPayload() {
+  const target = refs.debugScopeCurrentView?.checked ? 'current_view' : 'all_panel';
+  const effectiveView = state.currentView && state.currentView !== 'debug' ? state.currentView : 'dashboard';
+  return {
+    mode: 'aggressive_report_only',
+    scope: {
+      target,
+      target_view: target === 'current_view' ? effectiveView : null,
+      include_chatlab_iframe: Boolean(refs.debugIncludeChatLab?.checked),
+      include_popups: Boolean(refs.debugIncludePopups?.checked),
+      include_modals: Boolean(refs.debugIncludeModals?.checked),
+      scan_intensity: 'aggressive',
+      report_only: true,
+    },
+  };
+}
+
+async function onDebugRunSubmit(event) {
+  event.preventDefault();
+  try {
+    const run = await apiFetch('/debug/runs', {method: 'POST', body: buildDebugRunPayload()});
+    state.activeDebugRunId = run.id;
+    state.activeDebugFindingId = '';
+    closeDebugRunModal();
+    notify('Hata taraması başlatıldı. Bulgular rapor ekranında güncellenecek.', 'success');
+    if (state.currentView !== 'debug') {
+      setView('debug');
+    } else {
+      await loadDebugRuns({preserveSelection: false});
+    }
+  } catch (error) {
+    if (error.status === 409) {
+      closeDebugRunModal();
+      notify(error.message, 'warn');
+      if (state.currentView !== 'debug') {
+        setView('debug');
+      } else {
+        await loadDebugRuns({preserveSelection: true});
+      }
+      return;
+    }
+    notify(error.message || 'Hata taraması başlatılamadı.', 'error');
+  }
+}
+
+async function onDebugRunListClick(event) {
+  const card = event.target.closest('[data-debug-run-id]');
+  if (!card) return;
+  const runId = card.dataset.debugRunId;
+  if (!runId || runId === state.activeDebugRunId) return;
+  state.activeDebugRunId = runId;
+  state.activeDebugFindingId = '';
+  await Promise.all([loadDebugRunDetail(runId), loadDebugFindings(runId)]);
+  renderDebugView();
+}
+
+function onDebugFindingListClick(event) {
+  const card = event.target.closest('[data-debug-finding-id]');
+  if (!card) return;
+  state.activeDebugFindingId = card.dataset.debugFindingId || '';
+  renderDebugDetailPanel();
+}
+
+async function onDebugDetailClick(event) {
+  const actionButton = event.target.closest('[data-debug-action]');
+  if (!actionButton || !state.activeDebugRunId) return;
+  const action = actionButton.dataset.debugAction;
+  try {
+    if (action === 'cancel') {
+      await apiFetch(`/debug/runs/${encodeURIComponent(state.activeDebugRunId)}/cancel`, {method: 'POST', body: {}});
+      notify('Debug run için iptal isteği işlendi.', 'success');
+      await loadDebugRuns({preserveSelection: true});
+      return;
+    }
+    if (action === 'retry') {
+      const response = await apiFetch(`/debug/runs/${encodeURIComponent(state.activeDebugRunId)}/retry`, {method: 'POST', body: {}});
+      state.activeDebugRunId = response.run?.id || state.activeDebugRunId;
+      state.activeDebugFindingId = '';
+      notify('Debug run yeniden kuyruğa alındı.', 'success');
+      await loadDebugRuns({preserveSelection: true});
+    }
+  } catch (error) {
+    notify(error.message || 'Debug aksiyonu tamamlanamadı.', 'error');
+  }
+}
+
+async function loadDebugRuns({preserveSelection = true} = {}) {
+  const response = await apiFetch('/debug/runs');
+  state.debugRuns = Array.isArray(response.items) ? response.items : [];
+  const hasSelectedRun = preserveSelection && state.activeDebugRunId && state.debugRuns.some(item => item.id === state.activeDebugRunId);
+  if (!hasSelectedRun) {
+    const activeRun = state.debugRuns.find(item => item.status === 'running' || item.status === 'queued');
+    state.activeDebugRunId = activeRun?.id || state.debugRuns[0]?.id || '';
+    state.activeDebugFindingId = '';
+  }
+  syncDebugTopbarState();
+  renderDebugRunList();
+  if (!state.activeDebugRunId) {
+    state.debugRunDetail = null;
+    state.debugFindings = [];
+    stopDebugPolling();
+    renderDebugView();
+    return;
+  }
+  await Promise.all([
+    loadDebugRunDetail(state.activeDebugRunId),
+    loadDebugFindings(state.activeDebugRunId),
+  ]);
+  renderDebugView();
+}
+
+async function loadDebugRunDetail(runId) {
+  state.debugRunDetail = await apiFetch(`/debug/runs/${encodeURIComponent(runId)}`);
+  const status = state.debugRunDetail?.status;
+  if (status === 'queued' || status === 'running') {
+    startDebugPolling(runId);
+  } else {
+    stopDebugPolling();
+  }
+}
+
+async function loadDebugFindings(runId) {
+  const response = await apiFetch(`/debug/runs/${encodeURIComponent(runId)}/findings`);
+  state.debugFindings = Array.isArray(response.items) ? response.items : [];
+  if (state.activeDebugFindingId && !state.debugFindings.some(item => item.id === state.activeDebugFindingId)) {
+    state.activeDebugFindingId = '';
+  }
+}
+
+function startDebugPolling(runId) {
+  stopDebugPolling();
+  state.debugPollingHandle = window.setInterval(() => {
+    if (document.hidden || state.currentView !== 'debug') return;
+    loadDebugRuns({preserveSelection: true}).catch(() => {});
+  }, 3000);
+}
+
+function stopDebugPolling() {
+  if (state.debugPollingHandle) {
+    window.clearInterval(state.debugPollingHandle);
+    state.debugPollingHandle = null;
+  }
+}
+
+function describeDebugScope(scope) {
+  if (!scope || typeof scope !== 'object') return '-';
+  if (scope.target === 'current_view') {
+    return `Aktif görünüm · ${scope.target_view || '-'}`;
+  }
+  return 'Tüm panel';
+}
+
+function debugStatusBadgeClass(status) {
+  if (status === 'completed') return 'success';
+  if (status === 'failed' || status === 'cancelled') return 'danger';
+  if (status === 'running') return 'info';
+  return 'warn';
+}
+
+function debugSeverityBadgeClass(severity) {
+  if (severity === 'critical' || severity === 'high') return 'danger';
+  if (severity === 'medium') return 'warn';
+  if (severity === 'low') return 'success';
+  return 'info';
+}
+
+function syncDebugTopbarState() {
+  const activeRun = state.debugRuns.find(item => item.status === 'running' || item.status === 'queued');
+  if (!refs.debugTopbarStatus || !refs.debugStartButton) return;
+  refs.debugTopbarStatus.hidden = false;
+  if (!activeRun) {
+    refs.debugTopbarStatus.textContent = 'Boşta';
+    refs.debugTopbarStatus.className = 'badge info';
+    refs.debugStartButton.disabled = false;
+    return;
+  }
+  refs.debugStartButton.disabled = true;
+  if (activeRun.status === 'running') {
+    refs.debugTopbarStatus.textContent = 'Tarama sürüyor';
+    refs.debugTopbarStatus.className = 'badge warn';
+    return;
+  }
+  refs.debugTopbarStatus.textContent = 'Tarama kuyruğa alındı';
+  refs.debugTopbarStatus.className = 'badge info';
+}
+
+function renderDebugView() {
+  renderDebugRunList();
+  renderDebugFindingList();
+  renderDebugSummary();
+  renderDebugDetailPanel();
+  syncDebugTopbarState();
+}
+
+function renderDebugRunList() {
+  if (!refs.debugRunList) return;
+  if (!state.debugRuns.length) {
+    refs.debugRunList.innerHTML = `
+      <div class="empty-state">
+        <h4>Henüz hata taraması yok</h4>
+        <p>Topbardaki Hata Taraması butonundan yeni bir run başlatabilirsiniz.</p>
+      </div>
+    `;
+    return;
+  }
+  refs.debugRunList.innerHTML = state.debugRuns.map(item => {
+    const isActive = item.id === state.activeDebugRunId;
+    return `
+      <article class="debug-run-card ${isActive ? 'is-active' : ''}" data-debug-run-id="${escapeHtml(item.id)}">
+        <header>
+          <div>
+            <h4>${escapeHtml(describeDebugScope(item.scope))}</h4>
+            <div class="muted">${escapeHtml(formatDate(item.queued_at) || '-')}</div>
+          </div>
+          <span class="pill ${debugStatusBadgeClass(item.status)}">${escapeHtml(item.status)}</span>
+        </header>
+        <div class="muted">${escapeHtml(item.failure_reason || 'Run kaydı oluşturuldu ve işlenmeyi bekliyor.')}</div>
+        <div class="debug-card-meta">
+          <span>${escapeHtml(item.mode || '-')}</span>
+          <span>${escapeHtml(String(item.finding_count || 0))} bulgu</span>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+function renderDebugFindingList() {
+  if (!refs.debugFindingList || !refs.debugFindingCountBadge) return;
+  refs.debugFindingCountBadge.textContent = `${state.debugFindings.length} kayıt`;
+  if (!state.activeDebugRunId) {
+    refs.debugFindingList.innerHTML = `
+      <div class="empty-state">
+        <h4>Run seçilmedi</h4>
+        <p>Bulguları görmek için soldan bir tarama kaydı seçin.</p>
+      </div>
+    `;
+    return;
+  }
+  if (!state.debugFindings.length) {
+    const waitingText = state.debugRunDetail?.status === 'queued' || state.debugRunDetail?.status === 'running'
+      ? 'Tarama sürüyor. Bulgular geldikçe burada listelenecek.'
+      : 'Bu run için henüz bulgu üretilmedi.';
+    refs.debugFindingList.innerHTML = `
+      <div class="empty-state">
+        <h4>Bulgu bekleniyor</h4>
+        <p>${escapeHtml(waitingText)}</p>
+      </div>
+    `;
+    return;
+  }
+  refs.debugFindingList.innerHTML = state.debugFindings.map(item => `
+    <article class="debug-finding-card ${item.id === state.activeDebugFindingId ? 'is-active' : ''}" data-debug-finding-id="${escapeHtml(item.id)}">
+      <header>
+        <div>
+          <h4>${escapeHtml(item.screen || '-')}</h4>
+          <div class="muted">${escapeHtml(item.action_label || item.category)}</div>
+        </div>
+        <span class="pill ${debugSeverityBadgeClass(item.severity)}">${escapeHtml(item.severity)}</span>
+      </header>
+      <div>${escapeHtml(item.description || '-')}</div>
+      <div class="debug-card-meta">
+        <span>${escapeHtml(item.category || '-')}</span>
+        <span>${escapeHtml(formatDate(item.created_at) || '-')}</span>
+      </div>
+    </article>
+  `).join('');
+}
+
+function renderDebugSummary() {
+  if (!refs.debugActiveRunStatus || !refs.debugActiveRunMeta || !refs.debugSummaryFindings || !refs.debugSummaryCounts || !refs.debugSummaryScope) {
+    return;
+  }
+  const run = state.debugRunDetail;
+  if (!run) {
+    refs.debugActiveRunStatus.textContent = '-';
+    refs.debugActiveRunMeta.textContent = 'Henüz tarama başlatılmadı.';
+    refs.debugSummaryFindings.textContent = '0';
+    refs.debugSummaryCounts.textContent = 'Critical 0 / High 0 / Medium 0 / Low 0';
+    refs.debugSummaryScope.textContent = '-';
+    return;
+  }
+  const summary = run.summary || {};
+  refs.debugActiveRunStatus.textContent = run.status || '-';
+  refs.debugActiveRunMeta.textContent = run.failure_reason || `${formatDate(run.queued_at) || '-'} · ${describeDebugScope(run.scope)}`;
+  refs.debugSummaryFindings.textContent = String(summary.finding_count || state.debugFindings.length || 0);
+  refs.debugSummaryCounts.textContent = `Critical ${summary.critical_count || 0} / High ${summary.high_count || 0} / Medium ${summary.medium_count || 0} / Low ${summary.low_count || 0}`;
+  refs.debugSummaryScope.textContent = describeDebugScope(run.scope);
+}
+
+function renderDebugDetailPanel() {
+  if (!refs.debugDetailPanel) return;
+  const finding = state.debugFindings.find(item => item.id === state.activeDebugFindingId);
+  if (finding) {
+    refs.debugDetailPanel.innerHTML = `
+      <div class="debug-detail-grid">
+        <div class="debug-detail-section">
+          <strong>Sorun Özeti</strong>
+          <div><span class="pill ${debugSeverityBadgeClass(finding.severity)}">${escapeHtml(finding.severity)}</span></div>
+          <p>${escapeHtml(finding.description || '-')}</p>
+        </div>
+        <div class="debug-detail-section">
+          <strong>Tekrar Üretim Adımları</strong>
+          <pre>${escapeHtml((finding.steps || []).join('\\n') || 'Adım kaydı yok.')}</pre>
+        </div>
+        <div class="debug-detail-section">
+          <strong>Olası Teknik Neden</strong>
+          <pre>${escapeHtml(finding.technical_cause || 'Henüz eklenmedi.')}</pre>
+        </div>
+        <div class="debug-detail-section">
+          <strong>Önerilen Düzeltme</strong>
+          <pre>${escapeHtml(finding.suggested_fix || 'Henüz eklenmedi.')}</pre>
+        </div>
+        <div class="debug-detail-section">
+          <strong>Kanıt</strong>
+          <pre>${escapeHtml(JSON.stringify(finding.evidence || {}, null, 2) || '{}')}</pre>
+        </div>
+      </div>
+    `;
+    return;
+  }
+  if (!state.debugRunDetail) {
+    refs.debugDetailPanel.innerHTML = `
+      <div class="empty-state">
+        <h4>Seçim bekleniyor</h4>
+        <p>Detay görmek için soldan bir run veya ortadan bir bulgu seçin.</p>
+      </div>
+    `;
+    return;
+  }
+  const run = state.debugRunDetail;
+  refs.debugDetailPanel.innerHTML = `
+    <div class="debug-detail-grid">
+      <div class="debug-detail-section">
+        <strong>Run Durumu</strong>
+        <div class="debug-toolbar">
+          <span class="pill ${debugStatusBadgeClass(run.status)}">${escapeHtml(run.status || '-')}</span>
+          <span class="pill info">${escapeHtml(describeDebugScope(run.scope))}</span>
+        </div>
+        <p class="muted">${escapeHtml(run.failure_reason || 'Run detayları aşağıda özetleniyor.')}</p>
+      </div>
+      <div class="debug-detail-section">
+        <strong>Zaman Çizelgesi</strong>
+        <pre>${escapeHtml([
+          `Kuyruğa alındı: ${formatDate(run.queued_at) || '-'}`,
+          `Başladı: ${formatDate(run.started_at) || '-'}`,
+          `Bitti: ${formatDate(run.finished_at) || '-'}`,
+          `Heartbeat: ${formatDate(run.last_heartbeat_at) || '-'}`,
+        ].join('\\n'))}</pre>
+      </div>
+      <div class="debug-detail-section">
+        <strong>Özet</strong>
+        <pre>${escapeHtml(JSON.stringify(run.summary || {}, null, 2))}</pre>
+      </div>
+      <div class="debug-detail-section">
+        <strong>İşlemler</strong>
+        <div class="debug-toolbar">
+          <button class="inline-button secondary" type="button" data-debug-action="cancel"${run.status === 'completed' || run.status === 'failed' || run.status === 'cancelled' ? ' disabled' : ''}>İptal Et</button>
+          <button class="inline-button primary" type="button" data-debug-action="retry">Yeniden Çalıştır</button>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 async function loadChatLab() {

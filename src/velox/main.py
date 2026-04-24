@@ -18,6 +18,7 @@ from velox.adapters.whatsapp.client import close_whatsapp_client
 from velox.api.middleware.rate_limiter import RateLimitMiddleware
 from velox.api.routes import (
     admin,
+    admin_debug,
     admin_holds,
     admin_panel_ui,
     admin_portal,
@@ -217,6 +218,7 @@ app.add_middleware(RateLimitMiddleware)
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(health.metrics_router)
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(admin_debug.router, prefix="/api/v1")
 app.include_router(admin_holds.router, prefix="/api/v1")
 app.include_router(admin_portal.router, prefix="/api/v1")
 app.include_router(admin_session.router, prefix="/api/v1")
