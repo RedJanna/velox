@@ -13,13 +13,14 @@ from fastapi.responses import FileResponse
 
 from velox.api.middleware.auth import TokenData, require_role
 from velox.config.constants import Role
+from velox.core.admin_debug_runner import get_browser_scan_capability
 from velox.db.repositories.admin_debug import AdminDebugRepository
 from velox.models.admin_debug import (
+    DebugArtifactListResponse,
+    DebugArtifactResponse,
     DebugFindingCategory,
     DebugFindingListResponse,
     DebugFindingSeverity,
-    DebugArtifactListResponse,
-    DebugArtifactResponse,
     DebugRunActionResponse,
     DebugRunCreateRequest,
     DebugRunListResponse,
@@ -104,6 +105,7 @@ async def debug_worker_status(
     """Expose worker readiness and active-run state for the current hotel."""
     _ = current_user
     task: Task[Any] | None = getattr(request.app.state, "debug_runner_task", None)
+    browser_capability = get_browser_scan_capability()
     runs = await repository.list_runs(
         hotel_id=current_user.hotel_id,
         limit=5,
@@ -113,12 +115,18 @@ async def debug_worker_status(
     worker_ready = bool(task is not None and not task.done())
     if not worker_ready:
         message = "Debug worker hazır değil."
+    elif not browser_capability.available:
+        message = browser_capability.reason or "Browser scan hazır değil."
     elif active_run is not None:
         message = "Aktif hata taraması sürüyor."
     else:
         message = "Debug worker hazır."
     return DebugWorkerStatusResponse(
         worker_ready=worker_ready,
+        browser_scan_available=browser_capability.available,
+        browser_scan_mode=browser_capability.mode,
+        browser_scan_target=browser_capability.target_base_url,
+        browser_scan_reason=browser_capability.reason,
         active_run_id=active_run.id if active_run else None,
         active_run_status=active_run.status if active_run else None,
         active_run_message=message,

@@ -9,6 +9,8 @@
    Elektra visible reservation-card sync for `Voucher No` and `Notlar` requires Generic API access as well:
    `ELEKTRA_GENERIC_API_BASE_URL`, `ELEKTRA_GENERIC_TENANT`, `ELEKTRA_GENERIC_USERCODE`, `ELEKTRA_GENERIC_PASSWORD`.
    `ELEKTRA_GENERIC_LOGIN_TOKEN` is only an operational fallback and should not be treated as permanent because the token expires.
+   `ADMIN_DEBUG_BROWSER_TARGET_MODE=public` keeps admin debug browser scans on the public panel URL; switch to `internal`
+   only when the deployment cannot reach its own public domain from inside the app container.
 3. Ensure `.env.production` is not committed (already ignored by `.gitignore`).
 
 ## 2. Build and Start Stack
@@ -37,6 +39,8 @@ docker compose --env-file .env.production -f docker-compose.prod.yml exec app py
 curl -fsS http://127.0.0.1:8001/api/v1/health
 curl -fsS http://127.0.0.1:8001/api/v1/health/ready
 curl -fsS http://127.0.0.1:8001/metrics | head
+docker compose --env-file .env.production -f docker-compose.prod.yml exec app python -c "import importlib.util; assert importlib.util.find_spec('playwright.async_api') is not None; print('playwright-python-ok')"
+docker compose --env-file .env.production -f docker-compose.prod.yml exec app sh -lc "test -d /ms-playwright && ls /ms-playwright | grep chromium"
 ```
 
 `/api/v1/health/ready` returns HTTP `200` when all checks are green, otherwise HTTP `503`.
@@ -92,5 +96,7 @@ GitHub Actions workflow: `.github/workflows/ci.yml`
 - [ ] Health check returns 200
 - [ ] Readiness check returns all green
 - [ ] Metrics endpoint responds with Prometheus text
+- [ ] Playwright Python paketi container içinde import ediliyor
+- [ ] Chromium browser `/ms-playwright` altında mevcut
 - [ ] Rate limiting active
 - [ ] Logs shipping to monitoring (optional: Grafana/Loki)

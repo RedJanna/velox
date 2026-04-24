@@ -16,6 +16,7 @@ FROM python:3.11-slim AS runtime
 
 WORKDIR /app
 ENV PYTHONPATH=/app/src
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -26,9 +27,11 @@ COPY src/ src/
 COPY data/ data/
 COPY docs/ docs/
 
+RUN python -m playwright install --with-deps chromium
+
 RUN useradd --create-home velox \
-    && mkdir -p /app/data/chat_lab_feedback /app/data/chat_lab_imports \
-    && chown -R velox:velox /app
+    && mkdir -p /app/data/chat_lab_feedback /app/data/chat_lab_imports /ms-playwright \
+    && chown -R velox:velox /app /ms-playwright
 USER velox
 
 EXPOSE 8001

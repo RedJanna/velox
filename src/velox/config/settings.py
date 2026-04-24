@@ -51,6 +51,17 @@ class Settings(BaseSettings):
         parsed = urlsplit(self.public_base_url)
         return parsed.netloc or self.public_base_url
 
+    @property
+    def admin_debug_browser_mode(self) -> str:
+        mode = self.admin_debug_browser_target_mode.strip().lower()
+        return "internal" if mode == "internal" else "public"
+
+    @property
+    def admin_debug_browser_base_url(self) -> str:
+        if self.admin_debug_browser_mode == "internal":
+            return f"http://127.0.0.1:{self.app_port}"
+        return self.public_base_url.rstrip("/")
+
     # Redis
     redis_url: str = "redis://localhost:6379/0"
     redis_session_ttl_seconds: int = 1800
@@ -100,6 +111,7 @@ class Settings(BaseSettings):
     admin_webhook_secret: str = ""
     admin_bootstrap_token: str = ""
     admin_totp_issuer: str = "NexlumeAI"
+    admin_debug_browser_target_mode: str = "public"
 
     # Rate Limiting
     rate_limit_per_phone_per_minute: int = 30

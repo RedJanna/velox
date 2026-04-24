@@ -1233,8 +1233,8 @@ async function loadDebugRuns({preserveSelection = true} = {}) {
 async function loadDebugStatus() {
   try {
     const response = await apiFetch('/debug/status');
-    state.debugWorkerReady = Boolean(response.worker_ready);
-    state.debugWorkerMessage = String(response.active_run_message || '');
+    state.debugWorkerReady = Boolean(response.worker_ready && response.browser_scan_available);
+    state.debugWorkerMessage = String(response.active_run_message || response.browser_scan_reason || '');
   } catch (_error) {
     state.debugWorkerReady = false;
     state.debugWorkerMessage = 'Debug worker durumu alınamadı.';

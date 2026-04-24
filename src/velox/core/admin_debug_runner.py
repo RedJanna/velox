@@ -5,8 +5,11 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import importlib
+import os
 import time
 from collections.abc import Mapping
+from contextlib import suppress
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -33,8 +36,17 @@ logger = structlog.get_logger(__name__)
 DEBUG_RUNNER_LOOP_IDLE_SECONDS = 3
 DEBUG_HTTP_TIMEOUT_SECONDS = 15.0
 DEBUG_RUNNER_BASE_URL = "https://admin-debug.local"
-DEBUG_BROWSER_BASE_URL = f"http://127.0.0.1:{settings.app_port}"
 DEBUG_ARTIFACT_ROOT = Path("data/admin_debug_runs")
+
+
+@dataclass(frozen=True)
+class DebugBrowserCapability:
+    """Resolved Playwright browser-scan readiness for admin debug runs."""
+
+    available: bool
+    reason: str | None
+    mode: str
+    target_base_url: str
 
 
 def _fingerprint(*parts: object) -> str:
@@ -352,7 +364,7 @@ async def _validate_json_target(
             evidence={
                 "path": target.path,
                 "missing_keys": missing_keys,
-                "returned_keys": sorted(str(key) for key in payload.keys()),
+                "returned_keys": sorted(str(key) for key in payload),
                 "duration_ms": duration_ms,
             },
         )
@@ -476,10 +488,72 @@ def _artifact_destination(run_id: UUID, target_key: str) -> Path:
     return destination
 
 
+def _playwright_browser_roots() -> tuple[Path, ...]:
+    roots: list[Path] = []
+    configured_root = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "").strip()
+    if configured_root and configured_root != "0":
+        roots.append(Path(configured_root))
+    roots.extend((Path.home() / ".cache" / "ms-playwright", Path("/ms-playwright")))
+
+    deduped: list[Path] = []
+    seen: set[str] = set()
+    for root in roots:
+        key = str(root)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(root)
+    return tuple(deduped)
+
+
+def _has_playwright_browser_installation() -> bool:
+    for root in _playwright_browser_roots():
+        try:
+            if not root.exists():
+                continue
+            if any(root.glob("chromium-*")) or any(root.glob("chromium_headless_shell-*")):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def get_browser_scan_capability() -> DebugBrowserCapability:
+    """Return the current Playwright/browser availability for debug scans."""
+    mode = settings.admin_debug_browser_mode
+    target_base_url = settings.admin_debug_browser_base_url
+
+    try:
+        importlib.import_module("playwright.async_api")
+    except Exception:
+        return DebugBrowserCapability(
+            available=False,
+            reason="Playwright Python paketi yuklu degil.",
+            mode=mode,
+            target_base_url=target_base_url,
+        )
+
+    if not _has_playwright_browser_installation():
+        return DebugBrowserCapability(
+            available=False,
+            reason="Chromium browser paketi yuklu degil.",
+            mode=mode,
+            target_base_url=target_base_url,
+        )
+
+    return DebugBrowserCapability(
+        available=True,
+        reason=None,
+        mode=mode,
+        target_base_url=target_base_url,
+    )
+
+
 def _browser_target_url(target: ScanTarget) -> str:
+    base_url = settings.admin_debug_browser_base_url
     if target.path == "/admin" and target.view_key:
-        return f"{DEBUG_BROWSER_BASE_URL}{target.path}#{target.view_key}"
-    return f"{DEBUG_BROWSER_BASE_URL}{target.path}"
+        return f"{base_url}{target.path}#{target.view_key}"
+    return f"{base_url}{target.path}"
 
 
 async def _maybe_capture_browser_screenshot(
@@ -494,7 +568,7 @@ async def _maybe_capture_browser_screenshot(
 
     try:
         playwright_module = importlib.import_module("playwright.async_api")
-        async_playwright = getattr(playwright_module, "async_playwright")
+        async_playwright = playwright_module.async_playwright
     except Exception as exc:
         logger.info(
             "admin_debug_browser_scan_unavailable",
@@ -517,10 +591,8 @@ async def _maybe_capture_browser_screenshot(
                 )
                 page = await context.new_page()
                 await page.goto(_browser_target_url(target), wait_until="domcontentloaded", timeout=10000)
-                try:
+                with suppress(Exception):
                     await page.wait_for_load_state("networkidle", timeout=3000)
-                except Exception:
-                    pass
                 await page.wait_for_timeout(800)
                 screenshot_bytes = await page.screenshot(type="png", full_page=True)
                 destination = _artifact_destination(UUID(run.id), target.key)

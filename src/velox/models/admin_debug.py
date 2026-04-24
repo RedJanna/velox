@@ -72,7 +72,7 @@ class DebugRunScope(BaseModel):
     report_only: bool = True
 
     @model_validator(mode="after")
-    def validate_scope(self) -> "DebugRunScope":
+    def validate_scope(self) -> DebugRunScope:
         """Normalize target scope and keep report-only mode locked."""
         if self.target == "current_view" and not self.target_view:
             raise ValueError("target_view is required when target is current_view.")
@@ -149,6 +149,10 @@ class DebugWorkerStatusResponse(BaseModel):
     """Worker readiness and active-run state for the admin panel."""
 
     worker_ready: bool
+    browser_scan_available: bool = False
+    browser_scan_mode: str = "public"
+    browser_scan_target: str | None = None
+    browser_scan_reason: str | None = None
     active_run_id: str | None = None
     active_run_status: DebugRunStatus | None = None
     active_run_message: str | None = None

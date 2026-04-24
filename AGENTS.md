@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v5.5 | **Son güncelleme:** 2026-04-24 13:20:00
-> **Değişiklik özeti:** Admin debug worker, scan registry ve report-only güvenlik modülleri icin dosya yapisi güncellendi.
+> **Sürüm:** v5.6 | **Son güncelleme:** 2026-04-24 22:35:44
+> **Değişiklik özeti:** Admin debug browser automation runtime kurulumu ve hedef mod konfigürasyonu eklendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -43,6 +43,7 @@ Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquirie
 - **Cache**: Redis (aioredis)
 - **LLM**: OpenAI GPT (all models, function calling)
 - **WhatsApp**: Meta Business API (Cloud API)
+- **Browser Automation**: Playwright + Chromium (admin debug report-only scans)
 - **Container**: Docker + docker-compose
 
 ## Architecture
@@ -388,6 +389,7 @@ All secrets, API keys, and configuration must be in environment variables. Never
 | `MEDIA_SUPPORTED_MIME_TYPES` | Desteklenen inbound image mime listesi (virgüllü) | `image/jpeg,image/jpg,image/png,image/webp,image/tiff,image/heic,image/heif` |
 | `ELEKTRA_GENERIC_API_BASE_URL` | Elektra Generic API base URL | `https://4001.hoteladvisor.net` |
 | `ELEKTRA_GENERIC_LOGIN_TOKEN` | Günlük geçerli Generic API token override; sadece geçici operasyonel fallback olarak kullanılmalıdır | _(boş = devre dışı)_ |
+| `ADMIN_DEBUG_BROWSER_TARGET_MODE` | Admin debug browser scan hedefi (`public` veya `internal`) | `public` |
 
 > **Kural:** Yeni bir ENV değişkeni eklendiğinde bu tabloyu güncelle ve `.env.example` dosyasına da ekle.
 

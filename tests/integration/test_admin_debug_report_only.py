@@ -4,19 +4,28 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from typing import Annotated
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
 from fastapi import Depends, FastAPI
 
-from velox.api.middleware.auth import TokenData, require_role
+from velox.api.middleware.auth import TokenData, get_current_user, require_role
 from velox.api.middleware.debug_report_only import REPORT_ONLY_BLOCK_MESSAGE, ReportOnlyDebugMiddleware
 from velox.api.routes import admin_debug
 from velox.config.constants import Role
 from velox.config.settings import settings
-from velox.models.admin_debug import DebugRunListItem, DebugRunMode, DebugRunScope, DebugRunStatus, DebugRunSummary
-from velox.models.admin_debug import DebugArtifactResponse, DebugArtifactType, DebugRunResponse
+from velox.core.admin_debug_runner import DebugBrowserCapability
+from velox.models.admin_debug import (
+    DebugArtifactResponse,
+    DebugArtifactType,
+    DebugRunListItem,
+    DebugRunMode,
+    DebugRunResponse,
+    DebugRunScope,
+    DebugRunStatus,
+    DebugRunSummary,
+)
 from velox.utils.admin_debug_security import DEBUG_SESSION_HEADER, create_debug_session_token
 
 
@@ -88,6 +97,16 @@ async def test_debug_session_rejects_invalid_token(debug_client: httpx.AsyncClie
 @pytest.fixture
 async def debug_status_client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.AsyncClient]:
     monkeypatch.setattr(settings, "admin_jwt_secret", "test-secret")
+    monkeypatch.setattr(
+        admin_debug,
+        "get_browser_scan_capability",
+        lambda: DebugBrowserCapability(
+            available=True,
+            reason=None,
+            mode="public",
+            target_base_url="https://velox.nexlumeai.com",
+        ),
+    )
 
     class _FakeRepository:
         async def list_runs(self, *, hotel_id: int, status=None, limit: int = 20, offset: int = 0):
@@ -109,9 +128,16 @@ async def debug_status_client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[
         def done(self) -> bool:
             return False
 
+    async def _current_user_override() -> TokenData:
+        return _admin_user()
+
+    async def _repository_override() -> _FakeRepository:
+        return _FakeRepository()
+
     app = FastAPI()
     app.state.debug_runner_task = _FakeTask()
-    app.dependency_overrides[admin_debug._repository] = lambda: _FakeRepository()
+    app.dependency_overrides[get_current_user] = _current_user_override
+    app.dependency_overrides[admin_debug._repository] = _repository_override
     app.include_router(admin_debug.router, prefix="/api/v1")
 
     transport = httpx.ASGITransport(app=app)
@@ -119,29 +145,52 @@ async def debug_status_client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[
         yield client
 
 
-def _admin_auth_header() -> dict[str, str]:
-    from velox.api.middleware.auth import create_access_token
-
-    token = create_access_token(
-        TokenData(
-            user_id=1,
-            hotel_id=21966,
-            username="tester",
-            role=Role.ADMIN,
-            display_name="Tester",
-        )
+def _admin_user() -> TokenData:
+    return TokenData(
+        user_id=1,
+        hotel_id=21966,
+        username="tester",
+        role=Role.ADMIN,
+        display_name="Tester",
     )
-    return {"Authorization": f"Bearer {token}"}
 
 
 async def test_debug_status_reports_worker_ready(debug_status_client: httpx.AsyncClient) -> None:
-    response = await debug_status_client.get("/api/v1/admin/debug/status", headers=_admin_auth_header())
+    response = await debug_status_client.get("/api/v1/admin/debug/status")
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["worker_ready"] is True
+    assert payload["browser_scan_available"] is True
+    assert payload["browser_scan_mode"] == "public"
+    assert payload["browser_scan_target"] == "https://velox.nexlumeai.com"
     assert payload["active_run_id"] == "run-1"
     assert payload["active_run_status"] == "running"
+
+
+async def test_debug_status_reports_browser_scan_gap(
+    debug_status_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        admin_debug,
+        "get_browser_scan_capability",
+        lambda: DebugBrowserCapability(
+            available=False,
+            reason="Playwright Python paketi yuklu degil.",
+            mode="public",
+            target_base_url="https://velox.nexlumeai.com",
+        ),
+    )
+
+    response = await debug_status_client.get("/api/v1/admin/debug/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["worker_ready"] is True
+    assert payload["browser_scan_available"] is False
+    assert payload["browser_scan_reason"] == "Playwright Python paketi yuklu degil."
+    assert payload["active_run_message"] == "Playwright Python paketi yuklu degil."
 
 
 def _make_run_response(run_id: str = "run-1") -> DebugRunResponse:
@@ -189,8 +238,15 @@ async def debug_artifact_client(
             _ = (run_id, hotel_id, finding_id)
             return [artifact]
 
+    async def _current_user_override() -> TokenData:
+        return _admin_user()
+
+    async def _repository_override() -> _FakeRepository:
+        return _FakeRepository()
+
     app = FastAPI()
-    app.dependency_overrides[admin_debug._repository] = lambda: _FakeRepository()
+    app.dependency_overrides[get_current_user] = _current_user_override
+    app.dependency_overrides[admin_debug._repository] = _repository_override
     app.include_router(admin_debug.router, prefix="/api/v1")
 
     transport = httpx.ASGITransport(app=app)
@@ -201,7 +257,6 @@ async def debug_artifact_client(
 async def test_debug_artifact_list_hydrates_content_url(debug_artifact_client: httpx.AsyncClient) -> None:
     response = await debug_artifact_client.get(
         "/api/v1/admin/debug/runs/11111111-1111-1111-1111-111111111111/artifacts",
-        headers=_admin_auth_header(),
     )
 
     assert response.status_code == 200
@@ -210,11 +265,16 @@ async def test_debug_artifact_list_hydrates_content_url(debug_artifact_client: h
 
 
 async def test_debug_artifact_content_serves_file(debug_artifact_client: httpx.AsyncClient) -> None:
-    response = await debug_artifact_client.get(
-        "/api/v1/admin/debug/runs/11111111-1111-1111-1111-111111111111/artifacts/11111111-1111-1111-1111-111111111111/content",
-        headers=_admin_auth_header(),
+    repository = debug_artifact_client._transport.app.dependency_overrides[admin_debug._repository]
+    current_user = debug_artifact_client._transport.app.dependency_overrides[get_current_user]
+
+    response = await admin_debug.get_debug_artifact_content(
+        run_id=UUID("11111111-1111-1111-1111-111111111111"),
+        artifact_id=UUID("11111111-1111-1111-1111-111111111111"),
+        current_user=await current_user(),
+        repository=await repository(),
     )
 
-    assert response.status_code == 200
-    assert response.content == b"fake-image-bytes"
-    assert response.headers["content-type"].startswith("image/png")
+    assert response.path is not None
+    assert str(response.path).endswith("run-1/screenshots/admin_shell.png")
+    assert response.media_type == "image/png"
