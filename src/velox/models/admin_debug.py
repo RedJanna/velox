@@ -184,6 +184,13 @@ class DebugArtifactResponse(BaseModel):
     mime_type: str
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: str
+    content_url: str | None = None
+
+
+class DebugArtifactListResponse(BaseModel):
+    """Pageless artifact list response."""
+
+    items: list[DebugArtifactResponse] = Field(default_factory=list)
 
 
 class DebugFindingListResponse(BaseModel):

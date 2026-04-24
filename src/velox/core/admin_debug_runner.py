@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import importlib
 import time
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -14,9 +16,11 @@ import structlog
 from fastapi import FastAPI
 
 from velox.api.middleware.debug_report_only import REPORT_ONLY_BLOCK_MESSAGE
+from velox.config.settings import settings
 from velox.core.admin_debug_scan_registry import ScanTarget, build_scan_targets
 from velox.db.repositories.admin_debug import AdminDebugRepository
 from velox.models.admin_debug import (
+    DebugArtifactType,
     DebugFindingCategory,
     DebugFindingSeverity,
     DebugRunResponse,
@@ -29,6 +33,8 @@ logger = structlog.get_logger(__name__)
 DEBUG_RUNNER_LOOP_IDLE_SECONDS = 3
 DEBUG_HTTP_TIMEOUT_SECONDS = 15.0
 DEBUG_RUNNER_BASE_URL = "https://admin-debug.local"
+DEBUG_BROWSER_BASE_URL = f"http://127.0.0.1:{settings.app_port}"
+DEBUG_ARTIFACT_ROOT = Path("data/admin_debug_runs")
 
 
 def _fingerprint(*parts: object) -> str:
@@ -146,6 +152,7 @@ async def _process_run(
                 repository=repository,
                 run=run,
                 target=target,
+                debug_session_token=token,
                 summary_counts=summary_counts,
             )
             blocked_mutation_attempts += blocked
@@ -182,6 +189,7 @@ async def _scan_target(
     repository: AdminDebugRepository,
     run: DebugRunResponse,
     target: ScanTarget,
+    debug_session_token: str,
     summary_counts: dict[DebugFindingSeverity, int],
 ) -> int:
     started = time.perf_counter()
@@ -255,6 +263,12 @@ async def _scan_target(
             response=response,
             summary_counts=summary_counts,
             duration_ms=duration_ms,
+        )
+        await _maybe_capture_browser_screenshot(
+            repository=repository,
+            run=run,
+            target=target,
+            debug_session_token=debug_session_token,
         )
 
     if duration_ms > target.performance_budget_ms:
@@ -450,3 +464,87 @@ async def _record_finding(
         fingerprint=_fingerprint(category.value, severity.value, screen, action_label, description),
         evidence=evidence,
     )
+
+
+def _artifact_relative_path(run_id: UUID, target_key: str) -> str:
+    return (Path(str(run_id)) / "screenshots" / f"{target_key}.png").as_posix()
+
+
+def _artifact_destination(run_id: UUID, target_key: str) -> Path:
+    destination = DEBUG_ARTIFACT_ROOT / _artifact_relative_path(run_id, target_key)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    return destination
+
+
+def _browser_target_url(target: ScanTarget) -> str:
+    if target.path == "/admin" and target.view_key:
+        return f"{DEBUG_BROWSER_BASE_URL}{target.path}#{target.view_key}"
+    return f"{DEBUG_BROWSER_BASE_URL}{target.path}"
+
+
+async def _maybe_capture_browser_screenshot(
+    *,
+    repository: AdminDebugRepository,
+    run: DebugRunResponse,
+    target: ScanTarget,
+    debug_session_token: str,
+) -> None:
+    if target.response_type != "html":
+        return
+
+    try:
+        playwright_module = importlib.import_module("playwright.async_api")
+        async_playwright = getattr(playwright_module, "async_playwright")
+    except Exception as exc:
+        logger.info(
+            "admin_debug_browser_scan_unavailable",
+            run_id=run.id,
+            target=target.key,
+            reason=type(exc).__name__,
+        )
+        return
+
+    try:
+        async with async_playwright() as playwright:
+            browser = None
+            context = None
+            try:
+                browser = await playwright.chromium.launch(headless=True)
+                context = await browser.new_context(
+                    viewport={"width": 1440, "height": 1024},
+                    ignore_https_errors=True,
+                    extra_http_headers={DEBUG_SESSION_HEADER: debug_session_token},
+                )
+                page = await context.new_page()
+                await page.goto(_browser_target_url(target), wait_until="domcontentloaded", timeout=10000)
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=3000)
+                except Exception:
+                    pass
+                await page.wait_for_timeout(800)
+                screenshot_bytes = await page.screenshot(type="png", full_page=True)
+                destination = _artifact_destination(UUID(run.id), target.key)
+                destination.write_bytes(screenshot_bytes)
+                await repository.append_artifact(
+                    run_id=UUID(run.id),
+                    artifact_type=DebugArtifactType.SCREENSHOT,
+                    storage_path=_artifact_relative_path(UUID(run.id), target.key),
+                    mime_type="image/png",
+                    metadata={
+                        "source": "browser_scan",
+                        "target_key": target.key,
+                        "target_path": target.path,
+                        "screen": target.screen,
+                    },
+                )
+            finally:
+                if context is not None:
+                    await context.close()
+                if browser is not None:
+                    await browser.close()
+    except Exception:
+        logger.exception(
+            "admin_debug_browser_scan_failed",
+            run_id=run.id,
+            target=target.key,
+        )

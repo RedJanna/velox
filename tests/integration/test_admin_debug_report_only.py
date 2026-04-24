@@ -16,6 +16,7 @@ from velox.api.routes import admin_debug
 from velox.config.constants import Role
 from velox.config.settings import settings
 from velox.models.admin_debug import DebugRunListItem, DebugRunMode, DebugRunScope, DebugRunStatus, DebugRunSummary
+from velox.models.admin_debug import DebugArtifactResponse, DebugArtifactType, DebugRunResponse
 from velox.utils.admin_debug_security import DEBUG_SESSION_HEADER, create_debug_session_token
 
 
@@ -141,3 +142,79 @@ async def test_debug_status_reports_worker_ready(debug_status_client: httpx.Asyn
     assert payload["worker_ready"] is True
     assert payload["active_run_id"] == "run-1"
     assert payload["active_run_status"] == "running"
+
+
+def _make_run_response(run_id: str = "run-1") -> DebugRunResponse:
+    return DebugRunResponse(
+        id=run_id,
+        hotel_id=21966,
+        triggered_by_user_id=7,
+        mode=DebugRunMode.AGGRESSIVE_REPORT_ONLY,
+        status=DebugRunStatus.COMPLETED,
+        scope=DebugRunScope(),
+        summary=DebugRunSummary(),
+        queued_at="2026-04-24T10:00:00+00:00",
+        artifact_count=1,
+        worker_meta={},
+    )
+
+
+@pytest.fixture
+async def debug_artifact_client(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> AsyncIterator[httpx.AsyncClient]:
+    monkeypatch.setattr(settings, "admin_jwt_secret", "test-secret")
+    monkeypatch.setattr(admin_debug, "_ARTIFACT_ROOT", tmp_path)
+
+    artifact = DebugArtifactResponse(
+        id="11111111-1111-1111-1111-111111111111",
+        run_id="run-1",
+        artifact_type=DebugArtifactType.SCREENSHOT,
+        storage_path="run-1/screenshots/admin_shell.png",
+        mime_type="image/png",
+        created_at="2026-04-24T10:01:00+00:00",
+        metadata={"screen": "Admin Panel"},
+    )
+    artifact_path = tmp_path / artifact.storage_path
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    artifact_path.write_bytes(b"fake-image-bytes")
+
+    class _FakeRepository:
+        async def get_run(self, *, run_id, hotel_id):
+            _ = (run_id, hotel_id)
+            return _make_run_response()
+
+        async def list_artifacts_for_finding(self, *, run_id, hotel_id, finding_id):
+            _ = (run_id, hotel_id, finding_id)
+            return [artifact]
+
+    app = FastAPI()
+    app.dependency_overrides[admin_debug._repository] = lambda: _FakeRepository()
+    app.include_router(admin_debug.router, prefix="/api/v1")
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="https://testserver.local") as client:
+        yield client
+
+
+async def test_debug_artifact_list_hydrates_content_url(debug_artifact_client: httpx.AsyncClient) -> None:
+    response = await debug_artifact_client.get(
+        "/api/v1/admin/debug/runs/11111111-1111-1111-1111-111111111111/artifacts",
+        headers=_admin_auth_header(),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["items"][0]["content_url"].endswith("/artifacts/11111111-1111-1111-1111-111111111111/content")
+
+
+async def test_debug_artifact_content_serves_file(debug_artifact_client: httpx.AsyncClient) -> None:
+    response = await debug_artifact_client.get(
+        "/api/v1/admin/debug/runs/11111111-1111-1111-1111-111111111111/artifacts/11111111-1111-1111-1111-111111111111/content",
+        headers=_admin_auth_header(),
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"fake-image-bytes"
+    assert response.headers["content-type"].startswith("image/png")

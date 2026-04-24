@@ -500,6 +500,15 @@ class AdminDebugRepository:
         return [_row_to_finding(row) for row in rows]
 
     async def list_artifacts_for_run(self, *, run_id: UUID, hotel_id: int) -> list[DebugArtifactResponse]:
+        return await self.list_artifacts_for_finding(run_id=run_id, hotel_id=hotel_id, finding_id=None)
+
+    async def list_artifacts_for_finding(
+        self,
+        *,
+        run_id: UUID,
+        hotel_id: int,
+        finding_id: UUID | None,
+    ) -> list[DebugArtifactResponse]:
         rows = await fetch(
             """
             SELECT artifact.*
@@ -508,9 +517,11 @@ class AdminDebugRepository:
               ON run.id = artifact.run_id
             WHERE artifact.run_id = $1
               AND run.hotel_id = $2
+              AND ($3::uuid IS NULL OR artifact.finding_id = $3)
             ORDER BY artifact.created_at DESC
             """,
             run_id,
             hotel_id,
+            finding_id,
         )
         return [_row_to_artifact(row) for row in rows]

@@ -258,6 +258,13 @@ tbody tr:hover{background:#fffcf7}
 .debug-detail-section strong{display:block;margin-bottom:8px}
 .debug-detail-section pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:12px;line-height:1.55}
 .debug-detail-grid{display:flex;flex-direction:column;gap:12px}
+.debug-artifact-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.debug-artifact-card{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:16px;background:var(--surface);border:1px solid var(--line)}
+.debug-artifact-card strong{margin:0;font-size:13px}
+.debug-artifact-card span{font-size:12px;color:var(--muted)}
+.debug-artifact-preview{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:12px;border:1px solid var(--line);background:#f3f4f6}
+.debug-artifact-link{display:inline-flex;align-items:center;justify-content:center;padding:8px 10px;border-radius:12px;background:#eef8f6;border:1px solid rgba(15,118,110,.16);color:#0f766e;font-size:12px;font-weight:800;text-decoration:none}
+.debug-artifact-link:hover{background:#def3ef}
 .debug-empty-compact{padding:18px;border:1px dashed var(--line-strong);border-radius:18px;background:#fffaf0}
 .debug-empty-compact h4{margin:0 0 8px;font-size:15px}
 .debug-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -358,6 +365,7 @@ const state = {
   activeDebugFindingId: '',
   debugRunDetail: null,
   debugFindings: [],
+  debugArtifacts: [],
   debugPollingHandle: null,
   debugWorkerReady: false,
   debugWorkerMessage: '',
@@ -1159,14 +1167,15 @@ async function onDebugRunListClick(event) {
   if (!runId || runId === state.activeDebugRunId) return;
   state.activeDebugRunId = runId;
   state.activeDebugFindingId = '';
-  await Promise.all([loadDebugRunDetail(runId), loadDebugFindings(runId)]);
+  await Promise.all([loadDebugRunDetail(runId), loadDebugFindings(runId), loadDebugArtifacts(runId)]);
   renderDebugView();
 }
 
-function onDebugFindingListClick(event) {
+async function onDebugFindingListClick(event) {
   const card = event.target.closest('[data-debug-finding-id]');
   if (!card) return;
   state.activeDebugFindingId = card.dataset.debugFindingId || '';
+  await loadDebugArtifacts(state.activeDebugRunId, state.activeDebugFindingId || null);
   renderDebugDetailPanel();
 }
 
@@ -1208,6 +1217,7 @@ async function loadDebugRuns({preserveSelection = true} = {}) {
   if (!state.activeDebugRunId) {
     state.debugRunDetail = null;
     state.debugFindings = [];
+    state.debugArtifacts = [];
     stopDebugPolling();
     renderDebugView();
     return;
@@ -1216,6 +1226,7 @@ async function loadDebugRuns({preserveSelection = true} = {}) {
     loadDebugRunDetail(state.activeDebugRunId),
     loadDebugFindings(state.activeDebugRunId),
   ]);
+  await loadDebugArtifacts(state.activeDebugRunId, state.activeDebugFindingId || null);
   renderDebugView();
 }
 
@@ -1246,6 +1257,18 @@ async function loadDebugFindings(runId) {
   if (state.activeDebugFindingId && !state.debugFindings.some(item => item.id === state.activeDebugFindingId)) {
     state.activeDebugFindingId = '';
   }
+}
+
+async function loadDebugArtifacts(runId, findingId = null) {
+  if (!runId) {
+    state.debugArtifacts = [];
+    return;
+  }
+  const params = new URLSearchParams();
+  if (findingId) params.set('finding_id', findingId);
+  const query = params.toString();
+  const response = await apiFetch(`/debug/runs/${encodeURIComponent(runId)}/artifacts${query ? `?${query}` : ''}`);
+  state.debugArtifacts = Array.isArray(response.items) ? response.items : [];
 }
 
 function startDebugPolling(runId) {
@@ -1417,6 +1440,7 @@ function renderDebugSummary() {
 function renderDebugDetailPanel() {
   if (!refs.debugDetailPanel) return;
   const finding = state.debugFindings.find(item => item.id === state.activeDebugFindingId);
+  const artifactMarkup = renderDebugArtifacts();
   if (finding) {
     refs.debugDetailPanel.innerHTML = `
       <div class="debug-detail-grid">
@@ -1440,6 +1464,10 @@ function renderDebugDetailPanel() {
         <div class="debug-detail-section">
           <strong>Kanıt</strong>
           <pre>${escapeHtml(JSON.stringify(finding.evidence || {}, null, 2) || '{}')}</pre>
+        </div>
+        <div class="debug-detail-section">
+          <strong>Artifact'lar</strong>
+          ${artifactMarkup}
         </div>
       </div>
     `;
@@ -1485,6 +1513,42 @@ function renderDebugDetailPanel() {
           <button class="inline-button primary" type="button" data-debug-action="retry">Yeniden Çalıştır</button>
         </div>
       </div>
+      <div class="debug-detail-section">
+        <strong>Artifact'lar</strong>
+        ${artifactMarkup}
+      </div>
+    </div>
+  `;
+}
+
+function renderDebugArtifacts() {
+  if (!state.debugArtifacts.length) {
+    return `
+      <div class="debug-empty-compact">
+        <h4>Artifact bulunamadı</h4>
+        <p>Bu seçim için henüz ekran görüntüsü veya ek kanıt kaydedilmedi.</p>
+      </div>
+    `;
+  }
+  return `
+    <div class="debug-artifact-list">
+      ${state.debugArtifacts.map(item => {
+        const typeLabel = item.artifact_type === 'screenshot' ? 'Ekran görüntüsü' : (item.artifact_type || 'Artifact');
+        const preview = item.mime_type && item.mime_type.startsWith('image/') && item.content_url
+          ? `<img class="debug-artifact-preview" src="${escapeHtml(item.content_url)}" alt="${escapeHtml(typeLabel)}">`
+          : `<div class="debug-empty-compact"><p>${escapeHtml(item.mime_type || 'İkili dosya')}</p></div>`;
+        return `
+          <article class="debug-artifact-card">
+            <div>
+              <strong>${escapeHtml(typeLabel)}</strong>
+              <span>${escapeHtml(formatDate(item.created_at) || '-')}</span>
+            </div>
+            ${preview}
+            <span>${escapeHtml(item.storage_path || '-')}</span>
+            ${item.content_url ? `<a class="debug-artifact-link" href="${escapeHtml(item.content_url)}" target="_blank" rel="noopener noreferrer">Artifact'ı Aç</a>` : ''}
+          </article>
+        `;
+      }).join('')}
     </div>
   `;
 }

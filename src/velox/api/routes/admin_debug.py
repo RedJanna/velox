@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from asyncio import Task
+from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import FileResponse
 
 from velox.api.middleware.auth import TokenData, require_role
 from velox.config.constants import Role
@@ -16,6 +18,8 @@ from velox.models.admin_debug import (
     DebugFindingCategory,
     DebugFindingListResponse,
     DebugFindingSeverity,
+    DebugArtifactListResponse,
+    DebugArtifactResponse,
     DebugRunActionResponse,
     DebugRunCreateRequest,
     DebugRunListResponse,
@@ -25,6 +29,7 @@ from velox.models.admin_debug import (
 )
 
 router = APIRouter(prefix="/admin/debug", tags=["admin-debug"])
+_ARTIFACT_ROOT = Path("data/admin_debug_runs")
 
 
 def _repository() -> AdminDebugRepository:
@@ -33,6 +38,22 @@ def _repository() -> AdminDebugRepository:
 
 def _not_found() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Debug run not found.")
+
+
+def _artifact_url(run_id: UUID, artifact_id: str) -> str:
+    return f"/api/v1/admin/debug/runs/{run_id}/artifacts/{artifact_id}/content"
+
+
+def _artifact_root() -> Path:
+    return _ARTIFACT_ROOT.resolve()
+
+
+def _resolve_artifact_path(storage_path: str) -> Path:
+    root = _artifact_root()
+    candidate = (root / storage_path).resolve()
+    if root != candidate and root not in candidate.parents:
+        raise _not_found()
+    return candidate
 
 
 @router.post("/runs", response_model=DebugRunResponse)
@@ -142,6 +163,57 @@ async def list_debug_findings(
         offset=offset,
     )
     return DebugFindingListResponse(items=items)
+
+
+@router.get("/runs/{run_id}/artifacts", response_model=DebugArtifactListResponse)
+async def list_debug_artifacts(
+    run_id: UUID,
+    current_user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
+    repository: Annotated[AdminDebugRepository, Depends(_repository)],
+    finding_id: Annotated[UUID | None, Query()] = None,
+) -> DebugArtifactListResponse:
+    """List artifacts for one run or one finding."""
+    run = await repository.get_run(run_id=run_id, hotel_id=current_user.hotel_id)
+    if run is None:
+        raise _not_found()
+    items = await repository.list_artifacts_for_finding(
+        run_id=run_id,
+        hotel_id=current_user.hotel_id,
+        finding_id=finding_id,
+    )
+    hydrated = [
+        DebugArtifactResponse(
+            **item.model_dump(exclude={"content_url"}),
+            content_url=_artifact_url(run_id, item.id),
+        )
+        for item in items
+    ]
+    return DebugArtifactListResponse(items=hydrated)
+
+
+@router.get("/runs/{run_id}/artifacts/{artifact_id}/content")
+async def get_debug_artifact_content(
+    run_id: UUID,
+    artifact_id: UUID,
+    current_user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
+    repository: Annotated[AdminDebugRepository, Depends(_repository)],
+) -> FileResponse:
+    """Serve one stored debug artifact when it belongs to the current hotel."""
+    run = await repository.get_run(run_id=run_id, hotel_id=current_user.hotel_id)
+    if run is None:
+        raise _not_found()
+    artifacts = await repository.list_artifacts_for_finding(
+        run_id=run_id,
+        hotel_id=current_user.hotel_id,
+        finding_id=None,
+    )
+    artifact = next((item for item in artifacts if item.id == str(artifact_id)), None)
+    if artifact is None:
+        raise _not_found()
+    artifact_path = _resolve_artifact_path(artifact.storage_path)
+    if not artifact_path.is_file():
+        raise _not_found()
+    return FileResponse(path=artifact_path, media_type=artifact.mime_type, filename=artifact_path.name)
 
 
 @router.post("/runs/{run_id}/cancel", response_model=DebugRunActionResponse)
