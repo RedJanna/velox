@@ -15,6 +15,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from velox.adapters.elektraweb.client import close_elektraweb_client
 from velox.adapters.whatsapp.client import close_whatsapp_client
+from velox.api.middleware.debug_report_only import ReportOnlyDebugMiddleware
 from velox.api.middleware.rate_limiter import RateLimitMiddleware
 from velox.api.routes import (
     admin,
@@ -36,6 +37,7 @@ from velox.config.constants import (
 )
 from velox.config.settings import settings
 from velox.core.event_processor import EventProcessor
+from velox.core.admin_debug_runner import run_admin_debug_loop
 from velox.core.hotel_profile_loader import load_all_profiles
 from velox.core.pipeline import post_process_escalation
 from velox.core.template_engine import load_templates
@@ -187,10 +189,15 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         name="conversation_idle_reset",
     )
 
+    debug_scan_task = asyncio.create_task(
+        run_admin_debug_loop(_app),
+        name="admin_debug_runner",
+    )
+
     yield
 
     # Cancel background tasks
-    for task in (noshow_task, idle_reset_task):
+    for task in (noshow_task, idle_reset_task, debug_scan_task):
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
@@ -215,6 +222,7 @@ app = FastAPI(
 if settings.app_env == "production":
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(ReportOnlyDebugMiddleware)
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(health.metrics_router)
 app.include_router(admin.router, prefix="/api/v1")

@@ -191,7 +191,12 @@ class AdminDebugRepository:
         )
         return [_row_to_run_list_item(row) for row in rows]
 
-    async def claim_next_queued_run(self, *, hotel_id: int | None = None) -> DebugRunResponse | None:
+    async def claim_next_queued_run(
+        self,
+        *,
+        hotel_id: int | None = None,
+        worker_meta_json: dict[str, Any] | None = None,
+    ) -> DebugRunResponse | None:
         pool = get_pool()
         async with pool.acquire() as conn, conn.transaction():
             row = await conn.fetchrow(
@@ -209,12 +214,17 @@ class AdminDebugRepository:
                 UPDATE admin_debug_runs AS run
                 SET status = 'running',
                     started_at = COALESCE(run.started_at, now()),
-                    last_heartbeat_at = now()
+                    last_heartbeat_at = now(),
+                    worker_meta_json = CASE
+                        WHEN $2::jsonb IS NULL THEN worker_meta_json
+                        ELSE COALESCE(worker_meta_json, '{}'::jsonb) || $2::jsonb
+                    END
                 FROM next_run
                 WHERE run.id = next_run.id
                 RETURNING run.*
                 """,
                 hotel_id,
+                _json_dumps(worker_meta_json) if worker_meta_json is not None else None,
             )
         if row is None:
             return None
@@ -244,7 +254,7 @@ class AdminDebugRepository:
             """,
             run_id,
             hotel_id,
-            _json_dumps(worker_meta_json or {}),
+            _json_dumps(worker_meta_json) if worker_meta_json is not None else None,
         )
         if row is None:
             return None

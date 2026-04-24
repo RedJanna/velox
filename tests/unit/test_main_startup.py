@@ -134,6 +134,12 @@ async def test_lifespan_restores_operation_mode_from_redis_on_startup(
         except asyncio.CancelledError:
             raise
 
+    async def _dummy_debug_loop(_app: object) -> None:
+        try:
+            await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            raise
+
     monkeypatch.setattr(main, "init_db_pool", AsyncMock(return_value=object()))
     monkeypatch.setattr(main, "apply_pending_migrations", AsyncMock(return_value={"executed": []}))
     monkeypatch.setattr(main, "_connect_redis_with_retry", AsyncMock(return_value=redis_client))
@@ -144,6 +150,7 @@ async def test_lifespan_restores_operation_mode_from_redis_on_startup(
     monkeypatch.setattr(main, "initialize_tool_dispatcher", lambda: _FakeDispatcher())
     monkeypatch.setattr(main, "EventProcessor", lambda **_kwargs: object())
     monkeypatch.setattr(main, "_noshow_background_loop", _dummy_noshow_loop)
+    monkeypatch.setattr(main, "run_admin_debug_loop", _dummy_debug_loop)
     monkeypatch.setattr(main.settings, "whatsapp_phone_number_id", "")
     monkeypatch.setattr(main.settings, "operation_mode", "test")
     monkeypatch.setattr(main, "close_db_pool", close_db_pool)

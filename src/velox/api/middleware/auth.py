@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from velox.config.constants import Role
 from velox.config.settings import settings
+from velox.api.middleware.debug_report_only import get_debug_session
 from velox.utils.admin_security import ACCESS_COOKIE_NAME, CSRF_COOKIE_NAME, CSRF_HEADER_NAME, SAFE_HTTP_METHODS
 
 
@@ -22,6 +23,9 @@ class TokenData(BaseModel):
     username: str
     role: Role
     display_name: str | None = None
+    debug_report_only: bool = False
+    debug_run_id: str | None = None
+    auth_source: str = "access_token"
 
 
 class TokenResponse(BaseModel):
@@ -67,6 +71,18 @@ async def get_current_user(
         detail="Invalid or expired token",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    debug_session = get_debug_session(request)
+    if debug_session is not None:
+        return TokenData(
+            user_id=debug_session.triggered_by_user_id,
+            hotel_id=debug_session.hotel_id,
+            username=debug_session.username,
+            role=debug_session.role,
+            display_name=debug_session.display_name,
+            debug_report_only=debug_session.report_only,
+            debug_run_id=str(debug_session.run_id),
+            auth_source="debug_session",
+        )
     token = _extract_token(request, credentials)
     if token is None:
         raise credentials_exception
@@ -87,6 +103,7 @@ async def get_current_user(
             username=str(payload["username"]),
             role=Role(payload["role"]),
             display_name=payload.get("display_name"),
+            auth_source="bearer" if credentials is not None else "cookie",
         )
     except (JWTError, KeyError, ValueError) as exc:
         raise credentials_exception from exc

@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v5.4 | **Son güncelleme:** 2026-04-10 09:15:00
-> **Değişiklik özeti:** Elektra Generic API kimlik bilgileri ve rezervasyon karti voucher/not senkronu icin gereken env degiskenleri eklendi.
+> **Sürüm:** v5.5 | **Son güncelleme:** 2026-04-24 13:20:00
+> **Değişiklik özeti:** Admin debug worker, scan registry ve report-only güvenlik modülleri icin dosya yapisi güncellendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -504,7 +504,7 @@ Dosyanın en üstündeki sürüm bloğu, her güncelleme sonrası şu formatta g
 src/velox/
 ├── main.py                    # FastAPI entry point
 ├── config/                    # Settings, constants
-├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses, structured-output replay helpers
+├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses, admin debug runner/scan registry, structured-output replay helpers
 ├── llm/                       # OpenAI client, prompt builder, response parser
 ├── tools/                     # Tool implementations (booking, restaurant, etc.)
 ├── adapters/                  # External service clients (Elektraweb, WhatsApp)
@@ -512,6 +512,6 @@ src/velox/
 ├── policies/                  # Business rules (approval, payment, cancellation)
 ├── models/                    # Pydantic data models
 ├── db/                        # Database connection, repositories, migrations
-├── api/                       # FastAPI routes, middleware, embedded admin/chat-lab UI modules
-└── utils/                     # Logging, i18n, validators, lightweight Prometheus metrics helpers
+├── api/                       # FastAPI routes, middleware, embedded admin/chat-lab UI modules, admin debug/report-only surfaces
+└── utils/                     # Logging, i18n, validators, admin/debug auth helpers, lightweight Prometheus metrics helpers
 ```
