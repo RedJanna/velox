@@ -97,6 +97,25 @@ MIGRATION_SIGNATURES = {
               AND column_name = 'whatsapp_message_id'
         )
     """,
+    "011": """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'restaurant_settings'
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'restaurant_floor_plans'
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'restaurant_holds'
+              AND column_name = 'table_id'
+        )
+    """,
     "019": """
         SELECT EXISTS (
             SELECT 1

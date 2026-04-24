@@ -2,6 +2,17 @@
 
 Admin panel artik uygulama icinden `/admin` rotasinda sunulur ve public panel adresi `https://nexlumeai.com/admin` olarak beklenir.
 
+## Yerel demo notu
+
+Canli domain'den bagimsiz yerel demo dogrulamasi icin ayri bir compose project kullanilir.
+Bu akista public hostname degismeden su adres kullanilir:
+
+```text
+http://127.0.0.1:8011/admin
+```
+
+Detayli local demo akisi icin `docs/local_demo_environment.md` dosyasina bakiniz.
+
 ## Uygulama ayarlari
 
 Uretim ortaminda asagidaki degiskenleri doldurun:

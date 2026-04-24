@@ -98,6 +98,45 @@ docker compose up --build
 
 This starts all four services: **app** (port 8001), **db** (PostgreSQL), **redis**, and **cloudflared** (tunnel).
 
+### Local Demo Admin
+
+Canli panele gitmeden once backend ve admin panel degisikliklerini yerelde gormek icin ayri demo stack kullanin:
+
+```bash
+cp .env.demo.example .env.demo.local
+bash scripts/up_local_demo.sh
+```
+
+Demo admin adresi:
+
+```text
+http://127.0.0.1:8011/admin
+```
+
+Bu stack:
+
+- `velox-demo` compose project'i ile calisir
+- ayri DB/Redis volume kullanir
+- `cloudflared` baslatmaz
+- `uvicorn --reload` ile backend/admin panel degisikliklerini otomatik yansitir
+- app startup sirasinda migration'lari uygular ve script `health + /admin` dogrulamasi bekler
+
+Schema degisikliginde cogu durumda app'i yeniden baslatmak yeterlidir:
+
+```bash
+docker compose --env-file .env.demo.local -f docker-compose.demo.yml -p velox-demo restart app
+```
+
+Sadece fallback ihtiyacinda manuel catch-up calistirin:
+
+```bash
+docker compose --env-file .env.demo.local -f docker-compose.demo.yml -p velox-demo exec app python -m velox.db.migrate
+```
+
+`/api/v1/health/ready` demo env'de Elektra gibi opsiyonel entegrasyon credential'lari eksikse `503` kalabilir; bu, yerel admin panelin acilmasini tek basina engellemez.
+
+Detayli akış: `docs/local_demo_environment.md`
+
 ## Production Deployment
 
 ```bash

@@ -18,5 +18,10 @@ CREATE INDEX idx_notification_phones_hotel_active
 
 -- Varsayılan ve zorunlu admin numarası
 INSERT INTO notification_phones (hotel_id, phone, label, is_default, active)
-VALUES (21966, '+905304498453', 'Admin (varsayilan)', TRUE, TRUE)
+SELECT 21966, '+905304498453', 'Admin (varsayilan)', TRUE, TRUE
+WHERE EXISTS (
+    SELECT 1
+    FROM hotels
+    WHERE hotel_id = 21966
+)
 ON CONFLICT (hotel_id, phone) DO NOTHING;
