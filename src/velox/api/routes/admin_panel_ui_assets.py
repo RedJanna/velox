@@ -360,6 +360,7 @@ const state = {
   debugFindings: [],
   debugPollingHandle: null,
   debugWorkerReady: false,
+  debugWorkerMessage: '',
   refreshPromise: null,
   liveRefreshHandle: null,
   _authKeepAliveTimer: null,
@@ -1085,6 +1086,10 @@ function onHotelScopeChange() {
 
 function openDebugRunModal() {
   if (!refs.debugRunDialog) return;
+  if (!state.debugWorkerReady) {
+    notify(state.debugWorkerMessage || 'Debug worker hazır değil.', 'error');
+    return;
+  }
   if (refs.debugStartButton?.disabled) {
     notify('Bu otel için zaten aktif bir hata taraması var.', 'warn');
     if (state.currentView !== 'debug') setView('debug');
@@ -1189,6 +1194,7 @@ async function onDebugDetailClick(event) {
 }
 
 async function loadDebugRuns({preserveSelection = true} = {}) {
+  await loadDebugStatus();
   const response = await apiFetch('/debug/runs');
   state.debugRuns = Array.isArray(response.items) ? response.items : [];
   const hasSelectedRun = preserveSelection && state.activeDebugRunId && state.debugRuns.some(item => item.id === state.activeDebugRunId);
@@ -1211,6 +1217,17 @@ async function loadDebugRuns({preserveSelection = true} = {}) {
     loadDebugFindings(state.activeDebugRunId),
   ]);
   renderDebugView();
+}
+
+async function loadDebugStatus() {
+  try {
+    const response = await apiFetch('/debug/status');
+    state.debugWorkerReady = Boolean(response.worker_ready);
+    state.debugWorkerMessage = String(response.active_run_message || '');
+  } catch (_error) {
+    state.debugWorkerReady = false;
+    state.debugWorkerMessage = 'Debug worker durumu alınamadı.';
+  }
 }
 
 async function loadDebugRunDetail(runId) {
@@ -1272,6 +1289,12 @@ function syncDebugTopbarState() {
   const activeRun = state.debugRuns.find(item => item.status === 'running' || item.status === 'queued');
   if (!refs.debugTopbarStatus || !refs.debugStartButton) return;
   refs.debugTopbarStatus.hidden = false;
+  if (!state.debugWorkerReady) {
+    refs.debugTopbarStatus.textContent = state.debugWorkerMessage || 'Worker kapalı';
+    refs.debugTopbarStatus.className = 'badge danger';
+    refs.debugStartButton.disabled = true;
+    return;
+  }
   if (!activeRun) {
     refs.debugTopbarStatus.textContent = 'Boşta';
     refs.debugTopbarStatus.className = 'badge info';

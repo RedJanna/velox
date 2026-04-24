@@ -162,5 +162,6 @@ async def test_lifespan_restores_operation_mode_from_redis_on_startup(
 
     async with main.lifespan(main.app):
         assert main.settings.operation_mode == "ai"
+        assert main.app.state.debug_runner_task is not None
 
     redis_client.aclose.assert_awaited_once()

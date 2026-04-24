@@ -12,8 +12,10 @@ from fastapi import Depends, FastAPI
 
 from velox.api.middleware.auth import TokenData, require_role
 from velox.api.middleware.debug_report_only import REPORT_ONLY_BLOCK_MESSAGE, ReportOnlyDebugMiddleware
+from velox.api.routes import admin_debug
 from velox.config.constants import Role
 from velox.config.settings import settings
+from velox.models.admin_debug import DebugRunListItem, DebugRunMode, DebugRunScope, DebugRunStatus, DebugRunSummary
 from velox.utils.admin_debug_security import DEBUG_SESSION_HEADER, create_debug_session_token
 
 
@@ -80,3 +82,62 @@ async def test_debug_session_rejects_invalid_token(debug_client: httpx.AsyncClie
 
     assert response.status_code == 401
     assert "Invalid debug session token" in response.json()["detail"]
+
+
+@pytest.fixture
+async def debug_status_client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.AsyncClient]:
+    monkeypatch.setattr(settings, "admin_jwt_secret", "test-secret")
+
+    class _FakeRepository:
+        async def list_runs(self, *, hotel_id: int, status=None, limit: int = 20, offset: int = 0):
+            _ = (hotel_id, status, limit, offset)
+            return [
+                DebugRunListItem(
+                    id="run-1",
+                    hotel_id=21966,
+                    triggered_by_user_id=7,
+                    mode=DebugRunMode.AGGRESSIVE_REPORT_ONLY,
+                    status=DebugRunStatus.RUNNING,
+                    scope=DebugRunScope(),
+                    summary=DebugRunSummary(),
+                    queued_at="2026-04-24T10:00:00+00:00",
+                )
+            ]
+
+    class _FakeTask:
+        def done(self) -> bool:
+            return False
+
+    app = FastAPI()
+    app.state.debug_runner_task = _FakeTask()
+    app.dependency_overrides[admin_debug._repository] = lambda: _FakeRepository()
+    app.include_router(admin_debug.router, prefix="/api/v1")
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="https://testserver.local") as client:
+        yield client
+
+
+def _admin_auth_header() -> dict[str, str]:
+    from velox.api.middleware.auth import create_access_token
+
+    token = create_access_token(
+        TokenData(
+            user_id=1,
+            hotel_id=21966,
+            username="tester",
+            role=Role.ADMIN,
+            display_name="Tester",
+        )
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def test_debug_status_reports_worker_ready(debug_status_client: httpx.AsyncClient) -> None:
+    response = await debug_status_client.get("/api/v1/admin/debug/status", headers=_admin_auth_header())
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["worker_ready"] is True
+    assert payload["active_run_id"] == "run-1"
+    assert payload["active_run_status"] == "running"

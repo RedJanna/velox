@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from asyncio import Task
+from typing import Annotated, Any
 from uuid import UUID
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from velox.api.middleware.auth import TokenData, require_role
 from velox.config.constants import Role
@@ -20,6 +21,7 @@ from velox.models.admin_debug import (
     DebugRunListResponse,
     DebugRunResponse,
     DebugRunStatus,
+    DebugWorkerStatusResponse,
 )
 
 router = APIRouter(prefix="/admin/debug", tags=["admin-debug"])
@@ -70,6 +72,36 @@ async def list_debug_runs(
         offset=offset,
     )
     return DebugRunListResponse(items=items)
+
+
+@router.get("/status", response_model=DebugWorkerStatusResponse)
+async def debug_worker_status(
+    request: Request,
+    current_user: Annotated[TokenData, Depends(require_role(Role.ADMIN))],
+    repository: Annotated[AdminDebugRepository, Depends(_repository)],
+) -> DebugWorkerStatusResponse:
+    """Expose worker readiness and active-run state for the current hotel."""
+    _ = current_user
+    task: Task[Any] | None = getattr(request.app.state, "debug_runner_task", None)
+    runs = await repository.list_runs(
+        hotel_id=current_user.hotel_id,
+        limit=5,
+        offset=0,
+    )
+    active_run = next((item for item in runs if item.status in {DebugRunStatus.QUEUED, DebugRunStatus.RUNNING}), None)
+    worker_ready = bool(task is not None and not task.done())
+    if not worker_ready:
+        message = "Debug worker hazır değil."
+    elif active_run is not None:
+        message = "Aktif hata taraması sürüyor."
+    else:
+        message = "Debug worker hazır."
+    return DebugWorkerStatusResponse(
+        worker_ready=worker_ready,
+        active_run_id=active_run.id if active_run else None,
+        active_run_status=active_run.status if active_run else None,
+        active_run_message=message,
+    )
 
 
 @router.get("/runs/{run_id}", response_model=DebugRunResponse)
@@ -153,4 +185,3 @@ async def retry_debug_run(
             detail="Bu otel için zaten aktif bir hata taraması var.",
         ) from exc
     return DebugRunActionResponse(run=run, message="Debug taraması yeniden kuyruğa alındı.")
-

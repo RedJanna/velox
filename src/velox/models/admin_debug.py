@@ -145,6 +145,15 @@ class DebugRunActionResponse(BaseModel):
     message: str
 
 
+class DebugWorkerStatusResponse(BaseModel):
+    """Worker readiness and active-run state for the admin panel."""
+
+    worker_ready: bool
+    active_run_id: str | None = None
+    active_run_status: DebugRunStatus | None = None
+    active_run_message: str | None = None
+
+
 class DebugFindingResponse(BaseModel):
     """One persisted finding shown in the admin panel."""
 

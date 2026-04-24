@@ -193,6 +193,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         run_admin_debug_loop(_app),
         name="admin_debug_runner",
     )
+    _app.state.debug_runner_task = debug_scan_task
 
     yield
 
@@ -201,6 +202,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
+    _app.state.debug_runner_task = None
     await close_db_pool()
     await close_elektraweb_client()
     await close_whatsapp_client()
