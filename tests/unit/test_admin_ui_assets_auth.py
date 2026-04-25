@@ -831,10 +831,13 @@ def test_admin_panel_debug_artifact_ui_includes_preview_and_context_copy() -> No
     assert 'id="debugArtifactPreviewDialog"' in html
     assert "openDebugArtifactPreview(" in ADMIN_PANEL_SCRIPT
     assert "openDebugArtifactFinding(" in ADMIN_PANEL_SCRIPT
+    assert "scrollHighlightedDebugArtifactIntoView(" in ADMIN_PANEL_SCRIPT
     assert "data-debug-artifact-finding-id" in ADMIN_PANEL_SCRIPT
+    assert "data-debug-artifact-id" in ADMIN_PANEL_SCRIPT
     assert "groupDebugArtifacts(" in ADMIN_PANEL_SCRIPT
     assert "Bu run temiz tamamlandı." in ADMIN_PANEL_SCRIPT
     assert ".debug-artifact-summary" in ADMIN_PANEL_STYLE
+    assert ".debug-artifact-card.is-active" in ADMIN_PANEL_STYLE
     assert ".debug-artifact-dialog" in ADMIN_PANEL_STYLE
 
 
@@ -862,6 +865,10 @@ findingList.querySelectorAll = () => [findingCard];
 refs.debugFindingList = findingList;
 refs.debugFindingCountBadge = new HTMLElement();
 refs.debugDetailPanel = new HTMLElement();
+const highlightedArtifact = new HTMLElement();
+highlightedArtifact.dataset.debugArtifactId = 'artifact-finding-1';
+highlightedArtifact.scrollIntoView = () => { globalThis.__scrolledArtifact = highlightedArtifact.dataset.debugArtifactId; };
+refs.debugDetailPanel.querySelectorAll = () => [highlightedArtifact];
 refs.debugArtifactPreviewDialog = { close() {} };
 window.requestAnimationFrame = callback => { callback(); return 1; };
 
@@ -935,14 +942,17 @@ apiFetch = async function(path) {
 };
 
 (async () => {
-  await openDebugArtifactFinding('finding-2');
+  await openDebugArtifactFinding('finding-2', 'artifact-1');
 
   console.log(JSON.stringify({
     activeFindingId: state.activeDebugFindingId,
     artifactScope: state.debugArtifactScope,
+    highlightedArtifactId: state.highlightedDebugArtifactId,
     findingCountBadge: refs.debugFindingCountBadge.textContent,
     detailHasSummary: refs.debugDetailPanel.innerHTML.includes('Sorun Özeti'),
+    artifactHighlightedMarkup: refs.debugDetailPanel.innerHTML.includes('debug-artifact-card is-active'),
     scrolledFinding: globalThis.__scrolledFinding || '',
+    scrolledArtifact: globalThis.__scrolledArtifact || '',
   }));
 })().catch(error => {
   console.error(error);
@@ -954,9 +964,12 @@ apiFetch = async function(path) {
     assert result == {
         "activeFindingId": "finding-2",
         "artifactScope": "finding",
+        "highlightedArtifactId": "artifact-finding-1",
         "findingCountBadge": "1 kayıt",
         "detailHasSummary": True,
+        "artifactHighlightedMarkup": True,
         "scrolledFinding": "finding-2",
+        "scrolledArtifact": "artifact-finding-1",
     }
 
 

@@ -267,7 +267,8 @@ tbody tr:hover{background:#fffcf7}
 .debug-artifact-group-head strong{margin:0;font-size:13px}
 .debug-artifact-group-head span{font-size:12px;color:var(--muted)}
 .debug-artifact-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
-.debug-artifact-card{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:16px;background:var(--surface);border:1px solid var(--line)}
+.debug-artifact-card{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:16px;background:var(--surface);border:1px solid var(--line);transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.debug-artifact-card.is-active{border-color:rgba(15,118,110,.34);box-shadow:0 14px 28px rgba(15,118,110,.12);background:#f2fbfa;transform:translateY(-1px)}
 .debug-artifact-card strong{margin:0;font-size:13px}
 .debug-artifact-card span{font-size:12px;color:var(--muted)}
 .debug-artifact-card code{font-family:var(--mono);font-size:11px;color:#475569;word-break:break-all}
@@ -383,6 +384,7 @@ const state = {
   activeDebugRunId: '',
   activeDebugFindingId: '',
   activeDebugArtifactId: '',
+  highlightedDebugArtifactId: '',
   debugRunDetail: null,
   debugFindings: [],
   debugArtifacts: [],
@@ -1210,7 +1212,10 @@ async function onDebugFindingListClick(event) {
 async function onDebugDetailClick(event) {
   const findingButton = event.target.closest('[data-debug-artifact-finding-id]');
   if (findingButton) {
-    await openDebugArtifactFinding(findingButton.dataset.debugArtifactFindingId || '');
+    await openDebugArtifactFinding(
+      findingButton.dataset.debugArtifactFindingId || '',
+      findingButton.dataset.debugArtifactId || '',
+    );
     return;
   }
   const previewButton = event.target.closest('[data-debug-artifact-preview]');
@@ -1337,6 +1342,9 @@ async function loadDebugArtifacts(runId, findingId = null) {
   if (!state.debugArtifacts.some(item => item.id === state.activeDebugArtifactId)) {
     closeDebugArtifactPreview();
   }
+  if (!state.debugArtifacts.some(item => item.id === state.highlightedDebugArtifactId)) {
+    state.highlightedDebugArtifactId = '';
+  }
 }
 
 function startDebugPolling(runId) {
@@ -1435,6 +1443,11 @@ function buildDebugArtifactMetaLine(item) {
   return parts.join(' · ');
 }
 
+function findDebugArtifactById(artifactId, items = state.debugArtifacts) {
+  if (!artifactId) return null;
+  return (items || []).find(item => item.id === artifactId) || null;
+}
+
 function getDebugArtifactRelatedFindingIds(item) {
   const explicitIds = Array.isArray(item?.metadata?.related_finding_ids)
     ? item.metadata.related_finding_ids.map(value => String(value || '').trim()).filter(Boolean)
@@ -1493,29 +1506,65 @@ function buildDebugArtifactFindingJumpLabel(item) {
   return 'İlgili Bulguyu Aç';
 }
 
+function resolveDebugArtifactHighlight(sourceArtifact, items = state.debugArtifacts) {
+  if (!sourceArtifact) return null;
+  const exactMatch = findDebugArtifactById(sourceArtifact.id, items);
+  if (exactMatch) return exactMatch;
+  const sourceRelatedIds = getDebugArtifactRelatedFindingIds(sourceArtifact);
+  return (items || [])
+    .map(candidate => {
+      let score = 0;
+      if (candidate.storage_path && candidate.storage_path === sourceArtifact.storage_path) score += 5;
+      if (candidate.artifact_type === sourceArtifact.artifact_type) score += 2;
+      if (String(candidate?.metadata?.target_key || '') === String(sourceArtifact?.metadata?.target_key || '')) score += 3;
+      if (String(candidate?.metadata?.target_path || '') === String(sourceArtifact?.metadata?.target_path || '')) score += 3;
+      if (String(candidate?.metadata?.screen || '') === String(sourceArtifact?.metadata?.screen || '')) score += 2;
+      if (String(candidate?.metadata?.view_key || '') === String(sourceArtifact?.metadata?.view_key || '')) score += 1;
+      if (candidate.finding_id && sourceRelatedIds.includes(String(candidate.finding_id))) score += 4;
+      return {candidate, score};
+    })
+    .filter(item => item.score > 0)
+    .sort((left, right) => right.score - left.score)
+    .map(item => item.candidate)[0] || null;
+}
+
 function scrollActiveDebugFindingIntoView() {
   const cards = Array.from(refs.debugFindingList?.querySelectorAll?.('[data-debug-finding-id]') || []);
   const activeCard = cards.find(card => card?.dataset?.debugFindingId === state.activeDebugFindingId);
   activeCard?.scrollIntoView?.({block: 'nearest', behavior: 'smooth'});
 }
 
-async function openDebugArtifactFinding(findingId) {
+function scrollHighlightedDebugArtifactIntoView() {
+  const cards = Array.from(refs.debugDetailPanel?.querySelectorAll?.('[data-debug-artifact-id]') || []);
+  const activeCard = cards.find(card => card?.dataset?.debugArtifactId === state.highlightedDebugArtifactId);
+  activeCard?.scrollIntoView?.({block: 'nearest', behavior: 'smooth'});
+}
+
+async function openDebugArtifactFinding(findingId, sourceArtifactId = '') {
   if (!findingId || !state.activeDebugRunId) return;
   if (!state.debugFindings.some(item => item.id === findingId)) {
     notify('İlgili bulgu artık listede bulunmuyor.', 'warn');
     return;
   }
+  const sourceArtifact = findDebugArtifactById(sourceArtifactId, state.debugArtifacts);
   state.activeDebugFindingId = findingId;
   await loadDebugArtifacts(state.activeDebugRunId, findingId);
+  state.highlightedDebugArtifactId = sourceArtifact
+    ? (resolveDebugArtifactHighlight(sourceArtifact)?.id || '')
+    : '';
   renderDebugFindingList();
   renderDebugDetailPanel();
-  window.requestAnimationFrame(() => scrollActiveDebugFindingIntoView());
+  window.requestAnimationFrame(() => {
+    scrollActiveDebugFindingIntoView();
+    scrollHighlightedDebugArtifactIntoView();
+  });
 }
 
 function openDebugArtifactPreview(artifactId) {
   const artifact = state.debugArtifacts.find(item => item.id === artifactId);
   if (!artifact || !refs.debugArtifactPreviewDialog) return;
   state.activeDebugArtifactId = artifact.id || '';
+  state.highlightedDebugArtifactId = artifact.id || state.highlightedDebugArtifactId;
   refs.debugArtifactPreviewTitle.textContent = `${formatDebugArtifactTypeLabel(artifact.artifact_type)} · ${getDebugArtifactScreenLabel(artifact)}`;
   refs.debugArtifactPreviewMeta.textContent = buildDebugArtifactMetaLine(artifact) || 'Artifact ayrıntıları';
   refs.debugArtifactPreviewPath.textContent = String(artifact.storage_path || '-');
@@ -1790,9 +1839,10 @@ function renderDebugArtifacts() {
                 ? `<img class="debug-artifact-preview" src="${escapeHtml(item.content_url)}" alt="${escapeHtml(typeLabel)}" data-debug-artifact-preview="${escapeHtml(item.id || '')}">`
                 : `<div class="debug-empty-compact"><p>${escapeHtml(item.mime_type || 'İkili dosya')}</p></div>`;
               const findingTarget = getDebugArtifactFindingJumpTarget(item);
+              const isHighlighted = item.id === state.highlightedDebugArtifactId;
               const actionButtons = [
                 findingTarget && findingTarget.id !== state.activeDebugFindingId
-                  ? `<button class="debug-artifact-link secondary" type="button" data-debug-artifact-finding-id="${escapeHtml(findingTarget.id)}">${escapeHtml(buildDebugArtifactFindingJumpLabel(item))}</button>`
+                  ? `<button class="debug-artifact-link secondary" type="button" data-debug-artifact-finding-id="${escapeHtml(findingTarget.id)}" data-debug-artifact-id="${escapeHtml(item.id || '')}">${escapeHtml(buildDebugArtifactFindingJumpLabel(item))}</button>`
                   : '',
                 isPreviewableDebugArtifact(item)
                   ? `<button class="debug-artifact-link secondary" type="button" data-debug-artifact-preview="${escapeHtml(item.id || '')}">Önizle</button>`
@@ -1802,7 +1852,7 @@ function renderDebugArtifacts() {
                   : '',
               ].filter(Boolean).join('');
               return `
-                <article class="debug-artifact-card">
+                <article class="debug-artifact-card ${isHighlighted ? 'is-active' : ''}" data-debug-artifact-id="${escapeHtml(item.id || '')}">
                   <div>
                     <strong>${escapeHtml(typeLabel)}</strong>
                     <span>${escapeHtml(buildDebugArtifactMetaLine(item) || '-')}</span>
