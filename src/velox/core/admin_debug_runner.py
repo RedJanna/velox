@@ -35,7 +35,6 @@ logger = structlog.get_logger(__name__)
 
 DEBUG_RUNNER_LOOP_IDLE_SECONDS = 3
 DEBUG_HTTP_TIMEOUT_SECONDS = 15.0
-DEBUG_RUNNER_BASE_URL = "https://admin-debug.local"
 DEBUG_ARTIFACT_ROOT = Path("data/admin_debug_runs")
 
 
@@ -118,7 +117,7 @@ async def _process_run(
 
     async with httpx.AsyncClient(
         transport=transport,
-        base_url=DEBUG_RUNNER_BASE_URL,
+        base_url=_scan_base_url(),
         timeout=DEBUG_HTTP_TIMEOUT_SECONDS,
         headers={DEBUG_SESSION_HEADER: token},
         follow_redirects=True,
@@ -549,8 +548,12 @@ def get_browser_scan_capability() -> DebugBrowserCapability:
     )
 
 
+def _scan_base_url() -> str:
+    return settings.admin_debug_browser_base_url
+
+
 def _browser_target_url(target: ScanTarget) -> str:
-    base_url = settings.admin_debug_browser_base_url
+    base_url = _scan_base_url()
     if target.path == "/admin" and target.view_key:
         return f"{base_url}{target.path}#{target.view_key}"
     return f"{base_url}{target.path}"

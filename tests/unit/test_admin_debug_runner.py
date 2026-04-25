@@ -6,7 +6,9 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from fastapi import FastAPI
 
+from velox.config.settings import settings
 from velox.core import admin_debug_runner
 from velox.core.admin_debug_runner import _maybe_capture_browser_screenshot
 from velox.core.admin_debug_scan_registry import ScanTarget
@@ -49,12 +51,27 @@ class _FakeRepository:
         return payload
 
 
+class _ProcessRunRepository:
+    def __init__(self) -> None:
+        self.findings: list[dict[str, object]] = []
+        self.summary: dict[str, int] | None = None
+
+    async def append_finding(self, **payload):
+        self.findings.append(payload)
+        return payload
+
+    async def mark_completed(self, *, run_id, hotel_id, summary_json):
+        _ = (run_id, hotel_id)
+        self.summary = summary_json
+
+
 @pytest.mark.asyncio
 async def test_browser_screenshot_skips_when_playwright_missing(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
     repository = _FakeRepository()
+    session_value = "signed-token"
 
     def _raise_import_error(_name: str):
         raise ModuleNotFoundError("playwright not installed")
@@ -66,7 +83,7 @@ async def test_browser_screenshot_skips_when_playwright_missing(
         repository=repository,
         run=_build_run(),
         target=_build_target(),
-        debug_session_token="signed-token",
+        debug_session_token=session_value,
     )
 
     assert repository.artifacts == []
@@ -79,6 +96,7 @@ async def test_browser_screenshot_writes_artifact_when_playwright_available(
 ) -> None:
     repository = _FakeRepository()
     run = _build_run()
+    session_value = "signed-token"
 
     class _FakePage:
         async def goto(self, *_args, **_kwargs) -> None:
@@ -117,7 +135,6 @@ async def test_browser_screenshot_writes_artifact_when_playwright_available(
 
         async def __aexit__(self, exc_type, exc, tb) -> None:
             _ = (exc_type, exc, tb)
-            return None
 
     monkeypatch.setattr(admin_debug_runner, "DEBUG_ARTIFACT_ROOT", tmp_path)
     monkeypatch.setattr(
@@ -130,7 +147,7 @@ async def test_browser_screenshot_writes_artifact_when_playwright_available(
         repository=repository,
         run=run,
         target=_build_target(),
-        debug_session_token="signed-token",
+        debug_session_token=session_value,
     )
 
     assert len(repository.artifacts) == 1
@@ -139,3 +156,49 @@ async def test_browser_screenshot_writes_artifact_when_playwright_available(
     assert artifact["artifact_type"].value == "screenshot"
     storage_path = str(artifact["storage_path"])
     assert (tmp_path / storage_path).read_bytes() == b"png-bytes"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("mode", "public_base_url", "app_port", "expected_base_url"),
+    (
+        ("public", "https://velox.nexlumeai.com/", 8001, "https://velox.nexlumeai.com"),
+        ("internal", "https://velox.nexlumeai.com/", 9009, "http://127.0.0.1:9009"),
+    ),
+)
+async def test_process_run_uses_configured_scan_base_url(
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    public_base_url: str,
+    app_port: int,
+    expected_base_url: str,
+) -> None:
+    run = _build_run()
+    repository = _ProcessRunRepository()
+    captured: dict[str, str] = {}
+
+    class _FakeAsyncClient:
+        def __init__(self, *args, **kwargs) -> None:
+            _ = args
+            captured["base_url"] = str(kwargs["base_url"])
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> None:
+            _ = (exc_type, exc, tb)
+
+    def _build_scan_targets(*_args, **_kwargs):
+        return []
+
+    monkeypatch.setattr(settings, "admin_debug_browser_target_mode", mode)
+    monkeypatch.setattr(settings, "public_base_url", public_base_url)
+    monkeypatch.setattr(settings, "app_port", app_port)
+    monkeypatch.setattr(admin_debug_runner, "build_scan_targets", _build_scan_targets)
+    monkeypatch.setattr(admin_debug_runner, "create_debug_session_token", lambda **_kwargs: "signed-token")
+    monkeypatch.setattr(admin_debug_runner.httpx, "AsyncClient", _FakeAsyncClient)
+
+    await admin_debug_runner._process_run(FastAPI(), repository, run)
+
+    assert captured["base_url"] == expected_base_url
+    assert repository.summary is not None
