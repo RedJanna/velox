@@ -64,3 +64,6 @@ sensitive_environment_variables*.txt
 # Chat Lab imports
 data/chat_lab_imports/*.json
 !data/chat_lab_imports/.gitkeep
+
+# Admin debug artifacts
+data/admin_debug_runs/
