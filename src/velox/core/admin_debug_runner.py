@@ -331,6 +331,26 @@ async def _validate_json_target(
         )
         return
 
+    if isinstance(payload, list):
+        if target.expected_json_keys:
+            await _counted_finding(
+                repository=repository,
+                run=run,
+                summary_counts=summary_counts,
+                severity=DebugFindingSeverity.MEDIUM,
+                category=target.failure_category,
+                screen=target.screen,
+                description=f"{target.screen} yanıt biçimi beklenen nesne yapısında değil.",
+                action_label=f"GET {target.path}",
+                technical_cause="Endpoint beklenen JSON obje yapısı yerine liste döndürdü.",
+                suggested_fix=(
+                    "İlgili endpoint response contract sabitlenmeli veya tarama "
+                    "reçetesi liste yanitini kabul edecek sekilde guncellenmeli."
+                ),
+                evidence={"path": target.path, "duration_ms": duration_ms},
+            )
+        return
+
     if not isinstance(payload, Mapping):
         await _counted_finding(
             repository=repository,

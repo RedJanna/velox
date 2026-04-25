@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import Literal
 
 from velox.models.admin_debug import DebugFindingCategory, DebugRunScope
@@ -27,6 +28,9 @@ class ScanTarget:
 
 def build_scan_targets(scope: DebugRunScope, *, hotel_id: int) -> list[ScanTarget]:
     """Return safe scan targets for the requested debug scope."""
+    today = date.today()
+    date_from = today.isoformat()
+    date_to = (today + timedelta(days=14)).isoformat()
     targets = [
         ScanTarget(
             key="admin_shell",
@@ -85,7 +89,6 @@ def build_scan_targets(scope: DebugRunScope, *, hotel_id: int) -> list[ScanTarge
             path="/api/v1/admin/hotels",
             response_type="json",
             performance_budget_ms=3000,
-            expected_json_keys=("items",),
             failure_category=DebugFindingCategory.ROUTING_ISSUE,
         ),
         ScanTarget(
@@ -102,7 +105,7 @@ def build_scan_targets(scope: DebugRunScope, *, hotel_id: int) -> list[ScanTarge
             key="restaurant_slots",
             view_key="restaurant",
             screen="Restoran Yönetimi",
-            path=f"/api/v1/admin/hotels/{hotel_id}/restaurant/slots",
+            path=f"/api/v1/admin/hotels/{hotel_id}/restaurant/slots?date_from={date_from}&date_to={date_to}",
             response_type="json",
             performance_budget_ms=3500,
             expected_json_keys=("items", "total"),

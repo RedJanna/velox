@@ -5,14 +5,22 @@ from __future__ import annotations
 from types import SimpleNamespace
 from uuid import uuid4
 
+import httpx
 import pytest
 from fastapi import FastAPI
 
 from velox.config.settings import settings
 from velox.core import admin_debug_runner
 from velox.core.admin_debug_runner import _maybe_capture_browser_screenshot
-from velox.core.admin_debug_scan_registry import ScanTarget
-from velox.models.admin_debug import DebugRunMode, DebugRunResponse, DebugRunScope, DebugRunStatus, DebugRunSummary
+from velox.core.admin_debug_scan_registry import ScanTarget, build_scan_targets
+from velox.models.admin_debug import (
+    DebugFindingSeverity,
+    DebugRunMode,
+    DebugRunResponse,
+    DebugRunScope,
+    DebugRunStatus,
+    DebugRunSummary,
+)
 
 
 def _build_run() -> DebugRunResponse:
@@ -63,6 +71,15 @@ class _ProcessRunRepository:
     async def mark_completed(self, *, run_id, hotel_id, summary_json):
         _ = (run_id, hotel_id)
         self.summary = summary_json
+
+
+class _FindingRepository:
+    def __init__(self) -> None:
+        self.findings: list[dict[str, object]] = []
+
+    async def append_finding(self, **payload):
+        self.findings.append(payload)
+        return payload
 
 
 @pytest.mark.asyncio
@@ -202,3 +219,39 @@ async def test_process_run_uses_configured_scan_base_url(
 
     assert captured["base_url"] == expected_base_url
     assert repository.summary is not None
+
+
+@pytest.mark.asyncio
+async def test_validate_json_target_accepts_list_payload_for_targets_without_expected_keys() -> None:
+    repository = _FindingRepository()
+    run = _build_run()
+    response = httpx.Response(200, json=[{"hotel_id": 21966}])
+    target = ScanTarget(
+        key="hotels",
+        view_key="hotels",
+        screen="Otel Bilgileri",
+        path="/api/v1/admin/hotels",
+        response_type="json",
+        performance_budget_ms=3000,
+    )
+    summary_counts = dict.fromkeys(DebugFindingSeverity, 0)
+
+    await admin_debug_runner._validate_json_target(
+        repository=repository,
+        run=run,
+        target=target,
+        response=response,
+        summary_counts=summary_counts,
+        duration_ms=12,
+    )
+
+    assert repository.findings == []
+    assert all(count == 0 for count in summary_counts.values())
+
+
+def test_build_scan_targets_adds_required_restaurant_slot_dates() -> None:
+    targets = build_scan_targets(DebugRunScope(), hotel_id=21966)
+    restaurant_target = next(target for target in targets if target.key == "restaurant_slots")
+
+    assert "date_from=" in restaurant_target.path
+    assert "date_to=" in restaurant_target.path
