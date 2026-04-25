@@ -44,10 +44,11 @@ Velox is an AI-powered hotel receptionist that communicates with guests via What
 | Framework | FastAPI (fully async) |
 | Database | PostgreSQL 16 (asyncpg) |
 | Cache / Session | Redis 7 (hiredis) |
-| LLM | OpenAI GPT (gpt-4o + gpt-4o-mini fallback, function calling) |
-| WhatsApp | Meta Business API (Cloud API v21.0) |
+| LLM | OpenAI GPT models with function calling |
+| WhatsApp | Meta Business API (Cloud API) |
 | PMS | Elektraweb API (JWT auth) |
 | Auth | Short-lived JWT cookies + TOTP + trusted device sessions |
+| Browser Automation | Playwright + Chromium for admin debug report-only scans |
 | Tunnel | Cloudflare Tunnel (webhook ingress) |
 | Container | Docker + docker-compose |
 | CI/CD | GitHub Actions (test → build → security scan) |
@@ -186,23 +187,24 @@ Do not present a workaround as a final fix. If only a temporary mitigation is ap
 
 ```
 src/velox/
-├── main.py              # FastAPI entry point, lifespan management
-├── config/              # Settings (pydantic-settings), constants
-├── core/                # Intent engine, state machine, QC gate, pipeline, hotel profile loader
-├── llm/                 # OpenAI client, prompt builder, response parser
-├── tools/               # Tool implementations (booking, restaurant, transfer, FAQ, etc.)
-├── adapters/            # External service clients
-│   ├── elektraweb/      #   Elektraweb PMS (HTTP + JWT)
-│   └── whatsapp/        #   Meta Business API
-├── escalation/          # Risk detection, escalation matrix, SLA engine
-├── policies/            # Business rules
-├── models/              # Pydantic data models
-├── db/                  # asyncpg pool, repositories, SQL migrations
-├── api/
-│   ├── routes/          # health, admin, admin_portal, admin_session,
-│   │                    # whatsapp_webhook, admin_webhook, admin_panel_ui, test_chat
-│   └── middleware/      # Auth, rate limiting
-└── utils/               # Structured logging, i18n, validators
+├── main.py                    # FastAPI entry point
+├── config/                    # Settings, constants
+├── core/                      # Intent engine, state machine, verification, QC,
+│                              # scope classifier, response validator, fallback
+│                              # responses, admin debug runner/scan registry,
+│                              # structured-output replay helpers
+├── llm/                       # OpenAI client, prompt builder, response parser
+├── tools/                     # Tool implementations (booking, restaurant, etc.)
+├── adapters/                  # External service clients (Elektraweb, WhatsApp)
+├── escalation/                # Risk detection, escalation matrix
+├── policies/                  # Business rules (approval, payment, cancellation)
+├── models/                    # Pydantic data models
+├── db/                        # Database connection, repositories, migrations
+├── api/                       # FastAPI routes, middleware, embedded admin/chat-lab
+│                              # UI modules, admin debug/report-only and WhatsApp
+│                              # integration surfaces
+└── utils/                     # Logging, i18n, validators, admin/debug auth helpers,
+                               # secret encryption, lightweight Prometheus metrics helpers
 ```
 
 Other top-level directories:
@@ -303,6 +305,23 @@ scripts/                 # Utility scripts
 | `GET` | `/api/v1/admin/tickets` | List escalation tickets |
 | `PUT` | `/api/v1/admin/tickets/{ticket_id}` | Update ticket |
 
+### Admin — WhatsApp Integration
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/admin/hotels/{hotel_id}/whatsapp/integration` | Current WhatsApp Cloud API connection status |
+| `POST` | `/api/v1/admin/hotels/{hotel_id}/whatsapp/integration/manual` | Store manual WhatsApp connection settings with encrypted token data |
+| `POST` | `/api/v1/admin/hotels/{hotel_id}/whatsapp/connect-sessions` | Start Meta OAuth / Embedded Signup connection session |
+| `GET` | `/api/v1/admin/hotels/{hotel_id}/whatsapp/connect-sessions/{session_id}` | Read connection session status |
+| `GET` | `/api/v1/admin/whatsapp/oauth/callback` | Backend-only Meta OAuth callback |
+| `GET` | `/api/v1/admin/hotels/{hotel_id}/whatsapp/assets` | List available WhatsApp assets after authorization |
+| `POST` | `/api/v1/admin/hotels/{hotel_id}/whatsapp/connect-sessions/{session_id}/complete` | Complete selected WhatsApp asset connection |
+| `POST` | `/api/v1/admin/hotels/{hotel_id}/whatsapp/health-check` | Run WhatsApp integration health check |
+| `POST` | `/api/v1/admin/hotels/{hotel_id}/whatsapp/webhook/subscribe` | Subscribe/configure WhatsApp webhook |
+| `GET` | `/api/v1/admin/hotels/{hotel_id}/whatsapp/templates` | List WhatsApp message templates |
+| `POST` | `/api/v1/admin/hotels/{hotel_id}/whatsapp/templates` | Create WhatsApp message template |
+| `POST` | `/api/v1/admin/hotels/{hotel_id}/whatsapp/templates/sync` | Sync WhatsApp templates from Meta |
+
 ### Admin — Webhooks (External Callbacks)
 
 | Method | Path | Description |
@@ -337,12 +356,18 @@ All configuration is managed via environment variables. See `.env.example` for t
 - **Database** — `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, pool sizing
 - **Redis** — `REDIS_URL`, session TTL, rate limit TTL
 - **OpenAI** — `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_FALLBACK_MODEL`, temperature, max tokens
-- **WhatsApp** — `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`
-- **Elektraweb PMS** — `ELEKTRA_API_BASE_URL`, `ELEKTRA_API_KEY`, `ELEKTRA_HOTEL_ID`
-- **Admin Panel** — `ADMIN_JWT_SECRET`, `ADMIN_BOOTSTRAP_TOKEN`, `ADMIN_TOTP_ISSUER`
+- **WhatsApp** — `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_TOKEN_ENCRYPTION_KEY`
+- **Meta OAuth / Embedded Signup** — `META_APP_ID`, `META_APP_SECRET`, `META_EMBEDDED_SIGNUP_CONFIG_ID`, `META_WHATSAPP_OAUTH_SCOPES`
+- **Elektraweb PMS** — `ELEKTRA_API_BASE_URL`, `ELEKTRA_API_KEY`, `ELEKTRA_HOTEL_ID`, `ELEKTRA_GENERIC_TENANT`, `ELEKTRA_GENERIC_USERCODE`, `ELEKTRA_GENERIC_PASSWORD`
+- **Admin Panel** — `ADMIN_JWT_SECRET`, `ADMIN_BOOTSTRAP_TOKEN`, `ADMIN_TOTP_ISSUER`, trusted-device/session settings
+- **Admin Debug** — `ADMIN_DEBUG_BROWSER_TARGET_MODE`
+- **Media Analysis** — `MEDIA_ANALYSIS_ENABLED`, `MEDIA_MAX_BYTES`, `MEDIA_MAX_IMAGE_DIMENSION`, `MEDIA_RETENTION_HOURS`, `MEDIA_SUPPORTED_MIME_TYPES`
+- **Metrics** — `PROMETHEUS_PORT`, `METRICS_ALLOW_PUBLIC`, `METRICS_ALLOWED_CIDRS`
 - **Rate Limiting** — per-phone and webhook limits
 - **Hotel Config** — `HOTEL_PROFILES_DIR`, `ESCALATION_MATRIX_PATH`, `TEMPLATES_DIR`
 - **Tunnel** — `CLOUDFLARE_TUNNEL_TOKEN`
+
+Secrets must stay in environment files or secret stores and must never be committed. When a new environment variable is introduced, update both `.env.example` and the project instruction documents that list required configuration.
 
 ## Development
 
@@ -376,29 +401,61 @@ GitHub Actions runs on every push:
 ## Architecture
 
 ```
-Guest (WhatsApp)
-  │
-  ▼
-┌─────────────────────────────────┐
-│  1. Webhook Validation          │  HMAC-SHA256 signature + 5 min timestamp
-│  2. Consent Check               │  KVKK/GDPR
-│  3. Session Manager (Redis)     │  Load/create conversation state
-│  4. LLM Engine (OpenAI GPT)     │  Function calling → Tools → Adapters
-│  5. QC Gate (7 checks, ≤500ms)  │  Intent, Source, Policy, Security,
-│                                 │  Format, Escalation, Session
-│  6. Escalation Engine           │  L1: 30min / L2: 15min / L3: 5min SLA
-│  7. Send Reply (WhatsApp API)   │  + DB logging + metrics
-└─────────────────────────────────┘
-  │
-  ▼
-Admin Panel (dashboard, holds, tickets, Chat Lab)
+WhatsApp User
+    |
+    v
+Meta Business API (webhook)
+    |
+    v
+FastAPI Webhook Endpoint
+    |
+    ├── 1. Signature + Timestamp Validation (HMAC-SHA256, 5 min window)
+    |
+    ├── 2. Consent Check ── First message? ──YES──> KVKK/GDPR consent message
+    |                                               (flow stops until consent)
+    |                          NO
+    |                          |
+    ├── 3. Session Manager (Redis) ── Load/create conversation
+    |                                  Key: session:{hotel_id}:{phone_hash}
+    |
+    ├── 4. Media Intake Gate (optional; config-driven image mime)
+    |       ├── Parse metadata (media_id, mime, sha256, caption)
+    |       ├── Download + validate size/mime
+    |       ├── Normalize image formats
+    |       ├── Vision analysis with structured JSON only
+    |       └── Low confidence/normalization failure -> fallback + handoff
+    |
+    ├── 5. LLM Engine (OpenAI GPT + function calling)
+    |       |--- Tool calls ──> Tools Layer
+    |                            (booking, restaurant, transfer, approval,
+    |                             payment, notify, handoff, crm, faq)
+    |                            ├── Elektraweb (stay) with circuit breaker
+    |                            ├── PostgreSQL (restaurant/transfer)
+    |                            └── External APIs with retry + backoff
+    |
+    ├── 6. QC Gate (7 checks, parallel, ≤500ms budget)
+    |       ├── QC1: Intent/Entity    ├── QC5: Format
+    |       ├── QC2: Source Check     ├── QC6: Escalation
+    |       ├── QC3: Policy Gate      └── QC7: Session
+    |       └── QC4: Security
+    |       ├── PASS -> Response Parser (USER_MESSAGE + INTERNAL_JSON)
+    |       └── FAIL -> Correct / call tool / human handoff
+    |
+    ├── 7. Handoff & SLA Engine
+    |       ├── L1: 30 min  (general questions)
+    |       ├── L2: 15 min  (reservation issues)
+    |       └── L3: 5 min   (payment/security)
+    |
+    └── 8. WhatsApp API (send reply)
+            ├── Text / Reply Buttons (≤3) / List Message (4+)
+            └── DB conversation log + Prometheus metrics
 ```
 
 ## Database
 
-PostgreSQL 16 with 10 tables:
+PostgreSQL 16 stores hotel config, conversations, messages, stay/restaurant/transfer holds, admin users and sessions, Chat Lab data, media analysis records, hotel facts, hold archives, admin debug runs, and WhatsApp integration state.
 
-`hotels`, `conversations`, `messages`, `stay_holds`, `restaurant_holds`, `transfer_holds`, `admin_users`, `chat_lab_feedback`, `chat_lab_import_logs`, `scenarios`
+Schema changes are managed through ordered SQL migrations in `src/velox/db/migrations/`. New schema work must include a migration in the same change and should be applied through the migration wrapper before the app starts.
 
 Migrations: `src/velox/db/migrations/`
 
