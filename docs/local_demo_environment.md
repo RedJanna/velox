@@ -71,13 +71,13 @@ Demo stack:
 - ayri Postgres volume kullanir: `pgdata_demo`
 - ayri Redis volume kullanir: `redisdata_demo`
 - `cloudflared` baslatmaz
-- app container'ini `uvicorn --reload` ile calistirir
+- app container'ini stabil demo runtime ile calistirir; `uvicorn --reload` kapali tutulur
 - schema olusumunu Postgres `initdb` hook'una degil app startup migration runner'ina birakir
 
 Bu sayede:
 
 - kod degisiklikleri bind mount uzerinden demo app'e yansir
-- Python/route/admin panel degisiklikleri otomatik reload ile gorulur
+- Python/route/admin panel degisiklikleri app restart sonrasi gorulur
 - canliya bagli tunnel veya public domain akisi acilmaz
 
 ## Backend degisikliklerinin frontend'e yansimasi
@@ -93,8 +93,11 @@ Ornek:
 - embedded JS/CSS degisikligi
 - repository/service mantigi degisikligi
 
-Bu tip degisikliklerde `uvicorn --reload` demo app'i otomatik yeniden yukler.
-Tarayicida `http://127.0.0.1:8011/admin` sayfasini yenilemek genelde yeterlidir.
+Bu tip degisikliklerden sonra demo app'i yeniden baslatin ve tarayicida `http://127.0.0.1:8011/admin` sayfasini yenileyin:
+
+```bash
+docker compose --env-file .env.demo.local -f docker-compose.demo.yml -p velox-demo restart app
+```
 
 ### 2. Schema / migration degisikligi
 

@@ -15,11 +15,6 @@ services:
         "8001",
         "--proxy-headers",
         "--forwarded-allow-ips=*",
-        "--reload",
-        "--reload-dir",
-        "/app/src",
-        "--reload-dir",
-        "/app/data",
       ]
     volumes:
       - ./src:/app/src

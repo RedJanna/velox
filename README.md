@@ -118,10 +118,10 @@ Bu stack:
 - `velox-demo` compose project'i ile calisir
 - ayri DB/Redis volume kullanir
 - `cloudflared` baslatmaz
-- `uvicorn --reload` ile backend/admin panel degisikliklerini otomatik yansitir
+- stabil demo runtime icin `uvicorn` reload modu kapali calisir
 - app startup sirasinda migration'lari uygular ve script `health + /admin` dogrulamasi bekler
 
-Schema degisikliginde cogu durumda app'i yeniden baslatmak yeterlidir:
+Kod, UI veya schema degisikliginden sonra app'i yeniden baslatmak yeterlidir:
 
 ```bash
 docker compose --env-file .env.demo.local -f docker-compose.demo.yml -p velox-demo restart app
