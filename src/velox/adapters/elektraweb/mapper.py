@@ -90,6 +90,8 @@ class ReservationDetailResponse(BaseModel):
     success: bool = False
     reservation_id: str = ""
     voucher_no: str = ""
+    checkin_date: str = ""
+    checkout_date: str = ""
     total_price: Decimal | None = None
     state: str = ""
     raw_data: dict[str, Any] = Field(default_factory=dict)

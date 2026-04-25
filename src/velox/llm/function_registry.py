@@ -121,13 +121,28 @@ def get_tool_definitions() -> list[dict[str, Any]]:
         ),
         _def(
             "booking_get_reservation",
-            "Fetch reservation detail by reservation id or voucher number.",
+            "Fetch reservation detail by reservation id/voucher number, or verify by guest phone plus stay date.",
             {
                 "type": "object",
                 "properties": {
                     "hotel_id": {"type": "integer"},
                     "reservation_id": {"type": "string"},
                     "voucher_no": {"type": "string"},
+                    "contact_phone": {
+                        "type": "string",
+                        "description": (
+                            "Guest phone only when needed for reservation verification; "
+                            "never use without a stay date."
+                        ),
+                    },
+                    "checkin_date": {
+                        "type": "string",
+                        "description": "YYYY-MM-DD check-in date. Required when verifying by contact_phone.",
+                    },
+                    "checkout_date": {
+                        "type": "string",
+                        "description": "YYYY-MM-DD check-out date if provided by the guest.",
+                    },
                 },
                 "required": ["hotel_id"],
             },

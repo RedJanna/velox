@@ -7,7 +7,7 @@ import orjson
 import structlog
 
 from velox.db.database import execute, fetch, fetchrow
-from velox.models.reservation import StayHold
+from velox.models.reservation import ExternalReservationSnapshot, StayHold
 from velox.utils.id_gen import next_reservation_no, next_sequential_id
 
 logger = structlog.get_logger(__name__)
@@ -15,6 +15,45 @@ logger = structlog.get_logger(__name__)
 
 class ReservationRepository:
     """CRUD operations for stay_holds table."""
+
+    async def upsert_external_snapshot(self, snapshot: ExternalReservationSnapshot) -> None:
+        """Store a minimal PII-safe snapshot from an external PMS reservation lookup."""
+        await execute(
+            """
+            INSERT INTO external_reservation_snapshots (
+                hotel_id, lookup_key, pms_reservation_id, voucher_no, phone_hash,
+                checkin_date, checkout_date, state, total_price, snapshot_json, source,
+                first_seen_at, last_seen_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6::date, $7::date, $8, $9, $10::jsonb, $11, now(), now())
+            ON CONFLICT (hotel_id, lookup_key)
+            DO UPDATE SET
+                pms_reservation_id = COALESCE(
+                    EXCLUDED.pms_reservation_id,
+                    external_reservation_snapshots.pms_reservation_id
+                ),
+                voucher_no = COALESCE(EXCLUDED.voucher_no, external_reservation_snapshots.voucher_no),
+                phone_hash = COALESCE(EXCLUDED.phone_hash, external_reservation_snapshots.phone_hash),
+                checkin_date = COALESCE(EXCLUDED.checkin_date, external_reservation_snapshots.checkin_date),
+                checkout_date = COALESCE(EXCLUDED.checkout_date, external_reservation_snapshots.checkout_date),
+                state = EXCLUDED.state,
+                total_price = COALESCE(EXCLUDED.total_price, external_reservation_snapshots.total_price),
+                snapshot_json = EXCLUDED.snapshot_json,
+                source = EXCLUDED.source,
+                last_seen_at = now()
+            """,
+            snapshot.hotel_id,
+            snapshot.lookup_key,
+            snapshot.pms_reservation_id,
+            snapshot.voucher_no,
+            snapshot.phone_hash,
+            snapshot.checkin_date,
+            snapshot.checkout_date,
+            snapshot.state,
+            snapshot.total_price,
+            orjson.dumps(snapshot.snapshot_json).decode(),
+            snapshot.source,
+        )
 
     async def create_hold(self, hold: StayHold) -> StayHold:
         """Insert a new stay hold."""

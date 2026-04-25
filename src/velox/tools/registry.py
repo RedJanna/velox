@@ -72,7 +72,7 @@ def build_dispatcher() -> ToolDispatcher:
         StayCreateHoldTool(reservation_repository, approval_tool),
     )
     dispatcher.register("booking_create_reservation", BookingCreateReservationTool())
-    dispatcher.register("booking_get_reservation", BookingGetReservationTool())
+    dispatcher.register("booking_get_reservation", BookingGetReservationTool(reservation_repository))
     dispatcher.register("booking_modify", BookingModifyTool())
     dispatcher.register("booking_cancel", BookingCancelTool())
 

@@ -418,9 +418,7 @@ def _reservation_list_item_matches(
         (checkin_date and item_checkin_date == _normalize_iso_date(checkin_date))
         or (checkout_date and item_checkout_date == _normalize_iso_date(checkout_date))
     )
-    if contact_phone and dates_match and _phone_match(item.get("contact_phone"), contact_phone):
-        return True
-    return False
+    return bool(contact_phone and dates_match and _phone_match(item.get("contact_phone"), contact_phone))
 
 
 def _reservation_detail_from_list_item(item: dict[str, Any], *, reservation_status: str) -> ReservationDetailResponse:
@@ -440,6 +438,8 @@ def _reservation_detail_from_list_item(item: dict[str, Any], *, reservation_stat
             or item.get("voucher_number")
             or ""
         ).strip(),
+        checkin_date=_normalize_iso_date(item.get("check_in_date") or item.get("checkin_date")),
+        checkout_date=_normalize_iso_date(item.get("check_out_date") or item.get("checkout_date")),
         total_price=(
             item.get("reservation_total_price")
             or item.get("reservation_paid_price")
@@ -1575,8 +1575,30 @@ async def get_reservation(
     hotel_id: int,
     reservation_id: str | None = None,
     voucher_no: str | None = None,
+    contact_phone: str | None = None,
+    checkin_date: str | None = None,
+    checkout_date: str | None = None,
 ) -> ReservationDetailResponse:
     """Fetch reservation details using path and method fallbacks."""
+    if not any([reservation_id, voucher_no, contact_phone]):
+        raise ValueError("reservation_id, voucher_no, or contact_phone is required")
+    if contact_phone and not (checkin_date or checkout_date):
+        raise ValueError("checkin_date or checkout_date is required when contact_phone is used")
+
+    if contact_phone:
+        list_match = await find_reservation_list_match(
+            hotel_id,
+            reservation_id=reservation_id,
+            voucher_no=voucher_no,
+            contact_phone=contact_phone,
+            checkin_date=checkin_date,
+            checkout_date=checkout_date,
+        )
+        if list_match is not None:
+            return list_match
+        if not (reservation_id or voucher_no):
+            return ReservationDetailResponse(raw_data={"not_found": True})
+
     client = get_elektraweb_client()
     body: dict[str, int | str] = {"hotelId": hotel_id}
     if reservation_id:
@@ -1602,6 +1624,11 @@ async def get_reservation(
                 reservation_id=reservation_id,
                 voucher_no=voucher_no,
             )
+            if checkin_date or checkout_date:
+                params["from-check-in"], params["to-check-in"] = _reservation_list_window(
+                    checkin_date=checkin_date,
+                    checkout_date=checkout_date,
+                )
             logger.info(
                 "elektraweb_get_reservation_attempt",
                 hotel_id=hotel_id,

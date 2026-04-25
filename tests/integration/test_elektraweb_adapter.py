@@ -912,6 +912,33 @@ async def test_get_reservation_falls_back_when_reservation_list_has_no_match(
 
 
 @pytest.mark.asyncio
+async def test_get_reservation_verifies_by_phone_and_stay_date(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reservation lookup may verify a guest by phone plus stay date when no id is available."""
+    mock_client = AsyncMock()
+    mock_client.get.return_value = [
+        {
+            "reservation-id": "RSV-100",
+            "voucher-no": "V-100",
+            "contact-phone": "+90 555 111 22 33",
+            "check-in-date": "2026-07-10T00:00:00",
+            "check-out-date": "2026-07-12T00:00:00",
+            "status": "Reservation",
+        }
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+
+    result = await endpoints.get_reservation(
+        hotel_id=21966,
+        contact_phone="05551112233",
+        checkin_date="2026-07-10",
+    )
+
+    assert result.success is True
+    assert result.reservation_id == "RSV-100"
+    assert result.checkin_date == "2026-07-10"
+
+
+@pytest.mark.asyncio
 async def test_request_does_not_failover_to_secondary_base_on_400(monkeypatch: pytest.MonkeyPatch) -> None:
     """Validation 400 responses should surface directly instead of trying another host."""
     client = ElektrawebClient()

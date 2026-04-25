@@ -526,8 +526,9 @@ Output:
 
 #### TOOL: booking.get_reservation (stay)
 Adapter -> POST/GET fallback stratejisi ile reservation fetch.
-Input: {"hotel_id":21966, "reservation_id?":"...", "voucher_no?":"..."}
-Output: {"success":true, "reservation_id":"...", "voucher_no":"...", "total_price":1029}
+Input: {"hotel_id":21966, "reservation_id?":"...", "voucher_no?":"...", "contact_phone?":"...", "checkin_date?":"YYYY-MM-DD", "checkout_date?":"YYYY-MM-DD"}
+Kural: Misafir kendi rezervasyonunun gorunup gorunmedigini sorarsa once reservation_id/voucher_no istenir. Bunlar yoksa yalnizca minimum dogrulama icin telefon + check-in/check-out tarihi istenir; telefon tek basina kullanilmaz. Tool sonucu tek ve basarili eslesme donmeden rezervasyon var/onayli denmez. Basarili lookup backend tarafinda PII'siz snapshot olarak saklanir; ham telefon/ad/email saklanmaz.
+Output: {"success":true, "reservation_id":"...", "voucher_no":"...", "checkin_date":"YYYY-MM-DD", "checkout_date":"YYYY-MM-DD", "total_price":1029, "state":"RESERVATION"}
 
 #### TOOL: booking.modify / booking.cancel (stay)
 Modify -> POST /hotel/{hotel_id}/updateReservation

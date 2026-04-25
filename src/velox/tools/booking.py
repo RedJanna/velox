@@ -15,7 +15,13 @@ from velox.adapters.elektraweb import (
 )
 from velox.core.hotel_profile_loader import get_profile
 from velox.db.repositories.reservation import ReservationRepository
-from velox.models.reservation import BookingAvailabilityRequest, BookingQuoteRequest, StayDraft, StayHold
+from velox.models.reservation import (
+    BookingAvailabilityRequest,
+    BookingQuoteRequest,
+    ExternalReservationSnapshot,
+    StayDraft,
+    StayHold,
+)
 from velox.tools.approval import ApprovalRequestTool
 from velox.tools.base import BaseTool
 from velox.tools.season import are_dates_within_hotel_season, out_of_season_response
@@ -201,16 +207,34 @@ class BookingCreateReservationTool(BaseTool):
 class BookingGetReservationTool(BaseTool):
     """Tool for fetching reservation from PMS."""
 
+    def __init__(self, reservation_repository: ReservationRepository | None = None) -> None:
+        self._reservation_repository = reservation_repository
+
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         self.validate_required(kwargs, ["hotel_id"])
         hotel_id = int(kwargs["hotel_id"])
         reservation_id = kwargs.get("reservation_id")
         voucher_no = kwargs.get("voucher_no")
+        contact_phone = kwargs.get("contact_phone")
+        checkin_date = kwargs.get("checkin_date")
+        checkout_date = kwargs.get("checkout_date")
         response = await get_reservation(
             hotel_id=hotel_id,
             reservation_id=str(reservation_id) if reservation_id else None,
             voucher_no=str(voucher_no) if voucher_no else None,
+            contact_phone=str(contact_phone) if contact_phone else None,
+            checkin_date=str(checkin_date) if checkin_date else None,
+            checkout_date=str(checkout_date) if checkout_date else None,
         )
+        if response.success and self._reservation_repository is not None:
+            detail = response.model_dump(mode="json")
+            if detail.get("reservation_id") or detail.get("voucher_no"):
+                snapshot = ExternalReservationSnapshot.from_lookup(
+                    hotel_id=hotel_id,
+                    lookup_phone=str(contact_phone) if contact_phone else None,
+                    detail=detail,
+                )
+                await self._reservation_repository.upsert_external_snapshot(snapshot)
         return response.model_dump(mode="json")
 
 

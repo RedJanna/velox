@@ -10,6 +10,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from velox.config.constants import CancelPolicyType, HoldStatus
+from velox.utils.privacy import hash_phone
 
 
 class StayDraft(BaseModel):
@@ -125,6 +126,73 @@ class StayHold(BaseModel):
     create_idempotency_key: str | None = None
     reservation_no: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
+
+
+class ExternalReservationSnapshot(BaseModel):
+    """Minimal PII-safe snapshot of a PMS reservation lookup."""
+
+    hotel_id: int
+    lookup_key: str
+    pms_reservation_id: str | None = None
+    voucher_no: str | None = None
+    phone_hash: str | None = None
+    checkin_date: str | None = None
+    checkout_date: str | None = None
+    state: str = ""
+    total_price: Decimal | None = None
+    snapshot_json: dict[str, Any] = Field(default_factory=dict)
+    source: str = "elektraweb"
+
+    @classmethod
+    def from_lookup(
+        cls,
+        *,
+        hotel_id: int,
+        lookup_phone: str | None,
+        detail: dict[str, Any],
+    ) -> ExternalReservationSnapshot:
+        """Build a minimal snapshot from a successful PMS lookup response."""
+        reservation_id = _clean_optional_text(detail.get("reservation_id"))
+        voucher_no = _clean_optional_text(detail.get("voucher_no"))
+        lookup_key = _snapshot_lookup_key(reservation_id=reservation_id, voucher_no=voucher_no)
+        checkin_date = _clean_optional_text(detail.get("checkin_date"))
+        checkout_date = _clean_optional_text(detail.get("checkout_date"))
+        state = _clean_optional_text(detail.get("state")) or ""
+        total_price = detail.get("total_price")
+        return cls(
+            hotel_id=hotel_id,
+            lookup_key=lookup_key,
+            pms_reservation_id=reservation_id,
+            voucher_no=voucher_no,
+            phone_hash=hash_phone(lookup_phone) if lookup_phone else None,
+            checkin_date=checkin_date,
+            checkout_date=checkout_date,
+            state=state,
+            total_price=Decimal(str(total_price)) if total_price not in (None, "") else None,
+            snapshot_json={
+                "reservation_id": reservation_id,
+                "voucher_no": voucher_no,
+                "checkin_date": checkin_date,
+                "checkout_date": checkout_date,
+                "state": state,
+                "total_price": str(total_price) if total_price not in (None, "") else None,
+            },
+        )
+
+
+def _clean_optional_text(value: object) -> str | None:
+    """Normalize optional text fields and keep empty strings as null."""
+    clean = str(value or "").strip()
+    return clean or None
+
+
+def _snapshot_lookup_key(*, reservation_id: str | None, voucher_no: str | None) -> str:
+    """Build a stable lookup key for upserting one PMS reservation snapshot."""
+    if reservation_id:
+        return f"reservation:{reservation_id}"
+    if voucher_no:
+        return f"voucher:{voucher_no}"
+    raise ValueError("reservation_id or voucher_no is required for snapshot storage")
 
 
 class BookingAvailabilityRequest(BaseModel):
