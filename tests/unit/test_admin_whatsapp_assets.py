@@ -12,6 +12,7 @@ def test_admin_panel_contains_whatsapp_api_view() -> None:
     assert "whatsappConnectDialog" in html
     assert "whatsappGuideDialog" in html
     assert "WhatsApp Meta Cloud API Kurulum Rehberi" in html
+    assert 'id="whatsappGuideButton" class="inline-button primary"' in html
 
 
 def test_whatsapp_asset_normalizes_dotless_hash_alias() -> None:

@@ -829,7 +829,7 @@ def render_admin_panel_html() -> str:
           <article class="module-card whatsapp-guide-card">
             <div class="module-header">
               <div><h3>WhatsApp Cloud API Kurulum Rehberi</h3><p>Meta hesabından doğru bilgileri alıp bu sisteme hatasız bağlamak için önce rehberi açın, sonra bağlantı adımlarını sırayla tamamlayın.</p></div>
-              <button id="whatsappGuideButton" class="inline-button secondary" type="button" aria-label="WhatsApp Cloud API detaylı kurulum rehberini aç">Detaylı Rehberi Aç</button>
+              <button id="whatsappGuideButton" class="inline-button primary" type="button" aria-label="WhatsApp Cloud API detaylı kurulum rehberini aç">Detaylı Rehberi Aç</button>
             </div>
             <div class="whatsapp-guide-highlights">
               <div class="whatsapp-guide-highlight"><b>1</b><span>Başlamadan önce Meta Business, WABA, telefon ve HTTPS webhook hazırlığını kontrol edin.</span></div>
