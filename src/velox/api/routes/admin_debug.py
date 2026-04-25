@@ -184,11 +184,17 @@ async def list_debug_artifacts(
     run = await repository.get_run(run_id=run_id, hotel_id=current_user.hotel_id)
     if run is None:
         raise _not_found()
-    items = await repository.list_artifacts_for_finding(
-        run_id=run_id,
-        hotel_id=current_user.hotel_id,
-        finding_id=finding_id,
-    )
+    if finding_id is None:
+        items = await repository.list_artifacts_for_run(
+            run_id=run_id,
+            hotel_id=current_user.hotel_id,
+        )
+    else:
+        items = await repository.list_artifacts_for_finding(
+            run_id=run_id,
+            hotel_id=current_user.hotel_id,
+            finding_id=finding_id,
+        )
     hydrated = [
         DebugArtifactResponse(
             **item.model_dump(exclude={"content_url"}),
@@ -210,12 +216,11 @@ async def get_debug_artifact_content(
     run = await repository.get_run(run_id=run_id, hotel_id=current_user.hotel_id)
     if run is None:
         raise _not_found()
-    artifacts = await repository.list_artifacts_for_finding(
+    artifact = await repository.get_artifact(
         run_id=run_id,
         hotel_id=current_user.hotel_id,
-        finding_id=None,
+        artifact_id=artifact_id,
     )
-    artifact = next((item for item in artifacts if item.id == str(artifact_id)), None)
     if artifact is None:
         raise _not_found()
     artifact_path = _resolve_artifact_path(artifact.storage_path)

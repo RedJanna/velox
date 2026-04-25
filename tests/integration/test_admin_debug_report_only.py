@@ -219,6 +219,7 @@ async def debug_artifact_client(
     artifact = DebugArtifactResponse(
         id="11111111-1111-1111-1111-111111111111",
         run_id="run-1",
+        finding_id="22222222-2222-2222-2222-222222222222",
         artifact_type=DebugArtifactType.SCREENSHOT,
         storage_path="run-1/screenshots/admin_shell.png",
         mime_type="image/png",
@@ -234,9 +235,21 @@ async def debug_artifact_client(
             _ = (run_id, hotel_id)
             return _make_run_response()
 
+        async def list_artifacts_for_run(self, *, run_id, hotel_id):
+            _ = (run_id, hotel_id)
+            return [artifact.model_copy(update={"finding_id": None})]
+
         async def list_artifacts_for_finding(self, *, run_id, hotel_id, finding_id):
-            _ = (run_id, hotel_id, finding_id)
+            if str(finding_id) != "22222222-2222-2222-2222-222222222222":
+                return []
+            _ = (run_id, hotel_id)
             return [artifact]
+
+        async def get_artifact(self, *, run_id, hotel_id, artifact_id):
+            _ = (run_id, hotel_id)
+            if str(artifact_id) != artifact.id:
+                return None
+            return artifact
 
     async def _current_user_override() -> TokenData:
         return _admin_user()
@@ -262,6 +275,19 @@ async def test_debug_artifact_list_hydrates_content_url(debug_artifact_client: h
     assert response.status_code == 200
     payload = response.json()
     assert payload["items"][0]["content_url"].endswith("/artifacts/11111111-1111-1111-1111-111111111111/content")
+    assert payload["items"][0]["finding_id"] is None
+
+
+async def test_debug_artifact_list_filters_by_finding_id(debug_artifact_client: httpx.AsyncClient) -> None:
+    response = await debug_artifact_client.get(
+        "/api/v1/admin/debug/runs/11111111-1111-1111-1111-111111111111/artifacts",
+        params={"finding_id": "22222222-2222-2222-2222-222222222222"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["finding_id"] == "22222222-2222-2222-2222-222222222222"
 
 
 async def test_debug_artifact_content_serves_file(debug_artifact_client: httpx.AsyncClient) -> None:

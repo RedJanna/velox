@@ -153,7 +153,10 @@ class AdminDebugRepository:
             SELECT
                 r.*,
                 COALESCE((SELECT COUNT(*) FROM admin_debug_findings f WHERE f.run_id = r.id), 0) AS finding_count,
-                COALESCE((SELECT COUNT(*) FROM admin_debug_artifacts a WHERE a.run_id = r.id), 0) AS artifact_count
+                COALESCE(
+                    (SELECT COUNT(*) FROM admin_debug_artifacts a WHERE a.run_id = r.id AND a.finding_id IS NULL),
+                    0
+                ) AS artifact_count
             FROM admin_debug_runs r
             WHERE r.id = $1
               AND r.hotel_id = $2
@@ -500,14 +503,28 @@ class AdminDebugRepository:
         return [_row_to_finding(row) for row in rows]
 
     async def list_artifacts_for_run(self, *, run_id: UUID, hotel_id: int) -> list[DebugArtifactResponse]:
-        return await self.list_artifacts_for_finding(run_id=run_id, hotel_id=hotel_id, finding_id=None)
+        rows = await fetch(
+            """
+            SELECT artifact.*
+            FROM admin_debug_artifacts AS artifact
+            JOIN admin_debug_runs AS run
+              ON run.id = artifact.run_id
+            WHERE artifact.run_id = $1
+              AND run.hotel_id = $2
+              AND artifact.finding_id IS NULL
+            ORDER BY artifact.created_at DESC
+            """,
+            run_id,
+            hotel_id,
+        )
+        return [_row_to_artifact(row) for row in rows]
 
     async def list_artifacts_for_finding(
         self,
         *,
         run_id: UUID,
         hotel_id: int,
-        finding_id: UUID | None,
+        finding_id: UUID,
     ) -> list[DebugArtifactResponse]:
         rows = await fetch(
             """
@@ -517,7 +534,7 @@ class AdminDebugRepository:
               ON run.id = artifact.run_id
             WHERE artifact.run_id = $1
               AND run.hotel_id = $2
-              AND ($3::uuid IS NULL OR artifact.finding_id = $3)
+              AND artifact.finding_id = $3
             ORDER BY artifact.created_at DESC
             """,
             run_id,
@@ -525,3 +542,28 @@ class AdminDebugRepository:
             finding_id,
         )
         return [_row_to_artifact(row) for row in rows]
+
+    async def get_artifact(
+        self,
+        *,
+        run_id: UUID,
+        hotel_id: int,
+        artifact_id: UUID,
+    ) -> DebugArtifactResponse | None:
+        row = await fetchrow(
+            """
+            SELECT artifact.*
+            FROM admin_debug_artifacts AS artifact
+            JOIN admin_debug_runs AS run
+              ON run.id = artifact.run_id
+            WHERE artifact.id = $1
+              AND artifact.run_id = $2
+              AND run.hotel_id = $3
+            """,
+            artifact_id,
+            run_id,
+            hotel_id,
+        )
+        if row is None:
+            return None
+        return _row_to_artifact(row)

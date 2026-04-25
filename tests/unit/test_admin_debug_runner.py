@@ -184,6 +184,74 @@ async def test_browser_screenshot_writes_artifact_when_playwright_available(
 
 
 @pytest.mark.asyncio
+async def test_browser_screenshot_links_artifact_to_related_findings(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    repository = _FakeRepository()
+    run = _build_run()
+    session_value = "signed-token"
+    finding_ids = [str(uuid4()), str(uuid4())]
+
+    class _FakePage:
+        async def goto(self, *_args, **_kwargs) -> None:
+            return None
+
+        async def wait_for_load_state(self, *_args, **_kwargs) -> None:
+            return None
+
+        async def wait_for_timeout(self, *_args, **_kwargs) -> None:
+            return None
+
+        async def screenshot(self, **_kwargs) -> bytes:
+            return b"png-bytes"
+
+    class _FakeContext:
+        async def new_page(self) -> _FakePage:
+            return _FakePage()
+
+        async def close(self) -> None:
+            return None
+
+    class _FakeBrowser:
+        async def new_context(self, **_kwargs) -> _FakeContext:
+            return _FakeContext()
+
+        async def close(self) -> None:
+            return None
+
+    class _FakeChromium:
+        async def launch(self, **_kwargs) -> _FakeBrowser:
+            return _FakeBrowser()
+
+    class _FakePlaywrightManager:
+        async def __aenter__(self):
+            return SimpleNamespace(chromium=_FakeChromium())
+
+        async def __aexit__(self, exc_type, exc, tb) -> None:
+            _ = (exc_type, exc, tb)
+
+    monkeypatch.setattr(admin_debug_runner, "DEBUG_ARTIFACT_ROOT", tmp_path)
+    monkeypatch.setattr(
+        admin_debug_runner.importlib,
+        "import_module",
+        lambda _name: SimpleNamespace(async_playwright=lambda: _FakePlaywrightManager()),
+    )
+
+    await _maybe_capture_browser_screenshot(
+        repository=repository,
+        run=run,
+        target=_build_target(),
+        debug_session_token=session_value,
+        finding_ids=finding_ids,
+    )
+
+    assert len(repository.artifacts) == 1 + len(finding_ids)
+    assert repository.artifacts[0]["finding_id"] is None
+    assert [str(item["finding_id"]) for item in repository.artifacts[1:]] == finding_ids
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("mode", "public_base_url", "app_port", "expected_base_url"),
     (

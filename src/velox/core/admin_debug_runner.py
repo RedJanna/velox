@@ -25,6 +25,7 @@ from velox.db.repositories.admin_debug import AdminDebugRepository
 from velox.models.admin_debug import (
     DebugArtifactType,
     DebugFindingCategory,
+    DebugFindingResponse,
     DebugFindingSeverity,
     DebugRunResponse,
     DebugRunStatus,
@@ -206,10 +207,11 @@ async def _scan_target(
     started = time.perf_counter()
     response: httpx.Response | None = None
     blocked_mutation_attempts = 0
+    related_finding_ids: list[str] = []
     try:
         response = await client.get(target.path)
     except httpx.HTTPError as exc:
-        await _counted_finding(
+        finding = await _counted_finding(
             repository=repository,
             run=run,
             summary_counts=summary_counts,
@@ -222,6 +224,7 @@ async def _scan_target(
             suggested_fix="İlgili route veya bağımlılık hataları loglarla birlikte doğrulanmalı.",
             evidence={"path": target.path, "response_type": target.response_type},
         )
+        related_finding_ids.append(finding.id)
         return blocked_mutation_attempts
 
     duration_ms = int((time.perf_counter() - started) * 1000)
@@ -237,7 +240,7 @@ async def _scan_target(
             severity = DebugFindingSeverity.HIGH
         elif response.status_code >= 500:
             severity = DebugFindingSeverity.HIGH
-        await _counted_finding(
+        finding = await _counted_finding(
             repository=repository,
             run=run,
             summary_counts=summary_counts,
@@ -255,10 +258,19 @@ async def _scan_target(
                 "duration_ms": duration_ms,
             },
         )
+        related_finding_ids.append(finding.id)
+        if target.response_type == "html":
+            await _maybe_capture_browser_screenshot(
+                repository=repository,
+                run=run,
+                target=target,
+                debug_session_token=debug_session_token,
+                finding_ids=related_finding_ids,
+            )
         return blocked_mutation_attempts
 
     if target.response_type == "json":
-        await _validate_json_target(
+        findings = await _validate_json_target(
             repository=repository,
             run=run,
             target=target,
@@ -266,8 +278,9 @@ async def _scan_target(
             summary_counts=summary_counts,
             duration_ms=duration_ms,
         )
+        related_finding_ids.extend(finding.id for finding in findings)
     else:
-        await _validate_html_target(
+        findings = await _validate_html_target(
             repository=repository,
             run=run,
             target=target,
@@ -275,16 +288,11 @@ async def _scan_target(
             summary_counts=summary_counts,
             duration_ms=duration_ms,
         )
-        await _maybe_capture_browser_screenshot(
-            repository=repository,
-            run=run,
-            target=target,
-            debug_session_token=debug_session_token,
-        )
+        related_finding_ids.extend(finding.id for finding in findings)
 
     if duration_ms > target.performance_budget_ms:
         severity, description = _summarize_duration(duration_ms, target.performance_budget_ms)
-        await _counted_finding(
+        finding = await _counted_finding(
             repository=repository,
             run=run,
             summary_counts=summary_counts,
@@ -301,6 +309,15 @@ async def _scan_target(
                 "budget_ms": target.performance_budget_ms,
             },
         )
+        related_finding_ids.append(finding.id)
+    if target.response_type == "html":
+        await _maybe_capture_browser_screenshot(
+            repository=repository,
+            run=run,
+            target=target,
+            debug_session_token=debug_session_token,
+            finding_ids=related_finding_ids,
+        )
     return blocked_mutation_attempts
 
 
@@ -312,27 +329,56 @@ async def _validate_json_target(
     response: httpx.Response,
     summary_counts: dict[DebugFindingSeverity, int],
     duration_ms: int,
-) -> None:
+) -> list[DebugFindingResponse]:
+    findings: list[DebugFindingResponse] = []
     try:
         payload = response.json()
     except ValueError as exc:
-        await _counted_finding(
-            repository=repository,
-            run=run,
-            summary_counts=summary_counts,
-            severity=DebugFindingSeverity.HIGH,
-            category=DebugFindingCategory.NETWORK_FAILURE,
-            screen=target.screen,
-            description=f"{target.screen} JSON yanıtı çözümlenemedi.",
-            action_label=f"GET {target.path}",
-            technical_cause=type(exc).__name__,
-            suggested_fix="Yanıt gövdesi ve ilgili route dönüş tipi doğrulanmalı.",
-            evidence={"path": target.path, "response_excerpt": _response_excerpt(response), "duration_ms": duration_ms},
+        findings.append(
+            await _counted_finding(
+                repository=repository,
+                run=run,
+                summary_counts=summary_counts,
+                severity=DebugFindingSeverity.HIGH,
+                category=DebugFindingCategory.NETWORK_FAILURE,
+                screen=target.screen,
+                description=f"{target.screen} JSON yanıtı çözümlenemedi.",
+                action_label=f"GET {target.path}",
+                technical_cause=type(exc).__name__,
+                suggested_fix="Yanıt gövdesi ve ilgili route dönüş tipi doğrulanmalı.",
+                evidence={
+                    "path": target.path,
+                    "response_excerpt": _response_excerpt(response),
+                    "duration_ms": duration_ms,
+                },
+            )
         )
-        return
+        return findings
 
     if isinstance(payload, list):
         if target.expected_json_keys:
+            findings.append(
+                await _counted_finding(
+                    repository=repository,
+                    run=run,
+                    summary_counts=summary_counts,
+                    severity=DebugFindingSeverity.MEDIUM,
+                    category=target.failure_category,
+                    screen=target.screen,
+                    description=f"{target.screen} yanıt biçimi beklenen nesne yapısında değil.",
+                    action_label=f"GET {target.path}",
+                    technical_cause="Endpoint beklenen JSON obje yapısı yerine liste döndürdü.",
+                    suggested_fix=(
+                        "İlgili endpoint response contract sabitlenmeli veya tarama "
+                        "reçetesi liste yanitini kabul edecek sekilde guncellenmeli."
+                    ),
+                    evidence={"path": target.path, "duration_ms": duration_ms},
+                )
+            )
+        return findings
+
+    if not isinstance(payload, Mapping):
+        findings.append(
             await _counted_finding(
                 repository=repository,
                 run=run,
@@ -342,51 +388,36 @@ async def _validate_json_target(
                 screen=target.screen,
                 description=f"{target.screen} yanıt biçimi beklenen nesne yapısında değil.",
                 action_label=f"GET {target.path}",
-                technical_cause="Endpoint beklenen JSON obje yapısı yerine liste döndürdü.",
-                suggested_fix=(
-                    "İlgili endpoint response contract sabitlenmeli veya tarama "
-                    "reçetesi liste yanitini kabul edecek sekilde guncellenmeli."
-                ),
+                technical_cause="Endpoint beklenen JSON obje yapısı yerine farklı bir payload döndürdü.",
+                suggested_fix="İlgili endpoint response contract sabitlenmeli.",
                 evidence={"path": target.path, "duration_ms": duration_ms},
             )
-        return
-
-    if not isinstance(payload, Mapping):
-        await _counted_finding(
-            repository=repository,
-            run=run,
-            summary_counts=summary_counts,
-            severity=DebugFindingSeverity.MEDIUM,
-            category=target.failure_category,
-            screen=target.screen,
-            description=f"{target.screen} yanıt biçimi beklenen nesne yapısında değil.",
-            action_label=f"GET {target.path}",
-            technical_cause="Endpoint beklenen JSON obje yapısı yerine farklı bir payload döndürdü.",
-            suggested_fix="İlgili endpoint response contract sabitlenmeli.",
-            evidence={"path": target.path, "duration_ms": duration_ms},
         )
-        return
+        return findings
 
     missing_keys = [key for key in target.expected_json_keys if key not in payload]
     if missing_keys:
-        await _counted_finding(
-            repository=repository,
-            run=run,
-            summary_counts=summary_counts,
-            severity=DebugFindingSeverity.MEDIUM,
-            category=target.failure_category,
-            screen=target.screen,
-            description=f"{target.screen} yanıtında beklenen alanlar eksik.",
-            action_label=f"GET {target.path}",
-            technical_cause="Endpoint response contract'ı ile UI tarama beklentisi uyuşmuyor.",
-            suggested_fix="Eksik alanlar geri eklenmeli veya tarama reçetesi yeni sözleşmeye göre güncellenmeli.",
-            evidence={
-                "path": target.path,
-                "missing_keys": missing_keys,
-                "returned_keys": sorted(str(key) for key in payload),
-                "duration_ms": duration_ms,
-            },
+        findings.append(
+            await _counted_finding(
+                repository=repository,
+                run=run,
+                summary_counts=summary_counts,
+                severity=DebugFindingSeverity.MEDIUM,
+                category=target.failure_category,
+                screen=target.screen,
+                description=f"{target.screen} yanıtında beklenen alanlar eksik.",
+                action_label=f"GET {target.path}",
+                technical_cause="Endpoint response contract'ı ile UI tarama beklentisi uyuşmuyor.",
+                suggested_fix="Eksik alanlar geri eklenmeli veya tarama reçetesi yeni sözleşmeye göre güncellenmeli.",
+                evidence={
+                    "path": target.path,
+                    "missing_keys": missing_keys,
+                    "returned_keys": sorted(str(key) for key in payload),
+                    "duration_ms": duration_ms,
+                },
+            )
         )
+    return findings
 
 
 async def _validate_html_target(
@@ -397,23 +428,27 @@ async def _validate_html_target(
     response: httpx.Response,
     summary_counts: dict[DebugFindingSeverity, int],
     duration_ms: int,
-) -> None:
+) -> list[DebugFindingResponse]:
     body = response.text
     missing_markers = [marker for marker in target.expected_markers if marker not in body]
+    findings: list[DebugFindingResponse] = []
     if missing_markers:
-        await _counted_finding(
-            repository=repository,
-            run=run,
-            summary_counts=summary_counts,
-            severity=DebugFindingSeverity.MEDIUM,
-            category=target.failure_category,
-            screen=target.screen,
-            description=f"{target.screen} HTML yüzeyinde beklenen işaretler bulunamadı.",
-            action_label=f"GET {target.path}",
-            technical_cause="HTML iskeleti beklenen modül veya etiketleri üretmedi.",
-            suggested_fix="İlgili HTML route çıktısı ve embed edilen asset işaretleri gözden geçirilmeli.",
-            evidence={"path": target.path, "missing_markers": missing_markers, "duration_ms": duration_ms},
+        findings.append(
+            await _counted_finding(
+                repository=repository,
+                run=run,
+                summary_counts=summary_counts,
+                severity=DebugFindingSeverity.MEDIUM,
+                category=target.failure_category,
+                screen=target.screen,
+                description=f"{target.screen} HTML yüzeyinde beklenen işaretler bulunamadı.",
+                action_label=f"GET {target.path}",
+                technical_cause="HTML iskeleti beklenen modül veya etiketleri üretmedi.",
+                suggested_fix="İlgili HTML route çıktısı ve embed edilen asset işaretleri gözden geçirilmeli.",
+                evidence={"path": target.path, "missing_markers": missing_markers, "duration_ms": duration_ms},
+            )
         )
+    return findings
 
 
 def _build_summary(
@@ -453,9 +488,9 @@ async def _counted_finding(
     technical_cause: str,
     suggested_fix: str,
     evidence: dict[str, Any],
-) -> None:
+) -> DebugFindingResponse:
     summary_counts[severity] += 1
-    await _record_finding(
+    return await _record_finding(
         repository=repository,
         run=run,
         severity=severity,
@@ -481,8 +516,8 @@ async def _record_finding(
     technical_cause: str | None,
     suggested_fix: str | None,
     evidence: dict[str, Any],
-) -> None:
-    await repository.append_finding(
+) -> DebugFindingResponse:
+    return await repository.append_finding(
         run_id=UUID(run.id),
         hotel_id=run.hotel_id,
         category=category,
@@ -585,6 +620,7 @@ async def _maybe_capture_browser_screenshot(
     run: DebugRunResponse,
     target: ScanTarget,
     debug_session_token: str,
+    finding_ids: list[str] | None = None,
 ) -> None:
     if target.response_type != "html":
         return
@@ -620,20 +656,31 @@ async def _maybe_capture_browser_screenshot(
                 screenshot_bytes = await page.screenshot(type="png", full_page=True)
                 destination = _artifact_destination(UUID(run.id), target.key)
                 destination.write_bytes(screenshot_bytes)
+                metadata = {
+                    "source": "browser_scan",
+                    "target_key": target.key,
+                    "view_key": target.view_key,
+                    "target_path": target.path,
+                    "target_url": _browser_target_url(target),
+                    "screen": target.screen,
+                }
                 await repository.append_artifact(
                     run_id=UUID(run.id),
+                    finding_id=None,
                     artifact_type=DebugArtifactType.SCREENSHOT,
                     storage_path=_artifact_relative_path(UUID(run.id), target.key),
                     mime_type="image/png",
-                    metadata={
-                        "source": "browser_scan",
-                        "target_key": target.key,
-                        "view_key": target.view_key,
-                        "target_path": target.path,
-                        "target_url": _browser_target_url(target),
-                        "screen": target.screen,
-                    },
+                    metadata=metadata,
                 )
+                for finding_id in dict.fromkeys(finding_ids or []):
+                    await repository.append_artifact(
+                        run_id=UUID(run.id),
+                        finding_id=UUID(str(finding_id)),
+                        artifact_type=DebugArtifactType.SCREENSHOT,
+                        storage_path=_artifact_relative_path(UUID(run.id), target.key),
+                        mime_type="image/png",
+                        metadata=metadata,
+                    )
             finally:
                 if context is not None:
                     await context.close()
