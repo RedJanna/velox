@@ -5,7 +5,7 @@
 ADMIN_WHATSAPP_STYLE = """\
 .whatsapp-status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .whatsapp-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;min-height:120px;display:flex;flex-direction:column;gap:8px}
-.whatsapp-card h4{margin:0;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+.whatsapp-card h4{margin:0;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0}
 .whatsapp-card strong{font-size:22px;color:var(--ink);line-height:1.15}
 .whatsapp-card span{color:var(--muted);font-size:13px;line-height:1.35;overflow-wrap:anywhere}
 .whatsapp-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr);gap:18px;align-items:start}
@@ -35,17 +35,35 @@ ADMIN_WHATSAPP_STYLE = """\
 .whatsapp-guide-highlight{border:1px solid var(--line);border-radius:12px;background:var(--surface-2);padding:12px;display:flex;gap:10px;align-items:flex-start}
 .whatsapp-guide-highlight b{display:grid;place-items:center;width:28px;height:28px;border-radius:10px;background:rgba(15,118,110,.12);color:var(--accent);font-weight:900;flex:0 0 auto}
 .whatsapp-guide-highlight span{display:block;color:var(--muted);font-size:12px;line-height:1.35}
-.dialog.whatsapp-guide-dialog{max-width:980px;width:min(94vw,980px)}
+.dialog.whatsapp-guide-dialog{max-width:1080px;width:min(96vw,1080px)}
 .whatsapp-guide-body{display:grid;gap:18px;max-height:min(74vh,760px);overflow:auto;padding-right:4px}
 .whatsapp-guide-intro{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.62fr);gap:16px;align-items:stretch}
 .whatsapp-guide-panel{border:1px solid var(--line);border-radius:14px;background:var(--surface-2);padding:16px}
 .whatsapp-guide-panel h4,.whatsapp-guide-step h4,.whatsapp-guide-warning h4{margin:0 0 8px;font-size:15px}
 .whatsapp-guide-panel p,.whatsapp-guide-step p,.whatsapp-guide-warning p,.whatsapp-field-card p{margin:0;color:var(--muted);line-height:1.5}
+.whatsapp-guide-kicker{display:inline-flex;align-items:center;width:max-content;margin-bottom:8px;border:1px solid rgba(15,118,110,.18);border-radius:999px;background:rgba(15,118,110,.08);padding:4px 9px;color:var(--accent);font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0}
+.whatsapp-guide-safe-list{display:grid;gap:8px;margin:12px 0 0;padding:0;list-style:none}
+.whatsapp-guide-safe-list li{border:1px solid var(--line);border-radius:10px;background:#fff;padding:9px 10px;color:var(--muted);line-height:1.4}
 .whatsapp-guide-mini-screen{border:1px solid var(--line-strong);border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 10px 24px rgba(16,32,51,.08)}
 .whatsapp-guide-mini-top{height:34px;background:linear-gradient(135deg,var(--accent),var(--gold));display:flex;align-items:center;gap:6px;padding:0 12px}
 .whatsapp-guide-mini-dot{width:8px;height:8px;border-radius:999px;background:rgba(255,255,255,.8)}
 .whatsapp-guide-mini-body{display:grid;gap:8px;padding:12px}
 .whatsapp-guide-mini-row{display:flex;justify-content:space-between;gap:10px;border:1px dashed var(--line);border-radius:10px;padding:8px;color:var(--muted);font-size:12px}
+.whatsapp-guide-result{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.whatsapp-guide-result div{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px;min-height:94px}
+.whatsapp-guide-result strong{display:block;margin-bottom:6px;color:var(--ink)}
+.whatsapp-guide-result span{display:block;color:var(--muted);font-size:12px;line-height:1.4}
+.whatsapp-guide-checklist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.whatsapp-guide-checkitem{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;background:#fff;padding:11px}
+.whatsapp-guide-checkitem b{display:grid;place-items:center;width:24px;height:24px;border-radius:999px;background:rgba(22,163,74,.12);color:#15803d;flex:0 0 auto}
+.whatsapp-guide-checkitem span{display:block;color:var(--muted);line-height:1.4}
+.whatsapp-guide-path-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+.whatsapp-guide-path-card{border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px;position:relative}
+.whatsapp-guide-path-card.recommended{border-color:rgba(15,118,110,.42);box-shadow:0 0 0 3px rgba(15,118,110,.08)}
+.whatsapp-guide-path-card strong{display:block;margin-bottom:7px;color:var(--ink)}
+.whatsapp-guide-path-card p{margin:0;color:var(--muted);line-height:1.5}
+.whatsapp-guide-path-card ul{margin:10px 0 0;padding-left:18px;color:var(--muted);line-height:1.45}
+.whatsapp-guide-badge{position:absolute;top:12px;right:12px;border:1px solid rgba(187,138,42,.25);border-radius:999px;background:rgba(187,138,42,.12);padding:3px 8px;color:#785511;font-size:11px;font-weight:900}
 .whatsapp-guide-flow{display:grid;gap:12px}
 .whatsapp-guide-step{display:grid;grid-template-columns:42px minmax(0,1fr);gap:12px;border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px}
 .whatsapp-guide-step b{display:grid;place-items:center;width:34px;height:34px;border-radius:12px;background:rgba(187,138,42,.16);color:#785511;font-weight:900}
@@ -55,10 +73,15 @@ ADMIN_WHATSAPP_STYLE = """\
 .whatsapp-field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .whatsapp-field-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px}
 .whatsapp-field-card strong{display:block;margin-bottom:6px;overflow-wrap:anywhere}
+.whatsapp-field-card small{display:block;margin-top:9px;color:#785511;line-height:1.4}
 .whatsapp-field-card code{display:inline-block;margin-top:8px;font-size:12px;color:var(--accent);overflow-wrap:anywhere}
+.whatsapp-guide-troubleshoot{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.whatsapp-trouble-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px}
+.whatsapp-trouble-card strong{display:block;margin-bottom:6px;color:var(--ink)}
+.whatsapp-trouble-card p{margin:0;color:var(--muted);line-height:1.45}
 @media (max-width:1100px){.whatsapp-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.whatsapp-layout{grid-template-columns:1fr}}
-@media (max-width:900px){.whatsapp-guide-highlights,.whatsapp-guide-intro,.whatsapp-field-grid{grid-template-columns:1fr}}
-@media (max-width:640px){.whatsapp-status-grid{grid-template-columns:1fr}.whatsapp-actions{flex-direction:column}.whatsapp-actions button{width:100%}.whatsapp-guide-step{grid-template-columns:1fr}.dialog.whatsapp-guide-dialog{width:96vw}.whatsapp-guide-body{max-height:78vh}}
+@media (max-width:900px){.whatsapp-guide-highlights,.whatsapp-guide-intro,.whatsapp-field-grid,.whatsapp-guide-result,.whatsapp-guide-checklist,.whatsapp-guide-path-grid,.whatsapp-guide-troubleshoot{grid-template-columns:1fr}}
+@media (max-width:640px){.whatsapp-status-grid{grid-template-columns:1fr}.whatsapp-actions{flex-direction:column}.whatsapp-actions button{width:100%}.whatsapp-guide-step{grid-template-columns:1fr}.dialog.whatsapp-guide-dialog{width:96vw}.whatsapp-guide-body{max-height:78vh}.whatsapp-guide-badge{position:static;display:inline-flex;margin-bottom:8px}}
 """
 
 ADMIN_WHATSAPP_SCRIPT = """\

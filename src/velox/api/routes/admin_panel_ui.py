@@ -828,14 +828,14 @@ def render_admin_panel_html() -> str:
         <section data-view="whatsappapi" class="section-grid" hidden>
           <article class="module-card whatsapp-guide-card">
             <div class="module-header">
-              <div><h3>WhatsApp Cloud API Kurulum Rehberi</h3><p>Meta hesabından doğru bilgileri alıp bu sisteme hatasız bağlamak için adım adım ilerleyin.</p></div>
-              <button id="whatsappGuideButton" class="inline-button secondary" type="button" aria-label="WhatsApp Cloud API kurulum rehberini aç">Kurulum Rehberi</button>
+              <div><h3>WhatsApp Cloud API Kurulum Rehberi</h3><p>Meta hesabından doğru bilgileri alıp bu sisteme hatasız bağlamak için önce rehberi açın, sonra bağlantı adımlarını sırayla tamamlayın.</p></div>
+              <button id="whatsappGuideButton" class="inline-button secondary" type="button" aria-label="WhatsApp Cloud API detaylı kurulum rehberini aç">Detaylı Rehberi Aç</button>
             </div>
             <div class="whatsapp-guide-highlights">
-              <div class="whatsapp-guide-highlight"><b>1</b><span>Meta Business, WABA ve telefon numarasını hazırlayın.</span></div>
-              <div class="whatsapp-guide-highlight"><b>2</b><span>Önerilen popup akışıyla Meta hesabını bağlayın.</span></div>
-              <div class="whatsapp-guide-highlight"><b>3</b><span>Webhook ve sağlık kontrolünü bu ekrandan doğrulayın.</span></div>
-              <div class="whatsapp-guide-highlight"><b>4</b><span>24 saat dışı mesajlar için onaylı template kullanın.</span></div>
+              <div class="whatsapp-guide-highlight"><b>1</b><span>Başlamadan önce Meta Business, WABA, telefon ve HTTPS webhook hazırlığını kontrol edin.</span></div>
+              <div class="whatsapp-guide-highlight"><b>2</b><span>Önerilen yol olarak Meta ile Bağlan akışını kullanın; manuel kayıt sadece yedek yoldur.</span></div>
+              <div class="whatsapp-guide-highlight"><b>3</b><span>Webhook Abone Et, Sağlık Kontrolü ve Meta'dan Senkronize Et adımlarını tamamlayın.</span></div>
+              <div class="whatsapp-guide-highlight"><b>4</b><span>24 saatlik pencere dışındaki mesajlar için onaylı template hazırlayın.</span></div>
             </div>
           </article>
           <div id="whatsappStatusCards" class="whatsapp-status-grid"></div>
@@ -1144,35 +1144,90 @@ def render_admin_panel_html() -> str:
     <div class="dialog-card">
       <div class="dialog-head">
         <h3>WhatsApp Meta Cloud API Kurulum Rehberi</h3>
-        <p>Bu rehber, teknik bilgisi sınırlı kullanıcıların doğru Meta bilgilerini bulup Velox'a güvenli şekilde bağlaması için hazırlanmıştır.</p>
+        <p>Bu rehber, teknik bilgisi sınırlı kullanıcıların Meta tarafında doğru bilgileri bulup Velox'a güvenli ve eksiksiz bağlaması için hazırlanmıştır.</p>
       </div>
       <div class="whatsapp-guide-body mt-md">
         <div class="whatsapp-guide-intro">
           <section class="whatsapp-guide-panel">
-            <h4>En kolay yol</h4>
-            <p>Önce bu ekrandaki <strong>Meta ile Bağlan</strong> düğmesini deneyin. Açılan Meta penceresinde hesabınızı onaylayın, sonra burada görünen WhatsApp numarasını seçin. Bu yöntemde access token tarayıcıya gösterilmez ve sistem token'ı şifreli saklar.</p>
+            <span class="whatsapp-guide-kicker">Önerilen yol</span>
+            <h4>Önce Meta ile Bağlan akışını deneyin</h4>
+            <p>Bu ekrandaki <strong>Meta ile Bağlan</strong> düğmesi kullanıcıyı mümkün olduğunca Velox içinde tutar. Meta oturumu güvenli popup içinde tamamlanır, token frontend'e yazılmaz, yetki sonrası erişilebilir WhatsApp numaraları burada listelenir.</p>
+            <ul class="whatsapp-guide-safe-list">
+              <li>Popup açılırsa manuel formu doldurmanız gerekmez.</li>
+              <li>Token şifreli saklanır ve ekranda geri gösterilmez.</li>
+              <li>Bağlantıdan sonra webhook, sağlık kontrolü ve template senkronu bu ekrandan yapılır.</li>
+            </ul>
           </section>
           <section class="whatsapp-guide-mini-screen" aria-label="Meta kurulum ekranı örneği">
             <div class="whatsapp-guide-mini-top"><span class="whatsapp-guide-mini-dot"></span><span class="whatsapp-guide-mini-dot"></span><span class="whatsapp-guide-mini-dot"></span></div>
             <div class="whatsapp-guide-mini-body">
-              <div class="whatsapp-guide-mini-row"><strong>Meta Business</strong><span>Business ID</span></div>
+              <div class="whatsapp-guide-mini-row"><strong>Business Settings</strong><span>Business ID</span></div>
               <div class="whatsapp-guide-mini-row"><strong>WhatsApp Manager</strong><span>WABA ID</span></div>
               <div class="whatsapp-guide-mini-row"><strong>API Setup</strong><span>Phone Number ID</span></div>
-              <div class="whatsapp-guide-mini-row"><strong>Webhooks</strong><span>Callback URL</span></div>
+              <div class="whatsapp-guide-mini-row"><strong>Webhooks</strong><span>Callback URL + Verify Token</span></div>
+              <div class="whatsapp-guide-mini-row"><strong>Templates</strong><span>24 saat dışı mesajlar</span></div>
             </div>
           </section>
         </div>
+
+        <section class="whatsapp-guide-result" aria-label="Kurulum sonucunda beklenen durum">
+          <div><strong>Bağlantı</strong><span>Doğru WhatsApp numarası Velox'a bağlı görünür.</span></div>
+          <div><strong>Webhook</strong><span>Meta gelen mesajları public HTTPS endpoint'e gönderir.</span></div>
+          <div><strong>Token</strong><span>Gerekli izinlere sahip, canlı kullanım için uygun token saklanır.</span></div>
+          <div><strong>Template</strong><span>24 saatlik pencere kapalıyken kullanılacak onaylı mesajlar hazırdır.</span></div>
+        </section>
+
+        <section class="whatsapp-guide-panel">
+          <span class="whatsapp-guide-kicker">Ön kontrol</span>
+          <h4>Başlamadan önce 5 dakikalık kontrol</h4>
+          <p>Bu maddeler hazır değilse kurulum sırasında numara görünmeme, webhook doğrulanmama veya mesaj gönderememe hataları oluşur.</p>
+          <div class="whatsapp-guide-checklist">
+            <div class="whatsapp-guide-checkitem"><b>✓</b><span>Meta Business portföyünde yönetici yetkiniz var.</span></div>
+            <div class="whatsapp-guide-checkitem"><b>✓</b><span>Bağlanacak telefon numarası SMS veya sesli arama ile doğrulama alabiliyor.</span></div>
+            <div class="whatsapp-guide-checkitem"><b>✓</b><span>Velox webhook adresi public HTTPS üzerinden erişilebilir. Localhost veya HTTP kullanılmaz.</span></div>
+            <div class="whatsapp-guide-checkitem"><b>✓</b><span>Meta App tarafında WhatsApp ve Webhooks ürünleri yapılandırılmış.</span></div>
+            <div class="whatsapp-guide-checkitem"><b>✓</b><span>Canlı kullanım için kısa süreli test token yerine sistem kullanıcısı veya uzun ömürlü uygun token planlandı.</span></div>
+            <div class="whatsapp-guide-checkitem"><b>✓</b><span>İlk giden mesajlar için en az bir onaylı utility template hazırlamayı planladınız.</span></div>
+          </div>
+        </section>
+
+        <section class="whatsapp-guide-panel">
+          <span class="whatsapp-guide-kicker">Yol seçimi</span>
+          <h4>Hangi yolu seçmeliyim?</h4>
+          <div class="whatsapp-guide-path-grid">
+            <div class="whatsapp-guide-path-card recommended">
+              <strong>Meta ile Bağlan</strong>
+              <span class="whatsapp-guide-badge">Önerilen</span>
+              <p>Yeni kullanıcılar için en güvenli akıştır. Popup içinde Meta izni alınır, Velox erişilebilir WABA ve numaraları backend üzerinden listeler.</p>
+              <ul>
+                <li>Token tarayıcıda görünmez.</li>
+                <li>ID karıştırma riski azalır.</li>
+                <li>Numara seçimi Velox içinde tamamlanır.</li>
+              </ul>
+            </div>
+            <div class="whatsapp-guide-path-card">
+              <strong>Gelişmiş Manuel Kayıt</strong>
+              <span class="whatsapp-guide-badge">Yedek yol</span>
+              <p>Sadece popup akışı çalışmıyorsa veya teknik ekip Meta bilgilerini ayrıca verdiyse kullanın. Her alanı Meta'daki doğru kaynaktan kopyalamak gerekir.</p>
+              <ul>
+                <li>Business ID, WABA ID ve Phone Number ID karıştırılmamalı.</li>
+                <li>Access token izinleri manuel kontrol edilmeli.</li>
+                <li>Webhook verify token backend değeriyle aynı olmalı.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
 
         <section class="whatsapp-guide-flow" aria-label="Kurulum adımları">
           <div class="whatsapp-guide-step">
             <b>1</b>
             <div>
-              <h4>Meta Business hesabınızı hazırlayın</h4>
-              <p>Meta Business Suite içinde işletme portföyünüz olmalı. WhatsApp numarasını bağlayacak kişinin bu işletmede yönetici yetkisi olmalıdır.</p>
+              <h4>Meta Business hesabını hazırlayın</h4>
+              <p>Kurulumu yapacak kişinin Meta Business portföyünde yönetici veya gerekli varlık yetkilerine sahip olması gerekir. İşletme adı, web sitesi, ülke ve iletişim bilgileri doğru olmalıdır.</p>
               <ul>
-                <li>İşletme bilgileri doğru olmalı: resmi ad, web sitesi, ülke ve iletişim bilgileri.</li>
-                <li>Mümkünse işletme doğrulamasını tamamlayın; doğrulama bazı limitler ve canlı kullanım için gerekebilir.</li>
-                <li>Numara daha önce normal WhatsApp veya WhatsApp Business uygulamasında kullanıldıysa Cloud API'ye geçişte ek doğrulama gerekebilir.</li>
+                <li>Business Settings içinde doğru işletme portföyünü seçin.</li>
+                <li>WhatsApp hesabı ve telefon numarası aynı işletme altında veya size paylaşılmış varlık olarak görünmeli.</li>
+                <li>İşletme doğrulaması her kurulumda ilk dakika şartı olmayabilir, fakat canlı kullanım, limit ve güvenilirlik için eksik bırakılmamalıdır.</li>
               </ul>
             </div>
           </div>
@@ -1180,12 +1235,12 @@ def render_admin_panel_html() -> str:
           <div class="whatsapp-guide-step">
             <b>2</b>
             <div>
-              <h4>WhatsApp Business Account ve telefon numarasını bulun</h4>
-              <p>Meta tarafında iki farklı kimlik vardır: WABA, yani WhatsApp Business Account; ve o WABA içindeki Phone Number ID.</p>
+              <h4>Business ID, WABA ID ve Phone Number ID ayrımını netleştirin</h4>
+              <p>Meta tarafında üç farklı kimlik vardır. Bunlar aynı şey değildir ve yanlış alana yazılırsa bağlantı başarısız olur.</p>
               <ul>
-                <li><strong>WABA ID</strong>: WhatsApp Manager veya Business Settings içinde WhatsApp Business Account detayında görünür.</li>
-                <li><strong>Phone Number ID</strong>: WhatsApp Manager/API Setup veya WABA altındaki phone numbers listesinde görünür.</li>
-                <li>Phone Number ID, görünen telefon numarası değildir. Örneğin +90... yerine uzun sayısal bir ID girilmelidir.</li>
+                <li><strong>Business ID</strong>: Meta Business portföyünün kimliğidir.</li>
+                <li><strong>WABA ID</strong>: WhatsApp Business Account kimliğidir.</li>
+                <li><strong>Phone Number ID</strong>: Mesaj gönderecek telefonun API kimliğidir. Phone Number ID, görünen telefon numarası değildir.</li>
               </ul>
             </div>
           </div>
@@ -1193,12 +1248,12 @@ def render_admin_panel_html() -> str:
           <div class="whatsapp-guide-step">
             <b>3</b>
             <div>
-              <h4>Access token tipini doğru seçin</h4>
-              <p>Test için kısa süreli token iş görebilir, fakat canlı kullanımda sistem user access token kullanın. Token'ın WhatsApp mesajlaşma ve yönetim izinleri olmalıdır.</p>
+              <h4>Telefon numarasını Cloud API için hazır edin</h4>
+              <p>Meta, telefon numarasının WABA altında görünmesini ve Cloud API için kayıtlı olmasını bekler. Kayıt sırasında 6 haneli iki adımlı doğrulama PIN'i belirlenebilir.</p>
               <ul>
-                <li>Gerekli temel izinler: <code>whatsapp_business_management</code> ve <code>whatsapp_business_messaging</code>.</li>
-                <li>Business varlıklarını listelemek için bazı akışlarda <code>business_management</code> izni de gerekir.</li>
-                <li>Token'ı e-posta, chat veya ekran görüntüsüyle paylaşmayın. Bu ekrandan kaydedilen token geri gösterilmez.</li>
+                <li>Numara WhatsApp Business uygulamasında aktifse taşıma veya bağlantı kısıtlarını kontrol edin.</li>
+                <li>Embedded Signup ile bağlanan numaranın kayıt adımı geciktirilmemelidir; Meta tarafında süre sınırı olabilir.</li>
+                <li>PIN'i kaybederseniz ileride numara yönetimi zorlaşır; güvenli yerde saklayın, chat içinde paylaşmayın.</li>
               </ul>
             </div>
           </div>
@@ -1206,12 +1261,12 @@ def render_admin_panel_html() -> str:
           <div class="whatsapp-guide-step">
             <b>4</b>
             <div>
-              <h4>Önerilen bağlantı akışını kullanın</h4>
-              <p>Bu ekrandaki <strong>Meta ile Bağlan</strong> düğmesi bir bağlantı oturumu oluşturur, Meta penceresini açar ve yetki sonrası erişilebilir WhatsApp numaralarını listeler.</p>
+              <h4>Velox'ta Meta ile Bağlan akışını çalıştırın</h4>
+              <p>Bu sayfada <strong>Meta ile Bağlan</strong> düğmesine basın, ardından <strong>Meta Penceresini Aç</strong> ile yetkilendirmeyi tamamlayın. Meta ekranı güvenlik nedeniyle iframe içinde açılamazsa popup kullanılır.</p>
               <ul>
-                <li>Popup engellenirse tarayıcıda bu site için açılır pencereye izin verin.</li>
-                <li>Yetki tamamlanınca bu ekranda doğru telefon numarasını seçin.</li>
-                <li>Sonra <strong>Webhook Abone Et</strong> ve <strong>Sağlık Kontrolü</strong> adımlarını çalıştırın.</li>
+                <li>Popup engellenirse tarayıcı adres çubuğundan bu site için popup izni verin.</li>
+                <li>Meta girişinden sonra doğru işletme ve doğru WhatsApp numarasını seçin.</li>
+                <li>Velox'a döndüğünüzde listelenen numaradan gerçek otel numarasını seçin.</li>
               </ul>
             </div>
           </div>
@@ -1219,12 +1274,12 @@ def render_admin_panel_html() -> str:
           <div class="whatsapp-guide-step">
             <b>5</b>
             <div>
-              <h4>Manuel kayıt yalnızca gerektiğinde kullanın</h4>
-              <p>Meta popup akışı kullanılamıyorsa manuel formu doldurun. Bu yöntem daha fazla hata riski taşır; her alanı Meta ekranındaki doğru yerden alın.</p>
+              <h4>Webhook'u doğrulayın ve WABA'ya abone edin</h4>
+              <p>Meta'nın gelen mesajları Velox'a göndermesi için Webhooks ürünü, Callback URL, Verify Token ve WABA aboneliği tamamlanmalıdır.</p>
               <ul>
-                <li>Business ID, WABA ID ve Phone Number ID birbirinin yerine kullanılamaz.</li>
-                <li>Access token boş bırakılırsa mevcut token korunur; yeni token girerseniz eski token değişir.</li>
-                <li>Webhook verify token, Meta webhook doğrulamasında kullanılan sizin belirlediğiniz gizli metindir.</li>
+                <li>Webhook URL public HTTPS olmalı ve bu sistemde <code>/api/v1/webhook/whatsapp</code> yoluna gitmelidir.</li>
+                <li>Verify Token değeri backend tarafındaki <code>WHATSAPP_VERIFY_TOKEN</code> ile aynı olmalıdır.</li>
+                <li>Bu ekrandaki <strong>Webhook Abone Et</strong> düğmesi WABA aboneliğini tamamlamaya çalışır.</li>
               </ul>
             </div>
           </div>
@@ -1232,26 +1287,81 @@ def render_admin_panel_html() -> str:
           <div class="whatsapp-guide-step">
             <b>6</b>
             <div>
-              <h4>Template mesajlarını ihmal etmeyin</h4>
+              <h4>Access token izinlerini kontrol edin</h4>
+              <p>Token, mesaj göndermek ve WABA varlıklarını yönetmek için doğru izinlere sahip olmalıdır. Access token, App Secret değildir; Verify Token değildir.</p>
+              <ul>
+                <li>Mesaj göndermek için <code>whatsapp_business_messaging</code> gerekir.</li>
+                <li>WABA, numara, template ve webhook yönetimi için <code>whatsapp_business_management</code> gerekir.</li>
+                <li>Bazı varlık listeleme ve onboarding akışlarında <code>business_management</code> gerekebilir.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="whatsapp-guide-step">
+            <b>7</b>
+            <div>
+              <h4>Sağlık kontrolünü çalıştırın</h4>
+              <p><strong>Sağlık Kontrolü</strong> düğmesi token, Phone Number ID, WABA eşleşmesi ve webhook durumunu doğrulamak için kullanılır. Kartlarda kırmızı veya uyarı durumu varsa canlı kullanıma geçmeyin.</p>
+              <ul>
+                <li>Bağlantı kartında doğru görünen numara olmalı.</li>
+                <li>Webhook kartında doğru public URL görünmeli.</li>
+                <li>Token kartı kayıtlı token olduğunu göstermeli, ham token görünmemeli.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="whatsapp-guide-step">
+            <b>8</b>
+            <div>
+              <h4>Template mesajlarını hazırlayın</h4>
               <p>Misafir size son 24 saat içinde yazdıysa serbest yanıt gönderebilirsiniz. 24 saatlik pencere kapandıysa, yeni mesaj başlatmak için Meta tarafından onaylı template gerekir.</p>
               <ul>
-                <li>Template adını, dilini ve kategorisini Meta'da oluşturup onaya gönderin.</li>
-                <li>Onaylandıktan sonra bu ekrandan <strong>Meta'dan Senkronize Et</strong> ile listeyi güncelleyin.</li>
-                <li>Reddedilen template'lerde kategori, vaat dili veya değişken örneklerini düzeltip tekrar gönderin.</li>
+                <li>Meta'da template adı, dil, kategori ve değişken örneklerini girip onaya gönderin.</li>
+                <li>Otel hatırlatmaları için genelde utility template kullanılır; pazarlama içeriklerini ayrıca değerlendirin.</li>
+                <li>Onaylandıktan sonra bu ekrandan <strong>Meta'dan Senkronize Et</strong> ile Velox listesini güncelleyin.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="whatsapp-guide-step">
+            <b>9</b>
+            <div>
+              <h4>Canlı test yapın</h4>
+              <p>Kurulum bittiğinde gerçek kullanıcı verisi kullanmadan test numarasıyla uçtan uca kontrol yapın. Önce test numarasından WhatsApp mesajı gönderin, sonra Velox'un cevap verebildiğini doğrulayın.</p>
+              <ul>
+                <li>Gelen mesaj bağlantı günlüğünde veya ilgili sohbet akışında görünmeli.</li>
+                <li>İçeriden gönderilen test mesajı WhatsApp'a ulaşmalı.</li>
+                <li>24 saat dışı senaryo için onaylı template ile ayrıca deneme yapılmalı.</li>
               </ul>
             </div>
           </div>
         </section>
 
         <section class="whatsapp-guide-panel">
-          <h4>Manuel form alanları ne anlama geliyor?</h4>
+          <span class="whatsapp-guide-kicker">Manuel form</span>
+          <h4>Her alanı nereden bulurum ve neyle karıştırmamalıyım?</h4>
           <div class="whatsapp-field-grid">
-            <div class="whatsapp-field-card"><strong>Business ID</strong><p>Meta Business Suite işletme portföyünün kimliğidir. Genellikle Business Settings veya URL içindeki <code>business_id</code> değeridir.</p></div>
-            <div class="whatsapp-field-card"><strong>WABA ID</strong><p>WhatsApp Business Account kimliğidir. Bir işletmenin birden fazla WABA'sı olabilir; doğru WABA'yı seçin.</p></div>
-            <div class="whatsapp-field-card"><strong>Phone Number ID</strong><p>Mesaj gönderecek telefonun API kimliğidir. Görünen telefon numarası değil, Meta'nın verdiği sayısal ID'dir.</p></div>
-            <div class="whatsapp-field-card"><strong>Access Token</strong><p>Meta Graph API'ye erişim anahtarıdır. Canlı sistemde süresi uygun ve gerekli izinlere sahip token kullanın.</p></div>
-            <div class="whatsapp-field-card"><strong>Webhook URL</strong><p>Meta'nın gelen mesajları göndereceği herkese açık HTTPS adrestir. Bu sistemde <code>/api/v1/webhook/whatsapp</code> yoluna gider.</p></div>
-            <div class="whatsapp-field-card"><strong>Verify Token</strong><p>Webhook kurulurken Meta'nın doğrulama için geri gönderdiği, sizin belirlediğiniz gizli metindir. Access token ile aynı şey değildir.</p></div>
+            <div class="whatsapp-field-card"><strong>Business ID</strong><p>Meta Business portföyünün kimliğidir. Business Settings ekranında veya URL'deki <code>business_id</code> değerinde görülür.</p><small>WABA ID değildir.</small></div>
+            <div class="whatsapp-field-card"><strong>WABA ID</strong><p>WhatsApp Business Account kimliğidir. WhatsApp Manager veya Business Settings içindeki WhatsApp hesabı detayından alınır.</p><small>Bir işletmede birden fazla WABA olabilir.</small></div>
+            <div class="whatsapp-field-card"><strong>Phone Number ID</strong><p>Mesaj gönderecek telefonun API kimliğidir. WABA altındaki phone numbers veya API Setup ekranında görünür.</p><small>+90 ile başlayan görünen telefon numarası değildir.</small></div>
+            <div class="whatsapp-field-card"><strong>Görünen numara</strong><p>Kullanıcının WhatsApp'ta gördüğü numaradır. Kontrol amaçlıdır; API çağrılarında Phone Number ID kullanılır.</p><small>Yanlış numara seçimini fark etmek için doldurun.</small></div>
+            <div class="whatsapp-field-card"><strong>Token scope</strong><p>Token'ın sahip olduğu izinleri virgülle yazabilirsiniz: <code>whatsapp_business_messaging,whatsapp_business_management</code>.</p><small>Eksik scope, mesaj veya webhook hatası üretir.</small></div>
+            <div class="whatsapp-field-card"><strong>Access token</strong><p>Meta Graph API'ye erişim anahtarıdır. Sadece password alanına girilir, kayıttan sonra geri gösterilmez.</p><small>Access token, App Secret değildir; Verify Token değildir.</small></div>
+            <div class="whatsapp-field-card"><strong>Webhook verify token</strong><p>Meta webhook doğrulamasında sizin belirlediğiniz gizli metindir. Backend'deki <code>WHATSAPP_VERIFY_TOKEN</code> ile birebir aynı olmalıdır.</p><small>Access token yerine yazılmaz.</small></div>
+            <div class="whatsapp-field-card"><strong>Webhook URL</strong><p>Meta'nın gelen mesajları göndereceği public HTTPS adrestir. Bu sistemde <code>/api/v1/webhook/whatsapp</code> yoluna gider.</p><small>HTTP, localhost veya erişilemeyen intranet adresi kullanmayın.</small></div>
+          </div>
+        </section>
+
+        <section class="whatsapp-guide-panel">
+          <span class="whatsapp-guide-kicker">Sorun çözme</span>
+          <h4>Takılırsanız hızlı teşhis tablosu</h4>
+          <div class="whatsapp-guide-troubleshoot">
+            <div class="whatsapp-trouble-card"><strong>Popup açılmıyor</strong><p>Tarayıcı popup engelliyor olabilir. Adres çubuğundaki popup uyarısından <code>velox.nexlumeai.com</code> için izin verin ve Meta Penceresini Aç düğmesine tekrar basın.</p></div>
+            <div class="whatsapp-trouble-card"><strong>Meta'da numara görünmüyor</strong><p>Yanlış Business seçilmiş, WABA size paylaşılmamış veya token izinleri eksik olabilir. Business ID, WABA erişimi ve <code>whatsapp_business_management</code> iznini kontrol edin.</p></div>
+            <div class="whatsapp-trouble-card"><strong>Sağlık kontrolü başarısız</strong><p>Token süresi dolmuş, Phone Number ID yanlış, numara kayıtlı değil veya token bu WABA'ya yetkili değil olabilir. Önce ID eşleşmesini, sonra token scope listesini kontrol edin.</p></div>
+            <div class="whatsapp-trouble-card"><strong>Webhook abone edilemiyor</strong><p>Meta App içinde Webhooks ürünü eksik, callback URL doğrulanmamış veya WABA aboneliği için yönetim izni eksik olabilir. Verify Token eşleşmesini ve public HTTPS erişimini kontrol edin.</p></div>
+            <div class="whatsapp-trouble-card"><strong>Gelen mesaj Velox'a düşmüyor</strong><p>WABA aboneliği yapılmamış, webhook messages alanı aktif değil, callback URL yanlış veya app secret imza doğrulaması başarısız olabilir. Bağlantı Günlüğü ve webhook durum kartını kontrol edin.</p></div>
+            <div class="whatsapp-trouble-card"><strong>24 saat sonrası mesaj gitmiyor</strong><p>Serbest metin yalnızca açık müşteri hizmeti penceresinde gönderilebilir. Pencere kapalıysa onaylı template seçin veya template'i Meta'da onaya gönderin.</p></div>
           </div>
         </section>
 
@@ -1260,6 +1370,7 @@ def render_admin_panel_html() -> str:
           <ul>
             <li>Görünen telefon numarasını Phone Number ID alanına yazmak.</li>
             <li>WABA ID yerine Business ID girmek veya tam tersini yapmak.</li>
+            <li>Access token, App Secret veya Verify Token değerlerini birbirinin yerine kullanmak.</li>
             <li>24 saat süresi dolmuş kullanıcıya onaysız serbest mesaj göndermeye çalışmak.</li>
             <li>Test ekranındaki kısa süreli token ile canlı kullanıma geçmek.</li>
             <li>Webhook URL'yi HTTP veya localhost olarak ayarlamak; Meta için public HTTPS gerekir.</li>
@@ -1268,13 +1379,14 @@ def render_admin_panel_html() -> str:
         </section>
 
         <section class="whatsapp-guide-warning">
-          <h4>Bağlantıdan sonra son kontrol</h4>
+          <h4>Bittiğini nasıl anlarım?</h4>
           <ul>
-            <li>Bağlantı durum kartında doğru telefon numarası görünüyor.</li>
-            <li>Webhook durumu doğrulandı veya abonelik başarılı oldu.</li>
-            <li>Sağlık kontrolü token ve Phone Number ID eşleşmesini onayladı.</li>
-            <li>En az bir onaylı template senkronize edildi.</li>
-            <li>Meta tarafında app mode, izinler ve telefon kalite durumu canlı kullanım için uygunsa sistem üretime hazırdır.</li>
+            <li>Bağlantı durum kartında doğru WhatsApp numarası ve Phone Number ID görünüyor.</li>
+            <li>Webhook durumu doğrulandı veya <strong>Webhook Abone Et</strong> işlemi başarılı oldu.</li>
+            <li><strong>Sağlık Kontrolü</strong> token, WABA ve Phone Number ID eşleşmesini onayladı.</li>
+            <li>En az bir onaylı template <strong>Meta'dan Senkronize Et</strong> ile Velox listesine geldi.</li>
+            <li>Test numarasından gelen mesaj Velox'a düştü ve Velox'tan gönderilen yanıt WhatsApp'a ulaştı.</li>
+            <li>24 saatlik pencere dışında serbest metin yerine onaylı template kullanıldığını test ettiniz.</li>
           </ul>
         </section>
       </div>
