@@ -115,10 +115,10 @@ async def debug_worker_status(
     worker_ready = bool(task is not None and not task.done())
     if not worker_ready:
         message = "Debug worker hazır değil."
-    elif not browser_capability.available:
-        message = browser_capability.reason or "Browser scan hazır değil."
     elif active_run is not None:
         message = "Aktif hata taraması sürüyor."
+    elif not browser_capability.available:
+        message = browser_capability.reason or "Browser scan hazır değil."
     else:
         message = "Debug worker hazır."
     return DebugWorkerStatusResponse(

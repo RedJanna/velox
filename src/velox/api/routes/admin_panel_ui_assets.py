@@ -328,6 +328,7 @@ const state = {
   hotels: [],
   selectedHotelId: window.localStorage.getItem(HOTEL_KEY) || '',
   currentView: (window.location.hash || '#dashboard').replace('#', ''),
+  lastDebugSourceView: 'dashboard',
   dashboard: null,
   conversations: [],
   conversationsTotal: 0,
@@ -391,8 +392,13 @@ const state = {
   debugRunArtifacts: [],
   debugArtifactScope: 'run',
   debugPollingHandle: null,
+  debugRefreshPromise: null,
   debugWorkerReady: false,
   debugWorkerMessage: '',
+  debugBrowserScanAvailable: false,
+  debugBrowserScanMessage: '',
+  debugBrowserScanMode: '',
+  debugBrowserScanTarget: '',
   refreshPromise: null,
   liveRefreshHandle: null,
   _authKeepAliveTimer: null,
@@ -466,7 +472,7 @@ function bindEvents() {
   refs.debugRunCancelButton?.addEventListener('click', closeDebugRunModal);
   refs.debugRunForm?.addEventListener('submit', onDebugRunSubmit);
   refs.debugRefreshButton?.addEventListener('click', () => {
-    loadDebugRuns({preserveSelection: true}).catch(error => notify(error.message, 'error'));
+    loadDebugRunsSafely({preserveSelection: true}, {notifyOnError: true});
   });
   refs.debugRunList?.addEventListener('click', onDebugRunListClick);
   refs.debugFindingList?.addEventListener('click', onDebugFindingListClick);
@@ -984,7 +990,12 @@ async function hydrateSession() {
   window.localStorage.setItem(HOTEL_KEY, state.selectedHotelId);
   populateHotelSelectors();
   showPanel();
-  await Promise.all([loadDashboard(), loadSystemOverview(), loadSessionPreferences(), loadDebugRuns({preserveSelection: false})]);
+  await Promise.all([
+    loadDashboard(),
+    loadSystemOverview(),
+    loadSessionPreferences(),
+    loadDebugRunsSafely({preserveSelection: false}, {notifyOnError: false}),
+  ]);
   setView(state.currentView || 'dashboard');
 }
 
@@ -1037,6 +1048,9 @@ function showPanel() {
 
 function setView(view) {
   state.currentView = view;
+  if (view && view !== 'debug') {
+    state.lastDebugSourceView = view;
+  }
   window.location.hash = view;
   if (view !== 'debug') {
     stopDebugPolling();
@@ -1079,7 +1093,7 @@ function setView(view) {
   if (view === 'notifications') loadNotifPhones();
   if (view === 'system') loadSystemOverview();
   if (view === 'chatlab') loadChatLab();
-  if (view === 'debug') loadDebugRuns({preserveSelection: true});
+  if (view === 'debug') loadDebugRunsSafely({preserveSelection: true}, {notifyOnError: true});
   scheduleLiveRefresh();
 }
 
@@ -1128,6 +1142,9 @@ function openDebugRunModal() {
     notify(state.debugWorkerMessage || 'Debug worker hazır değil.', 'error');
     return;
   }
+  if (!state.debugBrowserScanAvailable && state.debugBrowserScanMessage) {
+    notify(`${state.debugBrowserScanMessage} HTTP/API taraması yine rapor üretecek.`, 'warn');
+  }
   if (refs.debugStartButton?.disabled) {
     notify('Bu otel için zaten aktif bir hata taraması var.', 'warn');
     if (state.currentView !== 'debug') setView('debug');
@@ -1147,7 +1164,7 @@ function closeDebugRunModal() {
 
 function buildDebugRunPayload() {
   const target = refs.debugScopeCurrentView?.checked ? 'current_view' : 'all_panel';
-  const effectiveView = state.currentView && state.currentView !== 'debug' ? state.currentView : 'dashboard';
+  const effectiveView = state.currentView || state.lastDebugSourceView || 'dashboard';
   return {
     mode: 'aggressive_report_only',
     scope: {
@@ -1245,45 +1262,82 @@ async function onDebugDetailClick(event) {
   }
 }
 
-async function loadDebugRuns({preserveSelection = true} = {}) {
-  await loadDebugStatus();
-  const response = await apiFetch('/debug/runs');
-  state.debugRuns = Array.isArray(response.items) ? response.items : [];
-  const hasSelectedRun = preserveSelection && state.activeDebugRunId && state.debugRuns.some(item => item.id === state.activeDebugRunId);
-  if (!hasSelectedRun) {
-    const activeRun = state.debugRuns.find(item => item.status === 'running' || item.status === 'queued');
-    state.activeDebugRunId = activeRun?.id || state.debugRuns[0]?.id || '';
-    state.activeDebugFindingId = '';
+async function loadDebugRuns({preserveSelection = true, force = false} = {}) {
+  if (state.debugRefreshPromise && !force) {
+    return state.debugRefreshPromise;
   }
-  syncDebugTopbarState();
-  renderDebugRunList();
-  if (!state.activeDebugRunId) {
-    state.debugRunDetail = null;
-    state.debugFindings = [];
-    state.debugArtifacts = [];
-    state.debugRunArtifacts = [];
-    state.debugArtifactScope = 'run';
-    closeDebugArtifactPreview();
-    stopDebugPolling();
+  const refreshPromise = (async () => {
+    await loadDebugStatus();
+    const response = await apiFetch('/debug/runs');
+    state.debugRuns = Array.isArray(response.items) ? response.items : [];
+    const hasSelectedRun = preserveSelection && state.activeDebugRunId && state.debugRuns.some(item => item.id === state.activeDebugRunId);
+    if (!hasSelectedRun) {
+      const activeRun = state.debugRuns.find(item => item.status === 'running' || item.status === 'queued');
+      state.activeDebugRunId = activeRun?.id || state.debugRuns[0]?.id || '';
+      state.activeDebugFindingId = '';
+    }
+    syncDebugTopbarState();
+    renderDebugRunList();
+    if (!state.activeDebugRunId) {
+      state.debugRunDetail = null;
+      state.debugFindings = [];
+      state.debugArtifacts = [];
+      state.debugRunArtifacts = [];
+      state.debugArtifactScope = 'run';
+      closeDebugArtifactPreview();
+      stopDebugPolling();
+      renderDebugView();
+      return;
+    }
+    await Promise.all([
+      loadDebugRunDetail(state.activeDebugRunId),
+      loadDebugFindings(state.activeDebugRunId),
+    ]);
+    await loadDebugArtifacts(state.activeDebugRunId, state.activeDebugFindingId || null);
     renderDebugView();
-    return;
+  })();
+  state.debugRefreshPromise = refreshPromise;
+  try {
+    return await refreshPromise;
+  } finally {
+    if (state.debugRefreshPromise === refreshPromise) {
+      state.debugRefreshPromise = null;
+    }
   }
-  await Promise.all([
-    loadDebugRunDetail(state.activeDebugRunId),
-    loadDebugFindings(state.activeDebugRunId),
-  ]);
-  await loadDebugArtifacts(state.activeDebugRunId, state.activeDebugFindingId || null);
-  renderDebugView();
+}
+
+async function loadDebugRunsSafely(options = {}, {notifyOnError = false} = {}) {
+  try {
+    await loadDebugRuns(options);
+  } catch (error) {
+    state.debugWorkerReady = false;
+    state.debugWorkerMessage = 'Debug verileri alınamadı.';
+    syncDebugTopbarState();
+    if (state.currentView === 'debug') {
+      renderDebugView();
+    }
+    if (notifyOnError) {
+      notify(error.message || 'Hata raporları yüklenemedi.', 'error');
+    }
+  }
 }
 
 async function loadDebugStatus() {
   try {
     const response = await apiFetch('/debug/status');
-    state.debugWorkerReady = Boolean(response.worker_ready && response.browser_scan_available);
-    state.debugWorkerMessage = String(response.active_run_message || response.browser_scan_reason || '');
+    state.debugWorkerReady = Boolean(response.worker_ready);
+    state.debugWorkerMessage = String(response.active_run_message || '');
+    state.debugBrowserScanAvailable = Boolean(response.browser_scan_available);
+    state.debugBrowserScanMessage = String(response.browser_scan_reason || '');
+    state.debugBrowserScanMode = String(response.browser_scan_mode || '');
+    state.debugBrowserScanTarget = String(response.browser_scan_target || '');
   } catch (_error) {
     state.debugWorkerReady = false;
     state.debugWorkerMessage = 'Debug worker durumu alınamadı.';
+    state.debugBrowserScanAvailable = false;
+    state.debugBrowserScanMessage = '';
+    state.debugBrowserScanMode = '';
+    state.debugBrowserScanTarget = '';
   }
 }
 
@@ -1431,8 +1485,22 @@ function groupDebugArtifacts(items) {
   return groups;
 }
 
+function safeDebugArtifactUrl(rawUrl) {
+  const value = String(rawUrl || '').trim();
+  if (!value) return '';
+  try {
+    const url = new URL(value, window.location.origin);
+    if (url.origin !== window.location.origin) return '';
+    if (!url.pathname.startsWith('/api/v1/admin/debug/runs/')) return '';
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch (_error) {
+    return '';
+  }
+}
+
 function isPreviewableDebugArtifact(item) {
-  return Boolean(item?.mime_type && item.mime_type.startsWith('image/') && item.content_url);
+  const mimeType = String(item?.mime_type || '');
+  return Boolean(mimeType.startsWith('image/') && safeDebugArtifactUrl(item?.content_url));
 }
 
 function buildDebugArtifactMetaLine(item) {
@@ -1563,21 +1631,22 @@ async function openDebugArtifactFinding(findingId, sourceArtifactId = '') {
 function openDebugArtifactPreview(artifactId) {
   const artifact = state.debugArtifacts.find(item => item.id === artifactId);
   if (!artifact || !refs.debugArtifactPreviewDialog) return;
+  const contentUrl = safeDebugArtifactUrl(artifact.content_url);
   state.activeDebugArtifactId = artifact.id || '';
   state.highlightedDebugArtifactId = artifact.id || state.highlightedDebugArtifactId;
   refs.debugArtifactPreviewTitle.textContent = `${formatDebugArtifactTypeLabel(artifact.artifact_type)} · ${getDebugArtifactScreenLabel(artifact)}`;
   refs.debugArtifactPreviewMeta.textContent = buildDebugArtifactMetaLine(artifact) || 'Artifact ayrıntıları';
   refs.debugArtifactPreviewPath.textContent = String(artifact.storage_path || '-');
-  if (artifact.content_url) {
+  if (contentUrl) {
     refs.debugArtifactPreviewLink.hidden = false;
-    refs.debugArtifactPreviewLink.href = artifact.content_url;
+    refs.debugArtifactPreviewLink.href = contentUrl;
   } else {
     refs.debugArtifactPreviewLink.hidden = true;
     refs.debugArtifactPreviewLink.removeAttribute('href');
   }
   if (isPreviewableDebugArtifact(artifact)) {
     refs.debugArtifactPreviewImage.hidden = false;
-    refs.debugArtifactPreviewImage.src = artifact.content_url;
+    refs.debugArtifactPreviewImage.src = contentUrl;
     refs.debugArtifactPreviewImage.alt = refs.debugArtifactPreviewTitle.textContent;
     refs.debugArtifactPreviewEmpty.hidden = true;
   } else {
@@ -1585,12 +1654,16 @@ function openDebugArtifactPreview(artifactId) {
     refs.debugArtifactPreviewImage.removeAttribute('src');
     refs.debugArtifactPreviewEmpty.hidden = false;
   }
-  refs.debugArtifactPreviewDialog.showModal();
+  if (!refs.debugArtifactPreviewDialog.open) {
+    refs.debugArtifactPreviewDialog.showModal();
+  }
 }
 
 function closeDebugArtifactPreview() {
   state.activeDebugArtifactId = '';
-  refs.debugArtifactPreviewDialog?.close();
+  if (refs.debugArtifactPreviewDialog?.open) {
+    refs.debugArtifactPreviewDialog.close();
+  }
 }
 
 function syncDebugTopbarState() {
@@ -1604,8 +1677,13 @@ function syncDebugTopbarState() {
     return;
   }
   if (!activeRun) {
-    refs.debugTopbarStatus.textContent = 'Boşta';
-    refs.debugTopbarStatus.className = 'badge info';
+    if (!state.debugBrowserScanAvailable && state.debugBrowserScanMessage) {
+      refs.debugTopbarStatus.textContent = 'HTTP tarama hazır · screenshot yok';
+      refs.debugTopbarStatus.className = 'badge warn';
+    } else {
+      refs.debugTopbarStatus.textContent = 'Boşta';
+      refs.debugTopbarStatus.className = 'badge info';
+    }
     refs.debugStartButton.disabled = false;
     return;
   }
@@ -1835,8 +1913,9 @@ function renderDebugArtifacts() {
           <div class="debug-artifact-list">
             ${group.items.map(item => {
               const typeLabel = formatDebugArtifactTypeLabel(item.artifact_type);
+              const contentUrl = safeDebugArtifactUrl(item.content_url);
               const preview = isPreviewableDebugArtifact(item)
-                ? `<img class="debug-artifact-preview" src="${escapeHtml(item.content_url)}" alt="${escapeHtml(typeLabel)}" data-debug-artifact-preview="${escapeHtml(item.id || '')}">`
+                ? `<img class="debug-artifact-preview" src="${escapeHtml(contentUrl)}" alt="${escapeHtml(typeLabel)}" data-debug-artifact-preview="${escapeHtml(item.id || '')}">`
                 : `<div class="debug-empty-compact"><p>${escapeHtml(item.mime_type || 'İkili dosya')}</p></div>`;
               const findingTarget = getDebugArtifactFindingJumpTarget(item);
               const isHighlighted = item.id === state.highlightedDebugArtifactId;
@@ -1847,8 +1926,8 @@ function renderDebugArtifacts() {
                 isPreviewableDebugArtifact(item)
                   ? `<button class="debug-artifact-link secondary" type="button" data-debug-artifact-preview="${escapeHtml(item.id || '')}">Önizle</button>`
                   : '',
-                item.content_url
-                  ? `<a class="debug-artifact-link" href="${escapeHtml(item.content_url)}" target="_blank" rel="noopener noreferrer">Yeni Sekmede Aç</a>`
+                contentUrl
+                  ? `<a class="debug-artifact-link" href="${escapeHtml(contentUrl)}" target="_blank" rel="noopener noreferrer">Yeni Sekmede Aç</a>`
                   : '',
               ].filter(Boolean).join('');
               return `

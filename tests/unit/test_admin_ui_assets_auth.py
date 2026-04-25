@@ -841,6 +841,80 @@ def test_admin_panel_debug_artifact_ui_includes_preview_and_context_copy() -> No
     assert ".debug-artifact-dialog" in ADMIN_PANEL_STYLE
 
 
+def test_admin_panel_debug_current_view_scope_targets_debug_view() -> None:
+    result = _run_admin_panel_script_harness(
+        """
+refs.debugScopeCurrentView = { checked: true };
+refs.debugScopeAllPanel = { checked: false };
+refs.debugIncludeChatLab = { checked: false };
+refs.debugIncludePopups = { checked: true };
+refs.debugIncludeModals = { checked: true };
+state.currentView = 'debug';
+state.lastDebugSourceView = 'restaurant';
+
+const payload = buildDebugRunPayload();
+console.log(JSON.stringify({
+  target: payload.scope.target,
+  targetView: payload.scope.target_view,
+  includeChatLab: payload.scope.include_chatlab_iframe,
+}));
+"""
+    )
+
+    assert result == {
+        "target": "current_view",
+        "targetView": "debug",
+        "includeChatLab": False,
+    }
+
+
+def test_admin_panel_debug_allows_http_scan_when_browser_screenshot_unavailable() -> None:
+    result = _run_admin_panel_script_harness(
+        """
+refs.debugTopbarStatus = new HTMLElement();
+refs.debugStartButton = new HTMLElement();
+state.debugWorkerReady = true;
+state.debugBrowserScanAvailable = false;
+state.debugBrowserScanMessage = 'Playwright Python paketi yuklu degil.';
+state.debugRuns = [];
+
+syncDebugTopbarState();
+console.log(JSON.stringify({
+  disabled: refs.debugStartButton.disabled,
+  statusText: refs.debugTopbarStatus.textContent,
+  className: refs.debugTopbarStatus.className,
+}));
+"""
+    )
+
+    assert result == {
+        "disabled": False,
+        "statusText": "HTTP tarama hazır · screenshot yok",
+        "className": "badge warn",
+    }
+
+
+def test_admin_panel_debug_artifact_urls_are_restricted_to_same_origin_admin_route() -> None:
+    result = _run_admin_panel_script_harness(
+        """
+const ok = safeDebugArtifactUrl('/api/v1/admin/debug/runs/run-1/artifacts/artifact-1/content');
+const sameOrigin = safeDebugArtifactUrl('https://test.local/api/v1/admin/debug/runs/run-1/artifacts/artifact-1/content');
+const crossOrigin = safeDebugArtifactUrl('https://evil.test/api/v1/admin/debug/runs/run-1/artifacts/artifact-1/content');
+const wrongRoute = safeDebugArtifactUrl('/api/v1/admin/hotels');
+const scriptUrl = safeDebugArtifactUrl('javascript:alert(1)');
+console.log(JSON.stringify({ok, sameOrigin, crossOrigin, wrongRoute, scriptUrl}));
+"""
+    )
+
+    assert result == {
+        "ok": "/api/v1/admin/debug/runs/run-1/artifacts/artifact-1/content",
+        "sameOrigin": "/api/v1/admin/debug/runs/run-1/artifacts/artifact-1/content",
+        "crossOrigin": "",
+        "wrongRoute": "",
+        "scriptUrl": "",
+    }
+
+
 def test_hold_rows_are_clickable_without_detail_button() -> None:
     """Hold table rows should be directly clickable for selection."""
     assert '.holds-table tbody tr[data-open-hold]{cursor:pointer}' in ADMIN_PANEL_STYLE

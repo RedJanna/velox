@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -82,6 +83,27 @@ class _FindingRepository:
         return payload
 
 
+class _FailingLoopRepository:
+    def __init__(self, run: DebugRunResponse) -> None:
+        self.run = run
+        self.claim_count = 0
+        self.failed_payload: dict[str, object] | None = None
+
+    async def claim_next_queued_run(self, *, worker_meta_json=None, hotel_id=None):
+        _ = (worker_meta_json, hotel_id)
+        self.claim_count += 1
+        if self.claim_count == 1:
+            return self.run
+        return None
+
+    async def mark_failed(self, *, run_id, hotel_id, failure_reason):
+        self.failed_payload = {
+            "run_id": run_id,
+            "hotel_id": hotel_id,
+            "failure_reason": failure_reason,
+        }
+
+
 @pytest.mark.asyncio
 async def test_browser_screenshot_skips_when_playwright_missing(
     monkeypatch: pytest.MonkeyPatch,
@@ -104,6 +126,36 @@ async def test_browser_screenshot_skips_when_playwright_missing(
     )
 
     assert repository.artifacts == []
+
+
+@pytest.mark.asyncio
+async def test_debug_loop_marks_claimed_run_failed_when_processing_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = _build_run()
+    repository = _FailingLoopRepository(run)
+    sleep_calls = 0
+
+    async def _raise_process_error(*_args, **_kwargs) -> None:
+        raise RuntimeError("scan validation crashed")
+
+    async def _sleep(_seconds: float) -> None:
+        nonlocal sleep_calls
+        sleep_calls += 1
+        if repository.claim_count > 1:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(admin_debug_runner, "AdminDebugRepository", lambda: repository)
+    monkeypatch.setattr(admin_debug_runner, "_process_run", _raise_process_error)
+    monkeypatch.setattr(admin_debug_runner.asyncio, "sleep", _sleep)
+
+    await admin_debug_runner.run_admin_debug_loop(FastAPI())
+
+    assert repository.failed_payload is not None
+    assert repository.failed_payload["run_id"] == UUID(run.id)
+    assert repository.failed_payload["hotel_id"] == run.hotel_id
+    assert "RuntimeError: scan validation crashed" in str(repository.failed_payload["failure_reason"])
+    assert sleep_calls == 1
 
 
 @pytest.mark.asyncio

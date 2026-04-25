@@ -190,7 +190,7 @@ async def test_debug_status_reports_browser_scan_gap(
     assert payload["worker_ready"] is True
     assert payload["browser_scan_available"] is False
     assert payload["browser_scan_reason"] == "Playwright Python paketi yuklu degil."
-    assert payload["active_run_message"] == "Playwright Python paketi yuklu degil."
+    assert payload["active_run_message"] == "Aktif hata taraması sürüyor."
 
 
 def _make_run_response(run_id: str = "run-1") -> DebugRunResponse:

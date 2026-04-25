@@ -67,6 +67,28 @@ def _response_excerpt(response: httpx.Response) -> str:
     return body[:400]
 
 
+def _failure_reason(exc: Exception) -> str:
+    message = str(exc).strip()
+    if not message:
+        return type(exc).__name__
+    return f"{type(exc).__name__}: {message}"[:500]
+
+
+async def _mark_run_failed_after_exception(
+    repository: AdminDebugRepository,
+    run: DebugRunResponse,
+    exc: Exception,
+) -> None:
+    try:
+        await repository.mark_failed(
+            run_id=UUID(run.id),
+            hotel_id=run.hotel_id,
+            failure_reason=_failure_reason(exc),
+        )
+    except Exception:
+        logger.exception("admin_debug_run_mark_failed_error", run_id=run.id, hotel_id=run.hotel_id)
+
+
 async def run_admin_debug_loop(app: FastAPI) -> None:
     """Continuously claim and process queued admin debug runs."""
     repository = AdminDebugRepository()
@@ -82,7 +104,11 @@ async def run_admin_debug_loop(app: FastAPI) -> None:
             if run is None:
                 await asyncio.sleep(DEBUG_RUNNER_LOOP_IDLE_SECONDS)
                 continue
-            await _process_run(app, repository, run)
+            try:
+                await _process_run(app, repository, run)
+            except Exception as exc:
+                logger.exception("admin_debug_run_failed", run_id=run.id, hotel_id=run.hotel_id)
+                await _mark_run_failed_after_exception(repository, run, exc)
         except asyncio.CancelledError:
             logger.info("admin_debug_worker_cancelled")
             return
