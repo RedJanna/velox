@@ -105,7 +105,7 @@ globalThis.fetch = async () => ({ ok: true, status: 200, text: async () => '', j
     with tempfile.TemporaryDirectory() as tmp_dir:
         script_path = Path(tmp_dir) / "admin_harness.js"
         script_path.write_text(prelude + ADMIN_PANEL_SCRIPT + "\n" + harness, encoding="utf-8")
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603 - node path and temp harness file are test-controlled.
             [node_path, str(script_path)],
             check=True,
             capture_output=True,
@@ -166,7 +166,15 @@ class HTMLElement {
     return null;
   }
   querySelectorAll(selector) {
-    if (selector === 'button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex=\"-1\"])') {
+    const focusableSelector = [
+      'button:not([disabled])',
+      '[href]',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex=\"-1\"])',
+    ].join(',');
+    if (selector === focusableSelector) {
       return this.children.filter(child => !child.disabled && !child.classList.contains('hidden'));
     }
     return [];
@@ -247,7 +255,7 @@ globalThis.__tabs = __tabs;
     with tempfile.TemporaryDirectory() as tmp_dir:
         script_path = Path(tmp_dir) / "chat_harness.js"
         script_path.write_text(prelude + TEST_CHAT_SCRIPT + "\n" + harness, encoding="utf-8")
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603 - node path and temp harness file are test-controlled.
             [node_path, str(script_path)],
             check=True,
             capture_output=True,
@@ -352,7 +360,10 @@ def test_chat_lab_script_wires_workspace_flyout_keyboard_flow() -> None:
     assert "function trapWorkspaceFlyoutFocus(event)" in TEST_CHAT_SCRIPT
     assert "el('workspace-scrim').addEventListener('click', closeWorkspaceFlyout);" in TEST_CHAT_SCRIPT
     assert "el('workspace-flyout').addEventListener('keydown', event => {" in TEST_CHAT_SCRIPT
-    assert "el('workspace-diagnostics-toggle').addEventListener('click', () => toggleWorkspaceFlyout('diagnostics'));" in TEST_CHAT_SCRIPT
+    assert (
+        "el('workspace-diagnostics-toggle').addEventListener('click', () => toggleWorkspaceFlyout('diagnostics'));"
+        in TEST_CHAT_SCRIPT
+    )
     assert "el('workspace-open-diagnostics').addEventListener('click', toggleWorkspaceDiagnostics);" in TEST_CHAT_SCRIPT
     assert "panel.setAttribute('aria-modal', String(state.workspaceFlyoutOpen));" in TEST_CHAT_SCRIPT
     assert "handleWorkspaceFlyoutTabKeydown(event);" in TEST_CHAT_SCRIPT
@@ -378,7 +389,10 @@ const appShell = register('appShell', ['app']);
 const panel = register('workspace-flyout', ['workspace-flyout']);
 const scrim = register('workspace-scrim', ['workspace-scrim']);
 const settingsPanel = register('workspace-settings-panel', ['workspace-tab-panel', 'workspace-console']);
-const diagnosticsPanel = register('workspace-diagnostics-panel', ['workspace-tab-panel', 'workspace-console', 'hidden']);
+const diagnosticsPanel = register(
+  'workspace-diagnostics-panel',
+  ['workspace-tab-panel', 'workspace-console', 'hidden'],
+);
 const heading = register('workspace-flyout-heading');
 const description = register('workspace-flyout-description');
 const toggle = register('workspace-panel-toggle');
@@ -472,7 +486,10 @@ const appShell = register('appShell', ['app']);
 const panel = register('workspace-flyout', ['workspace-flyout', 'collapsed']);
 const scrim = register('workspace-scrim', ['workspace-scrim', 'hidden']);
 const settingsPanel = register('workspace-settings-panel', ['workspace-tab-panel', 'workspace-console']);
-const diagnosticsPanel = register('workspace-diagnostics-panel', ['workspace-tab-panel', 'workspace-console', 'hidden']);
+const diagnosticsPanel = register(
+  'workspace-diagnostics-panel',
+  ['workspace-tab-panel', 'workspace-console', 'hidden'],
+);
 const heading = register('workspace-flyout-heading');
 const description = register('workspace-flyout-description');
 const toggle = register('workspace-panel-toggle');
@@ -500,7 +517,9 @@ openWorkspaceFlyout('settings');
 const afterOpen = {
   tab: state.workspaceFlyoutTab,
   activeElement: document.activeElement.id,
-  returnFocusStored: Boolean(_workspaceFlyoutReturnFocus && _workspaceFlyoutReturnFocus.id === 'workspace-panel-toggle'),
+  returnFocusStored: Boolean(
+    _workspaceFlyoutReturnFocus && _workspaceFlyoutReturnFocus.id === 'workspace-panel-toggle'
+  ),
 };
 
 let navPrevented = false;
@@ -573,7 +592,7 @@ def test_chat_lab_script_is_valid_javascript() -> None:
     with tempfile.TemporaryDirectory() as tmp_dir:
         script_path = Path(tmp_dir) / "chat_lab.js"
         script_path.write_text(TEST_CHAT_SCRIPT, encoding="utf-8")
-        subprocess.run(
+        subprocess.run(  # noqa: S603 - node path and temp harness file are test-controlled.
             [node_path, "--check", str(script_path)],
             check=True,
             capture_output=True,
@@ -941,14 +960,20 @@ refs.debugFindingCountBadge = new HTMLElement();
 refs.debugDetailPanel = new HTMLElement();
 const highlightedArtifact = new HTMLElement();
 highlightedArtifact.dataset.debugArtifactId = 'artifact-finding-1';
-highlightedArtifact.scrollIntoView = () => { globalThis.__scrolledArtifact = highlightedArtifact.dataset.debugArtifactId; };
+highlightedArtifact.scrollIntoView = () => {
+  globalThis.__scrolledArtifact = highlightedArtifact.dataset.debugArtifactId;
+};
 refs.debugDetailPanel.querySelectorAll = () => [highlightedArtifact];
 refs.debugArtifactPreviewDialog = { close() {} };
 window.requestAnimationFrame = callback => { callback(); return 1; };
 
 state.activeDebugRunId = 'run-1';
 state.activeDebugFindingId = '';
-state.debugRunDetail = { summary: { finding_count: 1 }, status: 'completed', scope: { target: 'all_panel', target_view: null } };
+state.debugRunDetail = {
+  summary: { finding_count: 1 },
+  status: 'completed',
+  scope: { target: 'all_panel', target_view: null },
+};
 state.debugFindings = [
   {
     id: 'finding-2',
@@ -1181,7 +1206,11 @@ apiFetch = async function(path) {
       published_by: 'ops_admin',
       published_at: '2026-03-31T20:00:00Z',
       source_profile_checksum: 'source-v5',
-      facts: { room_types: [{ code: 'dlx' }], faq_data: [{ faq_id: 'faq-1' }], transfer_routes: [{ route_code: 'apt' }] },
+      facts: {
+        room_types: [{ code: 'dlx' }],
+        faq_data: [{ faq_id: 'faq-1' }],
+        transfer_routes: [{ route_code: 'apt' }],
+      },
       validation: { blockers: [], warnings: [{ path: 'description', message: 'Eksik açıklama' }] },
     };
   }
@@ -1204,12 +1233,40 @@ refs.hotelFactsEvents = new HTMLElement();
 
 state.selectedHotelId = '21966';
 state.hotelFactsVersions = [
-  { version: 6, is_current: true, published_by: 'ops_admin', published_at: '2026-03-31T21:00:00Z', blocker_count: 0, warning_count: 1, checksum: 'checksum-v6' },
-  { version: 5, is_current: false, published_by: 'ops_admin', published_at: '2026-03-31T20:00:00Z', blocker_count: 0, warning_count: 1, checksum: 'checksum-v5' },
+  {
+    version: 6,
+    is_current: true,
+    published_by: 'ops_admin',
+    published_at: '2026-03-31T21:00:00Z',
+    blocker_count: 0,
+    warning_count: 1,
+    checksum: 'checksum-v6',
+  },
+  {
+    version: 5,
+    is_current: false,
+    published_by: 'ops_admin',
+    published_at: '2026-03-31T20:00:00Z',
+    blocker_count: 0,
+    warning_count: 1,
+    checksum: 'checksum-v5',
+  },
 ];
 state.hotelFactsEvents = [
-  { event_type: 'PUBLISH', version: 6, actor: 'ops_admin', occurred_at: '2026-03-31T21:00:00Z', metadata: { source_profile_checksum: 'source-v6' } },
-  { event_type: 'PUBLISH', version: 5, actor: 'ops_admin', occurred_at: '2026-03-31T20:00:00Z', metadata: { source_profile_checksum: 'source-v5' } },
+  {
+    event_type: 'PUBLISH',
+    version: 6,
+    actor: 'ops_admin',
+    occurred_at: '2026-03-31T21:00:00Z',
+    metadata: { source_profile_checksum: 'source-v6' },
+  },
+  {
+    event_type: 'PUBLISH',
+    version: 5,
+    actor: 'ops_admin',
+    occurred_at: '2026-03-31T20:00:00Z',
+    metadata: { source_profile_checksum: 'source-v5' },
+  },
 ];
 
 (async () => {
@@ -1314,8 +1371,20 @@ def test_admin_panel_faq_section_renders_only_selected_item() -> None:
         """
 state.hotelProfileDraft = {
   faq_data: [
-    { faq_id: 'faq-1', topic: 'room_service', status: 'ACTIVE', question_tr: 'Oda servisi var mı?', answer_tr: 'Hayır' },
-    { faq_id: 'faq-2', topic: 'breakfast', status: 'ACTIVE', question_tr: 'Kahvaltı dahil mi?', answer_tr: 'Evet' },
+    {
+      faq_id: 'faq-1',
+      topic: 'room_service',
+      status: 'ACTIVE',
+      question_tr: 'Oda servisi var mı?',
+      answer_tr: 'Hayır',
+    },
+    {
+      faq_id: 'faq-2',
+      topic: 'breakfast',
+      status: 'ACTIVE',
+      question_tr: 'Kahvaltı dahil mi?',
+      answer_tr: 'Evet',
+    },
   ],
 };
 state.hotelProfileFaqActiveIndex = 1;
@@ -1506,20 +1575,37 @@ state.hotelProfileDraft = {
     mail_order_handling: 'human_handoff',
   },
   facility_policies: {
-    check_in: { time: '14:00', early_checkin: 'availability_handoff', late_arrival_after: '00:00', late_arrival_contact_required: true },
+    check_in: {
+      time: '14:00',
+      early_checkin: 'availability_handoff',
+      late_arrival_after: '00:00',
+      late_arrival_contact_required: true,
+    },
     check_out: { time: '12:00', late_checkout: 'availability_paid_handoff' },
     pets: { allowed: false, reply_tr: 'Evcil hayvan kabul edilmez.' },
     smoking: { rooms: 'non_smoking', allowed_areas: ['balcony'] },
     parking: { hotel_parking: false, street_parking: 'Cadde parkı' },
     pool: { type: 'open', hours: '08:00-19:00', heated: false, hotel_guest: 'free', external_guest: 'paid_handoff' },
     wifi: { available: true, free: true, hours: '24/7' },
-    accessibility: { elevator_available: false, accessible_room_types: ['Deluxe'], reply_tr: 'Giriş katta erişilebilir oda var.' },
+    accessibility: {
+      elevator_available: false,
+      accessible_room_types: ['Deluxe'],
+      reply_tr: 'Giriş katta erişilebilir oda var.',
+    },
     wellness: { spa: false, hamam: false, sauna: false, massage: false, offsite_guidance: 'reception' },
     local_services: {
       pharmacy: { distance: '200 metre', location_tr: 'Arka sokakta', details_handling: 'reception' },
       currency_exchange: { available: true, location: 'reception' },
     },
-    laundry: { available: true, hours: '24/7', turnaround: '1_day', drop_off: 'reception', pickup: 'reception', expedited_handling: 'reception', pricing_handling: 'human_handoff' },
+    laundry: {
+      available: true,
+      hours: '24/7',
+      turnaround: '1_day',
+      drop_off: 'reception',
+      pickup: 'reception',
+      expedited_handling: 'reception',
+      pricing_handling: 'human_handoff',
+    },
     children: { policy: 'Tüm yaşlar kabul edilir', extra_bed: 'Ücretli', baby_crib: 'Ücretsiz' },
   },
   operational: {
@@ -1566,7 +1652,10 @@ console.log(JSON.stringify({
     assert "Odalarda sigara içilmez, yalnızca balkonlarda izin verilir." in result["policiesHtml"]
     assert "Otel önünde sınırlı sayıda ücretsiz park alanı vardır." in result["policiesHtml"]
     assert "Asansör mevcuttur ve giriş katta erişilebilir oda seçeneği bulunur." in result["policiesHtml"]
-    assert "Şu anda sistemi kontrol edemiyorum, resepsiyon kısa süre içinde size yardımcı olacak." in result["policiesHtml"]
+    assert (
+        "Şu anda sistemi kontrol edemiyorum, resepsiyon kısa süre içinde size yardımcı olacak."
+        in result["policiesHtml"]
+    )
     assert "Örn: 2" in result["policiesHtml"]
     assert "Örn: 14" in result["policiesHtml"]
     assert "Örn: 18" in result["policiesHtml"]
@@ -1791,7 +1880,14 @@ state.hotelProfileLoadedDraftSnapshot = JSON.stringify(state.hotelProfileDraft);
 const field = new HTMLElement();
 field.dataset.profileMultiField = 'highlights';
 field.dataset.profileMultiValue = 'family_friendly';
-field.dataset.profileMultiKnownValues = JSON.stringify(['beachside', 'central_location', 'excellent_reviews', 'pool_jacuzzi', 'family_friendly', 'regional_breakfast']);
+field.dataset.profileMultiKnownValues = JSON.stringify([
+  'beachside',
+  'central_location',
+  'excellent_reviews',
+  'pool_jacuzzi',
+  'family_friendly',
+  'regional_breakfast',
+]);
 field.checked = true;
 onHotelProfileSectionChange({ target: field });
 console.log(JSON.stringify({
@@ -2233,7 +2329,11 @@ console.log(JSON.stringify({
     assert "Örn: 24178" in result["rateHtml"]
     assert "Örn: 183666" in result["rateHtml"]
     assert "Bağlı Teknik Eşleştirme" in result["ruleHtml"]
-    assert "Bu kural için bağlı fiyat eşleştirmesi hazır. Kimlikler tamamlanmadıysa yayın öncesi blocker oluşur." in result["ruleHtml"]
+    assert (
+        "Bu kural için bağlı fiyat eşleştirmesi hazır. "
+        "Kimlikler tamamlanmadıysa yayın öncesi blocker oluşur."
+        in result["ruleHtml"]
+    )
     assert "Bağlı eşleştirme hazır" in result["ruleHtml"]
     assert "Kimlikler girildi" in result["ruleHtml"]
 
