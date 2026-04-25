@@ -663,6 +663,7 @@ async def _maybe_capture_browser_screenshot(
                     "target_path": target.path,
                     "target_url": _browser_target_url(target),
                     "screen": target.screen,
+                    "related_finding_ids": [item for item in (finding_ids or []) if item],
                 }
                 await repository.append_artifact(
                     run_id=UUID(run.id),

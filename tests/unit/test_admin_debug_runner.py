@@ -178,6 +178,7 @@ async def test_browser_screenshot_writes_artifact_when_playwright_available(
         "target_path": "/admin",
         "target_url": "https://velox.nexlumeai.com/admin#dashboard",
         "screen": "Admin Panel",
+        "related_finding_ids": [],
     }
     storage_path = str(artifact["storage_path"])
     assert (tmp_path / storage_path).read_bytes() == b"png-bytes"
@@ -248,6 +249,7 @@ async def test_browser_screenshot_links_artifact_to_related_findings(
 
     assert len(repository.artifacts) == 1 + len(finding_ids)
     assert repository.artifacts[0]["finding_id"] is None
+    assert repository.artifacts[0]["metadata"]["related_finding_ids"] == finding_ids
     assert [str(item["finding_id"]) for item in repository.artifacts[1:]] == finding_ids
 
 

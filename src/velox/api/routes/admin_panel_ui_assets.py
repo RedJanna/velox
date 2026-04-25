@@ -1208,6 +1208,11 @@ async function onDebugFindingListClick(event) {
 }
 
 async function onDebugDetailClick(event) {
+  const findingButton = event.target.closest('[data-debug-artifact-finding-id]');
+  if (findingButton) {
+    await openDebugArtifactFinding(findingButton.dataset.debugArtifactFindingId || '');
+    return;
+  }
   const previewButton = event.target.closest('[data-debug-artifact-preview]');
   if (previewButton) {
     openDebugArtifactPreview(previewButton.dataset.debugArtifactPreview || '');
@@ -1428,6 +1433,83 @@ function buildDebugArtifactMetaLine(item) {
     item?.metadata?.target_path || '',
   ].filter(Boolean);
   return parts.join(' · ');
+}
+
+function getDebugArtifactRelatedFindingIds(item) {
+  const explicitIds = Array.isArray(item?.metadata?.related_finding_ids)
+    ? item.metadata.related_finding_ids.map(value => String(value || '').trim()).filter(Boolean)
+    : [];
+  if (explicitIds.length) return explicitIds;
+  if (item?.finding_id) return [String(item.finding_id)];
+  return [];
+}
+
+function debugFindingSeverityRank(severity) {
+  return {
+    critical: 5,
+    high: 4,
+    medium: 3,
+    low: 2,
+    info: 1,
+  }[String(severity || '').toLowerCase()] || 0;
+}
+
+function getDebugArtifactRelatedFindings(item) {
+  const explicitIds = getDebugArtifactRelatedFindingIds(item);
+  const findingById = new Map(state.debugFindings.map(finding => [finding.id, finding]));
+  const directMatches = explicitIds.map(id => findingById.get(id)).filter(Boolean);
+  if (directMatches.length) return directMatches;
+  const artifactScreen = String(item?.metadata?.screen || '');
+  const artifactPath = String(item?.metadata?.target_path || '');
+  const artifactViewKey = String(item?.metadata?.view_key || '');
+  return state.debugFindings
+    .map(finding => {
+      let score = 0;
+      if (artifactScreen && String(finding.screen || '') === artifactScreen) score += 3;
+      if (artifactPath && String(finding?.evidence?.path || '') === artifactPath) score += 3;
+      if (artifactPath && String(finding.action_label || '').includes(artifactPath)) score += 2;
+      if (artifactViewKey && String(finding?.evidence?.target_view || '') === artifactViewKey) score += 1;
+      return {finding, score};
+    })
+    .filter(item => item.score > 0)
+    .sort((left, right) => {
+      if (right.score !== left.score) return right.score - left.score;
+      const severityDelta = debugFindingSeverityRank(right.finding.severity) - debugFindingSeverityRank(left.finding.severity);
+      if (severityDelta !== 0) return severityDelta;
+      return String(left.finding.created_at || '').localeCompare(String(right.finding.created_at || ''));
+    })
+    .map(item => item.finding);
+}
+
+function getDebugArtifactFindingJumpTarget(item) {
+  return getDebugArtifactRelatedFindings(item).find(finding => finding.id !== state.activeDebugFindingId)
+    || getDebugArtifactRelatedFindings(item)[0]
+    || null;
+}
+
+function buildDebugArtifactFindingJumpLabel(item) {
+  const relatedCount = getDebugArtifactRelatedFindings(item).length;
+  if (relatedCount > 1) return `İlgili Bulgulara Git (${relatedCount})`;
+  return 'İlgili Bulguyu Aç';
+}
+
+function scrollActiveDebugFindingIntoView() {
+  const cards = Array.from(refs.debugFindingList?.querySelectorAll?.('[data-debug-finding-id]') || []);
+  const activeCard = cards.find(card => card?.dataset?.debugFindingId === state.activeDebugFindingId);
+  activeCard?.scrollIntoView?.({block: 'nearest', behavior: 'smooth'});
+}
+
+async function openDebugArtifactFinding(findingId) {
+  if (!findingId || !state.activeDebugRunId) return;
+  if (!state.debugFindings.some(item => item.id === findingId)) {
+    notify('İlgili bulgu artık listede bulunmuyor.', 'warn');
+    return;
+  }
+  state.activeDebugFindingId = findingId;
+  await loadDebugArtifacts(state.activeDebugRunId, findingId);
+  renderDebugFindingList();
+  renderDebugDetailPanel();
+  window.requestAnimationFrame(() => scrollActiveDebugFindingIntoView());
 }
 
 function openDebugArtifactPreview(artifactId) {
@@ -1707,7 +1789,11 @@ function renderDebugArtifacts() {
               const preview = isPreviewableDebugArtifact(item)
                 ? `<img class="debug-artifact-preview" src="${escapeHtml(item.content_url)}" alt="${escapeHtml(typeLabel)}" data-debug-artifact-preview="${escapeHtml(item.id || '')}">`
                 : `<div class="debug-empty-compact"><p>${escapeHtml(item.mime_type || 'İkili dosya')}</p></div>`;
+              const findingTarget = getDebugArtifactFindingJumpTarget(item);
               const actionButtons = [
+                findingTarget && findingTarget.id !== state.activeDebugFindingId
+                  ? `<button class="debug-artifact-link secondary" type="button" data-debug-artifact-finding-id="${escapeHtml(findingTarget.id)}">${escapeHtml(buildDebugArtifactFindingJumpLabel(item))}</button>`
+                  : '',
                 isPreviewableDebugArtifact(item)
                   ? `<button class="debug-artifact-link secondary" type="button" data-debug-artifact-preview="${escapeHtml(item.id || '')}">Önizle</button>`
                   : '',

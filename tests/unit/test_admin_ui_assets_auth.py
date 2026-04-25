@@ -830,6 +830,8 @@ def test_admin_panel_debug_artifact_ui_includes_preview_and_context_copy() -> No
 
     assert 'id="debugArtifactPreviewDialog"' in html
     assert "openDebugArtifactPreview(" in ADMIN_PANEL_SCRIPT
+    assert "openDebugArtifactFinding(" in ADMIN_PANEL_SCRIPT
+    assert "data-debug-artifact-finding-id" in ADMIN_PANEL_SCRIPT
     assert "groupDebugArtifacts(" in ADMIN_PANEL_SCRIPT
     assert "Bu run temiz tamamlandı." in ADMIN_PANEL_SCRIPT
     assert ".debug-artifact-summary" in ADMIN_PANEL_STYLE
@@ -847,6 +849,115 @@ def test_restaurant_floor_plan_texts_are_localized() -> None:
     assert "Plan seç" in ADMIN_RESTAURANT_SCRIPT
     assert "Plan Adı Girin" in ADMIN_RESTAURANT_SCRIPT
     assert "Aktif plan yok veya bu tarihte masa ataması bulunamadı." in ADMIN_RESTAURANT_SCRIPT
+
+
+def test_admin_panel_debug_artifact_jump_selects_related_finding() -> None:
+    result = _run_admin_panel_script_harness(
+        """
+const findingList = new HTMLElement();
+const findingCard = new HTMLElement();
+findingCard.dataset.debugFindingId = 'finding-2';
+findingCard.scrollIntoView = () => { globalThis.__scrolledFinding = findingCard.dataset.debugFindingId; };
+findingList.querySelectorAll = () => [findingCard];
+refs.debugFindingList = findingList;
+refs.debugFindingCountBadge = new HTMLElement();
+refs.debugDetailPanel = new HTMLElement();
+refs.debugArtifactPreviewDialog = { close() {} };
+window.requestAnimationFrame = callback => { callback(); return 1; };
+
+state.activeDebugRunId = 'run-1';
+state.activeDebugFindingId = '';
+state.debugRunDetail = { summary: { finding_count: 1 }, status: 'completed', scope: { target: 'all_panel', target_view: null } };
+state.debugFindings = [
+  {
+    id: 'finding-2',
+    run_id: 'run-1',
+    hotel_id: 21966,
+    category: 'network_failure',
+    severity: 'high',
+    screen: 'Konuşmalar',
+    action_label: 'GET /api/v1/admin/conversations',
+    description: 'Konuşmalar hedefi beklenen 200 yanıtını döndürmedi.',
+    steps: [],
+    technical_cause: 'HTTP 500',
+    suggested_fix: 'İlgili endpoint logları kontrol edilmeli.',
+    fingerprint: 'fp-1',
+    evidence: { path: '/api/v1/admin/conversations' },
+    created_at: '2026-04-25T09:30:00Z',
+  },
+];
+state.debugArtifacts = [
+  {
+    id: 'artifact-1',
+    run_id: 'run-1',
+    finding_id: null,
+    artifact_type: 'screenshot',
+    storage_path: 'run-1/screenshots/conversations.png',
+    mime_type: 'image/png',
+    metadata: {
+      screen: 'Konuşmalar',
+      target_path: '/api/v1/admin/conversations',
+      related_finding_ids: ['finding-2'],
+    },
+    created_at: '2026-04-25T09:31:00Z',
+    content_url: '/debug/runs/run-1/artifacts/artifact-1/content',
+  },
+];
+state.debugRunArtifacts = [...state.debugArtifacts];
+state.debugArtifactScope = 'run';
+
+apiFetch = async function(path) {
+  if (path === '/debug/runs/run-1/artifacts') {
+    return { items: state.debugRunArtifacts };
+  }
+  if (path === '/debug/runs/run-1/artifacts?finding_id=finding-2') {
+    return {
+      items: [
+        {
+          id: 'artifact-finding-1',
+          run_id: 'run-1',
+          finding_id: 'finding-2',
+          artifact_type: 'screenshot',
+          storage_path: 'run-1/screenshots/conversations.png',
+          mime_type: 'image/png',
+          metadata: {
+            screen: 'Konuşmalar',
+            target_path: '/api/v1/admin/conversations',
+            related_finding_ids: ['finding-2'],
+          },
+          created_at: '2026-04-25T09:31:00Z',
+          content_url: '/debug/runs/run-1/artifacts/artifact-finding-1/content',
+        },
+      ],
+    };
+  }
+  throw new Error('Unexpected apiFetch path: ' + path);
+};
+
+(async () => {
+  await openDebugArtifactFinding('finding-2');
+
+  console.log(JSON.stringify({
+    activeFindingId: state.activeDebugFindingId,
+    artifactScope: state.debugArtifactScope,
+    findingCountBadge: refs.debugFindingCountBadge.textContent,
+    detailHasSummary: refs.debugDetailPanel.innerHTML.includes('Sorun Özeti'),
+    scrolledFinding: globalThis.__scrolledFinding || '',
+  }));
+})().catch(error => {
+  console.error(error);
+  process.exit(1);
+});
+"""
+    )
+
+    assert result == {
+        "activeFindingId": "finding-2",
+        "artifactScope": "finding",
+        "findingCountBadge": "1 kayıt",
+        "detailHasSummary": True,
+        "scrolledFinding": "finding-2",
+    }
 
 
 def test_admin_panel_browser_like_harness_blocks_publish_until_saved_then_publishes() -> None:
