@@ -171,6 +171,14 @@ async def test_browser_screenshot_writes_artifact_when_playwright_available(
     artifact = repository.artifacts[0]
     assert artifact["mime_type"] == "image/png"
     assert artifact["artifact_type"].value == "screenshot"
+    assert artifact["metadata"] == {
+        "source": "browser_scan",
+        "target_key": "admin_shell",
+        "view_key": "dashboard",
+        "target_path": "/admin",
+        "target_url": "https://velox.nexlumeai.com/admin#dashboard",
+        "screen": "Admin Panel",
+    }
     storage_path = str(artifact["storage_path"])
     assert (tmp_path / storage_path).read_bytes() == b"png-bytes"
 

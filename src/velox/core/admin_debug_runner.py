@@ -628,7 +628,9 @@ async def _maybe_capture_browser_screenshot(
                     metadata={
                         "source": "browser_scan",
                         "target_key": target.key,
+                        "view_key": target.view_key,
                         "target_path": target.path,
+                        "target_url": _browser_target_url(target),
                         "screen": target.screen,
                     },
                 )

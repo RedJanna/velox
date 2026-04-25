@@ -1115,6 +1115,31 @@ def render_admin_panel_html() -> str:
     </div>
   </dialog>
 
+  <dialog id="debugArtifactPreviewDialog" class="dialog debug-artifact-dialog" aria-label="Artifact önizleme">
+    <div class="dialog-card debug-artifact-dialog-card">
+      <div class="dialog-head">
+        <h3 id="debugArtifactPreviewTitle">Artifact önizleme</h3>
+        <p id="debugArtifactPreviewMeta">Seçili artifact ayrıntıları burada görünür.</p>
+      </div>
+      <div class="debug-artifact-preview-shell">
+        <img id="debugArtifactPreviewImage" class="debug-artifact-preview-large" alt="Artifact önizleme" hidden>
+        <div id="debugArtifactPreviewEmpty" class="debug-empty-compact" hidden>
+          <h4>Önizleme yok</h4>
+          <p>Bu artifact görsel önizleme desteklemiyor. Dosyayı yeni sekmede açabilirsiniz.</p>
+        </div>
+      </div>
+      <div class="debug-artifact-preview-meta">
+        <strong id="debugArtifactPreviewPath" class="mono">-</strong>
+        <div class="debug-artifact-actions">
+          <a id="debugArtifactPreviewLink" class="debug-artifact-link" href="#" target="_blank" rel="noopener noreferrer">Yeni Sekmede Aç</a>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button id="debugArtifactPreviewCloseButton" class="inline-button secondary" type="button">Kapat</button>
+      </div>
+    </div>
+  </dialog>
+
   <script>window.ADMIN_PANEL_CONFIG = {config_json};</script>
   <script>{ADMIN_PANEL_SCRIPT}</script>
   <script>{ADMIN_HOLDS_SCRIPT}</script>

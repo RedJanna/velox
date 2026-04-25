@@ -258,13 +258,31 @@ tbody tr:hover{background:#fffcf7}
 .debug-detail-section strong{display:block;margin-bottom:8px}
 .debug-detail-section pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:12px;line-height:1.55}
 .debug-detail-grid{display:flex;flex-direction:column;gap:12px}
+.debug-artifact-summary{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-radius:16px;background:#fffaf0;border:1px solid rgba(187,138,42,.18)}
+.debug-artifact-summary strong{margin:0;font-size:13px}
+.debug-artifact-summary p{margin:0;font-size:12px;line-height:1.55;color:var(--muted)}
+.debug-artifact-groups{display:flex;flex-direction:column;gap:12px}
+.debug-artifact-group{display:flex;flex-direction:column;gap:10px}
+.debug-artifact-group-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.debug-artifact-group-head strong{margin:0;font-size:13px}
+.debug-artifact-group-head span{font-size:12px;color:var(--muted)}
 .debug-artifact-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
 .debug-artifact-card{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:16px;background:var(--surface);border:1px solid var(--line)}
 .debug-artifact-card strong{margin:0;font-size:13px}
 .debug-artifact-card span{font-size:12px;color:var(--muted)}
-.debug-artifact-preview{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:12px;border:1px solid var(--line);background:#f3f4f6}
-.debug-artifact-link{display:inline-flex;align-items:center;justify-content:center;padding:8px 10px;border-radius:12px;background:#eef8f6;border:1px solid rgba(15,118,110,.16);color:#0f766e;font-size:12px;font-weight:800;text-decoration:none}
+.debug-artifact-card code{font-family:var(--mono);font-size:11px;color:#475569;word-break:break-all}
+.debug-artifact-preview{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:12px;border:1px solid var(--line);background:#f3f4f6;cursor:zoom-in}
+.debug-artifact-actions{display:flex;flex-wrap:wrap;gap:8px}
+.debug-artifact-link{display:inline-flex;align-items:center;justify-content:center;padding:8px 10px;border-radius:12px;background:#eef8f6;border:1px solid rgba(15,118,110,.16);color:#0f766e;font-size:12px;font-weight:800;text-decoration:none;cursor:pointer}
 .debug-artifact-link:hover{background:#def3ef}
+.debug-artifact-link.secondary{background:#f6f4ee;border-color:var(--line);color:#475569}
+.debug-artifact-link.secondary:hover{background:#efe9dc}
+.debug-artifact-dialog{max-width:min(96vw,1120px);width:min(96vw,1120px)}
+.debug-artifact-dialog-card{display:flex;flex-direction:column;gap:14px}
+.debug-artifact-preview-shell{display:grid;place-items:center;min-height:320px;border-radius:18px;background:#f6f1e7;border:1px solid var(--line)}
+.debug-artifact-preview-large{display:block;max-width:100%;max-height:min(72vh,820px);border-radius:18px;object-fit:contain}
+.debug-artifact-preview-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.debug-artifact-preview-meta strong{margin:0}
 .debug-empty-compact{padding:18px;border:1px dashed var(--line-strong);border-radius:18px;background:#fffaf0}
 .debug-empty-compact h4{margin:0 0 8px;font-size:15px}
 .debug-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -291,6 +309,7 @@ tbody tr:hover{background:#fffcf7}
   .card-grid{grid-template-columns:1fr}
   .status-strip{grid-template-columns:1fr}
   .hold-summary-grid{grid-template-columns:1fr}
+  .debug-artifact-preview-meta{align-items:flex-start}
 }
 """
 
@@ -363,9 +382,12 @@ const state = {
   debugRuns: [],
   activeDebugRunId: '',
   activeDebugFindingId: '',
+  activeDebugArtifactId: '',
   debugRunDetail: null,
   debugFindings: [],
   debugArtifacts: [],
+  debugRunArtifacts: [],
+  debugArtifactScope: 'run',
   debugPollingHandle: null,
   debugWorkerReady: false,
   debugWorkerMessage: '',
@@ -410,7 +432,9 @@ function bindRefs() {
     'debugStartButton','debugTopbarStatus','debugActiveRunStatus','debugActiveRunMeta','debugSummaryFindings','debugSummaryCounts',
     'debugSummaryScope','debugRefreshButton','debugRunList','debugFindingCountBadge','debugFindingList','debugDetailPanel',
     'debugRunDialog','debugRunForm','debugScopeAllPanel','debugScopeCurrentView','debugIncludeChatLab','debugIncludePopups',
-    'debugIncludeModals','debugRunCancelButton',
+    'debugIncludeModals','debugRunCancelButton','debugArtifactPreviewDialog','debugArtifactPreviewTitle',
+    'debugArtifactPreviewMeta','debugArtifactPreviewImage','debugArtifactPreviewEmpty','debugArtifactPreviewPath',
+    'debugArtifactPreviewLink','debugArtifactPreviewCloseButton',
     'logoutButton','reloadButton','decisionDialog','decisionForm','decisionTitle','decisionLead','decisionReason',
     'decisionHoldId','decisionMode'
   ].forEach(id => refs[id] = document.getElementById(id));
@@ -445,6 +469,10 @@ function bindEvents() {
   refs.debugRunList?.addEventListener('click', onDebugRunListClick);
   refs.debugFindingList?.addEventListener('click', onDebugFindingListClick);
   refs.debugDetailPanel?.addEventListener('click', onDebugDetailClick);
+  refs.debugArtifactPreviewCloseButton?.addEventListener('click', closeDebugArtifactPreview);
+  refs.debugArtifactPreviewDialog?.addEventListener('close', () => {
+    state.activeDebugArtifactId = '';
+  });
   refs.reloadButton?.addEventListener('click', reloadConfig);
   refs.logoutButton?.addEventListener('click', logout);
   refs.conversationFilters?.addEventListener('submit', event => {
@@ -1180,6 +1208,11 @@ async function onDebugFindingListClick(event) {
 }
 
 async function onDebugDetailClick(event) {
+  const previewButton = event.target.closest('[data-debug-artifact-preview]');
+  if (previewButton) {
+    openDebugArtifactPreview(previewButton.dataset.debugArtifactPreview || '');
+    return;
+  }
   const actionButton = event.target.closest('[data-debug-action]');
   if (!actionButton || !state.activeDebugRunId) return;
   const action = actionButton.dataset.debugAction;
@@ -1218,6 +1251,9 @@ async function loadDebugRuns({preserveSelection = true} = {}) {
     state.debugRunDetail = null;
     state.debugFindings = [];
     state.debugArtifacts = [];
+    state.debugRunArtifacts = [];
+    state.debugArtifactScope = 'run';
+    closeDebugArtifactPreview();
     stopDebugPolling();
     renderDebugView();
     return;
@@ -1259,16 +1295,43 @@ async function loadDebugFindings(runId) {
   }
 }
 
-async function loadDebugArtifacts(runId, findingId = null) {
-  if (!runId) {
-    state.debugArtifacts = [];
-    return;
-  }
+async function fetchDebugArtifacts(runId, findingId = null) {
   const params = new URLSearchParams();
   if (findingId) params.set('finding_id', findingId);
   const query = params.toString();
   const response = await apiFetch(`/debug/runs/${encodeURIComponent(runId)}/artifacts${query ? `?${query}` : ''}`);
-  state.debugArtifacts = Array.isArray(response.items) ? response.items : [];
+  return Array.isArray(response.items) ? response.items : [];
+}
+
+async function loadDebugArtifacts(runId, findingId = null) {
+  if (!runId) {
+    state.debugArtifacts = [];
+    state.debugRunArtifacts = [];
+    state.debugArtifactScope = 'run';
+    closeDebugArtifactPreview();
+    return;
+  }
+  if (!findingId) {
+    state.debugRunArtifacts = await fetchDebugArtifacts(runId);
+    state.debugArtifacts = [...state.debugRunArtifacts];
+    state.debugArtifactScope = 'run';
+  } else {
+    const [runArtifacts, findingArtifacts] = await Promise.all([
+      fetchDebugArtifacts(runId),
+      fetchDebugArtifacts(runId, findingId),
+    ]);
+    state.debugRunArtifacts = runArtifacts;
+    if (findingArtifacts.length) {
+      state.debugArtifacts = findingArtifacts;
+      state.debugArtifactScope = 'finding';
+    } else {
+      state.debugArtifacts = [...runArtifacts];
+      state.debugArtifactScope = 'run_fallback';
+    }
+  }
+  if (!state.debugArtifacts.some(item => item.id === state.activeDebugArtifactId)) {
+    closeDebugArtifactPreview();
+  }
 }
 
 function startDebugPolling(runId) {
@@ -1306,6 +1369,97 @@ function debugSeverityBadgeClass(severity) {
   if (severity === 'medium') return 'warn';
   if (severity === 'low') return 'success';
   return 'info';
+}
+
+function formatDebugArtifactTypeLabel(artifactType) {
+  if (artifactType === 'screenshot') return 'Ekran görüntüsü';
+  if (artifactType === 'console_log') return 'Konsol kaydı';
+  if (artifactType === 'network_log') return 'Ağ kaydı';
+  if (artifactType === 'dom_snapshot') return 'DOM snapshot';
+  if (artifactType === 'trace') return 'Trace';
+  return artifactType || 'Artifact';
+}
+
+function getDebugArtifactScreenLabel(item) {
+  const screen = item?.metadata?.screen;
+  if (screen) return String(screen);
+  const storagePath = String(item?.storage_path || '');
+  if (storagePath.includes('admin_shell')) return 'Admin Panel';
+  if (storagePath.includes('chatlab_shell')) return 'Chat Lab';
+  return 'Diğer Kanıtlar';
+}
+
+function getDebugArtifactContextNote() {
+  const finding = state.debugFindings.find(item => item.id === state.activeDebugFindingId);
+  if (finding && state.debugArtifactScope === 'finding') {
+    return 'Bu artifact listesi yalnız seçili bulguya bağlı kanıtları gösterir.';
+  }
+  if (finding && state.debugArtifactScope === 'run_fallback') {
+    return 'Bu bulguya doğrudan bağlı artifact yok. Aşağıda run seviyesinde kaydedilen kanıtlar gösteriliyor.';
+  }
+  const findingCount = Number(state.debugRunDetail?.summary?.finding_count || 0);
+  if (!finding && findingCount === 0) {
+    return 'Bu run temiz tamamlandı. Aşağıdaki görseller bulgu değil, taramanın gerçekten hangi ekranlara ulaştığının kanıtıdır.';
+  }
+  return 'Aşağıdaki artifactlar tarama sırasında kaydedilen ekran görüntüsü ve teknik kanıtlardır.';
+}
+
+function groupDebugArtifacts(items) {
+  const groups = [];
+  const byScreen = new Map();
+  (items || []).forEach(item => {
+    const screen = getDebugArtifactScreenLabel(item);
+    if (!byScreen.has(screen)) {
+      byScreen.set(screen, []);
+      groups.push({screen, items: byScreen.get(screen)});
+    }
+    byScreen.get(screen).push(item);
+  });
+  return groups;
+}
+
+function isPreviewableDebugArtifact(item) {
+  return Boolean(item?.mime_type && item.mime_type.startsWith('image/') && item.content_url);
+}
+
+function buildDebugArtifactMetaLine(item) {
+  const parts = [
+    formatDate(item.created_at) || '-',
+    item?.metadata?.target_path || '',
+  ].filter(Boolean);
+  return parts.join(' · ');
+}
+
+function openDebugArtifactPreview(artifactId) {
+  const artifact = state.debugArtifacts.find(item => item.id === artifactId);
+  if (!artifact || !refs.debugArtifactPreviewDialog) return;
+  state.activeDebugArtifactId = artifact.id || '';
+  refs.debugArtifactPreviewTitle.textContent = `${formatDebugArtifactTypeLabel(artifact.artifact_type)} · ${getDebugArtifactScreenLabel(artifact)}`;
+  refs.debugArtifactPreviewMeta.textContent = buildDebugArtifactMetaLine(artifact) || 'Artifact ayrıntıları';
+  refs.debugArtifactPreviewPath.textContent = String(artifact.storage_path || '-');
+  if (artifact.content_url) {
+    refs.debugArtifactPreviewLink.hidden = false;
+    refs.debugArtifactPreviewLink.href = artifact.content_url;
+  } else {
+    refs.debugArtifactPreviewLink.hidden = true;
+    refs.debugArtifactPreviewLink.removeAttribute('href');
+  }
+  if (isPreviewableDebugArtifact(artifact)) {
+    refs.debugArtifactPreviewImage.hidden = false;
+    refs.debugArtifactPreviewImage.src = artifact.content_url;
+    refs.debugArtifactPreviewImage.alt = refs.debugArtifactPreviewTitle.textContent;
+    refs.debugArtifactPreviewEmpty.hidden = true;
+  } else {
+    refs.debugArtifactPreviewImage.hidden = true;
+    refs.debugArtifactPreviewImage.removeAttribute('src');
+    refs.debugArtifactPreviewEmpty.hidden = false;
+  }
+  refs.debugArtifactPreviewDialog.showModal();
+}
+
+function closeDebugArtifactPreview() {
+  state.activeDebugArtifactId = '';
+  refs.debugArtifactPreviewDialog?.close();
 }
 
 function syncDebugTopbarState() {
@@ -1466,7 +1620,7 @@ function renderDebugDetailPanel() {
           <pre>${escapeHtml(JSON.stringify(finding.evidence || {}, null, 2) || '{}')}</pre>
         </div>
         <div class="debug-detail-section">
-          <strong>Artifact'lar</strong>
+          <strong>Artifact'lar ve Kanıtlar</strong>
           ${artifactMarkup}
         </div>
       </div>
@@ -1514,7 +1668,7 @@ function renderDebugDetailPanel() {
         </div>
       </div>
       <div class="debug-detail-section">
-        <strong>Artifact'lar</strong>
+        <strong>Artifact'lar ve Kanıtlar</strong>
         ${artifactMarkup}
       </div>
     </div>
@@ -1530,25 +1684,52 @@ function renderDebugArtifacts() {
       </div>
     `;
   }
+  const groups = groupDebugArtifacts(state.debugArtifacts);
+  const screenCount = groups.length;
+  const scopeLabel = state.debugArtifactScope === 'finding'
+    ? 'Bulgu kanıtı'
+    : (state.debugArtifactScope === 'run_fallback' ? 'Run kanıtı (yedek)' : 'Run kanıtı');
   return `
-    <div class="debug-artifact-list">
-      ${state.debugArtifacts.map(item => {
-        const typeLabel = item.artifact_type === 'screenshot' ? 'Ekran görüntüsü' : (item.artifact_type || 'Artifact');
-        const preview = item.mime_type && item.mime_type.startsWith('image/') && item.content_url
-          ? `<img class="debug-artifact-preview" src="${escapeHtml(item.content_url)}" alt="${escapeHtml(typeLabel)}">`
-          : `<div class="debug-empty-compact"><p>${escapeHtml(item.mime_type || 'İkili dosya')}</p></div>`;
-        return `
-          <article class="debug-artifact-card">
-            <div>
-              <strong>${escapeHtml(typeLabel)}</strong>
-              <span>${escapeHtml(formatDate(item.created_at) || '-')}</span>
-            </div>
-            ${preview}
-            <span>${escapeHtml(item.storage_path || '-')}</span>
-            ${item.content_url ? `<a class="debug-artifact-link" href="${escapeHtml(item.content_url)}" target="_blank" rel="noopener noreferrer">Artifact'ı Aç</a>` : ''}
-          </article>
-        `;
-      }).join('')}
+    <div class="debug-artifact-groups">
+      <section class="debug-artifact-summary">
+        <strong>${escapeHtml(scopeLabel)} · ${escapeHtml(String(state.debugArtifacts.length))} artifact · ${escapeHtml(String(screenCount))} ekran</strong>
+        <p>${escapeHtml(getDebugArtifactContextNote())}</p>
+      </section>
+      ${groups.map(group => `
+        <section class="debug-artifact-group">
+          <div class="debug-artifact-group-head">
+            <strong>${escapeHtml(group.screen)}</strong>
+            <span>${escapeHtml(String(group.items.length))} kayıt</span>
+          </div>
+          <div class="debug-artifact-list">
+            ${group.items.map(item => {
+              const typeLabel = formatDebugArtifactTypeLabel(item.artifact_type);
+              const preview = isPreviewableDebugArtifact(item)
+                ? `<img class="debug-artifact-preview" src="${escapeHtml(item.content_url)}" alt="${escapeHtml(typeLabel)}" data-debug-artifact-preview="${escapeHtml(item.id || '')}">`
+                : `<div class="debug-empty-compact"><p>${escapeHtml(item.mime_type || 'İkili dosya')}</p></div>`;
+              const actionButtons = [
+                isPreviewableDebugArtifact(item)
+                  ? `<button class="debug-artifact-link secondary" type="button" data-debug-artifact-preview="${escapeHtml(item.id || '')}">Önizle</button>`
+                  : '',
+                item.content_url
+                  ? `<a class="debug-artifact-link" href="${escapeHtml(item.content_url)}" target="_blank" rel="noopener noreferrer">Yeni Sekmede Aç</a>`
+                  : '',
+              ].filter(Boolean).join('');
+              return `
+                <article class="debug-artifact-card">
+                  <div>
+                    <strong>${escapeHtml(typeLabel)}</strong>
+                    <span>${escapeHtml(buildDebugArtifactMetaLine(item) || '-')}</span>
+                  </div>
+                  ${preview}
+                  <code>${escapeHtml(item.storage_path || '-')}</code>
+                  <div class="debug-artifact-actions">${actionButtons}</div>
+                </article>
+              `;
+            }).join('')}
+          </div>
+        </section>
+      `).join('')}
     </div>
   `;
 }

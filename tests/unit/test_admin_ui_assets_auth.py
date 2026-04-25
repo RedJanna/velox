@@ -825,6 +825,17 @@ def test_admin_panel_script_handles_structured_detail_messages() -> None:
     assert "JSON'u Forma Aktar" in render_admin_panel_html()
 
 
+def test_admin_panel_debug_artifact_ui_includes_preview_and_context_copy() -> None:
+    html = render_admin_panel_html()
+
+    assert 'id="debugArtifactPreviewDialog"' in html
+    assert "openDebugArtifactPreview(" in ADMIN_PANEL_SCRIPT
+    assert "groupDebugArtifacts(" in ADMIN_PANEL_SCRIPT
+    assert "Bu run temiz tamamlandı." in ADMIN_PANEL_SCRIPT
+    assert ".debug-artifact-summary" in ADMIN_PANEL_STYLE
+    assert ".debug-artifact-dialog" in ADMIN_PANEL_STYLE
+
+
 def test_hold_rows_are_clickable_without_detail_button() -> None:
     """Hold table rows should be directly clickable for selection."""
     assert '.holds-table tbody tr[data-open-hold]{cursor:pointer}' in ADMIN_PANEL_STYLE
