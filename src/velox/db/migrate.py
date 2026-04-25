@@ -164,6 +164,23 @@ MIGRATION_SIGNATURES = {
               AND pg_get_constraintdef(oid) ILIKE '%DRAFT_SAVE%'
         )
     """,
+    "028": """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'whatsapp_integrations'
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'whatsapp_connect_sessions'
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'whatsapp_templates'
+        )
+    """,
 }
 
 

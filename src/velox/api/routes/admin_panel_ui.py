@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from velox.api.routes.admin_panel_holds_assets import ADMIN_HOLDS_SCRIPT, ADMIN_HOLDS_STYLE
 from velox.api.routes.admin_panel_restaurant_assets import ADMIN_RESTAURANT_SCRIPT, ADMIN_RESTAURANT_STYLE
 from velox.api.routes.admin_panel_ui_assets import ADMIN_PANEL_SCRIPT, ADMIN_PANEL_STYLE
+from velox.api.routes.admin_panel_whatsapp_assets import ADMIN_WHATSAPP_SCRIPT, ADMIN_WHATSAPP_STYLE
 from velox.config.settings import settings
 
 router = APIRouter(tags=["admin-panel-ui"])
@@ -40,7 +41,8 @@ def render_admin_panel_html() -> str:
   <title>NexlumeAI Yönetim Paneli</title>
   <style>{ADMIN_PANEL_STYLE}
 {ADMIN_HOLDS_STYLE}
-{ADMIN_RESTAURANT_STYLE}</style>
+{ADMIN_RESTAURANT_STYLE}
+{ADMIN_WHATSAPP_STYLE}</style>
 </head>
 <body>
   <div id="toast" class="toast info" role="status" aria-live="polite"></div>
@@ -63,9 +65,10 @@ def render_admin_panel_html() -> str:
         <button data-nav="faq"><span class="nav-label"><strong>Sık Sorulan Sorular</strong><span>Hazır yanıt yönetimi</span></span><span>06</span></button>
         <button data-nav="restaurant"><span class="nav-label"><strong>Restoran Yönetimi</strong><span>Masa ve kapasite ayarları</span></span><span>07</span></button>
         <button data-nav="notifications"><span class="nav-label"><strong>Bildirim Ayarları</strong><span>WhatsApp bildirim numaraları</span></span><span>08</span></button>
-        <button data-nav="system"><span class="nav-label"><strong>Sistem Durumu</strong><span>Sunucu ve bağlantı kontrolleri</span></span><span>09</span></button>
-        <button data-nav="chatlab"><span class="nav-label"><strong>Test Paneli</strong><span>Canlı test ve değerlendirme</span></span><span>10</span></button>
-        <button data-nav="debug"><span class="nav-label"><strong>Hata Raporları</strong><span>Canlı tarama bulguları</span></span><span>11</span></button>
+        <button data-nav="whatsappapi"><span class="nav-label"><strong>WhatsApp API</strong><span>Meta bağlantısı ve şablonlar</span></span><span>09</span></button>
+        <button data-nav="system"><span class="nav-label"><strong>Sistem Durumu</strong><span>Sunucu ve bağlantı kontrolleri</span></span><span>10</span></button>
+        <button data-nav="chatlab"><span class="nav-label"><strong>Test Paneli</strong><span>Canlı test ve değerlendirme</span></span><span>11</span></button>
+        <button data-nav="debug"><span class="nav-label"><strong>Hata Raporları</strong><span>Canlı tarama bulguları</span></span><span>12</span></button>
       </nav>
 
       <section class="sidebar-card">
@@ -822,6 +825,67 @@ def render_admin_panel_html() -> str:
           </article>
         </section>
 
+        <section data-view="whatsappapi" class="section-grid" hidden>
+          <div id="whatsappStatusCards" class="whatsapp-status-grid"></div>
+          <div class="whatsapp-layout">
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Meta Bağlantısı</h3><p>Cloud API numarası, webhook ve token durumu bu ekranda izlenir.</p></div>
+                <div class="whatsapp-actions">
+                  <button id="whatsappConnectButton" class="inline-button primary" type="button">Meta ile Bağlan</button>
+                  <button id="whatsappHealthButton" class="inline-button secondary" type="button">Sağlık Kontrolü</button>
+                  <button id="whatsappWebhookSubscribeButton" class="inline-button secondary" type="button">Webhook Abone Et</button>
+                </div>
+              </div>
+              <div id="whatsappIntegrationMeta" class="helper-panel mb-md"></div>
+              <div id="whatsappConfigChecklist" class="whatsapp-checklist"></div>
+            </article>
+
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Gelişmiş Manuel Kayıt</h3><p>Meta popup akışı kullanılamadığında teknik bilgiler buradan kaydedilir.</p></div>
+              </div>
+              <form id="whatsappManualForm" class="dense-form">
+                <div class="field"><label>Business ID</label><input name="business_id" autocomplete="off"></div>
+                <div class="field"><label>WABA ID</label><input name="waba_id" autocomplete="off"></div>
+                <div class="field"><label>Phone Number ID</label><input name="phone_number_id" autocomplete="off" required></div>
+                <div class="field"><label>Görünen numara</label><input name="display_phone_number" autocomplete="off"></div>
+                <div class="field"><label>Doğrulanmış ad</label><input name="verified_name" autocomplete="off"></div>
+                <div class="field"><label>Kalite</label><input name="quality_rating" autocomplete="off"></div>
+                <div class="field"><label>Mesaj limiti</label><input name="messaging_limit" autocomplete="off"></div>
+                <div class="field"><label>Token scope</label><input name="token_scopes" placeholder="scope1,scope2" autocomplete="off"></div>
+                <div class="field full"><label>Access token</label><input class="whatsapp-secret-input" name="access_token" type="password" autocomplete="off" placeholder="Boş bırakırsanız mevcut token korunur"></div>
+                <div class="field full"><label>Webhook verify token</label><input class="whatsapp-secret-input" name="webhook_verify_token" type="password" autocomplete="off" placeholder="Boş bırakırsanız mevcut değer korunur"></div>
+                <div class="field full"><button class="inline-button primary" type="submit">Bağlantıyı Kaydet</button></div>
+              </form>
+            </article>
+          </div>
+
+          <div class="split">
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Template Mesajları</h3><p>24 saat penceresi kapalı konuşmalar için onaylı template gerekir.</p></div>
+                <button id="whatsappTemplateSyncButton" class="inline-button secondary" type="button">Meta'dan Senkronize Et</button>
+              </div>
+              <div id="whatsappTemplates" class="whatsapp-template-list"></div>
+              <form id="whatsappTemplateForm" class="field-grid mt-lg">
+                <div class="field"><label>Template adı</label><input name="name" required></div>
+                <div class="field"><label>Dil</label><input name="language" placeholder="tr" required></div>
+                <div class="field"><label>Kategori</label><input name="category" placeholder="UTILITY"></div>
+                <div class="field full"><label>Components JSON</label><textarea name="components_json" class="whatsapp-secret-input" style="min-height:90px" placeholder="[]"></textarea></div>
+                <div class="field full"><button class="inline-button primary" type="submit">Yerel Taslak Kaydet</button></div>
+              </form>
+            </article>
+
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Bağlantı Günlüğü</h3><p>Secret içermeyen bağlantı olayları.</p></div>
+              </div>
+              <div id="whatsappEvents" class="whatsapp-event-list"></div>
+            </article>
+          </div>
+        </section>
+
         <section data-view="system" class="section-grid" hidden>
           <div class="split">
             <article class="module-card">
@@ -1045,6 +1109,25 @@ def render_admin_panel_html() -> str:
     </div>
   </dialog>
 
+  <dialog id="whatsappConnectDialog" class="dialog" aria-label="WhatsApp Meta bağlantısı">
+    <div class="dialog-card">
+      <div class="dialog-head">
+        <h3>Meta ile Bağlan</h3>
+        <p id="whatsappConnectStatus">Bağlantı oturumu bekleniyor.</p>
+      </div>
+      <div id="whatsappOauthSteps" class="field-grid">
+        <div class="whatsapp-oauth-step"><span>1</span><div><strong>Oturum oluştur</strong><p>Backend kısa süreli ve CSRF state içeren bağlantı oturumu üretir.</p></div></div>
+        <div class="whatsapp-oauth-step"><span>2</span><div><strong>Meta popup</strong><p>Yetkilendirme ayrı popup içinde tamamlanır; token frontend'e dönmez.</p></div></div>
+        <div class="whatsapp-oauth-step"><span>3</span><div><strong>Numara seçimi</strong><p>Yetki sonrası erişilebilir WhatsApp numaraları backend'den alınır ve seçilen numara aktif bağlantıya dönüştürülür.</p></div></div>
+      </div>
+      <div id="whatsappAssets" class="whatsapp-asset-picker"></div>
+      <div class="dialog-actions">
+        <button id="whatsappConnectCancel" class="inline-button secondary" type="button">Kapat</button>
+        <button id="whatsappConnectLaunch" class="inline-button primary" type="button">Meta Penceresini Aç</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="debugRunDialog" class="dialog" aria-label="Canlı hata taraması">
     <div class="dialog-card">
       <div class="dialog-head">
@@ -1144,6 +1227,7 @@ def render_admin_panel_html() -> str:
   <script>{ADMIN_PANEL_SCRIPT}</script>
   <script>{ADMIN_HOLDS_SCRIPT}</script>
   <script>{ADMIN_RESTAURANT_SCRIPT}</script>
+  <script>{ADMIN_WHATSAPP_SCRIPT}</script>
 </body>
 </html>
 """

@@ -11,6 +11,10 @@
    `ELEKTRA_GENERIC_LOGIN_TOKEN` is only an operational fallback and should not be treated as permanent because the token expires.
    `ADMIN_DEBUG_BROWSER_TARGET_MODE=public` keeps admin debug browser scans on the public panel URL; switch to `internal`
    only when the deployment cannot reach its own public domain from inside the app container.
+   Admin-managed WhatsApp Cloud API connections require:
+   `WHATSAPP_TOKEN_ENCRYPTION_KEY`, `META_APP_ID`, `META_APP_SECRET`, and `META_EMBEDDED_SIGNUP_CONFIG_ID`.
+   The Meta OAuth redirect URL must be configured as:
+   `https://<public-host>/api/v1/admin/whatsapp/oauth/callback`.
 3. Ensure `.env.production` is not committed (already ignored by `.gitignore`).
 
 ## 2. Build and Start Stack
@@ -39,6 +43,7 @@ docker compose --env-file .env.production -f docker-compose.prod.yml exec app py
 curl -fsS http://127.0.0.1:8001/api/v1/health
 curl -fsS http://127.0.0.1:8001/api/v1/health/ready
 curl -fsS http://127.0.0.1:8001/metrics | head
+curl -fsS http://127.0.0.1:8001/api/v1/admin/bootstrap/status
 docker compose --env-file .env.production -f docker-compose.prod.yml exec app python -c "import importlib.util; assert importlib.util.find_spec('playwright.async_api') is not None; print('playwright-python-ok')"
 docker compose --env-file .env.production -f docker-compose.prod.yml exec app sh -lc "test -d /ms-playwright && ls /ms-playwright | grep chromium"
 ```
@@ -89,6 +94,8 @@ GitHub Actions workflow: `.github/workflows/ci.yml`
 - [ ] DB migration ran successfully
 - [ ] Hotel profile YAML loaded
 - [ ] WhatsApp webhook URL configured in Meta Business Manager
+- [ ] WhatsApp admin integration env vars configured when `/admin#whatsappapi` will be used
+- [ ] Meta OAuth redirect URL points to `/api/v1/admin/whatsapp/oauth/callback`
 - [ ] Elektraweb API credentials validated
 - [ ] Elektra Generic API credentials validated for reservation-card voucher/note sync
 - [ ] OpenAI API key active with sufficient quota

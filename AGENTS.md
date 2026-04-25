@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v5.6 | **Son güncelleme:** 2026-04-24 22:35:44
-> **Değişiklik özeti:** Admin debug browser automation runtime kurulumu ve hedef mod konfigürasyonu eklendi.
+> **Sürüm:** v5.7 | **Son güncelleme:** 2026-04-25 20:19:44
+> **Değişiklik özeti:** Admin WhatsApp Cloud API bağlantı ekranı, Meta OAuth ayarları ve şifreli entegrasyon saklama temeli eklendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -354,6 +354,10 @@ All secrets, API keys, and configuration must be in environment variables. Never
 | `WHATSAPP_VERIFY_TOKEN` | Webhook doğrulama token'ı (kendin belirle) | `velox-webhook-2024` | Manuel |
 | `WHATSAPP_PHONE_NUMBER_ID` | WhatsApp Business telefon numarası ID'si | `10234...` | Meta Business Suite |
 | `WHATSAPP_APP_SECRET` | WhatsApp webhook HMAC-SHA256 imza secret'ı | `abc123...` | Meta Business Suite |
+| `WHATSAPP_TOKEN_ENCRYPTION_KEY` | Admin panelden saklanan WhatsApp access token değerlerini şifreleme anahtarı | `random-fernet-or-32-char-secret` | Manuel üret |
+| `META_APP_ID` | Meta app kimliği; Embedded Signup/OAuth bağlantı akışı için | `1234567890` | Meta Developers |
+| `META_APP_SECRET` | Meta app secret; OAuth token exchange yalnızca backend'de kullanılır | `***` | Meta Developers |
+| `META_EMBEDDED_SIGNUP_CONFIG_ID` | WhatsApp Embedded Signup configuration ID | `1234567890` | Meta Developers |
 | `DB_HOST` | PostgreSQL host | `db` | Hosting |
 | `DB_PORT` | PostgreSQL port | `5432` | Hosting |
 | `DB_NAME` | PostgreSQL veritabanı adı | `velox` | Hosting |
@@ -390,6 +394,7 @@ All secrets, API keys, and configuration must be in environment variables. Never
 | `ELEKTRA_GENERIC_API_BASE_URL` | Elektra Generic API base URL | `https://4001.hoteladvisor.net` |
 | `ELEKTRA_GENERIC_LOGIN_TOKEN` | Günlük geçerli Generic API token override; sadece geçici operasyonel fallback olarak kullanılmalıdır | _(boş = devre dışı)_ |
 | `ADMIN_DEBUG_BROWSER_TARGET_MODE` | Admin debug browser scan hedefi (`public` veya `internal`) | `public` |
+| `META_WHATSAPP_OAUTH_SCOPES` | Meta bağlantı akışı için OAuth scope listesi | `whatsapp_business_management,whatsapp_business_messaging,business_management` |
 
 > **Kural:** Yeni bir ENV değişkeni eklendiğinde bu tabloyu güncelle ve `.env.example` dosyasına da ekle.
 
@@ -514,6 +519,6 @@ src/velox/
 ├── policies/                  # Business rules (approval, payment, cancellation)
 ├── models/                    # Pydantic data models
 ├── db/                        # Database connection, repositories, migrations
-├── api/                       # FastAPI routes, middleware, embedded admin/chat-lab UI modules, admin debug/report-only surfaces
-└── utils/                     # Logging, i18n, validators, admin/debug auth helpers, lightweight Prometheus metrics helpers
+├── api/                       # FastAPI routes, middleware, embedded admin/chat-lab UI modules, admin debug/report-only and WhatsApp integration surfaces
+└── utils/                     # Logging, i18n, validators, admin/debug auth helpers, secret encryption, lightweight Prometheus metrics helpers
 ```

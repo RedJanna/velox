@@ -93,6 +93,30 @@ class Settings(BaseSettings):
     whatsapp_access_token: str = ""
     whatsapp_verify_token: str = ""
     whatsapp_app_secret: str = ""
+    whatsapp_token_encryption_key: str = ""
+    meta_app_id: str = ""
+    meta_app_secret: str = ""
+    meta_embedded_signup_config_id: str = ""
+    meta_whatsapp_oauth_scopes: str = "whatsapp_business_management,whatsapp_business_messaging,business_management"
+
+    @property
+    def whatsapp_webhook_url(self) -> str:
+        """Public callback URL that should be configured in Meta webhooks."""
+        return f"{self.public_base_url.rstrip('/')}/api/v1/webhook/whatsapp"
+
+    @property
+    def meta_oauth_redirect_url(self) -> str:
+        """Public OAuth callback URL used by the admin WhatsApp connection flow."""
+        return f"{self.public_base_url.rstrip('/')}/api/v1/admin/whatsapp/oauth/callback"
+
+    @property
+    def meta_whatsapp_oauth_scope_list(self) -> list[str]:
+        """Normalize Meta OAuth scopes configured for Embedded Signup."""
+        return [
+            item.strip()
+            for item in self.meta_whatsapp_oauth_scopes.split(",")
+            if item.strip()
+        ]
 
     # Elektraweb
     elektra_api_base_url: str = ""

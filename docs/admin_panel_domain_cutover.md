@@ -2,6 +2,14 @@
 
 Admin panel artik uygulama icinden `/admin` rotasinda sunulur ve public panel adresi `https://nexlumeai.com/admin` olarak beklenir.
 
+WhatsApp Cloud API yonetim ekrani ayni panel icinde hash route olarak sunulur:
+
+```text
+https://velox.nexlumeai.com/admin#whatsappapi
+```
+
+Desteklenen `#whatsappapi`, `#whatsapp-api` ve `#whatsappapı` varyantlari panel tarafinda `whatsappapi` gorunumune normalize edilir. Meta OAuth callback backend rotasi `/api/v1/admin/whatsapp/oauth/callback` altindadir; bu path reverse proxy tarafindan API'ye ulasabilir kalmalidir.
+
 ## Yerel demo notu
 
 Canli domain'den bagimsiz yerel demo dogrulamasi icin ayri bir compose project kullanilir.
@@ -70,4 +78,7 @@ curl -fsS https://nexlumeai.com/api/v1/health/ready
 curl -fsS https://nexlumeai.com/api/v1/admin/bootstrap/status
 curl -I https://nexlumeai.com/
 curl -I https://nexlumeai.com/admin
+curl -I https://velox.nexlumeai.com/admin
 ```
+
+Tarayici dogrulamasinda `https://velox.nexlumeai.com/admin#whatsappapi` adresi acilarak hash tabanli WhatsApp gorunumu kontrol edilir.

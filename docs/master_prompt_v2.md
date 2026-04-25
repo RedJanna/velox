@@ -1058,6 +1058,8 @@ Not: B bolumu yalnizca gelistirici dokumantasyonudur. Kullaniciya yanit uretirke
 ## B1) Multi-Hotel + Multi-WhatsApp Number
 - Her otelin kendine ait WhatsApp Business numarasi olacak.
 - Inbound mesaj hangi numaraya geldiyse "hotel_id" o numaradan turetilir.
+- Admin panel WhatsApp API ekrani otel bazli Business ID, WABA ID, Phone Number ID, token durumu, webhook ve template snapshot kayitlarini yonetir.
+- Admin panelden kaydedilen access token degerleri backend'de sifreli saklanir; frontend token degerini asla gormez.
 - Su an aktif kurulum:
   - Kassandra Oludeniz: test numarasi "<TEST_NUMBER>" (config/ENV)
   - Kassandra Heritage: daha sonra veri ile eklenecek
@@ -1067,6 +1069,7 @@ Not: B bolumu yalnizca gelistirici dokumantasyonudur. Kullaniciya yanit uretirke
 - Multi-tenant: hotel bazli
 - Roller/Yetkiler: hotel_admin, ops, sales, chef vb.
 - Login: admin_id + password + Google Authenticator 2FA
+- WhatsApp API ekrani: `/admin#whatsappapi`; Meta popup/OAuth callback sonucu backend tarafinda islenir.
 
 ## B3) HOTEL_PROFILE (Dinamik Bilgi)
 Admin panelden her otel guncelleyebilmeli:
@@ -1417,6 +1420,14 @@ POST /api/v1/admin/holds/{id}/approve  # Hold onaylama
 POST /api/v1/admin/holds/{id}/reject   # Hold reddetme
 GET  /api/v1/admin/tickets             # Ticket listesi
 PUT  /api/v1/admin/tickets/{id}        # Ticket guncelleme
+GET  /api/v1/admin/hotels/{id}/whatsapp/integration          # WhatsApp baglanti durumu
+POST /api/v1/admin/hotels/{id}/whatsapp/integration/manual   # Manuel WhatsApp Cloud API kaydi
+POST /api/v1/admin/hotels/{id}/whatsapp/connect-sessions     # Meta popup/OAuth oturumu
+GET  /api/v1/admin/hotels/{id}/whatsapp/assets               # OAuth token ile gorulen Business/WABA/numara varliklari
+POST /api/v1/admin/hotels/{id}/whatsapp/connect-sessions/{session_id}/complete  # Secilen numarayi aktif entegrasyona cevirir
+GET  /api/v1/admin/whatsapp/oauth/callback                   # Meta OAuth callback
+POST /api/v1/admin/hotels/{id}/whatsapp/health-check         # Token/webhook saglik kontrolu
+POST /api/v1/admin/hotels/{id}/whatsapp/templates/sync       # Meta template snapshot sync
 
 # Health
 GET  /api/v1/health                    # Health check
