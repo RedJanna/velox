@@ -30,8 +30,35 @@ ADMIN_WHATSAPP_STYLE = """\
 .whatsapp-asset-button:hover{border-color:#0f766e;box-shadow:0 0 0 3px rgba(15,118,110,.12)}
 .whatsapp-asset-button strong{display:block;margin-bottom:4px}
 .whatsapp-asset-button span{display:block;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.whatsapp-guide-card{display:grid;gap:14px}
+.whatsapp-guide-highlights{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.whatsapp-guide-highlight{border:1px solid var(--line);border-radius:12px;background:var(--surface-2);padding:12px;display:flex;gap:10px;align-items:flex-start}
+.whatsapp-guide-highlight b{display:grid;place-items:center;width:28px;height:28px;border-radius:10px;background:rgba(15,118,110,.12);color:var(--accent);font-weight:900;flex:0 0 auto}
+.whatsapp-guide-highlight span{display:block;color:var(--muted);font-size:12px;line-height:1.35}
+.dialog.whatsapp-guide-dialog{max-width:980px;width:min(94vw,980px)}
+.whatsapp-guide-body{display:grid;gap:18px;max-height:min(74vh,760px);overflow:auto;padding-right:4px}
+.whatsapp-guide-intro{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.62fr);gap:16px;align-items:stretch}
+.whatsapp-guide-panel{border:1px solid var(--line);border-radius:14px;background:var(--surface-2);padding:16px}
+.whatsapp-guide-panel h4,.whatsapp-guide-step h4,.whatsapp-guide-warning h4{margin:0 0 8px;font-size:15px}
+.whatsapp-guide-panel p,.whatsapp-guide-step p,.whatsapp-guide-warning p,.whatsapp-field-card p{margin:0;color:var(--muted);line-height:1.5}
+.whatsapp-guide-mini-screen{border:1px solid var(--line-strong);border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 10px 24px rgba(16,32,51,.08)}
+.whatsapp-guide-mini-top{height:34px;background:linear-gradient(135deg,var(--accent),var(--gold));display:flex;align-items:center;gap:6px;padding:0 12px}
+.whatsapp-guide-mini-dot{width:8px;height:8px;border-radius:999px;background:rgba(255,255,255,.8)}
+.whatsapp-guide-mini-body{display:grid;gap:8px;padding:12px}
+.whatsapp-guide-mini-row{display:flex;justify-content:space-between;gap:10px;border:1px dashed var(--line);border-radius:10px;padding:8px;color:var(--muted);font-size:12px}
+.whatsapp-guide-flow{display:grid;gap:12px}
+.whatsapp-guide-step{display:grid;grid-template-columns:42px minmax(0,1fr);gap:12px;border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px}
+.whatsapp-guide-step b{display:grid;place-items:center;width:34px;height:34px;border-radius:12px;background:rgba(187,138,42,.16);color:#785511;font-weight:900}
+.whatsapp-guide-step ul,.whatsapp-guide-warning ul{margin:8px 0 0;padding-left:18px;color:var(--muted);line-height:1.5}
+.whatsapp-guide-warning{border:1px solid rgba(180,83,9,.28);border-left:5px solid var(--warn);border-radius:14px;background:#fff8eb;padding:14px}
+.whatsapp-guide-warning.danger{border-color:rgba(180,35,24,.28);border-left-color:var(--danger);background:#fff1f0}
+.whatsapp-field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.whatsapp-field-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px}
+.whatsapp-field-card strong{display:block;margin-bottom:6px;overflow-wrap:anywhere}
+.whatsapp-field-card code{display:inline-block;margin-top:8px;font-size:12px;color:var(--accent);overflow-wrap:anywhere}
 @media (max-width:1100px){.whatsapp-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.whatsapp-layout{grid-template-columns:1fr}}
-@media (max-width:640px){.whatsapp-status-grid{grid-template-columns:1fr}.whatsapp-actions{flex-direction:column}.whatsapp-actions button{width:100%}}
+@media (max-width:900px){.whatsapp-guide-highlights,.whatsapp-guide-intro,.whatsapp-field-grid{grid-template-columns:1fr}}
+@media (max-width:640px){.whatsapp-status-grid{grid-template-columns:1fr}.whatsapp-actions{flex-direction:column}.whatsapp-actions button{width:100%}.whatsapp-guide-step{grid-template-columns:1fr}.dialog.whatsapp-guide-dialog{width:96vw}.whatsapp-guide-body{max-height:78vh}}
 """
 
 ADMIN_WHATSAPP_SCRIPT = """\
@@ -53,7 +80,7 @@ ADMIN_WHATSAPP_SCRIPT = """\
       'whatsappTemplates','whatsappManualForm','whatsappTemplateForm','whatsappConnectButton',
       'whatsappHealthButton','whatsappWebhookSubscribeButton','whatsappTemplateSyncButton',
       'whatsappConnectDialog','whatsappConnectCancel','whatsappConnectLaunch','whatsappConnectStatus',
-      'whatsappOauthSteps','whatsappAssets'
+      'whatsappOauthSteps','whatsappAssets','whatsappGuideButton','whatsappGuideDialog','whatsappGuideClose'
     ].forEach(function(id){ refs[id] = document.getElementById(id); });
   }
 
@@ -67,6 +94,8 @@ ADMIN_WHATSAPP_SCRIPT = """\
     refs.whatsappWebhookSubscribeButton?.addEventListener('click', subscribeWebhook);
     refs.whatsappTemplateSyncButton?.addEventListener('click', syncTemplates);
     refs.whatsappAssets?.addEventListener('click', onConnectAssetClick);
+    refs.whatsappGuideButton?.addEventListener('click', openGuideDialog);
+    refs.whatsappGuideClose?.addEventListener('click', closeGuideDialog);
     window.addEventListener('message', function(event) {
       if (event.origin !== window.location.origin) return;
       if (!event.data || event.data.type !== 'velox:whatsapp-oauth') return;
@@ -75,6 +104,14 @@ ADMIN_WHATSAPP_SCRIPT = """\
         pollConnectSession(state.whatsappConnectSessionId);
       }
     });
+  }
+
+  function openGuideDialog() {
+    refs.whatsappGuideDialog?.showModal();
+  }
+
+  function closeGuideDialog() {
+    refs.whatsappGuideDialog?.close();
   }
 
   function patchSetView() {

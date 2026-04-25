@@ -10,6 +10,8 @@ def test_admin_panel_contains_whatsapp_api_view() -> None:
     assert 'data-nav="whatsappapi"' in html
     assert 'data-view="whatsappapi"' in html
     assert "whatsappConnectDialog" in html
+    assert "whatsappGuideDialog" in html
+    assert "WhatsApp Meta Cloud API Kurulum Rehberi" in html
 
 
 def test_whatsapp_asset_normalizes_dotless_hash_alias() -> None:
@@ -24,3 +26,13 @@ def test_whatsapp_asset_picker_completes_authorized_session() -> None:
     assert "/whatsapp/connect-sessions/' + encodeURIComponent(state.whatsappConnectSessionId) + '/complete" in (
         ADMIN_WHATSAPP_SCRIPT
     )
+
+
+def test_whatsapp_guide_explains_beginner_error_prevention() -> None:
+    html = render_admin_panel_html()
+
+    assert "Phone Number ID, görünen telefon numarası değildir" in html
+    assert "whatsapp_business_management" in html
+    assert "24 saatlik pencere" in html
+    assert "Webhook URL'yi HTTP veya localhost olarak ayarlamak" in html
+    assert "openGuideDialog" in ADMIN_WHATSAPP_SCRIPT

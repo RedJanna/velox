@@ -826,6 +826,18 @@ def render_admin_panel_html() -> str:
         </section>
 
         <section data-view="whatsappapi" class="section-grid" hidden>
+          <article class="module-card whatsapp-guide-card">
+            <div class="module-header">
+              <div><h3>WhatsApp Cloud API Kurulum Rehberi</h3><p>Meta hesabından doğru bilgileri alıp bu sisteme hatasız bağlamak için adım adım ilerleyin.</p></div>
+              <button id="whatsappGuideButton" class="inline-button secondary" type="button" aria-label="WhatsApp Cloud API kurulum rehberini aç">Kurulum Rehberi</button>
+            </div>
+            <div class="whatsapp-guide-highlights">
+              <div class="whatsapp-guide-highlight"><b>1</b><span>Meta Business, WABA ve telefon numarasını hazırlayın.</span></div>
+              <div class="whatsapp-guide-highlight"><b>2</b><span>Önerilen popup akışıyla Meta hesabını bağlayın.</span></div>
+              <div class="whatsapp-guide-highlight"><b>3</b><span>Webhook ve sağlık kontrolünü bu ekrandan doğrulayın.</span></div>
+              <div class="whatsapp-guide-highlight"><b>4</b><span>24 saat dışı mesajlar için onaylı template kullanın.</span></div>
+            </div>
+          </article>
           <div id="whatsappStatusCards" class="whatsapp-status-grid"></div>
           <div class="whatsapp-layout">
             <article class="module-card">
@@ -1124,6 +1136,150 @@ def render_admin_panel_html() -> str:
       <div class="dialog-actions">
         <button id="whatsappConnectCancel" class="inline-button secondary" type="button">Kapat</button>
         <button id="whatsappConnectLaunch" class="inline-button primary" type="button">Meta Penceresini Aç</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="whatsappGuideDialog" class="dialog whatsapp-guide-dialog" aria-label="WhatsApp Cloud API kurulum rehberi">
+    <div class="dialog-card">
+      <div class="dialog-head">
+        <h3>WhatsApp Meta Cloud API Kurulum Rehberi</h3>
+        <p>Bu rehber, teknik bilgisi sınırlı kullanıcıların doğru Meta bilgilerini bulup Velox'a güvenli şekilde bağlaması için hazırlanmıştır.</p>
+      </div>
+      <div class="whatsapp-guide-body mt-md">
+        <div class="whatsapp-guide-intro">
+          <section class="whatsapp-guide-panel">
+            <h4>En kolay yol</h4>
+            <p>Önce bu ekrandaki <strong>Meta ile Bağlan</strong> düğmesini deneyin. Açılan Meta penceresinde hesabınızı onaylayın, sonra burada görünen WhatsApp numarasını seçin. Bu yöntemde access token tarayıcıya gösterilmez ve sistem token'ı şifreli saklar.</p>
+          </section>
+          <section class="whatsapp-guide-mini-screen" aria-label="Meta kurulum ekranı örneği">
+            <div class="whatsapp-guide-mini-top"><span class="whatsapp-guide-mini-dot"></span><span class="whatsapp-guide-mini-dot"></span><span class="whatsapp-guide-mini-dot"></span></div>
+            <div class="whatsapp-guide-mini-body">
+              <div class="whatsapp-guide-mini-row"><strong>Meta Business</strong><span>Business ID</span></div>
+              <div class="whatsapp-guide-mini-row"><strong>WhatsApp Manager</strong><span>WABA ID</span></div>
+              <div class="whatsapp-guide-mini-row"><strong>API Setup</strong><span>Phone Number ID</span></div>
+              <div class="whatsapp-guide-mini-row"><strong>Webhooks</strong><span>Callback URL</span></div>
+            </div>
+          </section>
+        </div>
+
+        <section class="whatsapp-guide-flow" aria-label="Kurulum adımları">
+          <div class="whatsapp-guide-step">
+            <b>1</b>
+            <div>
+              <h4>Meta Business hesabınızı hazırlayın</h4>
+              <p>Meta Business Suite içinde işletme portföyünüz olmalı. WhatsApp numarasını bağlayacak kişinin bu işletmede yönetici yetkisi olmalıdır.</p>
+              <ul>
+                <li>İşletme bilgileri doğru olmalı: resmi ad, web sitesi, ülke ve iletişim bilgileri.</li>
+                <li>Mümkünse işletme doğrulamasını tamamlayın; doğrulama bazı limitler ve canlı kullanım için gerekebilir.</li>
+                <li>Numara daha önce normal WhatsApp veya WhatsApp Business uygulamasında kullanıldıysa Cloud API'ye geçişte ek doğrulama gerekebilir.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="whatsapp-guide-step">
+            <b>2</b>
+            <div>
+              <h4>WhatsApp Business Account ve telefon numarasını bulun</h4>
+              <p>Meta tarafında iki farklı kimlik vardır: WABA, yani WhatsApp Business Account; ve o WABA içindeki Phone Number ID.</p>
+              <ul>
+                <li><strong>WABA ID</strong>: WhatsApp Manager veya Business Settings içinde WhatsApp Business Account detayında görünür.</li>
+                <li><strong>Phone Number ID</strong>: WhatsApp Manager/API Setup veya WABA altındaki phone numbers listesinde görünür.</li>
+                <li>Phone Number ID, görünen telefon numarası değildir. Örneğin +90... yerine uzun sayısal bir ID girilmelidir.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="whatsapp-guide-step">
+            <b>3</b>
+            <div>
+              <h4>Access token tipini doğru seçin</h4>
+              <p>Test için kısa süreli token iş görebilir, fakat canlı kullanımda sistem user access token kullanın. Token'ın WhatsApp mesajlaşma ve yönetim izinleri olmalıdır.</p>
+              <ul>
+                <li>Gerekli temel izinler: <code>whatsapp_business_management</code> ve <code>whatsapp_business_messaging</code>.</li>
+                <li>Business varlıklarını listelemek için bazı akışlarda <code>business_management</code> izni de gerekir.</li>
+                <li>Token'ı e-posta, chat veya ekran görüntüsüyle paylaşmayın. Bu ekrandan kaydedilen token geri gösterilmez.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="whatsapp-guide-step">
+            <b>4</b>
+            <div>
+              <h4>Önerilen bağlantı akışını kullanın</h4>
+              <p>Bu ekrandaki <strong>Meta ile Bağlan</strong> düğmesi bir bağlantı oturumu oluşturur, Meta penceresini açar ve yetki sonrası erişilebilir WhatsApp numaralarını listeler.</p>
+              <ul>
+                <li>Popup engellenirse tarayıcıda bu site için açılır pencereye izin verin.</li>
+                <li>Yetki tamamlanınca bu ekranda doğru telefon numarasını seçin.</li>
+                <li>Sonra <strong>Webhook Abone Et</strong> ve <strong>Sağlık Kontrolü</strong> adımlarını çalıştırın.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="whatsapp-guide-step">
+            <b>5</b>
+            <div>
+              <h4>Manuel kayıt yalnızca gerektiğinde kullanın</h4>
+              <p>Meta popup akışı kullanılamıyorsa manuel formu doldurun. Bu yöntem daha fazla hata riski taşır; her alanı Meta ekranındaki doğru yerden alın.</p>
+              <ul>
+                <li>Business ID, WABA ID ve Phone Number ID birbirinin yerine kullanılamaz.</li>
+                <li>Access token boş bırakılırsa mevcut token korunur; yeni token girerseniz eski token değişir.</li>
+                <li>Webhook verify token, Meta webhook doğrulamasında kullanılan sizin belirlediğiniz gizli metindir.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="whatsapp-guide-step">
+            <b>6</b>
+            <div>
+              <h4>Template mesajlarını ihmal etmeyin</h4>
+              <p>Misafir size son 24 saat içinde yazdıysa serbest yanıt gönderebilirsiniz. 24 saatlik pencere kapandıysa, yeni mesaj başlatmak için Meta tarafından onaylı template gerekir.</p>
+              <ul>
+                <li>Template adını, dilini ve kategorisini Meta'da oluşturup onaya gönderin.</li>
+                <li>Onaylandıktan sonra bu ekrandan <strong>Meta'dan Senkronize Et</strong> ile listeyi güncelleyin.</li>
+                <li>Reddedilen template'lerde kategori, vaat dili veya değişken örneklerini düzeltip tekrar gönderin.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="whatsapp-guide-panel">
+          <h4>Manuel form alanları ne anlama geliyor?</h4>
+          <div class="whatsapp-field-grid">
+            <div class="whatsapp-field-card"><strong>Business ID</strong><p>Meta Business Suite işletme portföyünün kimliğidir. Genellikle Business Settings veya URL içindeki <code>business_id</code> değeridir.</p></div>
+            <div class="whatsapp-field-card"><strong>WABA ID</strong><p>WhatsApp Business Account kimliğidir. Bir işletmenin birden fazla WABA'sı olabilir; doğru WABA'yı seçin.</p></div>
+            <div class="whatsapp-field-card"><strong>Phone Number ID</strong><p>Mesaj gönderecek telefonun API kimliğidir. Görünen telefon numarası değil, Meta'nın verdiği sayısal ID'dir.</p></div>
+            <div class="whatsapp-field-card"><strong>Access Token</strong><p>Meta Graph API'ye erişim anahtarıdır. Canlı sistemde süresi uygun ve gerekli izinlere sahip token kullanın.</p></div>
+            <div class="whatsapp-field-card"><strong>Webhook URL</strong><p>Meta'nın gelen mesajları göndereceği herkese açık HTTPS adrestir. Bu sistemde <code>/api/v1/webhook/whatsapp</code> yoluna gider.</p></div>
+            <div class="whatsapp-field-card"><strong>Verify Token</strong><p>Webhook kurulurken Meta'nın doğrulama için geri gönderdiği, sizin belirlediğiniz gizli metindir. Access token ile aynı şey değildir.</p></div>
+          </div>
+        </section>
+
+        <section class="whatsapp-guide-warning danger">
+          <h4>En sık yapılan hatalar</h4>
+          <ul>
+            <li>Görünen telefon numarasını Phone Number ID alanına yazmak.</li>
+            <li>WABA ID yerine Business ID girmek veya tam tersini yapmak.</li>
+            <li>24 saat süresi dolmuş kullanıcıya onaysız serbest mesaj göndermeye çalışmak.</li>
+            <li>Test ekranındaki kısa süreli token ile canlı kullanıma geçmek.</li>
+            <li>Webhook URL'yi HTTP veya localhost olarak ayarlamak; Meta için public HTTPS gerekir.</li>
+            <li>Telefon numarası kayıt/iki adımlı doğrulama PIN adımını tamamlamadan mesaj göndermeyi denemek.</li>
+          </ul>
+        </section>
+
+        <section class="whatsapp-guide-warning">
+          <h4>Bağlantıdan sonra son kontrol</h4>
+          <ul>
+            <li>Bağlantı durum kartında doğru telefon numarası görünüyor.</li>
+            <li>Webhook durumu doğrulandı veya abonelik başarılı oldu.</li>
+            <li>Sağlık kontrolü token ve Phone Number ID eşleşmesini onayladı.</li>
+            <li>En az bir onaylı template senkronize edildi.</li>
+            <li>Meta tarafında app mode, izinler ve telefon kalite durumu canlı kullanım için uygunsa sistem üretime hazırdır.</li>
+          </ul>
+        </section>
+      </div>
+      <div class="dialog-actions">
+        <button id="whatsappGuideClose" class="inline-button primary" type="button">Rehberi Kapat</button>
       </div>
     </div>
   </dialog>
