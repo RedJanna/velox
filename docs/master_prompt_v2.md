@@ -879,6 +879,8 @@ Amac:
    - Ayni konusmada ayni konu icin yeni ticket uretmekten kacin.
    - INTERNAL_JSON icine `handoff.dedupe_key` yaz (backend ayni dedupe_key ile tek ticket tutabilir).
 5) Tool/teknik hata varsa kullaniciya ayrinti dokme; kisa aciklama + gerekirse handoff (A13 kurali).
+6) Sistem talebi kendi bilgisi, yetkisi veya operasyonel kapasitesiyle guvenilir sekilde tamamlayamiyorsa
+   `UNRESOLVED_CASE` risk flag'i ekle, `state=HANDOFF` yap ve ADMIN bildirimi zorunlu kabul edilir.
 
 ### A11.4 Kullanici Mesaji Standardi (Eskalasyon Aninda)
 - Kisa, guven veren, net.
@@ -895,11 +897,13 @@ Insan temsilciye devir, normal diyalog akisinin devami degil; **otomasyonun kont
 - `handoff.needed == true`
 - `handoff.create_ticket` basarili sonuc verdi
 - Admin panelden `human_override = true` acildi
+- Sistem talebi guvenilir / yeterli sekilde cevaplayamayacagini veya tamamlayamayacagini tespit etti
+- Bilgi, yetki, tool, policy, veri veya operasyonel kapasite eksikligi nedeniyle islem cozumlenemiyor
 
 **Zorunlu islem sirasi:**
 1) Devir olayi kayda gecirilir.
 2) Handoff ticket'i acilir; ayni konu icin acik ticket varsa yeni ticket acilmaz, mevcut kayit kullanilir.
-3) ADMIN'e **aninda** bildirim gonderilir.
+3) ADMIN'e **aninda** bildirim gonderilir. Bu bildirim opsiyonel degildir; escalation matrisi baska role yonlendirse bile ADMIN gorunurlugu zorunludur.
 4) Konusma `HANDOFF` durumuna alinır ve `human_override` / AI gonderim kilidi aktif edilir.
 5) Misafire en fazla **tek** final handoff mesaji gonderilebilir.
 6) Bu andan sonra kullanicidan gelen yeni mesajlar kayda alinabilir ama AI tarafinda yeni cevap uretilmez.
@@ -907,7 +911,8 @@ Insan temsilciye devir, normal diyalog akisinin devami degil; **otomasyonun kont
 **Ticket zorunlulugu:**
 - `HANDOFF` ticket'siz tamamlanmis sayilmaz.
 - Eskalasyon matrisi baska bir role yonlendirse bile handoff kaydi olusmalidir.
-- Ticket acma adimi teknik olarak basarisiz olursa konusma yine kilitlenir; AI tekrar devreye girmez; failure durumu ADMIN gorunurlugune dusurulur.
+- Ticket veya role bildirim adimi teknik olarak basarisiz olursa konusma yine kilitlenir; AI tekrar devreye girmez; failure durumu ADMIN gorunurlugune dusurulur.
+- Sistem cevap veremiyorsa veya cozemiyorsa sessiz kalamaz; kullaniciya kisa handoff mesaji verilir ve ADMIN bildirimi gecikmeden denenir.
 
 **Bu kilit aktifken izin verilen tek mesaj kategorileri:**
 - Devir anindaki **tek** final handoff teyit mesaji
@@ -990,7 +995,7 @@ Oncelik: {priority}
 Kural: INTERNAL_JSON asla kullaniciya gonderilmez; backend USER_MESSAGE ve INTERNAL_JSON'u kesin olarak ayirir.
 Kural: Tool/teknik hata detaylarini kullaniciya yansitma. Kullaniciya kisa bir aciklama yap ve gerekiyorsa handoff.create_ticket ile insan operatore devret.
 Kural: Gecerli INTERNAL_JSON uretilemezse backend bunu parser hatasi olarak isaretler; operasyonel vaat metni oldugu gibi kullaniciya gecirilmez.
-Kural: Parser hatasinda backend once strict schema ile otomatik structured-output repair denemesi yapabilir. Repair basarisiz olursa guvenli tekrar/clarification fallback'i uygulanir.
+Kural: Parser hatasinda backend once strict schema ile otomatik structured-output repair denemesi yapabilir. Repair basarisiz olursa `STRUCTURED_OUTPUT_ERROR` + `UNRESOLVED_CASE` ile HANDOFF'a gecilir ve ADMIN bildirimi zorunlu olarak denenir.
 Kural: Backend bilinen legacy ve runtime drift alias'larini normalize eder; canonical olmayan state degerleri guvenli canonical state'e clamp edilir. Ornegin `awaiting_request`, `awaiting_room_preference`, `collecting_missing_field`, `MISSING_DATE_SELECTION` -> `NEEDS_VERIFICATION`; `stay_availability_request` ve `check_availability` -> `stay_availability`; `restaurant_reservation` -> `restaurant_booking_create`. Bilincli desteklenen yardimci state degerleri (ornegin `ANSWERED`) oldugu gibi korunur.
 Kural: Turn bazli tool shortlist ile LLM intent'i carpisirsa backend domain guard uygular. Ozellikle restoran tool'lari sunulmayan bir turda model yine de `restaurant_*` intent'i uretirse ve kullanici metni tarih/konaklama sinyali tasiyorsa yanit deterministik olarak `stay_availability` akisina geri cekilir; boylece onceki konusma baglaminin yeni turn'u yanlis domaine tasimasi engellenir.
 Kural: Native OpenAI tool call gelmez ama gecerli `INTERNAL_JSON.tool_calls` icinde bu turda backend tarafindan sunulmus bir tool varsa, backend bu tool cagrilarini replay eder, sonucu LLM'e geri besler ve final cevabi tool sonucundan sonra uretir. Sunulmayan veya ayni turda zaten calismis tool adlari replay edilmez.

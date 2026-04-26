@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v5.7 | **Son güncelleme:** 2026-04-25 20:19:44
-> **Değişiklik özeti:** Admin WhatsApp Cloud API bağlantı ekranı, Meta OAuth ayarları ve şifreli entegrasyon saklama temeli eklendi.
+> **Sürüm:** v5.8 | **Son güncelleme:** 2026-04-26 17:16:13
+> **Değişiklik özeti:** Handoff ve çözülemeyen durumlarda gecikmesiz admin bildirimi zorunlu kılındı.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -185,6 +185,7 @@ Execute tasks in `tasks/` directory sequentially:
 12. **Kanıt temelli teşhis**: Hata mesajını tekrar etmek root cause analysis değildir. Belirti, tetikleyici ve sistemik neden ayrı ayrı ortaya konur; hipotezler tek tek test edilir.
 13. **Geçici çözüm etiketleme**: Workaround uygulanırsa bunu açıkça `geçici çözüm` diye işaretle; kalıcı çözümü ayrıca belirt.
 14. **Yarım iş bırakma**: Kullanıcı düzenleme veya düzeltme istiyorsa analizde durma; değişikliği uygula, doğrula, kalan riskleri net yaz.
+15. **Zorunlu admin bildirimi**: İnsan devri, çözülemeyen talep, güvenilir cevap verememe, yetki/bilgi/tool/policy/operasyon kapasitesi eksikliği veya `HANDOFF` durumunda admin bildirimi gecikmeden gönderilir; bu güvenlik/operasyon kuralı opsiyonel davranış değildir.
 
 ## Operational Discipline
 

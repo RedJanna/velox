@@ -22,6 +22,25 @@ def response_validation_fallback(language: str) -> str:
     )
 
 
+def unresolved_handoff_fallback(language: str) -> str:
+    """Return safe handoff text when the assistant cannot resolve reliably."""
+    lang = (language or "tr").lower()
+    if lang == "en":
+        return (
+            "I cannot complete your request reliably right now. "
+            "I am forwarding it to our team and they will contact you as soon as possible."
+        )
+    if lang == "ru":
+        return (
+            "Сейчас я не могу надежно завершить ваш запрос. "
+            "Я передаю его нашей команде, и они свяжутся с вами как можно скорее."
+        )
+    return (
+        "Talebinizi su an guvenilir sekilde tamamlayamiyorum. "
+        "Konuyu ekibimize iletiyorum; en kisa surede sizinle iletisime gececekler."
+    )
+
+
 def out_of_scope_refusal(language: str) -> str:
     """Return consistent, polite refusal for out-of-scope requests."""
     lang = (language or "tr").lower()
@@ -47,19 +66,19 @@ def menu_not_available_fallback(language: str) -> str:
     if lang == "en":
         return (
             "I'd love to help with menu options! Our current menu details are best "
-            "confirmed directly with our restaurant team. Would you like me to forward "
-            "your request to them, or would you prefer to contact them directly?"
+            "confirmed directly with our restaurant team. I am forwarding your request "
+            "to them now."
         )
     if lang == "ru":
         return (
             "С удовольствием помогу с меню! Актуальные блюда лучше уточнить "
-            "непосредственно у команды нашего ресторана. Хотите, чтобы я передал "
-            "ваш запрос, или предпочитаете связаться с ними напрямую?"
+            "непосредственно у команды нашего ресторана. Я передаю ваш запрос "
+            "нашей команде."
         )
     return (
         "Menu konusunda size yardimci olmak isterim! Guncel menumuz hakkinda "
         "en dogru bilgiyi restoranımız veya resepsiyon ekibimizden alabilirsiniz. "
-        "Dilerseniz talebinizi onlara hemen iletebilirim."
+        "Talebinizi simdi ilgili ekibimize iletiyorum."
     )
 
 

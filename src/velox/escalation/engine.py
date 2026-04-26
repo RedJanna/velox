@@ -92,6 +92,8 @@ class EscalationEngine:
                 if action not in seen_actions:
                     seen_actions.add(action)
                     all_actions.append(action)
+        if "handoff.create_ticket" in seen_actions and "notify.send" not in seen_actions:
+            all_actions.append("notify.send")
 
         dedupe_key = self._generate_dedupe_key(risk_flag=best.risk_flag, intent=intent, reference_id=reference_id)
         sla_map = {"L0": "low", "L1": "medium", "L2": "high", "L3": "critical"}

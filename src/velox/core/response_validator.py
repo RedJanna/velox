@@ -10,7 +10,7 @@ from velox.core.fallback_response_library import (
     menu_not_available_fallback,
     order_commitment_fallback,
     out_of_scope_refusal,
-    response_validation_fallback,
+    unresolved_handoff_fallback,
 )
 from velox.core.scope_classifier import ScopeDecision
 from velox.models.conversation import LLMResponse
@@ -67,11 +67,21 @@ def validate_guest_response(
     rules_applied: list[str] = []
 
     if not text:
-        text = response_validation_fallback(language)
+        text = unresolved_handoff_fallback(language)
+        _mark_mandatory_handoff(
+            response,
+            reason="empty_or_unreliable_assistant_response",
+            risk_flag="UNRESOLVED_CASE",
+        )
         rules_applied.append("empty_message_fallback")
 
     if _contains_technical_leak(text):
-        text = response_validation_fallback(language)
+        text = unresolved_handoff_fallback(language)
+        _mark_mandatory_handoff(
+            response,
+            reason="unsafe_or_unreliable_assistant_response",
+            risk_flag="UNRESOLVED_CASE",
+        )
         rules_applied.append("technical_leak_fallback")
 
     if scope_decision == ScopeDecision.OUT_OF_SCOPE and not _is_scope_refusal(text, language):
@@ -82,6 +92,15 @@ def validate_guest_response(
     tool_calls = response.internal_json.tool_calls or []
     if not tool_calls and _OPERATIONAL_COMMITMENT_PATTERN.search(text):
         text = _replace_commitment_with_handoff(text, language)
+        _mark_mandatory_handoff(
+            response,
+            reason="toolless_operational_commitment",
+            risk_flag="PHYSICAL_OPERATION_REQUEST",
+            route_to_role="OPS",
+            level="L1",
+            sla_hint="medium",
+            next_step="handoff_to_ops",
+        )
         rules_applied.append("toolless_commitment_blocked")
 
     # Guard: Detect menu item recommendations without menu data source
@@ -96,6 +115,15 @@ def validate_guest_response(
         response.internal_json.notifications = notifications
         if "MENU_HALLUCINATION_RISK" not in response.internal_json.risk_flags:
             response.internal_json.risk_flags.append("MENU_HALLUCINATION_RISK")
+        _mark_mandatory_handoff(
+            response,
+            reason="menu_information_requires_human_verification",
+            risk_flag="MENU_HALLUCINATION_RISK",
+            route_to_role="CHEF",
+            level="L1",
+            sla_hint="medium",
+            next_step="handoff_to_restaurant_team",
+        )
         rules_applied.append("menu_hallucination_risk_flagged")
 
     text = _normalize_tone(text, language)
@@ -114,6 +142,42 @@ def validate_guest_response(
         response.internal_json.entities = entities
 
     return response
+
+
+def _mark_mandatory_handoff(
+    response: LLMResponse,
+    *,
+    reason: str,
+    risk_flag: str,
+    route_to_role: str = "ADMIN",
+    level: str = "L2",
+    sla_hint: str = "high",
+    next_step: str = "handoff_to_admin",
+) -> None:
+    """Mark a response as a terminal handoff when reliability is insufficient."""
+    handoff = response.internal_json.handoff if isinstance(response.internal_json.handoff, dict) else {}
+    handoff["needed"] = True
+    handoff["reason"] = reason
+    response.internal_json.handoff = handoff
+    response.internal_json.state = "HANDOFF"
+    response.internal_json.required_questions = []
+
+    risk_flags = list(response.internal_json.risk_flags or [])
+    if risk_flag not in risk_flags:
+        risk_flags.append(risk_flag)
+    response.internal_json.risk_flags = risk_flags
+
+    escalation = response.internal_json.escalation if isinstance(response.internal_json.escalation, dict) else {}
+    escalation.update(
+        {
+            "level": level,
+            "route_to_role": route_to_role,
+            "reason": reason,
+            "sla_hint": sla_hint,
+        }
+    )
+    response.internal_json.escalation = escalation
+    response.internal_json.next_step = next_step
 
 
 def _clean_text(text: str) -> str:

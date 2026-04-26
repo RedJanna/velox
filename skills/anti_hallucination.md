@@ -57,7 +57,7 @@
    1. QC4 (Security) fail → **hemen insan devri** (bekleme yok)
    2. QC6 (Escalation) fail → **risk seviyesine göre** L1/L2/L3 devri
    3. QC3 (Policy) fail → **yanıtı düzelt** veya insan devri
-   4. QC2 (Source) fail → **tool çağır** veya "doğrulamam gerekiyor" de
+   4. QC2 (Source) fail → **tool çağır** veya "doğrulamam gerekiyor" de; talep güvenilir biçimde cevaplanamıyorsa `UNRESOLVED_CASE` ile **insan devri + ADMIN bildirimi** yap
    5. QC1 (Intent) fail → **misafire soru sor** (netleştirme)
    6. QC5 (Format) fail → **yanıtı yeniden formatla** (otomatik)
    7. QC7 (Session) fail → **session'ı yenile** veya yeni konuşma başlat

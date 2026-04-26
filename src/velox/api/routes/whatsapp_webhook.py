@@ -28,7 +28,10 @@ from velox.config.constants import (
 from velox.config.settings import settings
 from velox.core.burst_buffer import AggregatedMessage, BufferedMessage, enqueue_or_fallback
 from velox.core.conversation_idle_policy import get_idle_close_threshold_seconds, get_idle_reset_config
-from velox.core.fallback_response_library import out_of_scope_refusal, response_validation_fallback
+from velox.core.fallback_response_library import (
+    out_of_scope_refusal,
+    unresolved_handoff_fallback,
+)
 from velox.core.hotel_profile_loader import get_profile
 from velox.core.media_pipeline import MediaPipelineService
 from velox.core.media_response_policy import build_media_policy_response
@@ -2403,13 +2406,6 @@ def _build_structured_output_error_response(
             }
         },
     )
-    preserved_state = (
-        str(conversation.current_state or "NEEDS_VERIFICATION")
-        if conversation is not None
-        else "NEEDS_VERIFICATION"
-    )
-    if preserved_state in {"", "GREETING", "HANDOFF", "CLOSED"}:
-        preserved_state = "NEEDS_VERIFICATION"
     preserved_intent = (
         str(conversation.current_intent.value if conversation.current_intent else "other")
         if conversation is not None
@@ -2418,17 +2414,25 @@ def _build_structured_output_error_response(
     risk_flags = list(conversation.risk_flags) if conversation is not None else []
     if "STRUCTURED_OUTPUT_ERROR" not in risk_flags:
         risk_flags.append("STRUCTURED_OUTPUT_ERROR")
+    if "UNRESOLVED_CASE" not in risk_flags:
+        risk_flags.append("UNRESOLVED_CASE")
     return LLMResponse(
-        user_message=response_validation_fallback(language),
+        user_message=unresolved_handoff_fallback(language),
         internal_json=InternalJSON(
             language=language,
             intent=preserved_intent,
-            state=preserved_state,
+            state="HANDOFF",
             entities=preserved_entities,
             required_questions=[],
-            handoff={"needed": False, "reason": None},
+            handoff={"needed": True, "reason": "structured_output_unreliable"},
             risk_flags=risk_flags,
-            next_step="restate_guest_request",
+            escalation={
+                "level": "L2",
+                "route_to_role": "ADMIN",
+                "reason": "structured_output_unreliable",
+                "sla_hint": "high",
+            },
+            next_step="handoff_to_admin",
         ),
     )
 
@@ -5572,13 +5576,21 @@ async def _run_message_pipeline(
         logger.warning("llm_unavailable_fallback", error_detail=str(llm_err)[:500])
         return _finalize_response(
             LLMResponse(
-                user_message=_default_reply_message(target_language),
+                user_message=unresolved_handoff_fallback(target_language),
                 internal_json=InternalJSON(
                     language=target_language,
                     intent="other",
-                    state="INTENT_DETECTED",
-                    risk_flags=[],
-                    next_step="await_user_input",
+                    state="HANDOFF",
+                    required_questions=[],
+                    handoff={"needed": True, "reason": "llm_unavailable"},
+                    risk_flags=["TOOL_UNAVAILABLE", "UNRESOLVED_CASE"],
+                    escalation={
+                        "level": "L2",
+                        "route_to_role": "OPS",
+                        "reason": "llm_unavailable",
+                        "sla_hint": "high",
+                    },
+                    next_step="handoff_to_ops",
                 ),
             ),
             scope_decision=scope_result.decision,
@@ -5810,6 +5822,34 @@ async def _process_incoming_message(
                 tools=tools,
             )
 
+        escalation_result = EscalationResult()
+        if escalation_engine is not None and db_pool is not None and "handoff" in tools and "notify" in tools:
+            escalation_result = await post_process_escalation(
+                user_message_text=normalized_text,
+                llm_response=llm_response,
+                conversation=conversation,
+                escalation_engine=escalation_engine,
+                tools=tools,
+                db_pool=db_pool,
+            )
+            if escalation_result.level.value != "L0" or escalation_result.risk_flags_matched:
+                logger.info(
+                    "escalation_check",
+                    conversation_id=str(conversation.id),
+                    level=escalation_result.level.value,
+                    flags=escalation_result.risk_flags_matched,
+                    actions=escalation_result.actions,
+                )
+            if not handoff_lock_activated:
+                handoff_lock_activated = await _enforce_escalation_handoff_guard(
+                    conversation_repository=conversation_repository,
+                    conversation=conversation,
+                    llm_response=llm_response,
+                    escalation_result=escalation_result,
+                    phone=incoming.phone,
+                    tools=tools,
+                )
+
         message_parts = _extract_user_message_parts(llm_response)
         if not message_parts:
             message_parts = [llm_response.user_message]
@@ -5873,24 +5913,6 @@ async def _process_incoming_message(
                 ),
             )
 
-        escalation_result = EscalationResult()
-        if escalation_engine is not None and db_pool is not None and "handoff" in tools and "notify" in tools:
-            escalation_result = await post_process_escalation(
-                user_message_text=normalized_text,
-                llm_response=llm_response,
-                conversation=conversation,
-                escalation_engine=escalation_engine,
-                tools=tools,
-                db_pool=db_pool,
-            )
-            if escalation_result.level.value != "L0" or escalation_result.risk_flags_matched:
-                logger.info(
-                    "escalation_check",
-                    conversation_id=str(conversation.id),
-                    level=escalation_result.level.value,
-                    flags=escalation_result.risk_flags_matched,
-                    actions=escalation_result.actions,
-                )
         if handoff_lock_activated:
             await _finalize_handoff_transition(
                 conversation=conversation,
@@ -5975,16 +5997,103 @@ def _should_send_direct_admin_handoff_notify(
     escalation_result: EscalationResult | None = None,
     ticket_ensured: bool = True,
 ) -> bool:
-    """ADMIN must be notified unless escalation already guarantees an ADMIN notify action."""
-    _ = assigned_role
-    if not ticket_ensured:
-        return True
+    """ADMIN handoff notification is mandatory for every handoff path."""
+    _ = (assigned_role, escalation_result, ticket_ensured)
+    return True
+
+
+def _escalation_requires_handoff(escalation_result: EscalationResult | None) -> bool:
+    """Return True when an escalation result requires terminal human handoff."""
     if escalation_result is None:
-        return True
-    return not (
-        escalation_result.route_to_role.value == "ADMIN"
-        and "notify.send" in escalation_result.actions
+        return False
+    return "handoff.create_ticket" in set(escalation_result.actions or [])
+
+
+def _apply_escalation_handoff_to_response(
+    llm_response: LLMResponse,
+    escalation_result: EscalationResult,
+    *,
+    language: str,
+) -> None:
+    """Convert a detected unresolved escalation into a terminal handoff response."""
+    reason = escalation_result.reason or "mandatory_handoff_required"
+    route_to_role = (
+        escalation_result.route_to_role.value
+        if escalation_result.route_to_role.value != "NONE"
+        else "ADMIN"
     )
+
+    handoff = llm_response.internal_json.handoff if isinstance(llm_response.internal_json.handoff, dict) else {}
+    handoff["needed"] = True
+    handoff["reason"] = reason
+    llm_response.internal_json.handoff = handoff
+
+    risk_flags = list(llm_response.internal_json.risk_flags or [])
+    for flag in escalation_result.risk_flags_matched:
+        if flag not in risk_flags:
+            risk_flags.append(flag)
+    llm_response.internal_json.risk_flags = risk_flags
+    llm_response.internal_json.state = ConversationState.HANDOFF.value
+    llm_response.internal_json.required_questions = []
+    llm_response.internal_json.escalation = {
+        "level": escalation_result.level.value,
+        "route_to_role": route_to_role,
+        "dedupe_key": escalation_result.dedupe_key,
+        "reason": reason,
+        "sla_hint": escalation_result.sla_hint,
+    }
+    llm_response.internal_json.next_step = f"handoff_to_{route_to_role.lower()}"
+    llm_response.user_message = unresolved_handoff_fallback(language)
+
+
+async def _enforce_escalation_handoff_guard(
+    *,
+    conversation_repository: ConversationRepository,
+    conversation: Conversation,
+    llm_response: LLMResponse,
+    escalation_result: EscalationResult,
+    phone: str,
+    tools: dict[str, Any],
+    redis_client: Any = None,
+) -> bool:
+    """Lock the conversation when backend escalation detects mandatory handoff."""
+    if not _escalation_requires_handoff(escalation_result):
+        return False
+    if _should_activate_handoff_lock(llm_response.internal_json.state, llm_response.internal_json.handoff):
+        return False
+    if conversation.id is None:
+        return False
+
+    _apply_escalation_handoff_to_response(
+        llm_response,
+        escalation_result,
+        language=conversation.language,
+    )
+    await conversation_repository.update_state(
+        conversation_id=conversation.id,
+        state=ConversationState.HANDOFF.value,
+        intent=str(llm_response.internal_json.intent or "").strip() or None,
+        entities=llm_response.internal_json.entities
+        if isinstance(llm_response.internal_json.entities, dict)
+        else None,
+        risk_flags=list(llm_response.internal_json.risk_flags or []),
+    )
+    await _activate_handoff_guard(
+        conversation_repository=conversation_repository,
+        conversation=conversation,
+        llm_response=llm_response,
+        phone=phone,
+        tools=tools,
+        redis_client=redis_client,
+    )
+    logger.info(
+        "escalation_handoff_guard_enforced",
+        conversation_id=str(conversation.id),
+        level=escalation_result.level.value,
+        route_to_role=escalation_result.route_to_role.value,
+        risk_flags=escalation_result.risk_flags_matched,
+    )
+    return True
 
 
 def _build_handoff_transcript_summary(messages: list[Message], limit: int = 5) -> str:
@@ -6324,7 +6433,7 @@ async def _finalize_handoff_transition(
             has_db_pool=db_pool is not None,
         )
 
-    if notify_tool is None or not _should_send_direct_admin_handoff_notify(
+    if not _should_send_direct_admin_handoff_notify(
         assigned_role,
         escalation_result,
         ticket_ensured=ticket_ensured,
@@ -6354,13 +6463,20 @@ async def _finalize_handoff_transition(
             "handoff_ticket_ensured": ticket_ensured,
             "handoff_assigned_role": assigned_role,
         }
-        await notify_tool.send(
-            hotel_id=conversation.hotel_id,
-            to_role="ADMIN",
-            channel="panel",
-            message="Immediate handoff notification",
-            metadata=notify_metadata,
-        )
+        if notify_tool is not None:
+            await notify_tool.send(
+                hotel_id=conversation.hotel_id,
+                to_role="ADMIN",
+                channel="panel",
+                message="Immediate handoff notification",
+                metadata=notify_metadata,
+            )
+        else:
+            logger.critical(
+                "handoff_admin_notify_tool_missing",
+                conversation_id=str(conversation.id),
+                assigned_role=assigned_role,
+            )
         await send_admin_whatsapp_alerts(
             hotel_id=conversation.hotel_id,
             message=NotifySendTool._format_message_for_delivery(
@@ -6567,6 +6683,35 @@ async def _process_burst_aggregated(
                 redis_client=redis_client,
             )
 
+        escalation_result = EscalationResult()
+        if escalation_engine is not None and db_pool is not None and "handoff" in tools and "notify" in tools:
+            escalation_result = await post_process_escalation(
+                user_message_text=combined_normalized,
+                llm_response=llm_response,
+                conversation=conversation,
+                escalation_engine=escalation_engine,
+                tools=tools,
+                db_pool=db_pool,
+            )
+            if escalation_result.level.value != "L0" or escalation_result.risk_flags_matched:
+                logger.info(
+                    "escalation_check",
+                    conversation_id=str(conversation.id),
+                    level=escalation_result.level.value,
+                    flags=escalation_result.risk_flags_matched,
+                    actions=escalation_result.actions,
+                )
+            if not handoff_lock_activated:
+                handoff_lock_activated = await _enforce_escalation_handoff_guard(
+                    conversation_repository=conversation_repository,
+                    conversation=conversation,
+                    llm_response=llm_response,
+                    escalation_result=escalation_result,
+                    phone=aggregated.phone,
+                    tools=tools,
+                    redis_client=redis_client,
+                )
+
         # Send reply (single unified response)
         message_parts = _extract_user_message_parts(llm_response)
         if not message_parts:
@@ -6633,25 +6778,6 @@ async def _process_burst_aggregated(
                 ),
             )
 
-        # Escalation post-processing
-        escalation_result = EscalationResult()
-        if escalation_engine is not None and db_pool is not None and "handoff" in tools and "notify" in tools:
-            escalation_result = await post_process_escalation(
-                user_message_text=combined_normalized,
-                llm_response=llm_response,
-                conversation=conversation,
-                escalation_engine=escalation_engine,
-                tools=tools,
-                db_pool=db_pool,
-            )
-            if escalation_result.level.value != "L0" or escalation_result.risk_flags_matched:
-                logger.info(
-                    "escalation_check",
-                    conversation_id=str(conversation.id),
-                    level=escalation_result.level.value,
-                    flags=escalation_result.risk_flags_matched,
-                    actions=escalation_result.actions,
-                )
         if handoff_lock_activated:
             await _finalize_handoff_transition(
                 conversation=conversation,

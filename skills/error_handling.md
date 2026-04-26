@@ -205,6 +205,18 @@ Her hata, ekip tarafından hızlı bulunabilsin diye standart bilgilerle kaydedi
 - L2/OPS ekibine ticket oluştur
 - Misafire sakin mesaj dön
 
+### 8.0 Zorunlu admin bildirimi
+
+İnsan devri veya çözülemeyen vaka tespit edildiğinde ADMIN bildirimi opsiyonel değildir.
+Aşağıdaki durumlarda sistem beklemeden handoff/ticket ve ADMIN görünürlüğü üretir:
+
+- Sistem insan müdahalesi gerektiğine karar verdi
+- Sistem talebi kendi başına çözemeyeceğini anladı
+- Sistem güvenilir veya yeterli cevap veremiyor
+- Bilgi, yetki, tool, policy, veri veya operasyon kapasitesi talebi tamamlamaya yetmiyor
+
+Kural: Sistem cevap veremiyorsa sessiz kalmaz; misafire kısa handoff mesajı verir ve ADMIN bildirimini gecikmeden dener.
+
 **Misafir ödeme ile ilgili bir şey söylerse** (örn. “USD ile ödeyeceğim”, “kart numaram...”) bu da riskli olduğundan:
 - Teknik hata olmasa bile **insan devri** yapılmalı (security_privacy.md ve anti_hallucination kurallarıyla uyumlu)
 

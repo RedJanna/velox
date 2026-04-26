@@ -81,6 +81,9 @@ class _FakeHandoffConversationRepository:
         entities = kwargs.get("entities")
         if isinstance(entities, dict):
             self.__class__.active_conversation.entities_json = entities
+        risk_flags = kwargs.get("risk_flags")
+        if isinstance(risk_flags, list):
+            self.__class__.active_conversation.risk_flags = risk_flags
 
     async def set_human_override(self, conversation_id, enabled: bool) -> None:
         _ = conversation_id
@@ -1906,11 +1909,13 @@ async def test_run_message_pipeline_parser_error_without_tools_returns_safe_retr
         expected_language="tr",
     )
 
-    assert result.internal_json.state == "NEEDS_VERIFICATION"
-    assert result.internal_json.next_step == "restate_guest_request"
+    assert result.internal_json.state == "HANDOFF"
+    assert result.internal_json.handoff["needed"] is True
+    assert result.internal_json.next_step == "handoff_to_admin"
     assert "STRUCTURED_OUTPUT_ERROR" in result.internal_json.risk_flags
+    assert "UNRESOLVED_CASE" in result.internal_json.risk_flags
     assert result.internal_json.entities["response_parser"]["reason"] == "missing_internal_json"
-    assert "tek kisa mesajla" in result.user_message.casefold()
+    assert "ekibimize iletiyorum" in result.user_message.casefold()
     assert "olusturuyorum" not in result.user_message.casefold()
 
 
@@ -3132,8 +3137,8 @@ def test_direct_admin_notify_required_when_route_is_not_admin() -> None:
     assert whatsapp_webhook._should_send_direct_admin_handoff_notify("SALES", escalation_result) is True
 
 
-def test_direct_admin_notify_skipped_when_escalation_already_routes_to_admin() -> None:
-    """If escalation will notify ADMIN anyway, the direct notify should not duplicate it."""
+def test_direct_admin_notify_required_even_when_escalation_routes_to_admin() -> None:
+    """Direct ADMIN handoff notify must fire even when escalation also targets ADMIN."""
     response = LLMResponse(
         user_message="Sizi ekibimize aktariyorum.",
         internal_json=InternalJSON(
@@ -3158,7 +3163,7 @@ def test_direct_admin_notify_skipped_when_escalation_already_routes_to_admin() -
     )
 
     assert whatsapp_webhook._resolve_handoff_assignment_role(response, escalation_result) == "ADMIN"
-    assert whatsapp_webhook._should_send_direct_admin_handoff_notify("ADMIN", escalation_result) is False
+    assert whatsapp_webhook._should_send_direct_admin_handoff_notify("ADMIN", escalation_result) is True
 
 
 def test_fallback_handoff_assignment_defaults_to_admin() -> None:
@@ -3187,6 +3192,49 @@ def test_admin_notify_required_if_admin_ticket_could_not_be_ensured() -> None:
         None,
         ticket_ensured=False,
     ) is True
+
+
+@pytest.mark.asyncio
+async def test_escalation_result_forces_handoff_guard() -> None:
+    """Backend-detected handoff escalations must lock AI and prepare ADMIN notification."""
+    _FakeHandoffConversationRepository.reset()
+    repository = _FakeHandoffConversationRepository()
+    conversation = _FakeHandoffConversationRepository.active_conversation
+    response = LLMResponse(
+        user_message="Talebinizi kontrol ediyorum.",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="other",
+            state="INTENT_DETECTED",
+            handoff={"needed": False},
+            risk_flags=["UNRESOLVED_CASE"],
+            escalation={"level": "L0", "route_to_role": "NONE"},
+        ),
+    )
+    escalation_result = EscalationResult(
+        level=EscalationLevel.L2,
+        route_to_role=Role.ADMIN,
+        dedupe_key="UNRESOLVED_CASE|other|ref",
+        reason="cannot_resolve_reliably",
+        sla_hint="high",
+        actions=["handoff.create_ticket", "notify.send"],
+        risk_flags_matched=["UNRESOLVED_CASE"],
+    )
+
+    enforced = await whatsapp_webhook._enforce_escalation_handoff_guard(
+        conversation_repository=repository,
+        conversation=conversation,
+        llm_response=response,
+        escalation_result=escalation_result,
+        phone="905551112233",
+        tools={},
+    )
+
+    assert enforced is True
+    assert _FakeHandoffConversationRepository.human_override is True
+    assert response.internal_json.state == "HANDOFF"
+    assert response.internal_json.handoff["needed"] is True
+    assert "ekibimize iletiyorum" in response.user_message.lower()
 
 
 @pytest.mark.asyncio

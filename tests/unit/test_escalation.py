@@ -83,3 +83,31 @@ def test_tool_error_repeat_includes_ticket_and_notify_actions() -> None:
     assert result.route_to_role == Role.OPS
     assert "handoff.create_ticket" in result.actions
     assert "notify.send" in result.actions
+
+
+def test_unresolved_case_routes_to_admin_ticket_and_notify() -> None:
+    """Unresolved cases must force ADMIN-visible handoff."""
+    engine = _engine_with_loaded_matrix()
+    result = engine.evaluate(
+        risk_flags=["UNRESOLVED_CASE"],
+        intent="other",
+        reference_id="R6",
+        conversation_id="C6",
+    )
+    assert result.level == EscalationLevel.L2
+    assert result.route_to_role == Role.ADMIN
+    assert "handoff.create_ticket" in result.actions
+    assert "notify.send" in result.actions
+
+
+def test_handoff_action_gets_notify_even_if_matrix_omits_it() -> None:
+    """Engine safety net should never allow ticket-only handoff actions."""
+    engine = _engine_with_loaded_matrix()
+    result = engine.evaluate(
+        risk_flags=["ANGRY_COMPLAINT"],
+        intent="complaint",
+        reference_id="R7",
+        conversation_id="C7",
+    )
+    assert "handoff.create_ticket" in result.actions
+    assert "notify.send" in result.actions
