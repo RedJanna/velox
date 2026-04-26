@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v5.8 | **Son güncelleme:** 2026-04-26 17:16:13
-> **Değişiklik özeti:** Handoff ve çözülemeyen durumlarda gecikmesiz admin bildirimi zorunlu kılındı.
+> **Sürüm:** v5.9 | **Son güncelleme:** 2026-04-26 20:03:23
+> **Değişiklik özeti:** Özel gün talepleri için yeni policy dokümanı kök referanslara eklendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -146,6 +146,7 @@ Skill files location: `skills/`
 - `system_prompt_velox.md` — **Read this before every task**; AI operating rules, backend-first debug disiplini, doküman senkronizasyon yükümlülüğü
 - `SKILL.md` — **Read this before every task** (skill system entry point)
 - `docs/master_prompt_v2.md` — Complete system specification (runtime + product requirements)
+- `docs/special_occasion_policy.md` — Special occasion intake, approval, handoff, privacy, and backend rule set
 - `docs/admin_panel_domain_cutover.md` — Admin panel domain/path cutover planı, geçiş sırası ve rollback adımları
 - `docs/production_deployment.md` — Production deploy runbook'u, migration ve doğrulama adımları
 - `data/hotel_profiles/kassandra_oludeniz.yaml` — Hotel data for first client

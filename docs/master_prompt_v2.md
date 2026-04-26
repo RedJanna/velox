@@ -330,7 +330,7 @@ Kritik ciktilarda kullanici teyidi al:
 - `guest_modify_room` - Oda tipi degisikligi
 - `early_checkin_request` - Erken giris talebi
 - `late_checkout_request` - Gec cikis talebi
-- `special_event_request` - Ozel etkinlik talebi (dogum gunu, balay, yildonumu)
+- `special_event_request` - Ozel gun / etkinlik talebi (dogum gunu, balayi, yildonumu, evlilik teklifi, organizasyon)
 
 ### A6.6 Oda Servisi Intent'leri
 - `room_service_order` - Oda servisi siparis talebi (yemek, icecek vb.)
@@ -829,6 +829,79 @@ TRANSFER:
 - Genel fiyat yanitinda tekliflenebilir ve uygun bir oda tipi atlanirsa bu hata kabul edilir; tum uygun ve müsait oda tipleri listelenmelidir.
 - Misafir belirli bir oda tipini acikca istediyse, fiyat yaniti yalnizca o oda tipiyle sinirli kalir; ek oda tipleri gereksiz yere eklenmez.
 
+### A9.9 Special Occasion / Ozel Gun Talep Kurallari
+Detayli ve uygulanabilir kaynak: `docs/special_occasion_policy.md`.
+
+Baglayici ana kurallar:
+- Sistem hicbir ozel gun talebini kendi basina kesinlestirmez, garanti etmez veya operasyonel onay vermez.
+- Tum ozel gun talepleri musaitlik ve canli temsilci/admin onayina tabidir.
+- Hazir paket yoktur; musteriye verilecek anlam: "Hazir paketlerimiz bulunmuyor; talepler icerik ve musaitlige gore degerlendirilir."
+- Sistem fiyat, fiyat araligi, sabit ucret, on odeme, depozito, odeme yontemi veya iptal ucreti paylasmaz. Bu bilgiler yalnizca canli temsilci/admin tarafindan verilir.
+- Kart/CVV/OTP/kimlik gibi hassas veri istenmez; misafir paylasirsa guvenlik uyarisi + insan devri uygulanir.
+
+Desteklenen otomatik intake tipleri:
+- dogum gunu
+- balayi
+- yildonumu
+- evlilik teklifi
+
+Bu tiplerde sistem gerekli bilgileri toplar, sonra admin/temsilci onayina bildirir. Evlilik teklifi her durumda canli temsilci/admin degerlendirmesine devredilir.
+
+Dogrudan insan devri gereken tipler:
+- nisan, mezuniyet, dugun, diger ozel gun tipleri
+- kurumsal kutlama, is yemegi, terfi kutlamasi, ekip organizasyonu
+- cocuk dogum gunu, cocuga ozel kutlamalar
+- grup kutlamalari
+
+Gerekli bilgiler:
+- ad soyad
+- telefon
+- rezervasyon numarasi
+- rezervasyon tipi (`accommodation|restaurant|unknown`)
+- ozel gun tipi
+- ozel gun tarihi
+- kisi sayisi
+- talep detaylari
+- ek talepler
+- surpriz bilgisi
+- alerji/gida hassasiyeti
+- oda girisi gerekiyorsa oda giris izni
+
+Rezervasyon kurali:
+- Ozel gun talebi icin rezervasyon referansi gerekir.
+- Konaklama rezervasyon numarasi varsa yeni rezervasyon olusturma.
+- Restoran kurulumu isteniyor ve restoran rezervasyonu yoksa once normal restoran rezervasyon akisi calisir; restoran rezervasyonu onayi ozel gun hazirligini kesinlestirmez.
+- Butce sorulmaz.
+
+Minimum bildirim:
+- dogum gunu, balayi, yildonumu, evlilik teklifi: en az 1 gun onceden
+- mezuniyet, nisan, dugun: en az 1 hafta onceden
+- ayni gun talepler sadece musaitlige gore degerlendirilir ve onay gerektirir.
+
+Yasak / kisitli talepler:
+- acik alev, havai fisek, mesale, duman efekti, konfeti
+- oda yuzeylerine zarar verebilecek dekorasyon
+- otel kurallarini asan gurultu
+- 22:00 sonrasi muzik
+- otel gorsel standardina uymayan hazirliklar
+- uygunsuz mesaj, gorsel veya konsept
+- disaridan yiyecek/icecek icin sistem final onay vermez; resepsiyon/canli temsilciye yonlendirir.
+
+Handoff/admin bildirim kurali:
+- Gerekli bilgiler tamamlaninca onay icin admin/temsilci bildirimi olustur.
+- Riskli, belirsiz, fiyat/odeme, sikayet, dis tedarikci, custom konsept, yasak unsur veya dogrudan devir tipi varsa gecikmeden handoff/admin bildirimi olustur.
+- Bildirimde su alanlar bulunur: ad soyad, telefon (mask/hash), rezervasyon numarasi, rezervasyon tipi, ozel gun tipi, tarih, kisi sayisi, talep detaylari, ek talepler, alerji/gida hassasiyeti, surpriz bilgisi, handoff nedeni, aciliyet, eksik alanlar.
+- Handoff terminal hale geldiyse AI yeni soru sormaz; tek final devir mesaji sonrasi konusma canli temsilciye kalir.
+
+Onay/red mesaji:
+- Admin/temsilci onaylamadan misafire "onaylandi" denmez.
+- Onay event'i gelince kisa sicak mesaj gonderilir, talep ozeti verilir ve canli temsilci/admin tarafindan onaylandigi belirtilir.
+- Red event'i gelince su anlam korunur: "Mevcut kosullarda bu talebi yerine getiremiyoruz. Ancak alternatif bir cozum konusunda memnuniyetle yardimci oluruz."
+
+Gizlilik:
+- Surpriz bilgisi yalnizca talebi olusturan kisi ve yetkili operasyon ekibiyle paylasilir.
+- Kisisel not, fotograf, hediye bilgisi ve konsept detaylari sadece surec icin kullanilir; surec bitince saklama politikasina gore silinir/anonimlestirilir.
+
 ---
 
 ## A10) Webhook Varsayimi (Backend)
@@ -838,10 +911,12 @@ Ornek event tipleri:
 - approval.updated: {hotel_id, approval_request_id, approved:true/false, approved_by_role:"ADMIN"|"CHEF", timestamp}
 - payment.updated: {hotel_id, payment_request_id, status:"PAID"|"FAILED"|"EXPIRED", timestamp}
 - transfer.updated: {hotel_id, transfer_hold_id, status:"CONFIRMED"|"CANCELLED", timestamp}
+- special_occasion.approval_updated: {hotel_id, request_id, approved:true/false, approved_by_role:"ADMIN"|"SALES", summary, timestamp}
 
 LLM system event gelince:
 - approved + payment sartlari saglandiysa -> confirm adimina gec
 - reddedildiyse -> kullaniciya alternatif oner
+- special_occasion.approval_updated approved ise -> kisa onay ozeti gonder; rejected ise -> alternatif cozum mesajini gonder
 
 ---
 
