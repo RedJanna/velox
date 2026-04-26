@@ -527,7 +527,7 @@ Output:
 #### TOOL: booking.get_reservation (stay)
 Adapter -> POST/GET fallback stratejisi ile reservation fetch.
 Input: {"hotel_id":21966, "reservation_id?":"...", "voucher_no?":"...", "contact_phone?":"...", "checkin_date?":"YYYY-MM-DD", "checkout_date?":"YYYY-MM-DD"}
-Kural: Misafir kendi rezervasyonunun gorunup gorunmedigini sorarsa once reservation_id/voucher_no istenir. Bunlar yoksa yalnizca minimum dogrulama icin telefon + check-in/check-out tarihi istenir; telefon tek basina kullanilmaz. Tool sonucu tek ve basarili eslesme donmeden rezervasyon var/onayli denmez. Basarili lookup backend tarafinda PII'siz snapshot olarak saklanir; ham telefon/ad/email saklanmaz.
+Kural: Misafir kendi rezervasyonunun gorunup gorunmedigini sorarsa once reservation_id/voucher_no istenir. Bunlar yoksa yalnizca minimum dogrulama icin telefon + check-in/check-out tarihi istenir; telefon tek basina kullanilmaz. Buyuk sayisal OTA/Expedia referanslari Elektra Booking API `reservation-id` alanina gonderilmez; adapter bunlari `voucher_no` gibi arar ve int overflow hatasi uretmez. Tool sonucu tek ve basarili eslesme donmeden rezervasyon var/onayli denmez. Basarili lookup backend tarafinda PII'siz snapshot olarak saklanir; ham telefon/ad/email saklanmaz.
 Output: {"success":true, "reservation_id":"...", "voucher_no":"...", "checkin_date":"YYYY-MM-DD", "checkout_date":"YYYY-MM-DD", "total_price":1029, "state":"RESERVATION"}
 
 #### TOOL: booking.modify / booking.cancel (stay)
@@ -1340,6 +1340,7 @@ Backend "Elektraweb Adapter" katmani (konaklama icin) aktifte su Booking API kon
 - Reservation fetch/list icin tenant-fallback pathleri:
   - /hotel/{hotel_id}/reservation, /hotel/{hotel_id}/getReservation, /hotel/{hotel_id}/reservation/detail, ...
   - /hotel/{hotel_id}/reservationList, /hotel/{hotel_id}/reservations, ...
+- Buyuk sayisal OTA/Expedia referanslari `reservation-id` query parametresi yerine `voucher-no` ile aranir; Elektra Booking API int kolon overflow hatasi bu katmanda engellenir.
 
 Ek HotelAdvisor uclari (destekleyici isler/odeme/pax sync):
 - Update/HOTEL_RES

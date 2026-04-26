@@ -39,6 +39,7 @@ RESERVATION_LIST_STATUSES: tuple[str, ...] = (
     "No Show",
     "Cancelled",
 )
+ELEKTRA_RESERVATION_ID_MAX = 2_147_483_647
 
 
 def _requested_child_ages(chd_count: int, chd_ages: list[int] | None) -> list[int]:
@@ -317,6 +318,32 @@ def _normalize_iso_date(value: object) -> str:
     return raw
 
 
+def _clean_lookup_value(value: object | None) -> str | None:
+    """Return a stripped lookup value or None."""
+    normalized = str(value or "").strip()
+    return normalized or None
+
+
+def _is_unsafe_booking_reservation_id(value: str | None) -> bool:
+    """Return True when Booking API reservation-id would overflow its int column."""
+    if not value or not value.isdigit():
+        return False
+    return int(value) > ELEKTRA_RESERVATION_ID_MAX
+
+
+def _normalize_reservation_lookup_identity(
+    *,
+    reservation_id: str | None,
+    voucher_no: str | None,
+) -> tuple[str | None, str | None]:
+    """Separate PMS reservation ids from large OTA/voucher references."""
+    normalized_reservation_id = _clean_lookup_value(reservation_id)
+    normalized_voucher_no = _clean_lookup_value(voucher_no)
+    if _is_unsafe_booking_reservation_id(normalized_reservation_id):
+        return None, normalized_voucher_no or normalized_reservation_id
+    return normalized_reservation_id, normalized_voucher_no
+
+
 def _reservation_lookup_params(
     *,
     reservation_status: str,
@@ -326,16 +353,20 @@ def _reservation_lookup_params(
     days_forward: int = 730,
 ) -> dict[str, str]:
     """Build GET params for reservation-list lookup with bounded date window."""
+    lookup_reservation_id, lookup_voucher_no = _normalize_reservation_lookup_identity(
+        reservation_id=reservation_id,
+        voucher_no=voucher_no,
+    )
     from_check_in, to_check_in = _utc_window_days(days_back=days_back, days_forward=days_forward)
     params = {
         "from-check-in": from_check_in,
         "to-check-in": to_check_in,
         "reservation-status": reservation_status,
     }
-    if reservation_id:
-        params["reservation-id"] = reservation_id
-    if voucher_no:
-        params["voucher-no"] = voucher_no
+    if lookup_reservation_id:
+        params["reservation-id"] = lookup_reservation_id
+    if lookup_voucher_no:
+        params["voucher-no"] = lookup_voucher_no
     return params
 
 
@@ -391,8 +422,12 @@ def _reservation_list_item_matches(
     checkout_date: str | None,
 ) -> bool:
     """Match one reservation-list item against reservation identity and stay shape."""
-    reservation_id_str = str(reservation_id or "").strip()
-    voucher_no_str = str(voucher_no or "").strip()
+    lookup_reservation_id, lookup_voucher_no = _normalize_reservation_lookup_identity(
+        reservation_id=reservation_id,
+        voucher_no=voucher_no,
+    )
+    reservation_id_str = str(lookup_reservation_id or "").strip()
+    voucher_no_str = str(lookup_voucher_no or "").strip()
     item_reservation_id = str(
         item.get("reservation_id")
         or item.get("res_id")
@@ -478,7 +513,8 @@ async def find_reservation_list_match(
             "elektraweb_reservation_list_match_attempt",
             hotel_id=hotel_id,
             reservation_status=reservation_status,
-            reservation_id=reservation_id,
+            has_reservation_id=bool(reservation_id),
+            has_voucher_no=bool(voucher_no),
         )
         raw = await client.get(f"/hotel/{hotel_id}/reservation-list", params=params)
         normalized = normalize_keys(raw)
@@ -549,8 +585,12 @@ def _parse_reservation_lookup_response(
         data = normalized.get("data")
         items = [item for item in data if isinstance(item, dict)] if isinstance(data, list) else [normalized]
 
-    reservation_id_str = str(reservation_id or "").strip()
-    voucher_no_str = str(voucher_no or "").strip()
+    lookup_reservation_id, lookup_voucher_no = _normalize_reservation_lookup_identity(
+        reservation_id=reservation_id,
+        voucher_no=voucher_no,
+    )
+    reservation_id_str = str(lookup_reservation_id or "").strip()
+    voucher_no_str = str(lookup_voucher_no or "").strip()
     for item in items:
         item_reservation_id = str(
             item.get("reservation_id")
@@ -1580,7 +1620,17 @@ async def get_reservation(
     checkout_date: str | None = None,
 ) -> ReservationDetailResponse:
     """Fetch reservation details using path and method fallbacks."""
-    if not any([reservation_id, voucher_no, contact_phone]):
+    lookup_reservation_id, lookup_voucher_no = _normalize_reservation_lookup_identity(
+        reservation_id=reservation_id,
+        voucher_no=voucher_no,
+    )
+    if reservation_id and not lookup_reservation_id and lookup_voucher_no:
+        logger.info(
+            "elektraweb_reservation_lookup_promoted_to_voucher",
+            hotel_id=hotel_id,
+            reason="reservation_id_exceeds_booking_api_int_range",
+        )
+    if not any([lookup_reservation_id, lookup_voucher_no, contact_phone]):
         raise ValueError("reservation_id, voucher_no, or contact_phone is required")
     if contact_phone and not (checkin_date or checkout_date):
         raise ValueError("checkin_date or checkout_date is required when contact_phone is used")
@@ -1588,41 +1638,42 @@ async def get_reservation(
     if contact_phone:
         list_match = await find_reservation_list_match(
             hotel_id,
-            reservation_id=reservation_id,
-            voucher_no=voucher_no,
+            reservation_id=lookup_reservation_id,
+            voucher_no=lookup_voucher_no,
             contact_phone=contact_phone,
             checkin_date=checkin_date,
             checkout_date=checkout_date,
         )
         if list_match is not None:
             return list_match
-        if not (reservation_id or voucher_no):
+        if not (lookup_reservation_id or lookup_voucher_no):
             return ReservationDetailResponse(raw_data={"not_found": True})
 
     client = get_elektraweb_client()
     body: dict[str, int | str] = {"hotelId": hotel_id}
-    if reservation_id:
-        body["reservationId"] = reservation_id
-    if voucher_no:
-        body["voucherNo"] = voucher_no
+    if lookup_reservation_id:
+        body["reservationId"] = lookup_reservation_id
+    if lookup_voucher_no:
+        body["voucherNo"] = lookup_voucher_no
 
     reservation_list_path = f"/hotel/{hotel_id}/reservation-list"
     reservation_statuses = ("Reservation", "Waiting", "InHouse", "CheckOut", "No Show", "Cancelled")
     paths_and_methods: list[tuple[str, str]] = [
         ("POST", f"/hotel/{hotel_id}/getReservation"),
-        ("GET", f"/hotel/{hotel_id}/reservation/{reservation_id or ''}"),
         ("GET", f"/hotel/{hotel_id}/reservation/detail"),
         ("POST", f"/hotel/{hotel_id}/get-reservation"),
         ("POST", f"/hotel/{hotel_id}/reservation/get"),
     ]
+    if lookup_reservation_id:
+        paths_and_methods.insert(1, ("GET", f"/hotel/{hotel_id}/reservation/{lookup_reservation_id}"))
 
     last_error: Exception | None = None
     for reservation_status in reservation_statuses:
         try:
             params = _reservation_lookup_params(
                 reservation_status=reservation_status,
-                reservation_id=reservation_id,
-                voucher_no=voucher_no,
+                reservation_id=lookup_reservation_id,
+                voucher_no=lookup_voucher_no,
             )
             if checkin_date or checkout_date:
                 params["from-check-in"], params["to-check-in"] = _reservation_list_window(
@@ -1639,8 +1690,8 @@ async def get_reservation(
             raw = await client.get(reservation_list_path, params=params)
             parsed = _parse_reservation_lookup_response(
                 raw,
-                reservation_id=reservation_id,
-                voucher_no=voucher_no,
+                reservation_id=lookup_reservation_id,
+                voucher_no=lookup_voucher_no,
             )
             if parsed.success:
                 return parsed
@@ -1660,7 +1711,7 @@ async def get_reservation(
             if method == "POST":
                 raw = await client.post(path, json_body=body)
             else:
-                query_params: dict[str, str] | None = {"voucherNo": voucher_no} if voucher_no else None
+                query_params: dict[str, str] | None = {"voucherNo": lookup_voucher_no} if lookup_voucher_no else None
                 raw = await client.get(path, params=query_params)
             return parse_reservation_detail(raw)
         except Exception as error:

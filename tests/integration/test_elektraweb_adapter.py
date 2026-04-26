@@ -897,6 +897,31 @@ async def test_get_reservation_uses_reservation_list_window_and_filters_result(
 
 
 @pytest.mark.asyncio
+async def test_get_reservation_treats_large_numeric_reference_as_voucher(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Large OTA references must not be sent as reservation-id because Elektra overflows int ids."""
+    mock_client = AsyncMock()
+    mock_client.get.return_value = [
+        {
+            "reservation-id": "91254161",
+            "voucher-no": "2403125121",
+            "status": "Reservation",
+        }
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+
+    result = await endpoints.get_reservation(hotel_id=21966, reservation_id="2403125121")
+
+    assert result.success is True
+    assert result.reservation_id == "91254161"
+    assert result.voucher_no == "2403125121"
+    _, kwargs = mock_client.get.await_args
+    assert "reservation-id" not in kwargs["params"]
+    assert kwargs["params"]["voucher-no"] == "2403125121"
+
+
+@pytest.mark.asyncio
 async def test_get_reservation_falls_back_when_reservation_list_has_no_match(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
