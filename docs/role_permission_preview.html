@@ -1,0 +1,987 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rol ve Yetki Yönetimi Önizlemesi</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #172026;
+      --muted: #64717d;
+      --line: #dce3ea;
+      --line-soft: #edf1f5;
+      --brand: #0f766e;
+      --brand-dark: #0b5f59;
+      --brand-soft: #dff5f1;
+      --warning: #b54708;
+      --critical: #b42318;
+      --shadow: 0 18px 45px rgba(23, 32, 38, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      padding: 24px;
+    }
+
+    .brand-block {
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      color: var(--brand-dark);
+      font-size: 12px;
+      font-weight: 750;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      margin-top: 6px;
+      font-size: 25px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .role-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .role-card {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 14px;
+      text-align: left;
+    }
+
+    .role-card[aria-current="true"] {
+      border-color: var(--brand);
+      background: var(--brand-soft);
+      box-shadow: inset 3px 0 0 var(--brand);
+    }
+
+    .role-card strong {
+      display: block;
+      font-size: 14px;
+    }
+
+    .role-card span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .content {
+      padding: 28px;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 18px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--text);
+      min-height: 40px;
+      padding: 9px 14px;
+      font-weight: 700;
+    }
+
+    .button.primary {
+      border-color: var(--brand);
+      background: var(--brand);
+      color: #ffffff;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 330px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-description,
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .role-summary {
+      display: grid;
+      gap: 10px;
+      padding: 18px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfd;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .summary-tile {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 12px;
+    }
+
+    .summary-tile span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .summary-tile strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 20px;
+    }
+
+    .permission-group {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .permission-group:last-child {
+      border-bottom: 0;
+    }
+
+    .group-header,
+    .permission-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .group-header {
+      padding: 16px 18px;
+      background: #fbfcfd;
+    }
+
+    .group-header p {
+      margin-top: 4px;
+    }
+
+    .permission-row {
+      padding: 13px 18px 13px 42px;
+      border-top: 1px solid var(--line-soft);
+    }
+
+    .permission-title {
+      display: block;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .permission-copy {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .permission-key {
+      display: inline-block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .risk-label {
+      display: inline-block;
+      margin-left: 8px;
+      color: var(--warning);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .risk-label.critical {
+      color: var(--critical);
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 46px;
+      height: 26px;
+      flex: 0 0 auto;
+    }
+
+    .switch input {
+      width: 0;
+      height: 0;
+      opacity: 0;
+    }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: #c7d0d9;
+      transition: 160ms ease;
+    }
+
+    .slider::before {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(23, 32, 38, 0.22);
+      transition: 160ms ease;
+    }
+
+    .switch input:checked + .slider {
+      background: var(--brand);
+    }
+
+    .switch input:checked + .slider::before {
+      transform: translateX(20px);
+    }
+
+    .switch input:focus-visible + .slider {
+      outline: 3px solid rgba(15, 118, 110, 0.24);
+      outline-offset: 3px;
+    }
+
+    .side-panel {
+      display: grid;
+      gap: 16px;
+    }
+
+    .info-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 16px;
+    }
+
+    .info-card ul {
+      margin: 12px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .selected-list {
+      display: grid;
+      gap: 6px;
+      margin-top: 12px;
+      padding: 0;
+      list-style: none;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      max-width: 360px;
+      border-radius: 8px;
+      background: var(--text);
+      color: #ffffff;
+      padding: 13px 15px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: 180ms ease;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 1080px) {
+      .app-shell,
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+    }
+
+    @media (max-width: 720px) {
+      .content,
+      .sidebar {
+        padding: 18px;
+      }
+
+      .page-header,
+      .panel-header {
+        display: grid;
+      }
+
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .permission-row {
+        padding-left: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Rol seçimi">
+      <div class="brand-block">
+        <p class="eyebrow">Velox Admin</p>
+        <h1>Rol ve Yetki Yönetimi</h1>
+        <p class="lead">
+          Her rolün panelde hangi pencerelere, hangi operasyon akışlarına ve hangi işlem izinlerine erişeceğini buradan tanımlayın.
+        </p>
+      </div>
+
+      <section aria-labelledby="rolesHeading">
+        <h2 id="rolesHeading">Roller</h2>
+        <p class="lead">
+          Bir rol seçin; sağ tarafta rolün kapsamı, açıklaması ve aktif izinleri görüntülenir.
+        </p>
+        <nav id="roleList" class="role-list" aria-label="Tanımlı roller"></nav>
+      </section>
+    </aside>
+
+    <main class="content">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Yetki ağacı</p>
+          <h1 id="selectedRoleTitle">Rol yetkileri</h1>
+          <p id="selectedRoleDescription" class="lead"></p>
+        </div>
+        <div class="actions" aria-label="Rol aksiyonları">
+          <button id="resetButton" class="button" type="button">Varsayılana döndür</button>
+          <button id="saveButton" class="button primary" type="button">Önizlemeyi kaydet</button>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <section class="panel" aria-labelledby="permissionTreeHeading">
+          <div class="panel-header">
+            <div>
+              <h2 id="permissionTreeHeading">Pencere, akış ve işlem izinleri</h2>
+              <p class="panel-description">
+                Üst seviye izinler pencere erişimini belirler. Alt izinler ise aynı pencere içinde hangi işlemlerin yapılabileceğini tanımlar.
+              </p>
+            </div>
+          </div>
+
+          <section class="role-summary" aria-label="Seçili rol özeti">
+            <div>
+              <h3 id="roleScopeTitle">Rol kapsamı</h3>
+              <p id="roleScopeDescription" class="muted"></p>
+            </div>
+            <div class="summary-grid">
+              <div class="summary-tile">
+                <span>Aktif izin</span>
+                <strong id="activePermissionCount">0</strong>
+              </div>
+              <div class="summary-tile">
+                <span>Yetki kapsamı</span>
+                <strong id="roleScopeValue">-</strong>
+              </div>
+              <div class="summary-tile">
+                <span>Risk profili</span>
+                <strong id="roleRiskValue">-</strong>
+              </div>
+            </div>
+          </section>
+
+          <div id="permissionTree"></div>
+        </section>
+
+        <aside class="side-panel" aria-label="Yardımcı bilgiler">
+          <section class="info-card">
+            <h2>Kullanım notu</h2>
+            <p class="lead">
+              Bu ekran, rol tanımı yaparken yöneticinin neyi açıp kapattığını açıkça görmesi için tasarlanmıştır.
+            </p>
+            <ul>
+              <li>Sayfa erişimi kapalıysa ilgili pencere menüde görünmez.</li>
+              <li>İşlem izni kapalıysa kullanıcı butonu görse bile API işlemi reddetmelidir.</li>
+              <li>Kritik izinler ayrıca yeniden doğrulama gerektirebilir.</li>
+            </ul>
+          </section>
+
+          <section class="info-card">
+            <h2>Güvenlik sınırı</h2>
+            <p class="lead">
+              Bu önizleme yalnızca arayüz davranışını gösterir. Kalıcı yetkilendirme kararı backend API, otel kapsamı ve kayıt düzeyi kontrollerle verilmelidir.
+            </p>
+          </section>
+
+          <section class="info-card">
+            <h2>Aktif izin anahtarları</h2>
+            <ul id="selectedPermissionList" class="selected-list"></ul>
+          </section>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const permissionGroups = [
+      {
+        id: "dashboard",
+        title: "Dashboard penceresi",
+        description: "Yönetim özetleri, bekleyen işler ve operasyonel durum kartları.",
+        permissions: [
+          {
+            key: "dashboard.page.access",
+            label: "Dashboard penceresine gir",
+            description: "Rolün ana yönetim ekranını açmasına izin verir.",
+            risk: "low"
+          },
+          {
+            key: "dashboard.metrics.read",
+            label: "Özet metrikleri görüntüle",
+            description: "Rezervasyon, ticket ve konuşma özetlerini okuma izni verir.",
+            risk: "low"
+          }
+        ]
+      },
+      {
+        id: "conversations",
+        title: "Konuşmalar penceresi",
+        description: "Misafir mesajları, konuşma geçmişi ve manuel yanıt akışı.",
+        permissions: [
+          {
+            key: "conversation.page.access",
+            label: "Konuşmalar penceresine gir",
+            description: "Konuşma listesini ve konuşma detay ekranını açma izni verir.",
+            risk: "medium"
+          },
+          {
+            key: "conversation.read",
+            label: "Mesajları görüntüle",
+            description: "Misafir mesajlarını ve sistem cevaplarını okuma izni verir.",
+            risk: "medium"
+          },
+          {
+            key: "conversation.reply",
+            label: "Misafire yanıt yaz",
+            description: "Yetkili personelin WhatsApp üzerinden manuel cevap göndermesine izin verir.",
+            risk: "high"
+          },
+          {
+            key: "conversation.assign",
+            label: "Konuşmayı görevliye ata",
+            description: "Konuşmayı ilgili departmana veya personele yönlendirme izni verir.",
+            risk: "medium"
+          }
+        ]
+      },
+      {
+        id: "stay",
+        title: "Konaklama rezervasyon akışı",
+        description: "Oda uygunluğu, konaklama talepleri ve stay hold onay süreci.",
+        permissions: [
+          {
+            key: "hold.stay.page.access",
+            label: "Konaklama akışına gir",
+            description: "Konaklama rezervasyonu ekranlarını görüntüleme izni verir.",
+            risk: "medium"
+          },
+          {
+            key: "hold.stay.read",
+            label: "Konaklama taleplerini oku",
+            description: "Bekleyen ve geçmiş konaklama taleplerini inceleme izni verir.",
+            risk: "medium"
+          },
+          {
+            key: "hold.stay.approve",
+            label: "Konaklama talebini onayla",
+            description: "Ödeme veya misafir teyidi öncesi konaklama hold kaydını onaylama izni verir.",
+            risk: "high"
+          },
+          {
+            key: "hold.stay.reject",
+            label: "Konaklama talebini reddet",
+            description: "Uygun olmayan veya hatalı konaklama taleplerini reddetme izni verir.",
+            risk: "high"
+          }
+        ]
+      },
+      {
+        id: "restaurant",
+        title: "Restoran rezervasyon akışı",
+        description: "Restoran talepleri, masa planı, durum değişiklikleri ve servis hazırlığı.",
+        permissions: [
+          {
+            key: "hold.restaurant.page.access",
+            label: "Restoran akışına gir",
+            description: "Restoran rezervasyon ekranlarını açma izni verir.",
+            risk: "medium"
+          },
+          {
+            key: "hold.restaurant.read",
+            label: "Restoran taleplerini oku",
+            description: "Misafir restoran taleplerini ve masa bilgilerini görüntüleme izni verir.",
+            risk: "medium"
+          },
+          {
+            key: "hold.restaurant.manage",
+            label: "Masa ve durum yönet",
+            description: "Masa atama, saat düzenleme ve rezervasyon durumunu değiştirme izni verir.",
+            risk: "high"
+          }
+        ]
+      },
+      {
+        id: "transfer",
+        title: "Transfer operasyon akışı",
+        description: "Havalimanı transfer talepleri, planlama ve operasyon takibi.",
+        permissions: [
+          {
+            key: "hold.transfer.page.access",
+            label: "Transfer akışına gir",
+            description: "Transfer talepleri ekranına erişim izni verir.",
+            risk: "medium"
+          },
+          {
+            key: "hold.transfer.read",
+            label: "Transfer taleplerini oku",
+            description: "Transfer tarihi, saat ve yön bilgilerini görüntüleme izni verir.",
+            risk: "medium"
+          },
+          {
+            key: "hold.transfer.manage",
+            label: "Transfer talebini yönet",
+            description: "Transfer talebini onaylama, reddetme veya operasyon notu ekleme izni verir.",
+            risk: "high"
+          }
+        ]
+      },
+      {
+        id: "tickets",
+        title: "Ticket yönetimi",
+        description: "İnsan devri, takip işleri, departman atamaları ve çözüm kayıtları.",
+        permissions: [
+          {
+            key: "ticket.page.access",
+            label: "Ticket penceresine gir",
+            description: "Açık, bekleyen ve kapanmış ticket kayıtlarını listeleme izni verir.",
+            risk: "medium"
+          },
+          {
+            key: "ticket.read",
+            label: "Ticket detaylarını oku",
+            description: "Ticket açıklaması, öncelik ve atama bilgilerini görüntüleme izni verir.",
+            risk: "medium"
+          },
+          {
+            key: "ticket.write",
+            label: "Ticket güncelle",
+            description: "Ticket durumunu, atamasını ve çözüm notunu değiştirme izni verir.",
+            risk: "high"
+          }
+        ]
+      },
+      {
+        id: "critical-settings",
+        title: "Kritik ayarlar",
+        description: "Otel profili, WhatsApp entegrasyonu, sistem durumu ve debug araçları.",
+        permissions: [
+          {
+            key: "hotel_profile.write",
+            label: "Otel profilini düzenle",
+            description: "Otel politikaları, iletişim bilgileri ve operasyon verilerini değiştirme izni verir.",
+            risk: "critical"
+          },
+          {
+            key: "whatsapp.manage",
+            label: "WhatsApp bağlantısını yönet",
+            description: "Meta bağlantı, telefon numarası ve mesajlaşma entegrasyonu ayarlarını değiştirme izni verir.",
+            risk: "critical"
+          },
+          {
+            key: "system.read",
+            label: "Sistem durumunu görüntüle",
+            description: "Sunucu, bağlantı ve hazırlık kontrollerini görme izni verir.",
+            risk: "high"
+          },
+          {
+            key: "debug.run",
+            label: "Debug taraması çalıştır",
+            description: "Rapor amaçlı debug taramaları başlatma ve çıktılarını görüntüleme izni verir.",
+            risk: "critical"
+          }
+        ]
+      }
+    ];
+
+    const roles = {
+      HOTEL_ADMIN: {
+        label: "Hotel Admin",
+        description: "Otelin günlük yönetiminden ve operasyonel ayarlarından sorumludur. Kritik sistem ve entegrasyon izinleri ayrı dikkat gerektirir.",
+        scope: "Kendi oteli",
+        riskProfile: "Yüksek",
+        defaults: [
+          "dashboard.page.access",
+          "dashboard.metrics.read",
+          "conversation.page.access",
+          "conversation.read",
+          "conversation.reply",
+          "conversation.assign",
+          "hold.stay.page.access",
+          "hold.stay.read",
+          "hold.stay.approve",
+          "hold.stay.reject",
+          "hold.restaurant.page.access",
+          "hold.restaurant.read",
+          "hold.restaurant.manage",
+          "hold.transfer.page.access",
+          "hold.transfer.read",
+          "hold.transfer.manage",
+          "ticket.page.access",
+          "ticket.read",
+          "ticket.write",
+          "hotel_profile.write",
+          "system.read"
+        ]
+      },
+      SALES: {
+        label: "Satış",
+        description: "Misafir iletişimi ve konaklama rezervasyon taleplerini yönetir. Sistem ayarları, debug ve entegrasyon ekranlarına erişmez.",
+        scope: "Kendi oteli",
+        riskProfile: "Orta",
+        defaults: [
+          "dashboard.page.access",
+          "dashboard.metrics.read",
+          "conversation.page.access",
+          "conversation.read",
+          "conversation.reply",
+          "hold.stay.page.access",
+          "hold.stay.read",
+          "hold.stay.approve",
+          "hold.stay.reject",
+          "ticket.page.access",
+          "ticket.read"
+        ]
+      },
+      OPS: {
+        label: "Operasyon",
+        description: "Transfer akışı, operasyon ticketları ve günlük takip işlerini yönetir. Fiyat, otel politikası ve entegrasyon ayarlarını değiştiremez.",
+        scope: "Kendi oteli",
+        riskProfile: "Orta",
+        defaults: [
+          "dashboard.page.access",
+          "dashboard.metrics.read",
+          "conversation.page.access",
+          "conversation.read",
+          "hold.transfer.page.access",
+          "hold.transfer.read",
+          "hold.transfer.manage",
+          "ticket.page.access",
+          "ticket.read",
+          "ticket.write"
+        ]
+      },
+      RESTAURANT: {
+        label: "Restoran",
+        description: "Restoran rezervasyonlarını, masa planını ve servis durumlarını yönetir. Konaklama, transfer ve sistem ayarlarına erişmez.",
+        scope: "Kendi oteli",
+        riskProfile: "Orta",
+        defaults: [
+          "dashboard.page.access",
+          "hold.restaurant.page.access",
+          "hold.restaurant.read",
+          "hold.restaurant.manage",
+          "ticket.page.access",
+          "ticket.read"
+        ]
+      },
+      VIEWER: {
+        label: "İzleyici",
+        description: "Panel verilerini takip eder ancak hiçbir kayıt üzerinde değişiklik yapamaz. Denetim, eğitim ve yönetim görünürlüğü için uygundur.",
+        scope: "Kendi oteli",
+        riskProfile: "Düşük",
+        defaults: [
+          "dashboard.page.access",
+          "dashboard.metrics.read",
+          "conversation.page.access",
+          "conversation.read",
+          "hold.stay.page.access",
+          "hold.stay.read",
+          "hold.restaurant.page.access",
+          "hold.restaurant.read",
+          "hold.transfer.page.access",
+          "hold.transfer.read",
+          "ticket.page.access",
+          "ticket.read"
+        ]
+      }
+    };
+
+    let selectedRoleKey = "SALES";
+    let selectedPermissions = new Set(roles[selectedRoleKey].defaults);
+
+    const roleList = document.getElementById("roleList");
+    const permissionTree = document.getElementById("permissionTree");
+    const selectedPermissionList = document.getElementById("selectedPermissionList");
+    const toast = document.getElementById("toast");
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function renderRoles() {
+      roleList.innerHTML = Object.entries(roles).map(([key, role]) => `
+        <button
+          class="role-card"
+          type="button"
+          data-role-key="${escapeHtml(key)}"
+          aria-current="${key === selectedRoleKey ? "true" : "false"}"
+          aria-label="${escapeHtml(role.label)} rolünü düzenle"
+        >
+          <strong>${escapeHtml(role.label)}</strong>
+          <span>${escapeHtml(role.description)}</span>
+        </button>
+      `).join("");
+
+      roleList.querySelectorAll("[data-role-key]").forEach((button) => {
+        button.addEventListener("click", () => {
+          selectedRoleKey = button.dataset.roleKey;
+          selectedPermissions = new Set(roles[selectedRoleKey].defaults);
+          render();
+        });
+      });
+    }
+
+    function renderHeader() {
+      const role = roles[selectedRoleKey];
+      document.getElementById("selectedRoleTitle").textContent = `${role.label} rolü`;
+      document.getElementById("selectedRoleDescription").textContent = role.description;
+      document.getElementById("roleScopeDescription").textContent = "Bu özet, seçili rolün hangi kapsamda kullanılacağını ve kaç izne sahip olduğunu gösterir.";
+      document.getElementById("roleScopeValue").textContent = role.scope;
+      document.getElementById("roleRiskValue").textContent = role.riskProfile;
+    }
+
+    function renderPermissionTree() {
+      permissionTree.innerHTML = permissionGroups.map((group) => {
+        const total = group.permissions.length;
+        const active = group.permissions.filter((permission) => selectedPermissions.has(permission.key)).length;
+        const checked = active === total;
+        const mixed = active > 0 && active < total;
+
+        return `
+          <section class="permission-group" aria-labelledby="${group.id}Title">
+            <div class="group-header">
+              <div>
+                <h3 id="${escapeHtml(group.id)}Title">${escapeHtml(group.title)}</h3>
+                <p class="muted">${escapeHtml(group.description)}</p>
+                <p class="muted">${active}/${total} izin aktif</p>
+              </div>
+              <label class="switch" aria-label="${escapeHtml(group.title)} grubunu aç veya kapat">
+                <input
+                  type="checkbox"
+                  data-group-toggle="${escapeHtml(group.id)}"
+                  ${checked ? "checked" : ""}
+                  data-mixed="${mixed}"
+                />
+                <span class="slider"></span>
+              </label>
+            </div>
+            ${group.permissions.map((permission) => `
+              <div class="permission-row">
+                <div>
+                  <span class="permission-title">${escapeHtml(permission.label)}</span>
+                  <p class="permission-copy">${escapeHtml(permission.description)}</p>
+                  <code class="permission-key">${escapeHtml(permission.key)}</code>
+                  ${renderRiskLabel(permission.risk)}
+                </div>
+                <label class="switch" aria-label="${escapeHtml(permission.label)} iznini aç veya kapat">
+                  <input
+                    type="checkbox"
+                    data-permission-key="${escapeHtml(permission.key)}"
+                    ${selectedPermissions.has(permission.key) ? "checked" : ""}
+                  />
+                  <span class="slider"></span>
+                </label>
+              </div>
+            `).join("")}
+          </section>
+        `;
+      }).join("");
+
+      permissionTree.querySelectorAll("[data-mixed='true']").forEach((input) => {
+        input.indeterminate = true;
+      });
+
+      permissionTree.querySelectorAll("[data-group-toggle]").forEach((input) => {
+        input.addEventListener("change", () => {
+          const group = permissionGroups.find((item) => item.id === input.dataset.groupToggle);
+          group.permissions.forEach((permission) => {
+            if (input.checked) {
+              selectedPermissions.add(permission.key);
+            } else {
+              selectedPermissions.delete(permission.key);
+            }
+          });
+          renderPermissionTree();
+          renderSummary();
+        });
+      });
+
+      permissionTree.querySelectorAll("[data-permission-key]").forEach((input) => {
+        input.addEventListener("change", () => {
+          if (input.checked) {
+            selectedPermissions.add(input.dataset.permissionKey);
+          } else {
+            selectedPermissions.delete(input.dataset.permissionKey);
+          }
+          renderPermissionTree();
+          renderSummary();
+        });
+      });
+    }
+
+    function renderRiskLabel(risk) {
+      if (risk === "critical") {
+        return '<span class="risk-label critical">Kritik</span>';
+      }
+      if (risk === "high") {
+        return '<span class="risk-label">Yüksek risk</span>';
+      }
+      return "";
+    }
+
+    function renderSummary() {
+      const keys = Array.from(selectedPermissions).sort();
+      document.getElementById("activePermissionCount").textContent = String(keys.length);
+      selectedPermissionList.innerHTML = keys.length
+        ? keys.map((key) => `<li>${escapeHtml(key)}</li>`).join("")
+        : '<li>Bu rol için aktif izin yok.</li>';
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.setTimeout(() => toast.classList.remove("show"), 1800);
+    }
+
+    function render() {
+      renderRoles();
+      renderHeader();
+      renderPermissionTree();
+      renderSummary();
+    }
+
+    document.getElementById("resetButton").addEventListener("click", () => {
+      selectedPermissions = new Set(roles[selectedRoleKey].defaults);
+      renderPermissionTree();
+      renderSummary();
+      showToast("Rol izinleri varsayılan önizleme değerlerine döndürüldü.");
+    });
+
+    document.getElementById("saveButton").addEventListener("click", () => {
+      showToast("Önizleme kaydedildi. Backend bağlantısı eklendiğinde bu izinler API'ye gönderilecek.");
+    });
+
+    render();
+  </script>
+</body>
+</html>
