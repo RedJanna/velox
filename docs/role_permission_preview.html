@@ -354,6 +354,65 @@
       font-size: 13px;
     }
 
+    .assignment-form {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .field select {
+      width: 100%;
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--text);
+      padding: 8px 10px;
+    }
+
+    .compact-table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .compact-table th,
+    .compact-table td {
+      border-bottom: 1px solid var(--line-soft);
+      padding: 8px 4px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .compact-table th {
+      color: var(--muted);
+      font-weight: 750;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      border-radius: 999px;
+      background: var(--brand-soft);
+      color: var(--brand-dark);
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 750;
+    }
+
     .selected-list {
       display: grid;
       gap: 6px;
@@ -504,6 +563,62 @@
             <p class="lead">
               Bu önizleme yalnızca arayüz davranışını gösterir. Kalıcı yetkilendirme kararı backend API, otel kapsamı ve kayıt düzeyi kontrollerle verilmelidir.
             </p>
+          </section>
+
+          <section class="info-card" aria-labelledby="assignmentHeading">
+            <h2 id="assignmentHeading">Rol atama</h2>
+            <p class="lead">
+              Seçilen personele hangi rolün, hangi departman ve otel kapsamında atanacağını belirleyin.
+            </p>
+            <form id="roleAssignmentForm" class="assignment-form">
+              <label class="field" for="assignmentUser">
+                <span>Personel</span>
+                <select id="assignmentUser"></select>
+              </label>
+              <label class="field" for="assignmentRole">
+                <span>Atanacak rol</span>
+                <select id="assignmentRole"></select>
+              </label>
+              <label class="field" for="assignmentDepartment">
+                <span>Departman</span>
+                <select id="assignmentDepartment"></select>
+              </label>
+              <button class="button primary" type="submit">Rolü ata</button>
+            </form>
+          </section>
+
+          <section class="info-card" aria-labelledby="existingRolesHeading">
+            <h2 id="existingRolesHeading">Mevcut roller</h2>
+            <p class="lead">
+              Tanımlı roller, kapsamları ve örnek kullanıcı sayıları tek bakışta görünür.
+            </p>
+            <table class="compact-table">
+              <thead>
+                <tr>
+                  <th>Rol</th>
+                  <th>Kapsam</th>
+                  <th>Kullanıcı</th>
+                </tr>
+              </thead>
+              <tbody id="existingRoleRows"></tbody>
+            </table>
+          </section>
+
+          <section class="info-card" aria-labelledby="currentAssignmentsHeading">
+            <h2 id="currentAssignmentsHeading">Mevcut rol atamaları</h2>
+            <p class="lead">
+              Aktif atamalar personel, rol ve departman kırılımıyla izlenir.
+            </p>
+            <table class="compact-table">
+              <thead>
+                <tr>
+                  <th>Personel</th>
+                  <th>Rol</th>
+                  <th>Durum</th>
+                </tr>
+              </thead>
+              <tbody id="assignmentRows"></tbody>
+            </table>
           </section>
 
           <section class="info-card">
@@ -811,12 +926,33 @@
       }
     };
 
+    const departments = ["Yönetim", "Satış", "Operasyon", "Restoran", "Denetim"];
+
+    const assignableUsers = [
+      { id: "user-sales-01", label: "Satış Personeli", department: "Satış" },
+      { id: "user-ops-01", label: "Operasyon Personeli", department: "Operasyon" },
+      { id: "user-restaurant-01", label: "Restoran Personeli", department: "Restoran" },
+      { id: "user-viewer-01", label: "Denetim Kullanıcısı", department: "Denetim" }
+    ];
+
+    const roleAssignments = [
+      { userId: "user-sales-01", roleKey: "SALES", department: "Satış", status: "Aktif" },
+      { userId: "user-ops-01", roleKey: "OPS", department: "Operasyon", status: "Aktif" },
+      { userId: "user-restaurant-01", roleKey: "RESTAURANT", department: "Restoran", status: "Aktif" },
+      { userId: "user-viewer-01", roleKey: "VIEWER", department: "Denetim", status: "Aktif" }
+    ];
+
     let selectedRoleKey = "SALES";
     let selectedPermissions = new Set(roles[selectedRoleKey].defaults);
 
     const roleList = document.getElementById("roleList");
     const permissionTree = document.getElementById("permissionTree");
     const selectedPermissionList = document.getElementById("selectedPermissionList");
+    const existingRoleRows = document.getElementById("existingRoleRows");
+    const assignmentRows = document.getElementById("assignmentRows");
+    const assignmentUserSelect = document.getElementById("assignmentUser");
+    const assignmentRoleSelect = document.getElementById("assignmentRole");
+    const assignmentDepartmentSelect = document.getElementById("assignmentDepartment");
     const toast = document.getElementById("toast");
 
     function escapeHtml(value) {
@@ -957,6 +1093,47 @@
         : '<li>Bu rol için aktif izin yok.</li>';
     }
 
+    function renderAssignmentControls() {
+      assignmentUserSelect.innerHTML = assignableUsers.map((user) => `
+        <option value="${escapeHtml(user.id)}">${escapeHtml(user.label)} - ${escapeHtml(user.department)}</option>
+      `).join("");
+
+      assignmentRoleSelect.innerHTML = Object.entries(roles).map(([key, role]) => `
+        <option value="${escapeHtml(key)}" ${key === selectedRoleKey ? "selected" : ""}>${escapeHtml(role.label)}</option>
+      `).join("");
+
+      assignmentDepartmentSelect.innerHTML = departments.map((department) => `
+        <option value="${escapeHtml(department)}">${escapeHtml(department)}</option>
+      `).join("");
+    }
+
+    function renderExistingRoles() {
+      existingRoleRows.innerHTML = Object.entries(roles).map(([key, role]) => {
+        const userCount = roleAssignments.filter((assignment) => assignment.roleKey === key).length;
+        return `
+          <tr>
+            <td><strong>${escapeHtml(role.label)}</strong></td>
+            <td>${escapeHtml(role.scope)}</td>
+            <td>${userCount}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function renderAssignments() {
+      assignmentRows.innerHTML = roleAssignments.map((assignment) => {
+        const user = assignableUsers.find((item) => item.id === assignment.userId);
+        const role = roles[assignment.roleKey];
+        return `
+          <tr>
+            <td>${escapeHtml(user?.label || "Bilinmeyen kullanıcı")}<br><span class="muted">${escapeHtml(assignment.department)}</span></td>
+            <td>${escapeHtml(role?.label || assignment.roleKey)}</td>
+            <td><span class="status-pill">${escapeHtml(assignment.status)}</span></td>
+          </tr>
+        `;
+      }).join("");
+    }
+
     function showToast(message) {
       toast.textContent = message;
       toast.classList.add("show");
@@ -968,6 +1145,9 @@
       renderHeader();
       renderPermissionTree();
       renderSummary();
+      renderAssignmentControls();
+      renderExistingRoles();
+      renderAssignments();
     }
 
     document.getElementById("resetButton").addEventListener("click", () => {
@@ -979,6 +1159,34 @@
 
     document.getElementById("saveButton").addEventListener("click", () => {
       showToast("Önizleme kaydedildi. Backend bağlantısı eklendiğinde bu izinler API'ye gönderilecek.");
+    });
+
+    document.getElementById("roleAssignmentForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      const userId = assignmentUserSelect.value;
+      const roleKey = assignmentRoleSelect.value;
+      const department = assignmentDepartmentSelect.value;
+      const user = assignableUsers.find((item) => item.id === userId);
+      const role = roles[roleKey];
+
+      if (!user || !role) {
+        showToast("Rol ataması için geçerli personel ve rol seçilmelidir.");
+        return;
+      }
+
+      const existing = roleAssignments.find((assignment) => assignment.userId === userId);
+      if (existing) {
+        existing.roleKey = roleKey;
+        existing.department = department;
+        existing.status = "Aktif";
+      } else {
+        roleAssignments.push({ userId, roleKey, department, status: "Aktif" });
+      }
+
+      renderExistingRoles();
+      renderAssignments();
+      showToast(`${user.label} için ${role.label} rolü atandı.`);
     });
 
     render();
