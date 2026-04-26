@@ -127,6 +127,9 @@ def test_build_system_prompt_is_compact_and_grounded() -> None:
     assert "ROOM_TYPES" in system_prompt
     assert "FAQ_CONTEXT" in system_prompt
     assert "faq_lookup" in system_prompt
+    assert "SPECIAL OCCASIONS (STRICT)" in system_prompt
+    assert "Birthday, honeymoon, anniversary, and marriage proposal requests are supported" in system_prompt
+    assert "Never provide special-occasion pricing" in system_prompt
     assert "maps.app.goo.gl/pMiKmhV57YVvAghe6" in system_prompt
     assert "menu_preview" in system_prompt
     assert "Meyve Tabagi" in system_prompt

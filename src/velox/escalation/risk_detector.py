@@ -83,7 +83,9 @@ RISK_PATTERNS: dict[RiskFlag, list[re.Pattern[str]]] = {
         re.compile(
             (
                 r"\b(d[oö][gğ]um\s*g[uü]n[uü]|birthday|balayı|honeymoon|y[ıi]ld[oö]n[uü]m[uü]|anniversary|"
-                r"evlilik\s*teklifi|proposal|organizasyon|event)\b"
+                r"evlilik\s*teklifi|proposal|ni[sş]an|engagement|mezuniyet|graduation|"
+                r"d[uü][gğ][uü]n|wedding|kurumsal|corporate|business\s*dinner|"
+                r"team\s*organization|organizasyon|event)\b"
             ),
             re.IGNORECASE,
         ),
@@ -105,7 +107,7 @@ RISK_PATTERNS: dict[RiskFlag, list[re.Pattern[str]]] = {
             re.IGNORECASE,
         ),
         re.compile(
-            r"(istiyorum|g[oö]nder|odama|odamıza|hazırla|hazirla|getir|deliver|prepare|servis\s*yap|g[oö]nderilsin)",
+            r"(g[oö]nder|odama|odamıza|hazırla|hazirla|getir|deliver|prepare|servis\s*yap|g[oö]nderilsin)",
             re.IGNORECASE,
         ),
     ],
