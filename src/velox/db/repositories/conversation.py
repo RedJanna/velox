@@ -25,6 +25,17 @@ _LEGACY_STATE_ALIASES = {
 }
 
 
+def _mask_phone_display(value: Any) -> str:
+    """Return a display-safe phone label for exports and filenames."""
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return "maskeli_kullanici"
+    digits = "".join(char for char in raw_value if char.isdigit())
+    if len(digits) >= 6:
+        return f"{digits[:3]}***{digits[-2:]}"
+    return re.sub(r"[^a-zA-Z0-9_*.-]+", "_", raw_value).strip("_") or "maskeli_kullanici"
+
+
 class ConversationRepository:
     """CRUD operations for conversations and messages."""
 
@@ -522,8 +533,12 @@ class ConversationRepository:
         """Best-effort exporter that never breaks runtime message flow."""
         try:
             await self._export_conversation_transcript(conversation_id)
-        except Exception:
-            logger.exception("chat_lab_transcript_export_failed", conversation_id=str(conversation_id))
+        except Exception as error:
+            logger.warning(
+                "chat_lab_transcript_export_failed",
+                conversation_id=str(conversation_id),
+                error_type=type(error).__name__,
+            )
 
     async def _export_conversation_transcript(self, conversation_id: UUID) -> bool:
         """Write one masked conversation transcript JSON for admin Chat Lab import."""
@@ -575,7 +590,7 @@ class ConversationRepository:
         if not message_rows:
             return False
 
-        masked_phone = str(conversation["phone_display"] or "maskeli_kullanici")
+        masked_phone = _mask_phone_display(conversation["phone_display"])
         conversation_id_str = str(conversation["id"])
         intent = str(conversation["current_intent"] or conversation["last_assistant_intent"] or "")
         state = str(conversation["current_state"] or conversation["last_assistant_state"] or "GREETING")

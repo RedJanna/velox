@@ -106,6 +106,72 @@ async def test_tool_result_is_followed_by_formatted_user_response(mock_openai: A
 
 
 @pytest.mark.asyncio
+async def test_embedded_internal_json_tool_call_is_replayed(mock_openai: AsyncMock) -> None:
+    """Tool loop should execute valid INTERNAL_JSON tool calls when native calls are absent."""
+    mock_openai.chat.completions.create.side_effect = [
+        _FakeOpenAIResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                "Rezervasyonunuzu kontrol ediyorum.\n"
+                                'INTERNAL_JSON: {"language":"tr","intent":"stay_booking_lookup",'
+                                '"state":"TOOL_RUNNING","entities":{},'
+                                '"required_questions":[],"tool_calls":[{"name":"booking_get_reservation",'
+                                '"arguments":{"voucher_no":"VCH-123"}}],"notifications":[],'
+                                '"handoff":{"needed":false},"risk_flags":[],'
+                                '"escalation":{"level":"L0","route_to_role":"NONE"},'
+                                '"next_step":"await_tool_result"}'
+                            ),
+                            "tool_calls": [],
+                        }
+                    }
+                ],
+                "usage": {},
+            }
+        ),
+        _FakeOpenAIResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                "Rezervasyon kaydi bulundu.\n"
+                                'INTERNAL_JSON: {"language":"tr","intent":"stay_booking_lookup",'
+                                '"state":"ANSWERED","entities":{},'
+                                '"required_questions":[],"tool_calls":[],"notifications":[],'
+                                '"handoff":{"needed":false},"risk_flags":[],'
+                                '"escalation":{"level":"L0","route_to_role":"NONE"},'
+                                '"next_step":"await_guest_reply"}'
+                            ),
+                            "tool_calls": [],
+                        }
+                    }
+                ],
+                "usage": {},
+            }
+        ),
+    ]
+    tool_executor: Callable[[str, Any], Awaitable[Any]] = AsyncMock(return_value='{"success":true}')
+    client = LLMClient(settings)
+    client.client = mock_openai
+
+    content, executed = await client.run_tool_call_loop(
+        messages=[{"role": "user", "content": "Voucher no ile rezervasyon kontrolu"}],
+        tools=[{"type": "function", "function": {"name": "booking_get_reservation"}}],
+        tool_executor=tool_executor,
+    )
+
+    assert "kaydi bulundu" in content
+    assert [item["name"] for item in executed] == ["booking_get_reservation"]
+    tool_executor.assert_awaited_once_with("booking_get_reservation", {"voucher_no": "VCH-123"})  # type: ignore[attr-defined]
+    second_call_messages = mock_openai.chat.completions.create.await_args_list[1].kwargs["messages"]
+    assert second_call_messages[-1]["role"] == "tool"
+    assert second_call_messages[-1]["name"] == "booking_get_reservation"
+
+
+@pytest.mark.asyncio
 async def test_multi_turn_flow_greeting_to_hold_with_tool_calls(mock_openai: AsyncMock) -> None:
     """Multi-turn style loop should execute availability->quote->hold tool chain."""
     mock_openai.chat.completions.create.side_effect = [
@@ -228,7 +294,14 @@ async def test_run_tool_call_loop_emits_iteration_trace_logs(
                 "choices": [
                     {
                         "message": {
-                            "content": "Kontrol tamam.\nINTERNAL_JSON: {\"language\":\"tr\",\"intent\":\"restaurant_booking_create\",\"state\":\"ANSWERED\",\"entities\":{},\"required_questions\":[],\"tool_calls\":[],\"notifications\":[],\"handoff\":{\"needed\":false},\"risk_flags\":[],\"escalation\":{\"level\":\"L0\",\"route_to_role\":\"NONE\"},\"next_step\":\"await_guest_reply\"}",
+                            "content": (
+                                "Kontrol tamam.\n"
+                                'INTERNAL_JSON: {"language":"tr","intent":"restaurant_booking_create",'
+                                '"state":"ANSWERED","entities":{},"required_questions":[],'
+                                '"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+                                '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},'
+                                '"next_step":"await_guest_reply"}'
+                            ),
                             "tool_calls": [],
                         }
                     }

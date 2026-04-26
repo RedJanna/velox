@@ -10,6 +10,7 @@ from openai import APIConnectionError, APITimeoutError, AsyncOpenAI, RateLimitEr
 
 from velox.config.constants import TOOL_RETRY_BACKOFF_SECONDS
 from velox.config.settings import Settings, settings
+from velox.llm.response_parser import ResponseParser
 from velox.utils.metrics import record_structured_output_repair_outcome
 
 logger = structlog.get_logger(__name__)
@@ -85,6 +86,93 @@ def _extract_message_content(message: dict[str, Any]) -> str:
                 parts.append(text)
         return "\n".join(parts)
     return ""
+
+
+def _extract_tool_definition_names(tools: list[dict[str, Any]] | None) -> set[str]:
+    """Return function names that were actually presented to the model."""
+    names: set[str] = set()
+    for tool in tools or []:
+        if not isinstance(tool, dict):
+            continue
+        function_block = tool.get("function")
+        if isinstance(function_block, dict):
+            tool_name = str(function_block.get("name") or "").strip()
+        else:
+            tool_name = str(tool.get("name") or "").strip()
+        if tool_name:
+            names.add(tool_name)
+    return names
+
+
+def _normalize_tool_arguments(value: Any) -> dict[str, Any]:
+    """Coerce tool arguments into a JSON-object dict."""
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str) and value.strip():
+        try:
+            loaded = orjson.loads(value)
+        except orjson.JSONDecodeError:
+            return {}
+        if isinstance(loaded, dict):
+            return cast(dict[str, Any], loaded)
+    return {}
+
+
+def _serialize_tool_arguments(arguments: Any) -> str:
+    """Serialize tool arguments for the OpenAI tool message transcript."""
+    normalized = _normalize_tool_arguments(arguments)
+    try:
+        return orjson.dumps(normalized, option=orjson.OPT_SORT_KEYS).decode()
+    except TypeError:
+        return "{}"
+
+
+def _looks_like_embedded_tool_content(content: str) -> bool:
+    """Avoid parser side effects unless the content plausibly contains tool calls."""
+    stripped = content.strip()
+    if not stripped or "tool_calls" not in stripped:
+        return False
+    return "INTERNAL_JSON" in stripped or stripped.startswith("{") or "```json" in stripped.lower()
+
+
+def _extract_embedded_tool_calls(
+    content: str,
+    *,
+    allowed_tool_names: set[str],
+    executed_tool_names: set[str],
+) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    """Extract backend-replayable tool calls from INTERNAL_JSON content."""
+    if not _looks_like_embedded_tool_content(content):
+        return [], [], []
+
+    parsed = ResponseParser.parse(content)
+    if ResponseParser.extract_parser_error(parsed.internal_json):
+        return [], [], []
+
+    replayable: list[dict[str, Any]] = []
+    ignored_unavailable: list[str] = []
+    ignored_duplicate: list[str] = []
+    for item in parsed.internal_json.tool_calls:
+        if not isinstance(item, dict):
+            continue
+        tool_name = str(item.get("tool") or item.get("name") or "").strip()
+        if not tool_name:
+            continue
+        if tool_name in executed_tool_names:
+            ignored_duplicate.append(tool_name)
+            continue
+        if tool_name not in allowed_tool_names:
+            ignored_unavailable.append(tool_name)
+            continue
+        args_source = item.get("args") if isinstance(item.get("args"), dict) else item.get("arguments")
+        replayable.append(
+            {
+                "type": "function",
+                "name": tool_name,
+                "arguments": _normalize_tool_arguments(args_source),
+            }
+        )
+    return replayable, ignored_unavailable, ignored_duplicate
 
 
 
@@ -285,6 +373,7 @@ class LLMClient:
         iteration = 0
         last_content = ""
         executed_calls: list[dict[str, Any]] = []
+        allowed_tool_names = _extract_tool_definition_names(tools)
 
         loop_start_payload = {"max_iterations": max_iterations, "message_count": len(messages)}
         if trace_context:
@@ -304,6 +393,57 @@ class LLMClient:
             last_content = content or last_content
 
             if not tool_calls:
+                embedded_tool_calls, ignored_unavailable, ignored_duplicate = _extract_embedded_tool_calls(
+                    content,
+                    allowed_tool_names=allowed_tool_names,
+                    executed_tool_names={
+                        str(call.get("name") or "").strip()
+                        for call in executed_calls
+                        if isinstance(call, dict) and str(call.get("name") or "").strip()
+                    },
+                )
+                if ignored_unavailable:
+                    ignored_payload = {
+                        "iteration": iteration,
+                        "ignored_tool_names": sorted(set(ignored_unavailable)),
+                        "ignored_tool_count": len(ignored_unavailable),
+                    }
+                    if trace_context:
+                        ignored_payload.update(trace_context)
+                    logger.warning("llm_embedded_tool_calls_unavailable", **ignored_payload)
+                if ignored_duplicate:
+                    duplicate_payload = {
+                        "iteration": iteration,
+                        "ignored_tool_names": sorted(set(ignored_duplicate)),
+                        "ignored_tool_count": len(ignored_duplicate),
+                    }
+                    if trace_context:
+                        duplicate_payload.update(trace_context)
+                    logger.info("llm_embedded_tool_calls_duplicate_skipped", **duplicate_payload)
+                if embedded_tool_calls:
+                    detected_payload = {
+                        "iteration": iteration,
+                        "embedded_call_count": len(embedded_tool_calls),
+                        "embedded_call_names": [str(call.get("name") or "") for call in embedded_tool_calls],
+                    }
+                    if trace_context:
+                        detected_payload.update(trace_context)
+                    logger.info("llm_embedded_tool_calls_detected", **detected_payload)
+
+                    for index, tool_call in enumerate(embedded_tool_calls, start=1):
+                        tool_call["id"] = f"call_embedded_{iteration}_{index}"
+                    await self._execute_tool_calls(
+                        tool_calls=embedded_tool_calls,
+                        content=content,
+                        tool_executor=tool_executor,
+                        executed_calls=executed_calls,
+                        working_messages=working_messages,
+                        iteration=iteration,
+                        trace_context=trace_context,
+                        call_source="embedded_internal_json",
+                    )
+                    continue
+
                 completion_payload = {
                     "iteration": iteration,
                     "executed_call_count": len(executed_calls),
@@ -315,47 +455,73 @@ class LLMClient:
                 logger.info("llm_tool_loop_completed", **completion_payload)
                 return content, executed_calls
 
-            for tool_call in tool_calls:
-                tool_name = str(tool_call.get("name") or "")
-                tool_args = tool_call.get("arguments")
-                tool_result = await tool_executor(tool_name, tool_args)
-                executed_calls.append({"name": tool_name, "arguments": tool_args, "result": tool_result})
-                execution_payload = {
-                    "iteration": iteration,
-                    "tool_name": tool_name,
-                    "executed_call_count": len(executed_calls),
-                }
-                if trace_context:
-                    execution_payload.update(trace_context)
-                logger.info("llm_tool_call_executed", **execution_payload)
-
-                working_messages.append(
-                    {
-                        "role": "assistant",
-                        "content": content,
-                        "tool_calls": [
-                            {
-                                "id": tool_call.get("id"),
-                                "type": "function",
-                                "function": {"name": tool_name, "arguments": tool_args},
-                            }
-                        ],
-                    }
-                )
-                working_messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call.get("id"),
-                        "name": tool_name,
-                        "content": tool_result if isinstance(tool_result, str) else str(tool_result),
-                    }
-                )
+            await self._execute_tool_calls(
+                tool_calls=tool_calls,
+                content=content,
+                tool_executor=tool_executor,
+                executed_calls=executed_calls,
+                working_messages=working_messages,
+                iteration=iteration,
+                trace_context=trace_context,
+                call_source="native_openai",
+            )
 
         warning_payload = {"max_iterations": max_iterations, "executed_call_count": len(executed_calls)}
         if trace_context:
             warning_payload.update(trace_context)
         logger.warning("llm_tool_loop_max_iterations_reached", **warning_payload)
         return last_content, executed_calls
+
+    async def _execute_tool_calls(
+        self,
+        *,
+        tool_calls: list[dict[str, Any]],
+        content: str,
+        tool_executor: Any,
+        executed_calls: list[dict[str, Any]],
+        working_messages: list[dict[str, Any]],
+        iteration: int,
+        trace_context: dict[str, Any] | None,
+        call_source: str,
+    ) -> None:
+        """Execute tool calls and append their results to the OpenAI transcript."""
+        for tool_call in tool_calls:
+            tool_name = str(tool_call.get("name") or "")
+            tool_args = tool_call.get("arguments")
+            serialized_args = _serialize_tool_arguments(tool_args)
+            tool_result = await tool_executor(tool_name, tool_args)
+            executed_calls.append({"name": tool_name, "arguments": tool_args, "result": tool_result})
+            execution_payload = {
+                "iteration": iteration,
+                "tool_name": tool_name,
+                "call_source": call_source,
+                "executed_call_count": len(executed_calls),
+            }
+            if trace_context:
+                execution_payload.update(trace_context)
+            logger.info("llm_tool_call_executed", **execution_payload)
+
+            working_messages.append(
+                {
+                    "role": "assistant",
+                    "content": content,
+                    "tool_calls": [
+                        {
+                            "id": tool_call.get("id"),
+                            "type": "function",
+                            "function": {"name": tool_name, "arguments": serialized_args},
+                        }
+                    ],
+                }
+            )
+            working_messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.get("id"),
+                    "name": tool_name,
+                    "content": tool_result if isinstance(tool_result, str) else str(tool_result),
+                }
+            )
 
     async def _request_with_retry(
         self,

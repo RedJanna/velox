@@ -993,6 +993,7 @@ Kural: Gecerli INTERNAL_JSON uretilemezse backend bunu parser hatasi olarak isar
 Kural: Parser hatasinda backend once strict schema ile otomatik structured-output repair denemesi yapabilir. Repair basarisiz olursa guvenli tekrar/clarification fallback'i uygulanir.
 Kural: Backend bilinen legacy ve runtime drift alias'larini normalize eder; canonical olmayan state degerleri guvenli canonical state'e clamp edilir. Ornegin `awaiting_request`, `awaiting_room_preference`, `collecting_missing_field`, `MISSING_DATE_SELECTION` -> `NEEDS_VERIFICATION`; `stay_availability_request` ve `check_availability` -> `stay_availability`; `restaurant_reservation` -> `restaurant_booking_create`. Bilincli desteklenen yardimci state degerleri (ornegin `ANSWERED`) oldugu gibi korunur.
 Kural: Turn bazli tool shortlist ile LLM intent'i carpisirsa backend domain guard uygular. Ozellikle restoran tool'lari sunulmayan bir turda model yine de `restaurant_*` intent'i uretirse ve kullanici metni tarih/konaklama sinyali tasiyorsa yanit deterministik olarak `stay_availability` akisina geri cekilir; boylece onceki konusma baglaminin yeni turn'u yanlis domaine tasimasi engellenir.
+Kural: Native OpenAI tool call gelmez ama gecerli `INTERNAL_JSON.tool_calls` icinde bu turda backend tarafindan sunulmus bir tool varsa, backend bu tool cagrilarini replay eder, sonucu LLM'e geri besler ve final cevabi tool sonucundan sonra uretir. Sunulmayan veya ayni turda zaten calismis tool adlari replay edilmez.
 
 Her turda IKI PARCA uret:
 
