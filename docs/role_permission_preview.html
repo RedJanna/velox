@@ -30,6 +30,12 @@
       --card-change-accent: #12746e;
       --card-perm-bg: #f6f8ec;
       --card-perm-accent: #5c6f12;
+      --role-field-bg: #eef2ff;
+      --role-field-line: #a2b0eb;
+      --role-field-text: #34439a;
+      --department-field-bg: #e9f9f7;
+      --department-field-line: #7bcac1;
+      --department-field-text: #0d6d66;
     }
 
     * {
@@ -424,6 +430,55 @@
       padding: 8px 10px;
     }
 
+    .field-note {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .field.role-field,
+    .field.department-field {
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+    }
+
+    .field.role-field {
+      border-color: var(--role-field-line);
+      background: var(--role-field-bg);
+    }
+
+    .field.role-field > span {
+      color: var(--role-field-text);
+    }
+
+    .field.role-field select {
+      border-color: var(--role-field-line);
+      background: #ffffff;
+    }
+
+    .field.role-field .field-note {
+      color: #3f4d84;
+    }
+
+    .field.department-field {
+      border-color: var(--department-field-line);
+      background: var(--department-field-bg);
+    }
+
+    .field.department-field > span {
+      color: var(--department-field-text);
+    }
+
+    .field.department-field select {
+      border-color: var(--department-field-line);
+      background: #ffffff;
+    }
+
+    .field.department-field .field-note {
+      color: #306b67;
+    }
+
     .field-help {
       margin-top: 8px;
       color: var(--muted);
@@ -552,6 +607,10 @@
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 8px;
+    }
+
+    .assignment-grid .field {
+      min-height: 128px;
     }
 
     .assignment-controls select {
@@ -738,7 +797,7 @@
           <section class="info-card card-create" aria-labelledby="userCreationHeading">
             <h2 id="userCreationHeading">Yeni kullanıcı oluştur</h2>
             <p class="lead">
-              Kullanıcı adı, geçici parola, rol, departman ve zorunlu 2FA tercihini tek adımda tanımlayın.
+              Kullanıcı adı, geçici parola, rol (yetki seviyesi), departman (organizasyon birimi) ve zorunlu 2FA tercihini tek adımda tanımlayın.
             </p>
             <form id="userCreationForm" class="assignment-form">
               <label class="field" for="newUsername">
@@ -755,14 +814,18 @@
                   <input id="newPasswordConfirm" type="password" autocomplete="new-password" placeholder="Tekrar girin" />
                 </label>
               </div>
-              <label class="field" for="newUserRole">
-                <span>Başlangıç rolü</span>
-                <select id="newUserRole"></select>
-              </label>
-              <label class="field" for="newUserDepartment">
-                <span>Departman</span>
-                <select id="newUserDepartment"></select>
-              </label>
+              <div class="form-grid two-column role-department-grid">
+                <label class="field role-field" for="newUserRole">
+                  <span>Rol (Yetki seviyesi)</span>
+                  <select id="newUserRole"></select>
+                  <small class="field-note">Ekran ve işlem izinlerini belirler.</small>
+                </label>
+                <label class="field department-field" for="newUserDepartment">
+                  <span>Departman (Organizasyon birimi)</span>
+                  <select id="newUserDepartment"></select>
+                  <small class="field-note">Kullanıcının bağlı olduğu ekip alanını belirler.</small>
+                </label>
+              </div>
               <label class="security-option" for="newUserTwoFactor">
                 <input id="newUserTwoFactor" type="checkbox" checked />
                 <span>
@@ -797,7 +860,7 @@
           <section class="info-card card-changes" aria-labelledby="currentAssignmentsHeading">
             <h2 id="currentAssignmentsHeading">Kullanıcılar ve rol değişikliği</h2>
             <p class="lead">
-              Mevcut kullanıcıların rolü, departmanı ve zorunlu 2FA tercihi kontrollü biçimde güncellenir.
+              Mevcut kullanıcıların rolü (yetki seviyesi), departmanı (organizasyon birimi) ve zorunlu 2FA tercihi kontrollü biçimde güncellenir.
             </p>
             <div id="assignmentRows" class="assignment-list" aria-live="polite"></div>
           </section>
@@ -1035,7 +1098,7 @@
         ]
       },
       SALES: {
-        label: "Satış",
+        label: "Satış Yetkilisi",
         description: "Misafir iletişimi ve konaklama rezervasyon taleplerini yönetir. Sistem ayarları, debug ve entegrasyon ekranlarına erişmez.",
         scope: "Kendi oteli",
         riskProfile: "Orta",
@@ -1054,7 +1117,7 @@
         ]
       },
       OPS: {
-        label: "Operasyon",
+        label: "Operasyon Yetkilisi",
         description: "Transfer akışı, operasyon ticketları ve günlük takip işlerini yönetir. Fiyat, otel politikası ve entegrasyon ayarlarını değiştiremez.",
         scope: "Kendi oteli",
         riskProfile: "Orta",
@@ -1072,7 +1135,7 @@
         ]
       },
       RESTAURANT: {
-        label: "Restoran",
+        label: "Restoran Yetkilisi",
         description: "Restoran rezervasyonlarını, masa planını ve servis durumlarını yönetir. Konaklama, transfer ve sistem ayarlarına erişmez.",
         scope: "Kendi oteli",
         riskProfile: "Orta",
@@ -1305,13 +1368,13 @@
 
     function renderRoleOptions(selectedKey) {
       return Object.entries(roles).map(([key, role]) => `
-        <option value="${escapeHtml(key)}" ${key === selectedKey ? "selected" : ""}>${escapeHtml(role.label)}</option>
+        <option value="${escapeHtml(key)}" ${key === selectedKey ? "selected" : ""}>${escapeHtml(`Rol: ${role.label}`)}</option>
       `).join("");
     }
 
     function renderDepartmentOptions(selectedDepartment) {
       return departments.map((department) => `
-        <option value="${escapeHtml(department)}" ${department === selectedDepartment ? "selected" : ""}>${escapeHtml(department)}</option>
+        <option value="${escapeHtml(department)}" ${department === selectedDepartment ? "selected" : ""}>${escapeHtml(`Departman: ${department}`)}</option>
       `).join("");
     }
 
@@ -1348,17 +1411,19 @@
           </div>
           <div class="assignment-controls">
             <div class="assignment-grid">
-              <label class="field" for="roleFor-${escapeHtml(user.id)}">
-                <span>Rol</span>
+              <label class="field role-field" for="roleFor-${escapeHtml(user.id)}">
+                <span>Rol (Yetki)</span>
                 <select id="roleFor-${escapeHtml(user.id)}" data-user-role="${escapeHtml(user.id)}">
                   ${renderRoleOptions(user.roleKey)}
                 </select>
+                <small class="field-note">Kullanıcının erişebileceği ekranları ve işlemleri belirler.</small>
               </label>
-              <label class="field" for="departmentFor-${escapeHtml(user.id)}">
-                <span>Departman</span>
+              <label class="field department-field" for="departmentFor-${escapeHtml(user.id)}">
+                <span>Departman (Birim)</span>
                 <select id="departmentFor-${escapeHtml(user.id)}" data-user-department="${escapeHtml(user.id)}">
                   ${renderDepartmentOptions(user.department)}
                 </select>
+                <small class="field-note">Kullanıcının operasyonel olarak bağlı olduğu ekibi gösterir.</small>
               </label>
             </div>
             <label class="mini-check" for="twoFactorFor-${escapeHtml(user.id)}">
