@@ -797,7 +797,7 @@
           <section class="info-card card-create" aria-labelledby="userCreationHeading">
             <h2 id="userCreationHeading">Yeni kullanıcı oluştur</h2>
             <p class="lead">
-              Kullanıcı adı, geçici parola, rol (yetki seviyesi), departman (organizasyon birimi) ve zorunlu 2FA tercihini tek adımda tanımlayın.
+              Kullanıcı adı, geçici parola, rol (yetki şablonu), departman (otel içi birim) ve zorunlu 2FA tercihini tek adımda tanımlayın.
             </p>
             <form id="userCreationForm" class="assignment-form">
               <label class="field" for="newUsername">
@@ -816,16 +816,19 @@
               </div>
               <div class="form-grid two-column role-department-grid">
                 <label class="field role-field" for="newUserRole">
-                  <span>Rol (Yetki seviyesi)</span>
+                  <span>Rol (Yetki şablonu)</span>
                   <select id="newUserRole"></select>
-                  <small class="field-note">Ekran ve işlem izinlerini belirler.</small>
+                  <small class="field-note">Kullanıcının panelde hangi ekranlara ve işlemlere erişebileceğini belirler.</small>
                 </label>
                 <label class="field department-field" for="newUserDepartment">
-                  <span>Departman (Organizasyon birimi)</span>
+                  <span>Departman (Otel içi birim)</span>
                   <select id="newUserDepartment"></select>
-                  <small class="field-note">Kullanıcının bağlı olduğu ekip alanını belirler.</small>
+                  <small class="field-note">Kullanıcının otel organizasyonunda hangi ekibe bağlı olduğunu gösterir.</small>
                 </label>
               </div>
+              <p class="field-help">
+                Aynı departmanda farklı roller olabilir. Örneğin iki kullanıcı da Yiyecek ve İçecek departmanında olup biri müdür, diğeri personel rolünde tanımlanabilir.
+              </p>
               <label class="security-option" for="newUserTwoFactor">
                 <input id="newUserTwoFactor" type="checkbox" checked />
                 <span>
@@ -843,13 +846,13 @@
           <section class="info-card card-roles" aria-labelledby="existingRolesHeading">
             <h2 id="existingRolesHeading">Mevcut roller</h2>
             <p class="lead">
-              Sistemde tanımlı roller, kapsamları ve hangi kullanıcılara atandıkları tek bakışta görünür.
+              Buradaki roller departmandan bağımsız yetki şablonlarıdır. Hangi ekibe bağlı olunursa olunsun, rol kullanıcının erişim seviyesini tanımlar.
             </p>
             <table class="compact-table">
               <thead>
                 <tr>
                   <th>Rol</th>
-                  <th>Kapsam</th>
+                  <th>Yetki kapsamı</th>
                   <th>Atanan kullanıcılar</th>
                 </tr>
               </thead>
@@ -860,7 +863,10 @@
           <section class="info-card card-changes" aria-labelledby="currentAssignmentsHeading">
             <h2 id="currentAssignmentsHeading">Kullanıcılar ve rol değişikliği</h2>
             <p class="lead">
-              Mevcut kullanıcıların rolü (yetki seviyesi), departmanı (organizasyon birimi) ve zorunlu 2FA tercihi kontrollü biçimde güncellenir.
+              Mevcut kullanıcıların rolü (yetki şablonu), departmanı (otel içi birim) ve zorunlu 2FA tercihi kontrollü biçimde güncellenir.
+            </p>
+            <p class="field-help">
+              Rol, izin seviyesini; departman ise kullanıcının otel operasyonunda hangi birimde çalıştığını gösterir.
             </p>
             <div id="assignmentRows" class="assignment-list" aria-live="polite"></div>
           </section>
@@ -1069,9 +1075,9 @@
 
     const roles = {
       HOTEL_ADMIN: {
-        label: "Hotel Admin",
-        description: "Otelin günlük yönetiminden ve operasyonel ayarlarından sorumludur. Kritik sistem ve entegrasyon izinleri ayrı dikkat gerektirir.",
-        scope: "Kendi oteli",
+        label: "Otel Yöneticisi",
+        description: "Otel genelindeki tüm operasyon, onay ve kritik ayar alanlarını yönetir. Son karar ve yüksek riskli erişimler bu rolde toplanır.",
+        scope: "Otel geneli + kritik ayarlar",
         riskProfile: "Yüksek",
         defaults: [
           "dashboard.page.access",
@@ -1094,13 +1100,43 @@
           "ticket.read",
           "ticket.write",
           "hotel_profile.write",
+          "whatsapp.manage",
+          "system.read",
+          "debug.run"
+        ]
+      },
+      DEPARTMENT_MANAGER: {
+        label: "Departman Müdürü",
+        description: "Bağlı olduğu departmanın iş akışlarını, atamalarını ve onay süreçlerini yönetir. Kritik sistem ve entegrasyon ayarlarına erişmez.",
+        scope: "Departman geneli",
+        riskProfile: "Orta-Yüksek",
+        defaults: [
+          "dashboard.page.access",
+          "dashboard.metrics.read",
+          "conversation.page.access",
+          "conversation.read",
+          "conversation.reply",
+          "conversation.assign",
+          "hold.stay.page.access",
+          "hold.stay.read",
+          "hold.stay.approve",
+          "hold.stay.reject",
+          "hold.restaurant.page.access",
+          "hold.restaurant.read",
+          "hold.restaurant.manage",
+          "hold.transfer.page.access",
+          "hold.transfer.read",
+          "hold.transfer.manage",
+          "ticket.page.access",
+          "ticket.read",
+          "ticket.write",
           "system.read"
         ]
       },
-      SALES: {
-        label: "Satış Yetkilisi",
-        description: "Misafir iletişimi ve konaklama rezervasyon taleplerini yönetir. Sistem ayarları, debug ve entegrasyon ekranlarına erişmez.",
-        scope: "Kendi oteli",
+      SUPERVISOR: {
+        label: "Süpervizör",
+        description: "Vardiya operasyonunu takip eder, günlük kayıtları günceller ve ekip içi koordinasyonu sağlar. Kritik politika ve sistem ayarlarını değiştiremez.",
+        scope: "Vardiya / ekip bazlı",
         riskProfile: "Orta",
         defaults: [
           "dashboard.page.access",
@@ -1110,48 +1146,40 @@
           "conversation.reply",
           "hold.stay.page.access",
           "hold.stay.read",
-          "hold.stay.approve",
-          "hold.stay.reject",
-          "ticket.page.access",
-          "ticket.read"
-        ]
-      },
-      OPS: {
-        label: "Operasyon Yetkilisi",
-        description: "Transfer akışı, operasyon ticketları ve günlük takip işlerini yönetir. Fiyat, otel politikası ve entegrasyon ayarlarını değiştiremez.",
-        scope: "Kendi oteli",
-        riskProfile: "Orta",
-        defaults: [
-          "dashboard.page.access",
-          "dashboard.metrics.read",
-          "conversation.page.access",
-          "conversation.read",
+          "hold.restaurant.page.access",
+          "hold.restaurant.read",
+          "hold.restaurant.manage",
           "hold.transfer.page.access",
           "hold.transfer.read",
-          "hold.transfer.manage",
           "ticket.page.access",
           "ticket.read",
           "ticket.write"
         ]
       },
-      RESTAURANT: {
-        label: "Restoran Yetkilisi",
-        description: "Restoran rezervasyonlarını, masa planını ve servis durumlarını yönetir. Konaklama, transfer ve sistem ayarlarına erişmez.",
-        scope: "Kendi oteli",
-        riskProfile: "Orta",
+      STAFF: {
+        label: "Departman Personeli",
+        description: "Kendisine açılan ekranlarda günlük operasyonu yürütür. Onay, red ve kritik ayar yetkileri sınırlandırılmıştır.",
+        scope: "Atanmış ekranlar",
+        riskProfile: "Düşük-Orta",
         defaults: [
           "dashboard.page.access",
+          "conversation.page.access",
+          "conversation.read",
+          "conversation.reply",
+          "hold.stay.page.access",
+          "hold.stay.read",
           "hold.restaurant.page.access",
           "hold.restaurant.read",
-          "hold.restaurant.manage",
+          "hold.transfer.page.access",
+          "hold.transfer.read",
           "ticket.page.access",
           "ticket.read"
         ]
       },
-      VIEWER: {
-        label: "İzleyici",
-        description: "Panel verilerini takip eder ancak hiçbir kayıt üzerinde değişiklik yapamaz. Denetim, eğitim ve yönetim görünürlüğü için uygundur.",
-        scope: "Kendi oteli",
+      AUDITOR: {
+        label: "İzleyici / Denetim",
+        description: "Panel verilerini ve akışları takip eder ancak kayıtlar üzerinde değişiklik yapamaz. Denetim, eğitim ve raporlama için uygundur.",
+        scope: "Salt okunur",
         riskProfile: "Düşük",
         defaults: [
           "dashboard.page.access",
@@ -1170,48 +1198,67 @@
       }
     };
 
-    const departments = ["Yönetim", "Satış", "Operasyon", "Restoran", "Denetim"];
+    const departments = [
+      "Yönetim",
+      "Ön Büro / Resepsiyon",
+      "Rezervasyon ve Satış",
+      "Misafir İlişkileri / Concierge",
+      "Yiyecek ve İçecek",
+      "Kat Hizmetleri",
+      "Teknik Servis",
+      "Muhasebe / Finans",
+      "Güvenlik"
+    ];
 
     const adminUsers = [
       {
+        id: "user-management-01",
+        username: "yonetim01",
+        displayName: "Genel Müdür Yardımcısı",
+        department: "Yönetim",
+        roleKey: "HOTEL_ADMIN",
+        twoFactorRequired: true,
+        status: "Aktif"
+      },
+      {
+        id: "user-frontoffice-01",
+        username: "onburo01",
+        displayName: "Ön Büro Şefi",
+        department: "Ön Büro / Resepsiyon",
+        roleKey: "DEPARTMENT_MANAGER",
+        twoFactorRequired: true,
+        status: "Aktif"
+      },
+      {
         id: "user-sales-01",
-        username: "satis01",
-        displayName: "Satış Personeli",
-        department: "Satış",
-        roleKey: "SALES",
+        username: "rezervasyon01",
+        displayName: "Rezervasyon Uzmanı",
+        department: "Rezervasyon ve Satış",
+        roleKey: "STAFF",
         twoFactorRequired: true,
         status: "Aktif"
       },
       {
-        id: "user-ops-01",
-        username: "operasyon01",
-        displayName: "Operasyon Personeli",
-        department: "Operasyon",
-        roleKey: "OPS",
+        id: "user-fnb-01",
+        username: "fbmudur01",
+        displayName: "F&B Müdürü",
+        department: "Yiyecek ve İçecek",
+        roleKey: "DEPARTMENT_MANAGER",
         twoFactorRequired: true,
         status: "Aktif"
       },
       {
-        id: "user-restaurant-01",
-        username: "restoran01",
-        displayName: "Restoran Personeli",
-        department: "Restoran",
-        roleKey: "RESTAURANT",
-        twoFactorRequired: true,
-        status: "Aktif"
-      },
-      {
-        id: "user-viewer-01",
+        id: "user-audit-01",
         username: "denetim01",
-        displayName: "Denetim Kullanıcısı",
-        department: "Denetim",
-        roleKey: "VIEWER",
+        displayName: "İç Denetim Kullanıcısı",
+        department: "Muhasebe / Finans",
+        roleKey: "AUDITOR",
         twoFactorRequired: false,
         status: "Aktif"
       }
     ];
 
-    let selectedRoleKey = "SALES";
+    let selectedRoleKey = "DEPARTMENT_MANAGER";
     let selectedPermissions = new Set(roles[selectedRoleKey].defaults);
     let nextUserNumber = adminUsers.length + 1;
 
@@ -1380,7 +1427,7 @@
 
     function renderUserCreationControls() {
       newUserRoleSelect.innerHTML = renderRoleOptions(selectedRoleKey);
-      newUserDepartmentSelect.innerHTML = renderDepartmentOptions("Satış");
+      newUserDepartmentSelect.innerHTML = renderDepartmentOptions("Ön Büro / Resepsiyon");
     }
 
     function renderExistingRoles() {
@@ -1412,18 +1459,18 @@
           <div class="assignment-controls">
             <div class="assignment-grid">
               <label class="field role-field" for="roleFor-${escapeHtml(user.id)}">
-                <span>Rol (Yetki)</span>
+                <span>Rol (Yetki şablonu)</span>
                 <select id="roleFor-${escapeHtml(user.id)}" data-user-role="${escapeHtml(user.id)}">
                   ${renderRoleOptions(user.roleKey)}
                 </select>
-                <small class="field-note">Kullanıcının erişebileceği ekranları ve işlemleri belirler.</small>
+                <small class="field-note">Kullanıcının erişebileceği ekranları, akışları ve işlemleri belirler.</small>
               </label>
               <label class="field department-field" for="departmentFor-${escapeHtml(user.id)}">
-                <span>Departman (Birim)</span>
+                <span>Departman (Otel birimi)</span>
                 <select id="departmentFor-${escapeHtml(user.id)}" data-user-department="${escapeHtml(user.id)}">
                   ${renderDepartmentOptions(user.department)}
                 </select>
-                <small class="field-note">Kullanıcının operasyonel olarak bağlı olduğu ekibi gösterir.</small>
+                <small class="field-note">Kullanıcının organizasyonda hangi departmana bağlı olduğunu gösterir.</small>
               </label>
             </div>
             <label class="mini-check" for="twoFactorFor-${escapeHtml(user.id)}">
@@ -1529,7 +1576,7 @@
       renderUserCreationControls();
       renderExistingRoles();
       renderAssignments();
-      showToast(`${username} kullanıcısı oluşturuldu ve ${role.label} rolü atandı.`);
+      showToast(`${username} kullanıcısı oluşturuldu. Rol: ${role.label}, Departman: ${department}.`);
     });
 
     assignmentRows.addEventListener("click", (event) => {
@@ -1561,7 +1608,7 @@
 
       renderExistingRoles();
       renderAssignments();
-      showToast(`${user.username} için rol ve 2FA ayarı güncellendi.`);
+      showToast(`${user.username} için rol, departman ve 2FA ayarı güncellendi.`);
     });
 
     render();
