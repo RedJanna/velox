@@ -371,6 +371,7 @@
       font-weight: 700;
     }
 
+    .field input,
     .field select {
       width: 100%;
       min-height: 40px;
@@ -379,6 +380,50 @@
       background: #ffffff;
       color: var(--text);
       padding: 8px 10px;
+    }
+
+    .field-help {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .form-grid.two-column {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .security-option {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+      padding: 12px;
+    }
+
+    .security-option input {
+      width: 18px;
+      height: 18px;
+      margin-top: 2px;
+      accent-color: var(--brand);
+    }
+
+    .security-option strong,
+    .security-option span {
+      display: block;
+    }
+
+    .security-option span {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
     }
 
     .compact-table {
@@ -411,6 +456,52 @@
       padding: 2px 8px;
       font-size: 11px;
       font-weight: 750;
+    }
+
+    .status-pill.neutral {
+      background: #eef2f6;
+      color: #46515c;
+    }
+
+    .role-user-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .row-controls {
+      display: grid;
+      gap: 8px;
+    }
+
+    .row-control-line {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 8px;
+    }
+
+    .row-controls select {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--text);
+      padding: 6px 8px;
+      font-size: 12px;
+    }
+
+    .mini-check {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .mini-check input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--brand);
     }
 
     .selected-list {
@@ -473,6 +564,11 @@
 
       .permission-row {
         padding-left: 18px;
+      }
+
+      .form-grid.two-column,
+      .row-control-line {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -565,39 +661,59 @@
             </p>
           </section>
 
-          <section class="info-card" aria-labelledby="assignmentHeading">
-            <h2 id="assignmentHeading">Rol atama</h2>
+          <section class="info-card" aria-labelledby="userCreationHeading">
+            <h2 id="userCreationHeading">Yeni kullanıcı oluştur</h2>
             <p class="lead">
-              Seçilen personele hangi rolün, hangi departman ve otel kapsamında atanacağını belirleyin.
+              Kullanıcı adı, geçici parola, rol, departman ve zorunlu 2FA tercihini tek adımda tanımlayın.
             </p>
-            <form id="roleAssignmentForm" class="assignment-form">
-              <label class="field" for="assignmentUser">
-                <span>Personel</span>
-                <select id="assignmentUser"></select>
+            <form id="userCreationForm" class="assignment-form">
+              <label class="field" for="newUsername">
+                <span>Kullanıcı adı</span>
+                <input id="newUsername" type="text" autocomplete="off" placeholder="ornek.kullanici" />
               </label>
-              <label class="field" for="assignmentRole">
-                <span>Atanacak rol</span>
-                <select id="assignmentRole"></select>
+              <div class="form-grid two-column">
+                <label class="field" for="newPassword">
+                  <span>Geçici parola</span>
+                  <input id="newPassword" type="password" autocomplete="new-password" placeholder="En az 12 karakter" />
+                </label>
+                <label class="field" for="newPasswordConfirm">
+                  <span>Parola tekrarı</span>
+                  <input id="newPasswordConfirm" type="password" autocomplete="new-password" placeholder="Tekrar girin" />
+                </label>
+              </div>
+              <label class="field" for="newUserRole">
+                <span>Başlangıç rolü</span>
+                <select id="newUserRole"></select>
               </label>
-              <label class="field" for="assignmentDepartment">
+              <label class="field" for="newUserDepartment">
                 <span>Departman</span>
-                <select id="assignmentDepartment"></select>
+                <select id="newUserDepartment"></select>
               </label>
-              <button class="button primary" type="submit">Rolü ata</button>
+              <label class="security-option" for="newUserTwoFactor">
+                <input id="newUserTwoFactor" type="checkbox" checked />
+                <span>
+                  <strong>Zorunlu 2FA giriş</strong>
+                  <span>Kullanıcı ilk girişte TOTP/Authenticator doğrulaması yapmadan panele giremez.</span>
+                </span>
+              </label>
+              <button class="button primary" type="submit">Kullanıcı oluştur ve rol ata</button>
+              <p class="field-help">
+                Önizleme modunda parola saklanmaz. Backend entegrasyonunda parola hashlenmeli, 2FA sırrı ayrı güvenli alanda oluşturulmalıdır.
+              </p>
             </form>
           </section>
 
           <section class="info-card" aria-labelledby="existingRolesHeading">
             <h2 id="existingRolesHeading">Mevcut roller</h2>
             <p class="lead">
-              Tanımlı roller, kapsamları ve örnek kullanıcı sayıları tek bakışta görünür.
+              Sistemde tanımlı roller, kapsamları ve hangi kullanıcılara atandıkları tek bakışta görünür.
             </p>
             <table class="compact-table">
               <thead>
                 <tr>
                   <th>Rol</th>
                   <th>Kapsam</th>
-                  <th>Kullanıcı</th>
+                  <th>Atanan kullanıcılar</th>
                 </tr>
               </thead>
               <tbody id="existingRoleRows"></tbody>
@@ -605,16 +721,16 @@
           </section>
 
           <section class="info-card" aria-labelledby="currentAssignmentsHeading">
-            <h2 id="currentAssignmentsHeading">Mevcut rol atamaları</h2>
+            <h2 id="currentAssignmentsHeading">Kullanıcılar ve rol değişikliği</h2>
             <p class="lead">
-              Aktif atamalar personel, rol ve departman kırılımıyla izlenir.
+              Mevcut kullanıcıların rolü, departmanı ve zorunlu 2FA tercihi kontrollü biçimde güncellenir.
             </p>
             <table class="compact-table">
               <thead>
                 <tr>
-                  <th>Personel</th>
-                  <th>Rol</th>
-                  <th>Durum</th>
+                  <th>Kullanıcı</th>
+                  <th>Rol / departman</th>
+                  <th>Güvenlik</th>
                 </tr>
               </thead>
               <tbody id="assignmentRows"></tbody>
@@ -928,31 +1044,60 @@
 
     const departments = ["Yönetim", "Satış", "Operasyon", "Restoran", "Denetim"];
 
-    const assignableUsers = [
-      { id: "user-sales-01", label: "Satış Personeli", department: "Satış" },
-      { id: "user-ops-01", label: "Operasyon Personeli", department: "Operasyon" },
-      { id: "user-restaurant-01", label: "Restoran Personeli", department: "Restoran" },
-      { id: "user-viewer-01", label: "Denetim Kullanıcısı", department: "Denetim" }
-    ];
-
-    const roleAssignments = [
-      { userId: "user-sales-01", roleKey: "SALES", department: "Satış", status: "Aktif" },
-      { userId: "user-ops-01", roleKey: "OPS", department: "Operasyon", status: "Aktif" },
-      { userId: "user-restaurant-01", roleKey: "RESTAURANT", department: "Restoran", status: "Aktif" },
-      { userId: "user-viewer-01", roleKey: "VIEWER", department: "Denetim", status: "Aktif" }
+    const adminUsers = [
+      {
+        id: "user-sales-01",
+        username: "satis01",
+        displayName: "Satış Personeli",
+        department: "Satış",
+        roleKey: "SALES",
+        twoFactorRequired: true,
+        status: "Aktif"
+      },
+      {
+        id: "user-ops-01",
+        username: "operasyon01",
+        displayName: "Operasyon Personeli",
+        department: "Operasyon",
+        roleKey: "OPS",
+        twoFactorRequired: true,
+        status: "Aktif"
+      },
+      {
+        id: "user-restaurant-01",
+        username: "restoran01",
+        displayName: "Restoran Personeli",
+        department: "Restoran",
+        roleKey: "RESTAURANT",
+        twoFactorRequired: true,
+        status: "Aktif"
+      },
+      {
+        id: "user-viewer-01",
+        username: "denetim01",
+        displayName: "Denetim Kullanıcısı",
+        department: "Denetim",
+        roleKey: "VIEWER",
+        twoFactorRequired: false,
+        status: "Aktif"
+      }
     ];
 
     let selectedRoleKey = "SALES";
     let selectedPermissions = new Set(roles[selectedRoleKey].defaults);
+    let nextUserNumber = adminUsers.length + 1;
 
     const roleList = document.getElementById("roleList");
     const permissionTree = document.getElementById("permissionTree");
     const selectedPermissionList = document.getElementById("selectedPermissionList");
     const existingRoleRows = document.getElementById("existingRoleRows");
     const assignmentRows = document.getElementById("assignmentRows");
-    const assignmentUserSelect = document.getElementById("assignmentUser");
-    const assignmentRoleSelect = document.getElementById("assignmentRole");
-    const assignmentDepartmentSelect = document.getElementById("assignmentDepartment");
+    const newUsernameInput = document.getElementById("newUsername");
+    const newPasswordInput = document.getElementById("newPassword");
+    const newPasswordConfirmInput = document.getElementById("newPasswordConfirm");
+    const newUserRoleSelect = document.getElementById("newUserRole");
+    const newUserDepartmentSelect = document.getElementById("newUserDepartment");
+    const newUserTwoFactorInput = document.getElementById("newUserTwoFactor");
     const toast = document.getElementById("toast");
 
     function escapeHtml(value) {
@@ -1093,45 +1238,75 @@
         : '<li>Bu rol için aktif izin yok.</li>';
     }
 
-    function renderAssignmentControls() {
-      assignmentUserSelect.innerHTML = assignableUsers.map((user) => `
-        <option value="${escapeHtml(user.id)}">${escapeHtml(user.label)} - ${escapeHtml(user.department)}</option>
+    function renderRoleOptions(selectedKey) {
+      return Object.entries(roles).map(([key, role]) => `
+        <option value="${escapeHtml(key)}" ${key === selectedKey ? "selected" : ""}>${escapeHtml(role.label)}</option>
       `).join("");
+    }
 
-      assignmentRoleSelect.innerHTML = Object.entries(roles).map(([key, role]) => `
-        <option value="${escapeHtml(key)}" ${key === selectedRoleKey ? "selected" : ""}>${escapeHtml(role.label)}</option>
+    function renderDepartmentOptions(selectedDepartment) {
+      return departments.map((department) => `
+        <option value="${escapeHtml(department)}" ${department === selectedDepartment ? "selected" : ""}>${escapeHtml(department)}</option>
       `).join("");
+    }
 
-      assignmentDepartmentSelect.innerHTML = departments.map((department) => `
-        <option value="${escapeHtml(department)}">${escapeHtml(department)}</option>
-      `).join("");
+    function renderUserCreationControls() {
+      newUserRoleSelect.innerHTML = renderRoleOptions(selectedRoleKey);
+      newUserDepartmentSelect.innerHTML = renderDepartmentOptions("Satış");
     }
 
     function renderExistingRoles() {
       existingRoleRows.innerHTML = Object.entries(roles).map(([key, role]) => {
-        const userCount = roleAssignments.filter((assignment) => assignment.roleKey === key).length;
+        const assignedUsers = adminUsers.filter((user) => user.roleKey === key);
+        const assignedMarkup = assignedUsers.length
+          ? `<div class="role-user-list">${assignedUsers.map((user) => `<span class="status-pill neutral">${escapeHtml(user.username)}</span>`).join("")}</div>`
+          : '<span class="muted">Henüz atanmamış</span>';
         return `
           <tr>
             <td><strong>${escapeHtml(role.label)}</strong></td>
             <td>${escapeHtml(role.scope)}</td>
-            <td>${userCount}</td>
+            <td>${assignedMarkup}</td>
           </tr>
         `;
       }).join("");
     }
 
     function renderAssignments() {
-      assignmentRows.innerHTML = roleAssignments.map((assignment) => {
-        const user = assignableUsers.find((item) => item.id === assignment.userId);
-        const role = roles[assignment.roleKey];
-        return `
-          <tr>
-            <td>${escapeHtml(user?.label || "Bilinmeyen kullanıcı")}<br><span class="muted">${escapeHtml(assignment.department)}</span></td>
-            <td>${escapeHtml(role?.label || assignment.roleKey)}</td>
-            <td><span class="status-pill">${escapeHtml(assignment.status)}</span></td>
-          </tr>
-        `;
-      }).join("");
+      assignmentRows.innerHTML = adminUsers.map((user) => `
+        <tr>
+          <td>
+            <strong>${escapeHtml(user.displayName)}</strong><br>
+            <span class="muted">@${escapeHtml(user.username)}</span><br>
+            <span class="status-pill">${escapeHtml(user.status)}</span>
+          </td>
+          <td>
+            <div class="row-controls">
+              <div class="row-control-line">
+                <label class="field" for="roleFor-${escapeHtml(user.id)}">
+                  <span>Rol</span>
+                  <select id="roleFor-${escapeHtml(user.id)}" data-user-role="${escapeHtml(user.id)}">
+                    ${renderRoleOptions(user.roleKey)}
+                  </select>
+                </label>
+                <label class="field" for="departmentFor-${escapeHtml(user.id)}">
+                  <span>Departman</span>
+                  <select id="departmentFor-${escapeHtml(user.id)}" data-user-department="${escapeHtml(user.id)}">
+                    ${renderDepartmentOptions(user.department)}
+                  </select>
+                </label>
+              </div>
+              <button class="button" type="button" data-update-user="${escapeHtml(user.id)}">Değişikliği kaydet</button>
+            </div>
+          </td>
+          <td>
+            <label class="mini-check" for="twoFactorFor-${escapeHtml(user.id)}">
+              <input id="twoFactorFor-${escapeHtml(user.id)}" type="checkbox" data-user-2fa="${escapeHtml(user.id)}" ${user.twoFactorRequired ? "checked" : ""} />
+              Zorunlu 2FA
+            </label>
+            <p class="field-help">Rol değişikliği kaydedildiğinde 2FA tercihi de birlikte güncellenir.</p>
+          </td>
+        </tr>
+      `).join("");
     }
 
     function showToast(message) {
@@ -1145,7 +1320,7 @@
       renderHeader();
       renderPermissionTree();
       renderSummary();
-      renderAssignmentControls();
+      renderUserCreationControls();
       renderExistingRoles();
       renderAssignments();
     }
@@ -1161,32 +1336,105 @@
       showToast("Önizleme kaydedildi. Backend bağlantısı eklendiğinde bu izinler API'ye gönderilecek.");
     });
 
-    document.getElementById("roleAssignmentForm").addEventListener("submit", (event) => {
+    function normalizeUsername(value) {
+      return value.trim().toLowerCase();
+    }
+
+    function passwordLooksStrong(password) {
+      return password.length >= 12
+        && /[a-z]/.test(password)
+        && /[A-Z]/.test(password)
+        && /[0-9]/.test(password);
+    }
+
+    document.getElementById("userCreationForm").addEventListener("submit", (event) => {
       event.preventDefault();
 
-      const userId = assignmentUserSelect.value;
-      const roleKey = assignmentRoleSelect.value;
-      const department = assignmentDepartmentSelect.value;
-      const user = assignableUsers.find((item) => item.id === userId);
+      const username = normalizeUsername(newUsernameInput.value);
+      const password = newPasswordInput.value;
+      const passwordConfirm = newPasswordConfirmInput.value;
+      const roleKey = newUserRoleSelect.value;
+      const department = newUserDepartmentSelect.value;
       const role = roles[roleKey];
 
-      if (!user || !role) {
-        showToast("Rol ataması için geçerli personel ve rol seçilmelidir.");
+      if (!username || username.length < 3) {
+        showToast("Kullanıcı adı en az 3 karakter olmalıdır.");
         return;
       }
 
-      const existing = roleAssignments.find((assignment) => assignment.userId === userId);
-      if (existing) {
-        existing.roleKey = roleKey;
-        existing.department = department;
-        existing.status = "Aktif";
-      } else {
-        roleAssignments.push({ userId, roleKey, department, status: "Aktif" });
+      if (!/^[a-z0-9._-]+$/.test(username)) {
+        showToast("Kullanıcı adı yalnızca küçük harf, rakam, nokta, tire ve alt çizgi içerebilir.");
+        return;
       }
+
+      if (adminUsers.some((user) => user.username.toLowerCase() === username)) {
+        showToast("Bu kullanıcı adı zaten tanımlı.");
+        return;
+      }
+
+      if (!passwordLooksStrong(password)) {
+        showToast("Geçici parola en az 12 karakter, büyük/küçük harf ve rakam içermelidir.");
+        return;
+      }
+
+      if (password !== passwordConfirm) {
+        showToast("Parola ve parola tekrarı eşleşmiyor.");
+        return;
+      }
+
+      if (!role || !departments.includes(department)) {
+        showToast("Kullanıcı için geçerli rol ve departman seçilmelidir.");
+        return;
+      }
+
+      adminUsers.push({
+        id: `user-created-${nextUserNumber++}`,
+        username,
+        displayName: username,
+        department,
+        roleKey,
+        twoFactorRequired: newUserTwoFactorInput.checked,
+        status: "Aktif"
+      });
+
+      event.currentTarget.reset();
+      newUserTwoFactorInput.checked = true;
+      renderUserCreationControls();
+      renderExistingRoles();
+      renderAssignments();
+      showToast(`${username} kullanıcısı oluşturuldu ve ${role.label} rolü atandı.`);
+    });
+
+    assignmentRows.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-update-user]");
+      if (!button) {
+        return;
+      }
+
+      const userId = button.dataset.updateUser;
+      const user = adminUsers.find((item) => item.id === userId);
+      const roleSelect = document.getElementById(`roleFor-${userId}`);
+      const departmentSelect = document.getElementById(`departmentFor-${userId}`);
+      const twoFactorInput = document.getElementById(`twoFactorFor-${userId}`);
+
+      if (!user || !roleSelect || !departmentSelect || !twoFactorInput) {
+        showToast("Güncellenecek kullanıcı bulunamadı.");
+        return;
+      }
+
+      const role = roles[roleSelect.value];
+      if (!role || !departments.includes(departmentSelect.value)) {
+        showToast("Geçerli rol ve departman seçilmelidir.");
+        return;
+      }
+
+      user.roleKey = roleSelect.value;
+      user.department = departmentSelect.value;
+      user.twoFactorRequired = twoFactorInput.checked;
 
       renderExistingRoles();
       renderAssignments();
-      showToast(`${user.label} için ${role.label} rolü atandı.`);
+      showToast(`${user.username} için rol ve 2FA ayarı güncellendi.`);
     });
 
     render();
