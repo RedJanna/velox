@@ -19,6 +19,7 @@ from velox.api.middleware.debug_report_only import ReportOnlyDebugMiddleware
 from velox.api.middleware.rate_limiter import RateLimitMiddleware
 from velox.api.routes import (
     admin,
+    admin_access_control,
     admin_debug,
     admin_holds,
     admin_panel_ui,
@@ -229,6 +230,7 @@ app.add_middleware(ReportOnlyDebugMiddleware)
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(health.metrics_router)
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(admin_access_control.router, prefix="/api/v1")
 app.include_router(admin_debug.router, prefix="/api/v1")
 app.include_router(admin_holds.router, prefix="/api/v1")
 app.include_router(admin_portal.router, prefix="/api/v1")

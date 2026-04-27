@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from velox.api.middleware.auth import TokenData, TokenResponse, create_access_token, get_current_user
 from velox.config.constants import Role
 from velox.config.settings import settings
+from velox.core.admin_access_control import normalize_department_code
 from velox.utils.admin_security import (
     ACCESS_COOKIE_NAME,
     DEFAULT_SESSION_PRESET,
@@ -181,7 +182,7 @@ async def update_admin_session_preferences(
 
         admin_row = await conn.fetchrow(
             """
-            SELECT id, hotel_id, username, display_name, role, totp_secret, is_active
+            SELECT id, hotel_id, username, display_name, role, department_code, totp_secret, is_active
             FROM admin_users
             WHERE id = $1
             """,
@@ -318,4 +319,8 @@ def _token_data_from_record(record: dict[str, Any]) -> TokenData:
         username=str(record["username"]),
         role=Role(str(record["role"])),
         display_name=str(record["display_name"]) if record.get("display_name") else None,
+        department_code=normalize_department_code(
+            str(record.get("department_code") or "") or None,
+            role=Role(str(record["role"])),
+        ),
     )

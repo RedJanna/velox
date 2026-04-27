@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v5.9 | **Son güncelleme:** 2026-04-26 20:03:23
-> **Değişiklik özeti:** Özel gün talepleri için yeni policy dokümanı kök referanslara eklendi.
+> **Sürüm:** v5.10 | **Son güncelleme:** 2026-04-28 00:05:07
+> **Değişiklik özeti:** Admin kullanıcı, departman ve granular permission altyapısı için yeni access-control modülleri eklendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -513,14 +513,14 @@ Dosyanın en üstündeki sürüm bloğu, her güncelleme sonrası şu formatta g
 src/velox/
 ├── main.py                    # FastAPI entry point
 ├── config/                    # Settings, constants
-├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses, admin debug runner/scan registry, structured-output replay helpers
+├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses, admin debug runner/scan registry, structured-output replay helpers, admin access-control catalog/helpers
 ├── llm/                       # OpenAI client, prompt builder, response parser
 ├── tools/                     # Tool implementations (booking, restaurant, etc.)
 ├── adapters/                  # External service clients (Elektraweb, WhatsApp)
 ├── escalation/                # Risk detection, escalation matrix
 ├── policies/                  # Business rules (approval, payment, cancellation)
 ├── models/                    # Pydantic data models
-├── db/                        # Database connection, repositories, migrations
-├── api/                       # FastAPI routes, middleware, embedded admin/chat-lab UI modules, admin debug/report-only and WhatsApp integration surfaces
+├── db/                        # Database connection, repositories, migrations, admin access-control persistence helpers
+├── api/                       # FastAPI routes, middleware, embedded admin/chat-lab UI modules, admin debug/report-only, access-control, and WhatsApp integration surfaces
 └── utils/                     # Logging, i18n, validators, admin/debug auth helpers, secret encryption, lightweight Prometheus metrics helpers
 ```

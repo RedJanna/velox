@@ -7,11 +7,13 @@ from typing import Annotated, cast
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from velox.api.middleware.debug_report_only import get_debug_session
 from velox.config.constants import Role
 from velox.config.settings import settings
-from velox.api.middleware.debug_report_only import get_debug_session
+from velox.core.admin_access_control import ROLE_PERMISSIONS, build_effective_permissions, default_department_for_role
+from velox.db.repositories.admin_access import fetch_admin_access_context
 from velox.utils.admin_security import ACCESS_COOKIE_NAME, CSRF_COOKIE_NAME, CSRF_HEADER_NAME, SAFE_HTTP_METHODS
 
 
@@ -23,6 +25,8 @@ class TokenData(BaseModel):
     username: str
     role: Role
     display_name: str | None = None
+    department_code: str | None = None
+    permissions: set[str] = Field(default_factory=set)
     debug_report_only: bool = False
     debug_run_id: str | None = None
     auth_source: str = "access_token"
@@ -79,6 +83,8 @@ async def get_current_user(
             username=debug_session.username,
             role=debug_session.role,
             display_name=debug_session.display_name,
+            department_code=default_department_for_role(debug_session.role),
+            permissions=build_effective_permissions(debug_session.role),
             debug_report_only=debug_session.report_only,
             debug_run_id=str(debug_session.run_id),
             auth_source="debug_session",
@@ -97,12 +103,21 @@ async def get_current_user(
         user_id = int(payload.get("sub", 0))
         if user_id == 0:
             raise credentials_exception
+        db = request.app.state.db_pool
+        async with db.acquire() as conn:
+            context = await fetch_admin_access_context(conn, user_id)
+        if context is None:
+            raise credentials_exception
+        if not context.is_active:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
         return TokenData(
-            user_id=user_id,
-            hotel_id=int(payload["hotel_id"]),
-            username=str(payload["username"]),
-            role=Role(payload["role"]),
-            display_name=payload.get("display_name"),
+            user_id=context.user_id,
+            hotel_id=context.hotel_id,
+            username=context.username,
+            role=context.role,
+            display_name=context.display_name,
+            department_code=context.department_code,
+            permissions=context.permissions,
             auth_source="bearer" if credentials is not None else "cookie",
         )
     except (JWTError, KeyError, ValueError) as exc:
@@ -149,51 +164,29 @@ def require_role(
     return role_checker
 
 
-ROLE_PERMISSIONS: dict[Role, set[str]] = {
-    Role.ADMIN: {
-        "hotels:read",
-        "hotels:write",
-        "conversations:read",
-        "holds:read",
-        "holds:approve",
-        "holds:reject",
-        "tickets:read",
-        "tickets:write",
-        "notification_phones:read",
-        "notification_phones:write",
-    },
-    Role.SALES: {
-        "hotels:read",
-        "conversations:read",
-        "holds:read",
-        "holds:approve",
-        "holds:reject",
-        "tickets:read",
-        "notification_phones:read",
-    },
-    Role.OPS: {
-        "hotels:read",
-        "conversations:read",
-        "holds:read",
-        "holds:approve",
-        "holds:reject",
-        "tickets:read",
-        "tickets:write",
-        "notification_phones:read",
-        "notification_phones:write",
-    },
-    Role.CHEF: {
-        "hotels:read",
-        "holds:read",
-        "holds:approve",
-    },
-}
-
-
 def check_permission(user: TokenData, permission: str) -> None:
     """Raise 403 when role lacks requested permission."""
-    if permission not in ROLE_PERMISSIONS.get(user.role, set()):
+    effective_permissions = user.permissions or ROLE_PERMISSIONS.get(user.role, set())
+    if permission not in effective_permissions:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Permission '{permission}' not granted to role '{user.role.value}'",
         )
+
+
+def ensure_hotel_access(user: TokenData, hotel_id: int | object) -> int:
+    """Enforce the hotel boundary for one admin request."""
+    try:
+        requested_hotel_id = int(hotel_id)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied") from exc
+    if requested_hotel_id != user.hotel_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    return requested_hotel_id
+
+
+def resolve_hotel_scope(user: TokenData, requested_hotel_id: int | None) -> int:
+    """Resolve optional hotel filters inside the user's hotel boundary."""
+    if requested_hotel_id is None:
+        return user.hotel_id
+    return ensure_hotel_access(user, requested_hotel_id)

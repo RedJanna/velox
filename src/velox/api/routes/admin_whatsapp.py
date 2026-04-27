@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field, field_validator
 
-from velox.api.middleware.auth import TokenData, require_role
+from velox.api.middleware.auth import TokenData, ensure_hotel_access, require_role
 from velox.config.constants import Role
 from velox.config.settings import settings
 from velox.db.repositories.whatsapp_integration import WhatsAppIntegrationRepository
@@ -119,8 +119,7 @@ def _ensure_hotel_scope(user: TokenData, hotel_id: int) -> None:
     """Allow only admins to manage WhatsApp integration for the selected hotel."""
     if user.role != Role.ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bu ekran sadece ADMIN rolüne açıktır.")
-    if user.hotel_id != hotel_id and user.role != Role.ADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bu otele erişim yetkiniz yok.")
+    ensure_hotel_access(user, hotel_id)
 
 
 def _integration_public_payload(integration: dict[str, Any] | None) -> dict[str, Any] | None:

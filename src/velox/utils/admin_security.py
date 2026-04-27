@@ -187,6 +187,7 @@ async def fetch_trusted_device_record(
             u.username,
             u.display_name,
             u.role,
+            u.department_code,
             u.totp_secret,
             u.is_active
         FROM admin_trusted_devices d

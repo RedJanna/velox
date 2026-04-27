@@ -9,7 +9,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field, field_validator
 
-from velox.api.middleware.auth import ROLE_PERMISSIONS, TokenData, get_current_user
+from velox.api.middleware.auth import TokenData, get_current_user, resolve_hotel_scope
 from velox.api.routes.health import (
     check_db,
     check_elektraweb,
@@ -20,6 +20,7 @@ from velox.api.routes.health import (
 )
 from velox.config.constants import Role
 from velox.config.settings import settings
+from velox.core.admin_access_control import get_department_label, get_role_label
 from velox.utils.passwords import ensure_password_within_bcrypt_limit, hash_password
 from velox.utils.totp import build_otpauth_qr_svg_data_uri, build_otpauth_uri, generate_totp_secret
 
@@ -140,14 +141,26 @@ async def bootstrap_admin_account(body: BootstrapAdminRequest, request: Request)
         password_hash = hash_password(body.password)
         await conn.execute(
             """
-            INSERT INTO admin_users (hotel_id, username, password_hash, role, display_name, totp_secret, is_active)
-            VALUES ($1, $2, $3, $4, $5, $6, true)
+            INSERT INTO admin_users (
+                hotel_id,
+                username,
+                password_hash,
+                role,
+                display_name,
+                department_code,
+                totp_secret,
+                is_active,
+                created_at,
+                updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, true, now(), now())
             """,
             body.hotel_id,
             body.username,
             password_hash,
             Role.ADMIN.value,
             body.display_name,
+            "MANAGEMENT",
             totp_secret,
         )
 
@@ -220,11 +233,15 @@ async def admin_me(
         "hotel_id": user.hotel_id,
         "username": user.username,
         "role": user.role.value,
+        "role_label": get_role_label(user.role),
         "display_name": user.display_name,
+        "department_code": user.department_code,
+        "department_label": get_department_label(user.department_code),
+        "two_factor_required": True,
         "debug_report_only": user.debug_report_only,
         "debug_run_id": user.debug_run_id,
         "auth_source": user.auth_source,
-        "permissions": sorted(ROLE_PERMISSIONS.get(user.role, set())),
+        "permissions": sorted(user.permissions),
         "panel_url": settings.admin_panel_url,
         "public_host": settings.public_host,
     }
@@ -237,7 +254,7 @@ async def admin_dashboard_overview(
     hotel_id: int | None = Query(None),
 ) -> dict[str, Any]:
     """Return cross-module operational summary cards and recent work queues."""
-    effective_hotel_id = hotel_id if user.role == Role.ADMIN else user.hotel_id
+    effective_hotel_id = resolve_hotel_scope(user, hotel_id)
     db = request.app.state.db_pool
 
     async with db.acquire() as conn:

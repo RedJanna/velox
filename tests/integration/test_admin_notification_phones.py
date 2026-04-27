@@ -14,9 +14,73 @@ from velox.config.constants import Role
 from velox.config.settings import settings
 
 
+class _AcquireContext:
+    def __init__(self, connection: "_FakeConnection") -> None:
+        self._connection = connection
+
+    async def __aenter__(self) -> "_FakeConnection":
+        return self._connection
+
+    async def __aexit__(self, exc_type, exc, tb) -> bool:
+        _ = (exc_type, exc, tb)
+        return False
+
+
+class _FakeConnection:
+    def __init__(self) -> None:
+        self.admin_users = {
+            1: {
+                "id": 1,
+                "hotel_id": 21966,
+                "username": "admin",
+                "role": "ADMIN",
+                "display_name": "Admin",
+                "department_code": "MANAGEMENT",
+                "is_active": True,
+            },
+            2: {
+                "id": 2,
+                "hotel_id": 21966,
+                "username": "sales",
+                "role": "SALES",
+                "display_name": "Sales",
+                "department_code": "RESERVATION_SALES",
+                "is_active": True,
+            },
+            3: {
+                "id": 3,
+                "hotel_id": 21966,
+                "username": "ops",
+                "role": "OPS",
+                "display_name": "Ops",
+                "department_code": "FRONT_OFFICE",
+                "is_active": True,
+            },
+        }
+
+    async def fetchrow(self, query: str, *args: object) -> dict[str, object] | None:
+        if "FROM admin_users" in query and "WHERE id = $1" in query:
+            return self.admin_users.get(int(args[0]))
+        raise AssertionError(f"Unsupported fetchrow query: {query}")
+
+    async def fetch(self, query: str, *args: object) -> list[dict[str, object]]:
+        if "FROM admin_user_permission_overrides" in query:
+            return []
+        raise AssertionError(f"Unsupported fetch query: {query}")
+
+
+class _FakePool:
+    def __init__(self) -> None:
+        self._connection = _FakeConnection()
+
+    def acquire(self) -> _AcquireContext:
+        return _AcquireContext(self._connection)
+
+
 @pytest.fixture
 async def admin_client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.AsyncClient]:
     app = FastAPI()
+    app.state.db_pool = _FakePool()
     app.include_router(admin.router, prefix="/api/v1")
 
     async def _list_active(_hotel_id: int) -> list[dict[str, object]]:
@@ -39,9 +103,10 @@ async def admin_client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.A
 
 
 def _auth_header(*, role: Role) -> dict[str, str]:
+    user_id = {Role.ADMIN: 1, Role.SALES: 2, Role.OPS: 3}[role]
     token = create_access_token(
         TokenData(
-            user_id=1,
+            user_id=user_id,
             hotel_id=21966,
             username="tester",
             role=role,

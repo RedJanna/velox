@@ -13,7 +13,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, ValidationError
 
 from velox.adapters.elektraweb import endpoints as elektraweb
-from velox.api.middleware.auth import TokenData, check_permission, get_current_user
+from velox.api.middleware.auth import (
+    TokenData,
+    check_permission,
+    ensure_hotel_access,
+    get_current_user,
+    resolve_hotel_scope,
+)
 from velox.config.constants import (
     HoldStatus,
     RestaurantReservationMode,
@@ -57,9 +63,7 @@ router = APIRouter(prefix="/admin", tags=["admin-holds"])
 
 def _effective_hotel(user: TokenData, hotel_id: int | None) -> int | None:
     """Resolve the effective hotel_id respecting user scope."""
-    if user.role == Role.ADMIN:
-        return hotel_id
-    return user.hotel_id
+    return resolve_hotel_scope(user, hotel_id)
 
 
 def _safe_int(value: object) -> int:
@@ -180,8 +184,7 @@ async def get_stay_hold_by_reservation_no(
     hold = await repo.get_by_reservation_no(reservation_no)
     if hold is None:
         raise HTTPException(status_code=404, detail="Bu rezervasyon numarasiyla kayit bulunamadi.")
-    if user.role != Role.ADMIN and hold.hotel_id != user.hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_hotel_access(user, hold.hotel_id)
     result = hold.model_dump(mode="json")
     result["type"] = "stay"
     return result
@@ -217,8 +220,7 @@ async def create_stay_hold_from_panel(
 ) -> dict[str, Any]:
     """Create a stay hold directly from the admin panel."""
     check_permission(user, "holds:approve")
-    if user.role != Role.ADMIN and body.hotel_id != user.hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_hotel_access(user, body.hotel_id)
 
     formatted_notes = format_customer_visible_note(body.notes)
     draft = {
@@ -275,8 +277,7 @@ async def clone_stay_hold_from_panel(
     source_hold = await repo.get_by_hold_id(hold_id)
     if source_hold is None:
         raise HTTPException(status_code=404, detail="Kaynak rezervasyon bulunamadi.")
-    if user.role != Role.ADMIN and source_hold.hotel_id != user.hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_hotel_access(user, source_hold.hotel_id)
 
     cloned_draft = dict(source_hold.draft_json or {})
     # Must be regenerated from the new hold row to keep voucher sync consistent.
@@ -319,8 +320,7 @@ async def get_room_types(
 ) -> dict[str, Any]:
     """Return room types from hotel profile for the wizard room selector."""
     check_permission(user, "holds:read")
-    if user.role != Role.ADMIN and hotel_id != user.hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_hotel_access(user, hotel_id)
     profile = get_profile(hotel_id)
     if profile is None:
         raise HTTPException(status_code=404, detail="Hotel profili bulunamadi.")
@@ -339,8 +339,7 @@ async def check_availability(
 ) -> dict[str, Any]:
     """Proxy Elektraweb availability check for the admin wizard."""
     check_permission(user, "holds:read")
-    if user.role != Role.ADMIN and hotel_id != user.hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_hotel_access(user, hotel_id)
     if checkout <= checkin:
         raise HTTPException(status_code=400, detail="Cikis tarihi giris tarihinden sonra olmali.")
 
@@ -373,8 +372,7 @@ async def get_quote(
 ) -> dict[str, Any]:
     """Proxy Elektraweb quote for the admin wizard."""
     check_permission(user, "holds:read")
-    if user.role != Role.ADMIN and hotel_id != user.hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_hotel_access(user, hotel_id)
     if checkout <= checkin:
         raise HTTPException(status_code=400, detail="Cikis tarihi giris tarihinden sonra olmali.")
 
@@ -475,8 +473,7 @@ async def create_restaurant_hold_from_panel(
 ) -> dict[str, Any]:
     """Create a restaurant hold from the admin panel."""
     check_permission(user, "holds:approve")
-    if user.role != Role.ADMIN and body.hotel_id != user.hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_hotel_access(user, body.hotel_id)
     formatted_notes = format_customer_visible_note(body.notes)
 
     # Daily capacity check
@@ -631,8 +628,7 @@ async def create_transfer_hold_from_panel(
 ) -> dict[str, Any]:
     """Create a transfer hold from the admin panel."""
     check_permission(user, "holds:approve")
-    if user.role != Role.ADMIN and body.hotel_id != user.hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_hotel_access(user, body.hotel_id)
     formatted_notes = format_customer_visible_note(body.notes)
 
     hold = TransferHold(
@@ -670,8 +666,7 @@ async def get_active_floor_plan(
 ) -> dict[str, Any]:
     """Get active floor plan and optionally list all saved plans for a hotel."""
     check_permission(user, "holds:read")
-    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_hotel_access(user, hotel_id)
     repo = FloorPlanRepository()
     plan = await repo.get_active_plan(hotel_id)
     payload: dict[str, Any] = {"plan": plan.model_dump(mode="json") if plan else None}
@@ -691,6 +686,7 @@ async def create_floor_plan(
     check_permission(user, "holds:approve")
     if user.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
+    ensure_hotel_access(user, hotel_id)
 
     from velox.models.restaurant import FloorPlan as FloorPlanModel
 
@@ -716,6 +712,7 @@ async def update_floor_plan(
     check_permission(user, "holds:approve")
     if user.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
+    ensure_hotel_access(user, hotel_id)
 
     repo = FloorPlanRepository()
     updated = await repo.update_plan(hotel_id, plan_id, body.name, body.layout_data)
@@ -734,6 +731,7 @@ async def activate_floor_plan(
     check_permission(user, "holds:approve")
     if user.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
+    ensure_hotel_access(user, hotel_id)
 
     repo = FloorPlanRepository()
     ok = await repo.activate_plan(hotel_id, plan_id)
@@ -752,6 +750,7 @@ async def delete_floor_plan(
     check_permission(user, "holds:approve")
     if user.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
+    ensure_hotel_access(user, hotel_id)
 
     repo = FloorPlanRepository()
     try:
@@ -776,8 +775,7 @@ async def get_daily_table_view(
 ) -> dict[str, Any]:
     """Get all tables with assigned reservations for a day."""
     check_permission(user, "holds:read")
-    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_hotel_access(user, hotel_id)
 
     repo = FloorPlanRepository()
     items = await repo.get_daily_view(hotel_id, target_date)
@@ -796,8 +794,7 @@ async def get_restaurant_settings(
 ) -> dict[str, Any]:
     """Get restaurant settings (daily capacity toggle)."""
     check_permission(user, "holds:read")
-    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_hotel_access(user, hotel_id)
 
     repo = RestaurantSettingsRepository()
     s = await repo.get(hotel_id)
@@ -814,6 +811,7 @@ async def update_restaurant_settings(
     check_permission(user, "holds:approve")
     if user.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
+    ensure_hotel_access(user, hotel_id)
 
     repo = RestaurantSettingsRepository()
     current = await repo.get(hotel_id)

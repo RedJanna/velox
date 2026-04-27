@@ -19,8 +19,10 @@ from velox.api.middleware.auth import (
     TokenResponse,
     check_permission,
     create_access_token,
+    ensure_hotel_access,
     get_current_user,
     require_role,
+    resolve_hotel_scope,
 )
 from velox.config.constants import HoldStatus, Role
 from velox.config.settings import settings
@@ -497,7 +499,7 @@ async def admin_login(body: LoginRequest, request: Request, response: Response) 
     async with db.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT id, hotel_id, username, password_hash, role, display_name, totp_secret, is_active
+            SELECT id, hotel_id, username, password_hash, role, display_name, department_code, totp_secret, is_active
             FROM admin_users WHERE username = $1
             """,
             body.username,
@@ -564,6 +566,7 @@ async def admin_login(body: LoginRequest, request: Request, response: Response) 
         username=str(row["username"]),
         role=Role(row["role"]),
         display_name=row["display_name"],
+        department_code=str(row["department_code"]) if row["department_code"] is not None else None,
     )
     access_token = create_access_token(token_data)
     access_max_age = settings.admin_jwt_expire_minutes * 60
@@ -602,25 +605,17 @@ async def list_hotels(
     request: Request,
     user: Annotated[TokenData, Depends(get_current_user)],
 ) -> list[dict[str, Any]]:
-    """List hotels; ADMIN sees all, others see own hotel."""
+    """List only the caller's hotel record inside the hotel boundary."""
     check_permission(user, "hotels:read")
     db = request.app.state.db_pool
     async with db.acquire() as conn:
-        if user.role == Role.ADMIN:
-            rows = await conn.fetch(
-                """
-                SELECT id, hotel_id, name_tr, name_en, hotel_type, is_active, created_at
-                FROM hotels ORDER BY id
-                """
-            )
-        else:
-            rows = await conn.fetch(
-                """
-                SELECT id, hotel_id, name_tr, name_en, hotel_type, is_active, created_at
-                FROM hotels WHERE hotel_id = $1
-                """,
-                user.hotel_id,
-            )
+        rows = await conn.fetch(
+            """
+            SELECT id, hotel_id, name_tr, name_en, hotel_type, is_active, created_at
+            FROM hotels WHERE hotel_id = $1
+            """,
+            user.hotel_id,
+        )
     return [dict(row) for row in rows]
 
 
@@ -632,8 +627,7 @@ async def get_hotel(
 ) -> dict[str, Any]:
     """Return hotel detail with profile JSON."""
     check_permission(user, "hotels:read")
-    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied to this hotel")
+    ensure_hotel_access(user, hotel_id)
 
     db = request.app.state.db_pool
     async with db.acquire() as conn:
@@ -840,8 +834,7 @@ async def update_hotel_profile(
 def _ensure_hotel_read_access(user: TokenData, hotel_id: int) -> None:
     """Apply shared read-scope checks for hotel-level admin endpoints."""
     check_permission(user, "hotels:read")
-    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied to this hotel")
+    ensure_hotel_access(user, hotel_id)
 
 
 def _is_missing_facts_table_error(exc: Exception) -> bool:
@@ -1403,8 +1396,7 @@ async def list_hotel_faq_entries(
 ) -> dict[str, Any]:
     """List FAQ items with status/search filters for admin review."""
     check_permission(user, "hotels:read")
-    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied to this hotel")
+    ensure_hotel_access(user, hotel_id)
     if status_filter and status_filter not in FAQ_FILTER_STATUSES:
         raise HTTPException(status_code=400, detail="Invalid FAQ status")
 
@@ -1577,8 +1569,7 @@ async def list_restaurant_slots(
 ) -> dict[str, Any]:
     """List restaurant slots with remaining capacity."""
     check_permission(user, "holds:read")
-    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied to this hotel")
+    ensure_hotel_access(user, hotel_id)
     if date_to < date_from:
         raise HTTPException(status_code=400, detail="date_to must be >= date_from")
 
@@ -1643,8 +1634,7 @@ async def list_transfer_holds(
 ) -> dict[str, Any]:
     """List transfer holds with optional date and status filters."""
     check_permission(user, "holds:read")
-    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied to this hotel")
+    ensure_hotel_access(user, hotel_id)
     if date_from and date_to and date_to < date_from:
         raise HTTPException(status_code=400, detail="date_to must be >= date_from")
     if status_filter and status_filter not in {status.value for status in HoldStatus}:
@@ -1678,8 +1668,7 @@ async def approve_transfer_hold(
         raise HTTPException(status_code=404, detail="Transfer hold not found")
     if hold.hotel_id != hotel_id:
         raise HTTPException(status_code=404, detail="Transfer hold not found for hotel")
-    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_hotel_access(user, hotel_id)
     if hold.status != HoldStatus.PENDING_APPROVAL:
         raise HTTPException(status_code=409, detail=f"Hold is not pending approval (current: {hold.status})")
 
@@ -1725,8 +1714,7 @@ async def reject_transfer_hold(
         raise HTTPException(status_code=404, detail="Transfer hold not found")
     if hold.hotel_id != hotel_id:
         raise HTTPException(status_code=404, detail="Transfer hold not found for hotel")
-    if user.role != Role.ADMIN and user.hotel_id != hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_hotel_access(user, hotel_id)
     if hold.status != HoldStatus.PENDING_APPROVAL:
         raise HTTPException(status_code=409, detail=f"Hold is not pending approval (current: {hold.status})")
 
@@ -1769,7 +1757,7 @@ async def list_conversations(
     """List conversations with filters and pagination."""
     check_permission(user, "conversations:read")
     db = request.app.state.db_pool
-    effective_hotel_id = hotel_id if user.role == Role.ADMIN else user.hotel_id
+    effective_hotel_id = resolve_hotel_scope(user, hotel_id)
     offset = (page - 1) * per_page
 
     async with db.acquire() as conn:
@@ -1875,7 +1863,7 @@ async def list_conversation_ids(
     """Return conversation IDs for bulk selection with filters applied."""
     check_permission(user, "conversations:read")
     db = request.app.state.db_pool
-    effective_hotel_id = hotel_id if user.role == Role.ADMIN else user.hotel_id
+    effective_hotel_id = resolve_hotel_scope(user, hotel_id)
 
     async with db.acquire() as conn:
         rows = await conn.fetch(
@@ -1983,8 +1971,7 @@ async def get_conversation(
         )
         if conv is None:
             raise HTTPException(status_code=404, detail="Conversation not found")
-        if user.role != Role.ADMIN and int(conv["hotel_id"]) != user.hotel_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+        ensure_hotel_access(user, conv["hotel_id"])
         messages = await conn.fetch(
             """
             SELECT id, role, content, internal_json, tool_calls, created_at
@@ -2045,11 +2032,8 @@ async def _fetch_bulk_conversations(
 
 def _assert_bulk_conversation_access(user: TokenData, rows: list[asyncpg.Record]) -> None:
     """Raise 403 when any conversation belongs to a different hotel."""
-    if user.role == Role.ADMIN:
-        return
     for row in rows:
-        if int(row["hotel_id"]) != user.hotel_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+        ensure_hotel_access(user, row["hotel_id"])
 
 
 @router.post("/conversations/bulk/deactivate")
@@ -2207,8 +2191,7 @@ async def reset_conversation(
         )
     if row is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_hotel_access(user, row["hotel_id"])
     if not row["is_active"]:
         return {"status": "already_closed", "conversation_id": str(conversation_id)}
 
@@ -2243,8 +2226,7 @@ async def deactivate_conversation(
         )
         if row is None:
             raise HTTPException(status_code=404, detail="Conversation not found")
-        if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+        ensure_hotel_access(user, row["hotel_id"])
         if not row["is_active"]:
             return {"status": "already_closed", "conversation_id": str(conversation_id)}
         await conn.execute(
@@ -2280,8 +2262,7 @@ async def approve_and_send_message(
         )
         if conv_row is None:
             raise HTTPException(status_code=404, detail="Conversation not found")
-        if user.role != Role.ADMIN and int(conv_row["hotel_id"]) != user.hotel_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+        ensure_hotel_access(user, conv_row["hotel_id"])
 
         msg_row = await conn.fetchrow(
             "SELECT id, role, content, internal_json FROM messages WHERE id = $1 AND conversation_id = $2",
@@ -2388,8 +2369,7 @@ async def toggle_human_override(
         )
     if row is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_hotel_access(user, row["hotel_id"])
     if not row["is_active"]:
         raise HTTPException(status_code=400, detail="Kapali konusmalarda insan devri ayarlanamaz.")
 
@@ -2490,7 +2470,7 @@ async def list_holds(
         raise HTTPException(status_code=400, detail="Invalid hold status")
 
     db = request.app.state.db_pool
-    effective_hotel_id = hotel_id if user.role == Role.ADMIN else user.hotel_id
+    effective_hotel_id = resolve_hotel_scope(user, hotel_id)
     offset = (page - 1) * per_page
     queries = _build_unified_hold_queries(
         hold_type=hold_type,
@@ -2847,8 +2827,7 @@ async def approve_hold(
                         "manual review is required instead of retry."
                     ),
                 )
-        if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+        ensure_hotel_access(user, row["hotel_id"])
         effective_hotel_id = int(row["hotel_id"])
         approval_request_id = await _ensure_approval_request(
             conn=conn,
@@ -2899,8 +2878,7 @@ async def reject_hold(
                 status_code=409,
                 detail=f"Hold cannot be rejected in current status (current: {row['status']})",
             )
-        if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+        ensure_hotel_access(user, row["hotel_id"])
         effective_hotel_id = int(row["hotel_id"])
         approval_request_id = await _ensure_approval_request(
             conn=conn,
@@ -2950,8 +2928,7 @@ async def cancel_hold_reservation(
         row = await _fetch_hold_row(conn, hold_type, hold_id)
         if row is None:
             raise HTTPException(status_code=404, detail="Hold not found")
-        if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+        ensure_hotel_access(user, row["hotel_id"])
 
         current_status = str(row["status"])
         if current_status in {HoldStatus.CANCELLED.value, HoldStatus.REJECTED.value}:
@@ -3071,7 +3048,9 @@ async def archive_holds(
             if row.get("archived_at"):
                 skipped.append({"hold_id": hold_id, "reason": "Already archived"})
                 continue
-            if user.role != Role.ADMIN and int(row["hotel_id"]) != user.hotel_id:
+            try:
+                ensure_hotel_access(user, row["hotel_id"])
+            except HTTPException:
                 failed.append({"hold_id": hold_id, "reason": "Access denied"})
                 continue
 
@@ -3141,7 +3120,7 @@ async def list_tickets(
     if priority and priority not in ALLOWED_TICKET_PRIORITIES:
         raise HTTPException(status_code=400, detail="Invalid ticket priority")
     db = request.app.state.db_pool
-    effective_hotel_id = hotel_id if user.role == Role.ADMIN else user.hotel_id
+    effective_hotel_id = resolve_hotel_scope(user, hotel_id)
     assigned_role = None if user.role == Role.ADMIN else user.role.value
     offset = (page - 1) * per_page
 
@@ -3203,9 +3182,8 @@ async def update_ticket(
         row = await conn.fetchrow("SELECT * FROM tickets WHERE ticket_id = $1", ticket_id)
         if row is None:
             raise HTTPException(status_code=404, detail="Ticket not found")
+        ensure_hotel_access(user, row["hotel_id"])
         if user.role != Role.ADMIN:
-            if int(row["hotel_id"]) != user.hotel_id:
-                raise HTTPException(status_code=403, detail="Access denied")
             if row["assigned_to_role"] != user.role.value:
                 raise HTTPException(status_code=403, detail="Ticket not assigned to your role")
 
