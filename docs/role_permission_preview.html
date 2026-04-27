@@ -18,6 +18,18 @@
       --warning: #b54708;
       --critical: #b42318;
       --shadow: 0 18px 45px rgba(23, 32, 38, 0.08);
+      --card-note-bg: #f2f8ff;
+      --card-note-accent: #2367c9;
+      --card-security-bg: #edf8f5;
+      --card-security-accent: #0f766e;
+      --card-create-bg: #fff7eb;
+      --card-create-accent: #c46300;
+      --card-role-bg: #f4f3ff;
+      --card-role-accent: #3a4bb7;
+      --card-change-bg: #ecf8f7;
+      --card-change-accent: #12746e;
+      --card-perm-bg: #f6f8ec;
+      --card-perm-accent: #5c6f12;
     }
 
     * {
@@ -347,6 +359,36 @@
       padding: 16px;
     }
 
+    .info-card.card-note {
+      background: var(--card-note-bg);
+      border-left: 4px solid var(--card-note-accent);
+    }
+
+    .info-card.card-security {
+      background: var(--card-security-bg);
+      border-left: 4px solid var(--card-security-accent);
+    }
+
+    .info-card.card-create {
+      background: var(--card-create-bg);
+      border-left: 4px solid var(--card-create-accent);
+    }
+
+    .info-card.card-roles {
+      background: var(--card-role-bg);
+      border-left: 4px solid var(--card-role-accent);
+    }
+
+    .info-card.card-changes {
+      background: var(--card-change-bg);
+      border-left: 4px solid var(--card-change-accent);
+    }
+
+    .info-card.card-permissions {
+      background: var(--card-perm-bg);
+      border-left: 4px solid var(--card-perm-accent);
+    }
+
     .info-card ul {
       margin: 12px 0 0;
       padding-left: 18px;
@@ -469,18 +511,50 @@
       gap: 5px;
     }
 
-    .row-controls {
+    .assignment-list {
+      margin-top: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .assignment-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 12px;
+    }
+
+    .assignment-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .assignment-user {
+      display: grid;
+      gap: 2px;
+    }
+
+    .assignment-user strong {
+      font-size: 14px;
+    }
+
+    .assignment-controls {
+      margin-top: 10px;
       display: grid;
       gap: 8px;
     }
 
-    .row-control-line {
+    .assignment-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 8px;
     }
 
-    .row-controls select {
+    .assignment-controls select {
       min-height: 34px;
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -567,7 +641,7 @@
       }
 
       .form-grid.two-column,
-      .row-control-line {
+      .assignment-grid {
         grid-template-columns: 1fr;
       }
     }
@@ -642,7 +716,7 @@
         </section>
 
         <aside class="side-panel" aria-label="Yardımcı bilgiler">
-          <section class="info-card">
+          <section class="info-card card-note">
             <h2>Kullanım notu</h2>
             <p class="lead">
               Bu ekran, rol tanımı yaparken yöneticinin neyi açıp kapattığını açıkça görmesi için tasarlanmıştır.
@@ -654,14 +728,14 @@
             </ul>
           </section>
 
-          <section class="info-card">
+          <section class="info-card card-security">
             <h2>Güvenlik sınırı</h2>
             <p class="lead">
               Bu önizleme yalnızca arayüz davranışını gösterir. Kalıcı yetkilendirme kararı backend API, otel kapsamı ve kayıt düzeyi kontrollerle verilmelidir.
             </p>
           </section>
 
-          <section class="info-card" aria-labelledby="userCreationHeading">
+          <section class="info-card card-create" aria-labelledby="userCreationHeading">
             <h2 id="userCreationHeading">Yeni kullanıcı oluştur</h2>
             <p class="lead">
               Kullanıcı adı, geçici parola, rol, departman ve zorunlu 2FA tercihini tek adımda tanımlayın.
@@ -703,7 +777,7 @@
             </form>
           </section>
 
-          <section class="info-card" aria-labelledby="existingRolesHeading">
+          <section class="info-card card-roles" aria-labelledby="existingRolesHeading">
             <h2 id="existingRolesHeading">Mevcut roller</h2>
             <p class="lead">
               Sistemde tanımlı roller, kapsamları ve hangi kullanıcılara atandıkları tek bakışta görünür.
@@ -720,24 +794,15 @@
             </table>
           </section>
 
-          <section class="info-card" aria-labelledby="currentAssignmentsHeading">
+          <section class="info-card card-changes" aria-labelledby="currentAssignmentsHeading">
             <h2 id="currentAssignmentsHeading">Kullanıcılar ve rol değişikliği</h2>
             <p class="lead">
               Mevcut kullanıcıların rolü, departmanı ve zorunlu 2FA tercihi kontrollü biçimde güncellenir.
             </p>
-            <table class="compact-table">
-              <thead>
-                <tr>
-                  <th>Kullanıcı</th>
-                  <th>Rol / departman</th>
-                  <th>Güvenlik</th>
-                </tr>
-              </thead>
-              <tbody id="assignmentRows"></tbody>
-            </table>
+            <div id="assignmentRows" class="assignment-list" aria-live="polite"></div>
           </section>
 
-          <section class="info-card">
+          <section class="info-card card-permissions">
             <h2>Aktif izin anahtarları</h2>
             <ul id="selectedPermissionList" class="selected-list"></ul>
           </section>
@@ -1273,39 +1338,36 @@
 
     function renderAssignments() {
       assignmentRows.innerHTML = adminUsers.map((user) => `
-        <tr>
-          <td>
-            <strong>${escapeHtml(user.displayName)}</strong><br>
-            <span class="muted">@${escapeHtml(user.username)}</span><br>
-            <span class="status-pill">${escapeHtml(user.status)}</span>
-          </td>
-          <td>
-            <div class="row-controls">
-              <div class="row-control-line">
-                <label class="field" for="roleFor-${escapeHtml(user.id)}">
-                  <span>Rol</span>
-                  <select id="roleFor-${escapeHtml(user.id)}" data-user-role="${escapeHtml(user.id)}">
-                    ${renderRoleOptions(user.roleKey)}
-                  </select>
-                </label>
-                <label class="field" for="departmentFor-${escapeHtml(user.id)}">
-                  <span>Departman</span>
-                  <select id="departmentFor-${escapeHtml(user.id)}" data-user-department="${escapeHtml(user.id)}">
-                    ${renderDepartmentOptions(user.department)}
-                  </select>
-                </label>
-              </div>
-              <button class="button" type="button" data-update-user="${escapeHtml(user.id)}">Değişikliği kaydet</button>
+        <article class="assignment-card">
+          <div class="assignment-head">
+            <div class="assignment-user">
+              <strong>${escapeHtml(user.displayName)}</strong>
+              <span class="muted">@${escapeHtml(user.username)}</span>
             </div>
-          </td>
-          <td>
+            <span class="status-pill">${escapeHtml(user.status)}</span>
+          </div>
+          <div class="assignment-controls">
+            <div class="assignment-grid">
+              <label class="field" for="roleFor-${escapeHtml(user.id)}">
+                <span>Rol</span>
+                <select id="roleFor-${escapeHtml(user.id)}" data-user-role="${escapeHtml(user.id)}">
+                  ${renderRoleOptions(user.roleKey)}
+                </select>
+              </label>
+              <label class="field" for="departmentFor-${escapeHtml(user.id)}">
+                <span>Departman</span>
+                <select id="departmentFor-${escapeHtml(user.id)}" data-user-department="${escapeHtml(user.id)}">
+                  ${renderDepartmentOptions(user.department)}
+                </select>
+              </label>
+            </div>
             <label class="mini-check" for="twoFactorFor-${escapeHtml(user.id)}">
               <input id="twoFactorFor-${escapeHtml(user.id)}" type="checkbox" data-user-2fa="${escapeHtml(user.id)}" ${user.twoFactorRequired ? "checked" : ""} />
               Zorunlu 2FA
             </label>
-            <p class="field-help">Rol değişikliği kaydedildiğinde 2FA tercihi de birlikte güncellenir.</p>
-          </td>
-        </tr>
+            <button class="button" type="button" data-update-user="${escapeHtml(user.id)}">Değişikliği kaydet</button>
+          </div>
+        </article>
       `).join("");
     }
 
