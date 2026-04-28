@@ -234,6 +234,13 @@ button.addEventListener('click', () => doSomething(value));
 | Durum | Durum | Status (UI metninde) |
 | Aksiyon | Aksiyon | Action (UI metninde) |
 
+### 8.4 Yerel Demo Önizleme Kapısı
+
+- Admin panel, Chat Lab, frontend kodu, görünür UI metni, stil veya etkileşim değişiklikleri canlı panele aktarılmadan önce yerel demo üzerinde önizlenir.
+- Zorunlu hedef URL: `http://127.0.0.1:8011/admin#`. Etkilenen ekran hash ile açılır; örnek: `http://127.0.0.1:8011/admin#accesscontrol`.
+- Ön incelemede en az şu kontroller yapılır: ekranın render olması, yeni metinlerin görünmesi, eski/İngilizce metin kalmaması, temel buton/toggle etkileşimlerinin çalışması ve layout kırılması olmaması.
+- Yerel demo açılamıyorsa veya ilgili ekran doğrulanamıyorsa bu durum blocker olarak raporlanır; değişiklik "canlıya hazır" veya "canlıda doğrulandı" diye sunulmaz.
+
 ---
 
 ## 9) Kesin Yasaklar (Kırmızı Çizgiler)
@@ -266,6 +273,7 @@ Her frontend değişikliği sonrası aşağıdaki kontrol uygulanır:
 - [ ] Inline style yalnızca dinamik değerler için (sabit değerler class'ta)
 - [ ] Event listener'lar temiz (delegation veya innerHTML ile yeniden render)
 - [ ] Toast mesajları Türkçe ve anlaşılır
+- [ ] Admin panel/Chat Lab değişikliği etkilenen hash ile `http://127.0.0.1:8011/admin#` yerel demosunda önizlendi
 - [ ] Empty state tasarımı mevcut (boş tablo, boş liste)
 - [ ] Responsive breakpoint'lar çalışıyor (1240px, 980px)
 - [ ] `aria-label` interactive elementlerde mevcut

@@ -974,7 +974,7 @@ def render_admin_panel_html() -> str:
                 <div><h3>Gelişmiş Manuel Kayıt</h3><p>Meta açılır pencere akışı kullanılamadığında teknik bilgiler buradan kaydedilir.</p></div>
               </div>
               <form id="whatsappManualForm" class="dense-form">
-                <div class="field"><label>İşletme Kimliği (Business ID)</label><input name="business_id" autocomplete="off"></div>
+                <div class="field"><label>İşletme Kimliği</label><input name="business_id" autocomplete="off"></div>
                 <div class="field"><label>WABA Kimliği</label><input name="waba_id" autocomplete="off"></div>
                 <div class="field"><label>Telefon Numarası Kimliği</label><input name="phone_number_id" autocomplete="off" required></div>
                 <div class="field"><label>Görünen numara</label><input name="display_phone_number" autocomplete="off"></div>
@@ -1354,8 +1354,8 @@ def render_admin_panel_html() -> str:
               <h4>İşletme Kimliği, WABA Kimliği ve Telefon Numarası Kimliği ayrımını netleştirin</h4>
               <p>Meta tarafında üç farklı kimlik vardır. Bunlar aynı şey değildir ve yanlış alana yazılırsa bağlantı başarısız olur.</p>
               <ul>
-                <li><strong>İşletme Kimliği (Business ID)</strong>: Meta Business portföyünün kimliğidir.</li>
-                <li><strong>WABA Kimliği</strong>: WhatsApp Business Account kimliğidir.</li>
+                <li><strong>İşletme Kimliği</strong>: Meta Business portföyünün kimliğidir.</li>
+                <li><strong>WABA Kimliği</strong>: WhatsApp İşletme Hesabı kimliğidir.</li>
                 <li><strong>Telefon Numarası Kimliği</strong>: Mesaj gönderecek telefonun API kimliğidir. Telefon Numarası Kimliği, görünen telefon numarası değildir.</li>
               </ul>
             </div>
@@ -1457,8 +1457,8 @@ def render_admin_panel_html() -> str:
           <span class="whatsapp-guide-kicker">Manuel form</span>
           <h4>Her alanı nereden bulurum ve neyle karıştırmamalıyım?</h4>
           <div class="whatsapp-field-grid">
-            <div class="whatsapp-field-card"><strong>İşletme Kimliği (Business ID)</strong><p>Meta Business portföyünün kimliğidir. İşletme Ayarları ekranında veya URL'deki <code>business_id</code> değerinde görülür.</p><small>WABA kimliği değildir.</small></div>
-            <div class="whatsapp-field-card"><strong>WABA Kimliği</strong><p>WhatsApp Business Account kimliğidir. WhatsApp Yöneticisi veya İşletme Ayarları içindeki WhatsApp hesabı detayından alınır.</p><small>Bir işletmede birden fazla WABA olabilir.</small></div>
+            <div class="whatsapp-field-card"><strong>İşletme Kimliği</strong><p>Meta Business portföyünün kimliğidir. İşletme Ayarları ekranında veya URL'deki <code>business_id</code> değerinde görülür.</p><small>WABA kimliği değildir.</small></div>
+            <div class="whatsapp-field-card"><strong>WABA Kimliği</strong><p>WhatsApp İşletme Hesabı kimliğidir. WhatsApp Yöneticisi veya İşletme Ayarları içindeki WhatsApp hesabı detayından alınır.</p><small>Bir işletmede birden fazla WABA olabilir.</small></div>
             <div class="whatsapp-field-card"><strong>Telefon Numarası Kimliği</strong><p>Mesaj gönderecek telefonun API kimliğidir. WABA altındaki telefon numaraları veya API Kurulumu ekranında görünür.</p><small>+90 ile başlayan görünen telefon numarası değildir.</small></div>
             <div class="whatsapp-field-card"><strong>Görünen numara</strong><p>Kullanıcının WhatsApp'ta gördüğü numaradır. Kontrol amaçlıdır; API çağrılarında Telefon Numarası Kimliği kullanılır.</p><small>Yanlış numara seçimini fark etmek için doldurun.</small></div>
             <div class="whatsapp-field-card"><strong>Token izin kapsamı</strong><p>Token'ın sahip olduğu izinleri virgülle yazabilirsiniz: <code>whatsapp_business_messaging,whatsapp_business_management</code>.</p><small>Eksik izin kapsamı mesaj veya webhook hatası üretir.</small></div>

@@ -7,6 +7,7 @@ This file is the **entry point** for all AI coding agents (Codex, Claude, Copilo
 **RULE: Never write or modify code without reading the relevant skill files first.**
 **RULE: For debugging, diagnosis, and root cause analysis tasks, validate the Docker backend runtime before any frontend, prompt, or model-level analysis.**
 **RULE: If a change affects prompt behavior, admin domain cutover flow, or production deployment flow, update the related critical docs in the same commit (`docs/master_prompt_v2.md`, `docs/admin_panel_domain_cutover.md`, `docs/production_deployment.md`).**
+**RULE: For every admin panel, Chat Lab, frontend code, or visible UI text change, preview the affected screen on the local demo URL `http://127.0.0.1:8011/admin#` before live panel deployment or transfer. If the local demo cannot be reached, report it as a blocker and do not mark the change as live-ready.**
 **RULE: If you apply only a workaround, label it explicitly as `geçici çözüm`; do not present it as the permanent fix.**
 
 ---

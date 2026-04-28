@@ -17,7 +17,32 @@
    `https://<public-host>/api/v1/admin/whatsapp/oauth/callback`.
 3. Ensure `.env.production` is not committed (already ignored by `.gitignore`).
 
-## 2. Build and Start Stack
+## 2. Local Admin Demo Preview Gate
+
+Before deploying admin panel, Chat Lab, frontend code, visible UI text, role/permission screens, button/toggle behavior, or admin panel style changes to production, verify the change on the local demo first.
+
+Required target:
+
+```text
+http://127.0.0.1:8011/admin#
+```
+
+Use the affected hash route when possible, for example:
+
+```text
+http://127.0.0.1:8011/admin#accesscontrol
+```
+
+Minimum checks:
+- The affected screen renders without an empty panel or runtime error.
+- New labels, descriptions, alerts, and button text are visible in the local demo.
+- No stale English UI copy remains in the changed area unless it is an approved product term.
+- Critical buttons, toggles, and form submissions touched by the change still work.
+- The layout does not overlap, collapse, or hide important controls.
+
+If the local demo cannot be reached or the affected screen cannot be verified, report that as a blocker and do not mark the change as production-ready.
+
+## 3. Build and Start Stack
 ```bash
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 ```
@@ -27,7 +52,7 @@ Service ports:
 - PostgreSQL: internal container network (`db:5432`)
 - Redis: internal container network (`redis:6379`)
 
-## 3. Run Database Migration
+## 4. Run Database Migration
 
 The app now runs the versioned SQL migration runner during startup and `/api/v1/health/ready`
 stays `503` until migrations are consistent.
@@ -38,7 +63,7 @@ If you need to force a manual catch-up before or after a rollout, use the same o
 docker compose --env-file .env.production -f docker-compose.prod.yml exec app python -m velox.db.migrate
 ```
 
-## 4. Verify Health and Readiness
+## 5. Verify Health and Readiness
 ```bash
 curl -fsS http://127.0.0.1:8001/api/v1/health
 curl -fsS http://127.0.0.1:8001/api/v1/health/ready
@@ -83,14 +108,15 @@ DB_HOST=127.0.0.1 PYTHONPATH=src .venv-wsl/bin/python scripts/resync_elektra_res
 The script reloads the stay hold from PostgreSQL, replays `Voucher No` and visible note sync to Elektra, and writes
 the local `stay_holds.voucher_no` field when the voucher update succeeds.
 
-## 5. CI/CD
+## 6. CI/CD
 GitHub Actions workflow: `.github/workflows/ci.yml`
 - `test`: pytest + coverage + ruff + mypy
 - `docker`: container build smoke test
 - `security`: Trivy scan for CRITICAL/HIGH issues
 
-## 6. Production Checklist
+## 7. Production Checklist
 - [ ] All env vars set in `.env.production`
+- [ ] Admin panel/frontend/UI text changes previewed on `http://127.0.0.1:8011/admin#` before production deployment
 - [ ] DB migration ran successfully
 - [ ] Hotel profile YAML loaded
 - [ ] WhatsApp webhook URL configured in Meta Business Manager

@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v5.11 | **Son güncelleme:** 2026-04-28 18:58:51
-> **Değişiklik özeti:** Yerel pytest geçici klasörü için zorunlu gitignore pattern'i eklendi.
+> **Sürüm:** v5.12 | **Son güncelleme:** 2026-04-28 21:07:37
+> **Değişiklik özeti:** Admin panel değişiklikleri için yerel demo önizleme kapısı zorunlu hale getirildi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -148,6 +148,7 @@ Skill files location: `skills/`
 - `docs/master_prompt_v2.md` — Complete system specification (runtime + product requirements)
 - `docs/special_occasion_policy.md` — Special occasion intake, approval, handoff, privacy, and backend rule set
 - `docs/admin_panel_domain_cutover.md` — Admin panel domain/path cutover planı, geçiş sırası ve rollback adımları
+- `docs/local_demo_environment.md` — Canlı panele gitmeden önce `127.0.0.1:8011/admin#` üzerinde yerel demo önizleme akışı
 - `docs/production_deployment.md` — Production deploy runbook'u, migration ve doğrulama adımları
 - `data/hotel_profiles/kassandra_oludeniz.yaml` — Hotel data for first client
 - `data/escalation_matrix.yaml` — Risk flag -> escalation level mapping
@@ -187,6 +188,7 @@ Execute tasks in `tasks/` directory sequentially:
 13. **Geçici çözüm etiketleme**: Workaround uygulanırsa bunu açıkça `geçici çözüm` diye işaretle; kalıcı çözümü ayrıca belirt.
 14. **Yarım iş bırakma**: Kullanıcı düzenleme veya düzeltme istiyorsa analizde durma; değişikliği uygula, doğrula, kalan riskleri net yaz.
 15. **Zorunlu admin bildirimi**: İnsan devri, çözülemeyen talep, güvenilir cevap verememe, yetki/bilgi/tool/policy/operasyon kapasitesi eksikliği veya `HANDOFF` durumunda admin bildirimi gecikmeden gönderilir; bu güvenlik/operasyon kuralı opsiyonel davranış değildir.
+16. **Yerel admin demo önizleme kapısı**: Admin panel, Chat Lab, frontend kodu, görünür UI metni, rol/yetki ekranı veya buton/toggle davranışı değiştiğinde canlı panele aktarım öncesi `http://127.0.0.1:8011/admin#` üzerindeki ilgili hash ekranda önizleme ve temel işlev kontrolü zorunludur; demo açılamazsa blocker olarak raporlanır ve değişiklik canlıya hazır sayılmaz.
 
 ## Operational Discipline
 

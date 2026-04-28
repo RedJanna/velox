@@ -406,15 +406,32 @@ Her güncellemeden önce değişikliği aşağıdaki sınıflardan birine veya b
 6. **Sadece doküman / runtime dışı dosya değişikliği**
    - Uygulama tarafından okunmayan md/txt dokümanları, saf geliştirme notları
 
-### 13.4 Standart aksiyon matrisi
+### 13.4 Yerel admin demo önizleme kapısı
+
+Admin panel, Chat Lab, frontend kodu, görünür UI metni, rol/yetki ekranı, buton/toggle davranışı veya admin panel stil değişiklikleri canlı panele aktarılmadan önce yerel demo üzerinde doğrulanır.
+
+- Zorunlu demo hedefi: `http://127.0.0.1:8011/admin#`
+- Etkilenen ekran hash ile açılır; örnek: `http://127.0.0.1:8011/admin#accesscontrol`
+- En az şu kontroller yapılır:
+  1. İlgili ekran hatasız render oluyor
+  2. Değişen metinler, etiketler, açıklamalar ve alert/toast mesajları beklenen şekilde görünüyor
+  3. Eski veya İngilizce kalan UI metni yok
+  4. Değişiklik buton/toggle/form davranışını etkiliyorsa temel etkileşim çalışıyor
+  5. Layout kırılması, üst üste binme veya boş panel görünümü yok
+
+> **Kural:** Yerel demo açılamıyorsa veya etkilenen ekran doğrulanamıyorsa bu blocker olarak raporlanır.
+> Bu durumda değişiklik "canlıya hazır", "canlıya aktarıldı" veya "canlıda doğrulandı" diye sunulmaz.
+
+### 13.5 Standart aksiyon matrisi
 
 #### A) Uygulama kodu değiştiyse
 
 - Yerel geliştirme akışı:
   1. İlgili doğrulamayı çalıştır
-  2. `git status` kontrol et
-  3. `commit`
-  4. `push`
+  2. Admin panel/frontend değişikliğiyse `13.4` yerel demo önizleme kapısını uygula
+  3. `git status` kontrol et
+  4. `commit`
+  5. `push`
 - Canlı deploy hedefinde:
   1. Gerekliyse `git pull`
   2. `docker compose -f docker-compose.prod.yml up -d --build app`
@@ -479,7 +496,7 @@ git pull && docker compose -f docker-compose.prod.yml up -d --build && curl -fsS
 - `commit` ve `push` yeterlidir.
 - Ancak ilgili dosya runtime'da okunuyorsa bu artık "uygulama kodu değişikliği" olarak değerlendirilir.
 
-### 13.5 Zorunlu deploy sonrası doğrulama
+### 13.6 Zorunlu deploy sonrası doğrulama
 
 Canlıya yansıdı demeden önce en az şu kontroller yapılır:
 
@@ -497,7 +514,7 @@ Canlıya yansıdı demeden önce en az şu kontroller yapılır:
 > **Kural:** Sadece container ayağa kalktı diye "canlı güncellendi" denmez.
 > Davranış doğrulaması yapılmadan deploy tamamlandı kabul edilmez.
 
-### 13.6 LLM operasyon davranışı
+### 13.7 LLM operasyon davranışı
 
 - Kullanıcı "canlıya yansıt", "deploy et", "güncelleme görünsün" diyorsa LLM önce değişikliği sınıflandırır, sonra doğru komutu seçer.
 - Kullanıcıyı belirsiz bırakacak genel tavsiye yerine, bu projeye uygun net komut verir veya uygular.
@@ -505,12 +522,13 @@ Canlıya yansıdı demeden önce en az şu kontroller yapılır:
   - Örnek: Hem migration hem compose değiştiyse, full stack + migration akışı uygulanır.
 - Deploy başarısızsa LLM bunu açıkça söyler; başarısız deploy'u başarılı gibi raporlamaz.
 
-### 13.7 Yasaklar
+### 13.8 Yasaklar
 
 - `docker-compose.yml` ile canlı deploy'u varsaymak
 - Migration gerektiren değişiklikte migration adımını atlamak
 - `git pull` gerekip gerekmediğini bağlamdan ayırmadan ezbere söylemek
 - Health/readiness kontrolü olmadan canlı güncellendi demek
+- Admin panel/frontend değişikliğinde yerel demo önizlemesi yapılmadan canlıya hazır demek
 - Sadece `app` rebuild ile altyapı değişikliğini tamamlanmış saymak
 
 ---
