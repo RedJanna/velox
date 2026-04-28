@@ -292,9 +292,54 @@ tbody tr:hover{background:#fffcf7}
 .pill-closed{background:#e5e7eb;color:#4b5563;font-size:12px}
 .pill-warning{display:inline-block;padding:2px 6px;border-radius:8px;font-size:12px;background:#fff4db;color:#7c4b06}
 .action-button-sm{font-size:12px;padding:6px 14px}
+.access-control-layout,.access-control-main{display:grid;grid-template-columns:minmax(320px,.9fr) minmax(0,1.1fr);gap:18px}
+.access-role-grid,.access-user-list,.access-permission-tree{display:flex;flex-direction:column;gap:12px}
+.access-role-card,.access-user-card,.access-permission-group{border:1px solid var(--line);border-radius:22px;background:var(--surface-2);padding:16px;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.access-role-card{cursor:pointer;text-align:left}
+.access-role-card:hover,.access-user-card:hover,.access-permission-group:hover{border-color:rgba(15,118,110,.24);box-shadow:0 12px 24px rgba(15,118,110,.06)}
+.access-role-card.is-active,.access-user-card.is-selected{border-color:rgba(15,118,110,.38);box-shadow:0 14px 28px rgba(15,118,110,.12);background:#f2fbfa}
+.access-role-card header,.access-user-card header,.access-permission-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.access-role-card h4,.access-user-card h4,.access-permission-head h4{margin:0;font-size:16px}
+.access-role-card p,.access-user-card p,.access-permission-head p{margin:6px 0 0;color:var(--muted);line-height:1.5}
+.access-chip-row,.access-user-badges,.access-summary-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.access-chip{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:12px;font-weight:800;color:#334155}
+.access-chip.role{background:#eef4ff;color:#1d4ed8}
+.access-chip.department{background:#e8f8f3;color:#0f766e}
+.access-chip.security{background:#fff2dd;color:#92400e}
+.access-overview-card{display:flex;flex-direction:column;gap:10px}
+.access-overview-card h4{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.access-overview-card strong{font-size:30px;line-height:1;font-family:var(--serif)}
+.access-overview-card span{font-size:13px;color:var(--muted);line-height:1.5}
+.access-field-role{background:rgba(238,244,255,.78);border:1px solid rgba(59,130,246,.18);padding:12px;border-radius:18px}
+.access-field-department{background:rgba(232,248,243,.86);border:1px solid rgba(15,118,110,.18);padding:12px;border-radius:18px}
+.access-field-role label,.access-field-department label{margin-bottom:8px}
+.access-field-role small,.access-field-department small{color:var(--muted);line-height:1.45}
+.access-toggle-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.access-toggle-locked{opacity:.92}
+.access-user-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+.access-user-controls .field{margin:0}
+.access-user-controls .field.full{grid-column:1/-1}
+.access-user-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.access-user-note{padding:10px 12px;border-radius:14px;background:#fffaf0;border:1px dashed rgba(187,138,42,.28);font-size:12px;color:#7c4b06}
+.access-permission-head{margin-bottom:12px}
+.access-permission-stats{display:flex;flex-wrap:wrap;gap:8px}
+.access-permission-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px 0;border-top:1px solid var(--line)}
+.access-permission-row:first-of-type{border-top:none}
+.access-permission-copy{display:flex;flex-direction:column;gap:6px}
+.access-permission-copy strong{font-size:14px}
+.access-permission-copy p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.access-permission-copy code{font-family:var(--mono);font-size:11px;color:#475569;word-break:break-all}
+.access-permission-flags{display:flex;flex-wrap:wrap;gap:6px}
+.access-permission-flag{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:800}
+.access-permission-flag.default{background:#eef4ff;color:#1d4ed8}
+.access-permission-flag.override{background:#fff2dd;color:#92400e}
+.access-permission-flag.removed{background:#fde7e5;color:#991b1b}
+.access-editor-empty{padding:28px;border:1px dashed var(--line-strong);border-radius:22px;background:#fffaf0;text-align:center}
+.access-editor-empty h4{margin:0 0 8px;font-size:16px}
+.access-editor-empty p{margin:0;color:var(--muted);line-height:1.55}
 @media(max-width:1240px){
   .card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .split,.auth-grid{grid-template-columns:1fr}
+  .split,.auth-grid,.access-control-layout,.access-control-main{grid-template-columns:1fr}
 }
 @media(max-width:980px){
   body{padding:12px}.shell{grid-template-columns:1fr}
@@ -305,12 +350,13 @@ tbody tr:hover{background:#fffcf7}
   .topbar-aside{justify-content:flex-start}
   .table-shell{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
   .table-shell table{min-width:640px}
-  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid,.debug-summary-grid,.debug-layout{grid-template-columns:1fr}
+  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid,.debug-summary-grid,.debug-layout,.access-toggle-grid,.access-user-controls{grid-template-columns:1fr}
   .topbar{padding:18px 20px;border-radius:24px;flex-direction:column}
   .card-grid{grid-template-columns:1fr}
   .status-strip{grid-template-columns:1fr}
   .hold-summary-grid{grid-template-columns:1fr}
   .debug-artifact-preview-meta{align-items:flex-start}
+  .access-permission-row{grid-template-columns:1fr}
 }
 """
 
@@ -320,6 +366,9 @@ const API_ROOT = '/api/v1/admin';
 const HOTEL_KEY = 'velox.admin.hotel';
 const CSRF_COOKIE = 'velox_admin_csrf';
 const LIVE_REFRESH_INTERVAL_MS = 3000;
+const VIEW_PERMISSIONS = {
+  accesscontrol: 'access_control:read',
+};
 
 const state = {
   me: null,
@@ -327,7 +376,9 @@ const state = {
   bootstrapPending: null,
   hotels: [],
   selectedHotelId: window.localStorage.getItem(HOTEL_KEY) || '',
-  currentView: (window.location.hash || '#dashboard').replace('#', ''),
+  currentView: ((window.location.hash || '#dashboard').replace('#', '').toLowerCase() === 'access-control'
+    ? 'accesscontrol'
+    : (window.location.hash || '#dashboard').replace('#', '')),
   lastDebugSourceView: 'dashboard',
   dashboard: null,
   conversations: [],
@@ -357,6 +408,11 @@ const state = {
   stayWizardReprocessHoldId: null,
   stayProfileRoomTypes: [],
   tickets: [],
+  accessControlCatalog: null,
+  accessControlUsers: [],
+  accessControlSelectedRole: '',
+  accessControlSelectedUserId: 0,
+  accessControlDraftPermissions: new Set(),
   faqs: [],
   faqDetail: null,
   hotelDetail: null,
@@ -431,6 +487,11 @@ function bindRefs() {
     'stayHoldFilters','stayHoldTableBody','stayHoldDetail','stayHoldCreatePanel','stayWizardSteps','stayWizardBody','stayStatusChips',
     'restaurantHoldFilters','restaurantHoldTableBody','restaurantHoldDetail','restaurantHoldCreatePanel','restaurantCreateForm','restaurantStatusChips','restaurantDateFrom','restaurantDateTo',
     'transferHoldFilters','transferHoldTableBody','transferHoldDetail','transferHoldCreatePanel','transferCreateForm','transferStatusChips',
+    'accessOverviewCards','accessRoleSummary','accessRoleCards','accessCreateUserForm','accessCreateUsername','accessCreateDisplayName',
+    'accessCreatePassword','accessCreatePasswordConfirm','accessCreateRole','accessCreateDepartment','accessCreateActive',
+    'accessCreateTwoFactor','accessTotpResult','accessTotpResultTitle','accessTotpResultUser','accessTotpQrImage',
+    'accessTotpSecret','accessTotpUri','accessUsersList','accessPermissionMeta','accessPermissionTree',
+    'accessResetPermissionsButton','accessSavePermissionsButton',
     'ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor','applyHotelProfileJson','saveHotelProfile',
     'faqFilters','faqTableBody','faqDetail',
     'notifPhoneTableBody','addNotifPhoneForm',
@@ -517,6 +578,13 @@ function bindEvents() {
     event.preventDefault();
     loadTickets();
   });
+  refs.accessCreateUserForm?.addEventListener('submit', onAccessCreateUser);
+  refs.accessCreateRole?.addEventListener('change', onAccessCreateRoleChange);
+  refs.accessRoleCards?.addEventListener('click', onAccessRoleCardClick);
+  refs.accessUsersList?.addEventListener('click', onAccessUsersListClick);
+  refs.accessPermissionTree?.addEventListener('change', onAccessPermissionTreeChange);
+  refs.accessResetPermissionsButton?.addEventListener('click', onAccessResetPermissions);
+  refs.accessSavePermissionsButton?.addEventListener('click', onAccessSavePermissions);
   refs.faqFilters?.addEventListener('submit', event => {
     event.preventDefault();
     loadFaqs();
@@ -552,7 +620,8 @@ function bindEvents() {
     }
   });
   window.addEventListener('hashchange', () => {
-    const newView = window.location.hash.replace('#', '') || 'dashboard';
+    const rawView = window.location.hash.replace('#', '') || 'dashboard';
+    const newView = String(rawView).toLowerCase() === 'access-control' ? 'accesscontrol' : rawView;
     if (newView !== state.currentView) {
       setView(newView);
     }
@@ -990,6 +1059,7 @@ async function hydrateSession() {
   window.localStorage.setItem(HOTEL_KEY, state.selectedHotelId);
   populateHotelSelectors();
   showPanel();
+  syncNavigationAccess();
   await Promise.all([
     loadDashboard(),
     loadSystemOverview(),
@@ -1022,6 +1092,24 @@ function populateHotelSelectors() {
   refs.hotelSelect.disabled = state.me?.role !== 'ADMIN';
 }
 
+function hasPermission(permission) {
+  const permissions = state.me?.permissions || [];
+  if (Array.isArray(permissions)) {
+    return permissions.includes(permission);
+  }
+  if (permissions instanceof Set) {
+    return permissions.has(permission);
+  }
+  return false;
+}
+
+function syncNavigationAccess() {
+  document.querySelectorAll('[data-nav]').forEach(button => {
+    const requiredPermission = VIEW_PERMISSIONS[button.dataset.nav];
+    button.hidden = Boolean(requiredPermission) && !hasPermission(requiredPermission);
+  });
+}
+
 function showAuth() {
   clearLiveRefresh();
   stopDebugPolling();
@@ -1047,6 +1135,10 @@ function showPanel() {
 }
 
 function setView(view) {
+  if (state.me && VIEW_PERMISSIONS[view] && !hasPermission(VIEW_PERMISSIONS[view])) {
+    notify('Bu bölümü görüntüleme yetkiniz bulunmuyor.', 'warn');
+    view = 'dashboard';
+  }
   state.currentView = view;
   if (view && view !== 'debug') {
     state.lastDebugSourceView = view;
@@ -1071,6 +1163,7 @@ function setView(view) {
     faq: ['Sık Sorulan Sorular', 'Hazır yanıtları yönetin, uygunsuz içerikleri hızlıca kaldırın.'],
     restaurant: ['Restoran Yönetimi', 'Tarih ve saat bazlı masa kapasitelerini ayarlayın.'],
     notifications: ['Bildirim Ayarları', 'Rezervasyon onayları için WhatsApp bildirim numaralarını yönetin.'],
+    accesscontrol: ['Rol ve Yetkiler', 'Kullanıcı, rol, departman ve pencere bazlı işlem izinlerini aynı ekranda yönetin.'],
     system: ['Sistem Durumu', 'Sunucu sağlığı, alan adı ve güvenlik ayarlarını kontrol edin.'],
     chatlab: ['Test Paneli', 'Yapay zekâyı canlı test edin, puanlayın ve raporlayın.'],
     debug: ['Hata Raporları', 'Canlı panelde başlatılan report-only taramaların bulgularını inceleyin.'],
@@ -1091,6 +1184,7 @@ function setView(view) {
     if (typeof loadRestaurantSettings === 'function') loadRestaurantSettings();
   }
   if (view === 'notifications') loadNotifPhones();
+  if (view === 'accesscontrol') loadAccessControl();
   if (view === 'system') loadSystemOverview();
   if (view === 'chatlab') loadChatLab();
   if (view === 'debug') loadDebugRunsSafely({preserveSelection: true}, {notifyOnError: true});
@@ -2343,6 +2437,639 @@ async function onDecisionSubmit(event) {
     else if (tab === 'restaurant') loadRestaurantHolds();
     else loadTransferHolds();
     loadDashboard();
+  } catch (error) {
+    notify(error.message, 'error');
+  }
+}
+
+async function loadAccessControl() {
+  if (!hasPermission('access_control:read')) {
+    renderAccessControlUnavailable('Bu bölümü görüntüleme yetkiniz bulunmuyor.');
+    return;
+  }
+  const [catalogResponse, usersResponse] = await Promise.all([
+    state.accessControlCatalog ? Promise.resolve(state.accessControlCatalog) : apiFetch('/access-control/catalog'),
+    apiFetch('/users'),
+  ]);
+  state.accessControlCatalog = catalogResponse;
+  state.accessControlUsers = Array.isArray(usersResponse.items) ? usersResponse.items : [];
+  ensureAccessControlSelection();
+  const selectedUser = getAccessSelectedUser();
+  if (selectedUser) {
+    state.accessControlDraftPermissions = new Set(selectedUser.permissions || []);
+  }
+  renderAccessControl();
+}
+
+function ensureAccessControlSelection() {
+  const roles = state.accessControlCatalog?.roles || [];
+  if (!roles.length) {
+    state.accessControlSelectedRole = '';
+    state.accessControlSelectedUserId = 0;
+    state.accessControlDraftPermissions = new Set();
+    return;
+  }
+  if (!roles.some(item => String(item.code) === String(state.accessControlSelectedRole))) {
+    state.accessControlSelectedRole = String(roles[0].code);
+  }
+  if (
+    state.accessControlSelectedUserId &&
+    !state.accessControlUsers.some(item => Number(item.user_id) === Number(state.accessControlSelectedUserId))
+  ) {
+    state.accessControlSelectedUserId = 0;
+    state.accessControlDraftPermissions = new Set();
+  }
+}
+
+function renderAccessControlUnavailable(message) {
+  refs.accessOverviewCards.innerHTML = '';
+  refs.accessRoleSummary.innerHTML = `<div class="helper-box"><strong>Erişim kapalı</strong><p>${escapeHtml(message)}</p></div>`;
+  refs.accessRoleCards.innerHTML = '';
+  refs.accessUsersList.innerHTML = `<div class="access-editor-empty"><h4>Erişim yok</h4><p>${escapeHtml(message)}</p></div>`;
+  refs.accessPermissionMeta.innerHTML = `<div class="helper-box"><strong>İzin düzenleyici</strong><p>${escapeHtml(message)}</p></div>`;
+  refs.accessPermissionTree.innerHTML = '';
+}
+
+function renderAccessControl() {
+  renderAccessOverviewCards();
+  renderAccessRoleSummary();
+  renderAccessRoleCards();
+  renderAccessCreateOptions();
+  renderAccessUsersList();
+  renderAccessPermissionEditor();
+  syncAccessCreateFormState();
+}
+
+function renderAccessOverviewCards() {
+  const roles = state.accessControlCatalog?.roles || [];
+  const departments = state.accessControlCatalog?.departments || [];
+  const users = state.accessControlUsers || [];
+  const totpReadyCount = users.filter(item => item.totp_enrolled).length;
+  refs.accessOverviewCards.innerHTML = [
+    {
+      title: 'Yetki Şablonları',
+      value: roles.length,
+      note: `${departments.length} otel birimi ile eşleştirilmiş rol kataloğu`,
+    },
+    {
+      title: 'Admin Kullanıcıları',
+      value: users.length,
+      note: `${users.filter(item => item.is_active).length} aktif hesap şu anda panele erişebilir`,
+    },
+    {
+      title: '2FA Hazır',
+      value: totpReadyCount,
+      note: `${Math.max(users.length - totpReadyCount, 0)} hesap için yeni Authenticator kurulumu gerekebilir`,
+    },
+  ].map(item => `
+    <article class="overview-card access-overview-card">
+      <h4>${escapeHtml(item.title)}</h4>
+      <strong>${escapeHtml(item.value)}</strong>
+      <span>${escapeHtml(item.note)}</span>
+    </article>
+  `).join('');
+}
+
+function renderAccessRoleSummary() {
+  const role = getAccessRoleByCode(state.accessControlSelectedRole);
+  if (!role) {
+    refs.accessRoleSummary.innerHTML = '<div class="helper-box"><strong>Rol seçilmedi</strong><p>Soldaki kartlardan bir rol seçin.</p></div>';
+    return;
+  }
+  const department = getAccessDepartmentByCode(role.default_department_code);
+  const assignedUserCount = state.accessControlUsers.filter(item => item.role === role.code).length;
+  refs.accessRoleSummary.innerHTML = `
+    <div class="helper-box">
+      <strong>${escapeHtml(role.label)}</strong>
+      <p>${escapeHtml(role.description || 'Bu rol için açıklama bulunmuyor.')}</p>
+      <div class="access-summary-row">
+        <span class="access-chip role">${escapeHtml((role.default_permissions || []).length)} varsayılan izin</span>
+        <span class="access-chip department">${escapeHtml(department?.label || role.default_department_code || '-')}</span>
+        <span class="access-chip security">${escapeHtml(assignedUserCount)} kullanıcı bu rolde</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderAccessRoleCards() {
+  const roles = state.accessControlCatalog?.roles || [];
+  refs.accessRoleCards.innerHTML = roles.map(role => {
+    const department = getAccessDepartmentByCode(role.default_department_code);
+    const assignedUserCount = state.accessControlUsers.filter(item => item.role === role.code).length;
+    return `
+      <button
+        class="access-role-card ${String(role.code) === String(state.accessControlSelectedRole) ? 'is-active' : ''}"
+        type="button"
+        data-access-role="${escapeHtml(role.code)}"
+        aria-label="${escapeHtml(role.label)} rolünü görüntüle"
+      >
+        <header>
+          <div>
+            <h4>${escapeHtml(role.label)}</h4>
+            <p>${escapeHtml(role.description || '')}</p>
+          </div>
+          <span class="pill info">${escapeHtml(assignedUserCount)} kullanıcı</span>
+        </header>
+        <div class="access-chip-row">
+          <span class="access-chip role">${escapeHtml((role.default_permissions || []).length)} izin</span>
+          <span class="access-chip department">${escapeHtml(department?.label || role.default_department_code || '-')}</span>
+        </div>
+      </button>
+    `;
+  }).join('');
+}
+
+function renderAccessCreateOptions() {
+  const roles = state.accessControlCatalog?.roles || [];
+  const departments = state.accessControlCatalog?.departments || [];
+  const currentRole = refs.accessCreateRole?.value || state.accessControlSelectedRole || String(roles[0]?.code || '');
+  refs.accessCreateRole.innerHTML = roles.map(role => `
+    <option value="${escapeHtml(role.code)}">${escapeHtml(role.label)}</option>
+  `).join('');
+  if (roles.some(item => String(item.code) === String(currentRole))) {
+    refs.accessCreateRole.value = currentRole;
+  }
+  const fallbackDepartment = getAccessRoleByCode(refs.accessCreateRole.value)?.default_department_code || String(departments[0]?.code || '');
+  const currentDepartment = refs.accessCreateDepartment?.value || fallbackDepartment;
+  refs.accessCreateDepartment.innerHTML = departments.map(item => `
+    <option value="${escapeHtml(item.code)}">${escapeHtml(item.label)}</option>
+  `).join('');
+  if (departments.some(item => String(item.code) === String(currentDepartment))) {
+    refs.accessCreateDepartment.value = currentDepartment;
+  } else if (fallbackDepartment) {
+    refs.accessCreateDepartment.value = fallbackDepartment;
+  }
+}
+
+function syncAccessCreateFormState() {
+  const canWrite = hasPermission('access_control:write');
+  refs.accessCreateUserForm?.querySelectorAll('input, select, button').forEach(element => {
+    if (element.id === 'accessCreateTwoFactor') {
+      element.disabled = true;
+      return;
+    }
+    element.disabled = !canWrite;
+  });
+}
+
+function renderAccessUsersList() {
+  const users = state.accessControlUsers || [];
+  const canWrite = hasPermission('access_control:write');
+  if (!users.length) {
+    refs.accessUsersList.innerHTML = '<div class="access-editor-empty"><h4>Kayıtlı kullanıcı yok</h4><p>Bu otel kapsamında henüz ek yönetim kullanıcısı bulunmuyor.</p></div>';
+    return;
+  }
+  refs.accessUsersList.innerHTML = users.map(user => {
+    const isSelf = Number(user.user_id) === Number(state.me?.user_id || 0);
+    const selected = Number(user.user_id) === Number(state.accessControlSelectedUserId || 0);
+    const overrideCount = Object.keys(user.permission_overrides || {}).length;
+    return `
+      <article class="access-user-card ${selected ? 'is-selected' : ''}">
+        <header>
+          <div>
+            <h4>${escapeHtml(user.display_name || user.username)}</h4>
+            <p>${escapeHtml(user.username)} hesabının rol, departman, aktiflik ve güvenlik akışlarını bu karttan yönetin.</p>
+            <div class="access-user-badges">
+              <span class="access-chip role">${escapeHtml(user.role_label || user.role)}</span>
+              <span class="access-chip department">${escapeHtml(user.department_label || user.department_code || '-')}</span>
+              <span class="access-chip security">${escapeHtml((user.permissions || []).length)} etkin izin</span>
+              <span class="access-chip">${escapeHtml(overrideCount)} özel izin farkı</span>
+            </div>
+          </div>
+          <div class="stack">
+            <span class="pill ${user.is_active ? 'success' : 'closed'}">${escapeHtml(user.is_active ? 'Aktif' : 'Pasif')}</span>
+            <span class="pill ${user.totp_enrolled ? 'info' : 'warn'}">${escapeHtml(user.totp_enrolled ? '2FA kayıtlı' : '2FA kurulacak')}</span>
+          </div>
+        </header>
+        <div class="access-user-controls">
+          <div class="field">
+            <label for="accessDisplayName-${escapeHtml(user.user_id)}">Görünen ad</label>
+            <input id="accessDisplayName-${escapeHtml(user.user_id)}" data-user-display="${escapeHtml(user.user_id)}" maxlength="100" value="${escapeHtml(user.display_name || '')}" ${!canWrite ? 'disabled' : ''}>
+          </div>
+          <div class="field">
+            <label for="accessPassword-${escapeHtml(user.user_id)}">Yeni geçici şifre</label>
+            <input id="accessPassword-${escapeHtml(user.user_id)}" data-user-password="${escapeHtml(user.user_id)}" type="password" minlength="12" maxlength="72" placeholder="Boş bırakırsanız değişmez" ${!canWrite ? 'disabled' : ''}>
+          </div>
+          <div class="field access-field-role">
+            <label for="accessRole-${escapeHtml(user.user_id)}">Rol (Yetki şablonu)</label>
+            <select id="accessRole-${escapeHtml(user.user_id)}" data-user-role="${escapeHtml(user.user_id)}" ${!canWrite || isSelf ? 'disabled' : ''}>
+              ${renderAccessRoleOptions(user.role)}
+            </select>
+            <small>Rol, hangi pencere ve işlem ailelerine erişileceğini belirler.</small>
+          </div>
+          <div class="field access-field-department">
+            <label for="accessDepartment-${escapeHtml(user.user_id)}">Departman (Otel birimi)</label>
+            <select id="accessDepartment-${escapeHtml(user.user_id)}" data-user-department="${escapeHtml(user.user_id)}" ${!canWrite ? 'disabled' : ''}>
+              ${renderAccessDepartmentOptions(user.department_code)}
+            </select>
+            <small>Departman, kullanıcının oteldeki organizasyon konumunu tanımlar.</small>
+          </div>
+          <div class="field full access-toggle-grid">
+            <label class="toggle-row" for="accessActive-${escapeHtml(user.user_id)}">
+              <span class="toggle-copy">
+                <strong>Hesap aktif</strong>
+                <small>Pasif kullanıcı giriş yapamaz.</small>
+              </span>
+              <span class="switch">
+                <input id="accessActive-${escapeHtml(user.user_id)}" data-user-active="${escapeHtml(user.user_id)}" type="checkbox" ${user.is_active ? 'checked' : ''} ${!canWrite || isSelf ? 'disabled' : ''}>
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+              </span>
+            </label>
+            <label class="toggle-row access-toggle-locked" for="accessTwoFactor-${escapeHtml(user.user_id)}">
+              <span class="toggle-copy">
+                <strong>Zorunlu 2FA</strong>
+                <small>Politika gereği açık tutulur; gerekirse QR yenilenir.</small>
+              </span>
+              <span class="switch">
+                <input id="accessTwoFactor-${escapeHtml(user.user_id)}" type="checkbox" checked disabled>
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+              </span>
+            </label>
+          </div>
+          ${isSelf ? '<div class="field full"><div class="access-user-note">Kendi rolünüz, aktiflik durumunuz ve izin kümeniz bu akıştan değiştirilemez. Gerekirse yalnızca görünen ad veya şifre güncelleyin.</div></div>' : ''}
+        </div>
+        <div class="access-user-actions">
+          <button class="action-button secondary ${selected ? 'is-active' : ''}" type="button" data-access-edit-permissions="${escapeHtml(user.user_id)}">İzinleri Düzenle</button>
+          <button class="action-button primary" type="button" data-access-save-user="${escapeHtml(user.user_id)}" ${!canWrite ? 'disabled' : ''}>Değişiklikleri Kaydet</button>
+          <button class="action-button warn" type="button" data-access-rotate-totp="${escapeHtml(user.user_id)}" ${!canWrite ? 'disabled' : ''}>2FA QR Yenile</button>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+function renderAccessPermissionEditor() {
+  const user = getAccessSelectedUser();
+  if (!user) {
+    refs.accessResetPermissionsButton.disabled = true;
+    refs.accessSavePermissionsButton.disabled = true;
+    refs.accessPermissionMeta.innerHTML = '<div class="helper-box"><strong>Kullanıcı seçin</strong><p>İzin ağacını açmak için soldaki kartlardan bir kullanıcı seçin.</p></div>';
+    refs.accessPermissionTree.innerHTML = '<div class="access-editor-empty"><h4>Henüz kullanıcı seçilmedi</h4><p>Bir kullanıcı seçtiğinizde pencere erişimleri ve işlem izinleri burada toggle menüsü ile açılır.</p></div>';
+    return;
+  }
+  if (!(state.accessControlDraftPermissions instanceof Set)) {
+    state.accessControlDraftPermissions = new Set(user.permissions || []);
+  }
+  const roleDefaults = buildAccessRoleDefaultSet(user.role);
+  const canWrite = hasPermission('access_control:write') && Number(user.user_id) !== Number(state.me?.user_id || 0);
+  const overrideCount = Object.keys(user.permission_overrides || {}).length;
+  refs.accessResetPermissionsButton.disabled = !canWrite;
+  refs.accessSavePermissionsButton.disabled = !canWrite;
+  refs.accessPermissionMeta.innerHTML = `
+    <div class="helper-box">
+      <strong>${escapeHtml(user.display_name || user.username)}</strong>
+      <p>${escapeHtml(user.role_label || user.role)} rolündeki kullanıcının etkin izinleri düzenleniyor. Kaydedilen farklar rol varsayılanının üzerine kullanıcı bazlı override olarak işlenir.</p>
+      <div class="access-summary-row">
+        <span class="access-chip role">${escapeHtml((user.role_label || user.role))}</span>
+        <span class="access-chip department">${escapeHtml(user.department_label || user.department_code || '-')}</span>
+        <span class="access-chip security">${escapeHtml(state.accessControlDraftPermissions.size)} seçili izin</span>
+        <span class="access-chip">${escapeHtml(overrideCount)} kayıtlı override</span>
+      </div>
+    </div>
+    ${!canWrite ? '<div class="helper-box"><strong>Değişiklik kilitli</strong><p>Kendi kullanıcı kaydınızın izin seti bu ekrandan değiştirilemez.</p></div>' : ''}
+  `;
+  refs.accessPermissionTree.innerHTML = (state.accessControlCatalog?.permission_groups || []).map(group => {
+    const items = Array.isArray(group.items) ? group.items : [];
+    const activeCount = items.filter(item => state.accessControlDraftPermissions.has(item.key)).length;
+    return `
+      <section class="access-permission-group" aria-labelledby="permission-group-${escapeHtml(group.group)}">
+        <div class="access-permission-head">
+          <div>
+            <h4 id="permission-group-${escapeHtml(group.group)}">${escapeHtml(group.group_label || group.group)}</h4>
+            <p>${escapeHtml(activeCount)} / ${escapeHtml(items.length)} izin seçili</p>
+          </div>
+          <div class="access-permission-stats">
+            <span class="pill info">${escapeHtml(items.length)} anahtar</span>
+            <span class="pill ${activeCount === items.length ? 'success' : 'warn'}">${escapeHtml(activeCount)} aktif</span>
+          </div>
+        </div>
+        ${items.map(item => {
+          const enabled = state.accessControlDraftPermissions.has(item.key);
+          const roleDefaultEnabled = roleDefaults.has(item.key);
+          const flags = [];
+          if (roleDefaultEnabled) {
+            flags.push('<span class="access-permission-flag default">Rol varsayılanı</span>');
+          }
+          if (enabled !== roleDefaultEnabled) {
+            flags.push(`<span class="access-permission-flag ${enabled ? 'override' : 'removed'}">${enabled ? 'Ek yetki' : 'Varsayılandan kaldırıldı'}</span>`);
+          }
+          if (item.is_sensitive) {
+            flags.push('<span class="access-permission-flag removed">Kritik</span>');
+          }
+          return `
+            <div class="access-permission-row">
+              <div class="access-permission-copy">
+                <strong>${escapeHtml(item.label || item.key)}</strong>
+                <p>${escapeHtml(item.description || '')}</p>
+                <code>${escapeHtml(item.key)}</code>
+                <div class="access-permission-flags">${flags.join('')}</div>
+              </div>
+              <label class="switch" aria-label="${escapeHtml(item.label || item.key)} iznini aç veya kapat">
+                <input type="checkbox" data-access-permission="${escapeHtml(item.key)}" ${enabled ? 'checked' : ''} ${canWrite ? '' : 'disabled'}>
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+              </label>
+            </div>
+          `;
+        }).join('')}
+      </section>
+    `;
+  }).join('');
+}
+
+function renderAccessRoleOptions(selectedRole) {
+  return (state.accessControlCatalog?.roles || []).map(role => `
+    <option value="${escapeHtml(role.code)}" ${String(role.code) === String(selectedRole) ? 'selected' : ''}>${escapeHtml(role.label)}</option>
+  `).join('');
+}
+
+function renderAccessDepartmentOptions(selectedDepartmentCode) {
+  return (state.accessControlCatalog?.departments || []).map(item => `
+    <option value="${escapeHtml(item.code)}" ${String(item.code) === String(selectedDepartmentCode) ? 'selected' : ''}>${escapeHtml(item.label)}</option>
+  `).join('');
+}
+
+function getAccessRoleByCode(roleCode) {
+  return (state.accessControlCatalog?.roles || []).find(item => String(item.code) === String(roleCode)) || null;
+}
+
+function getAccessDepartmentByCode(departmentCode) {
+  return (state.accessControlCatalog?.departments || []).find(item => String(item.code) === String(departmentCode)) || null;
+}
+
+function getAccessUserById(userId) {
+  return (state.accessControlUsers || []).find(item => Number(item.user_id) === Number(userId)) || null;
+}
+
+function getAccessSelectedUser() {
+  return getAccessUserById(state.accessControlSelectedUserId);
+}
+
+function buildAccessRoleDefaultSet(roleCode) {
+  return new Set(getAccessRoleByCode(roleCode)?.default_permissions || []);
+}
+
+function syncAccessCreateDepartment(roleCode) {
+  const nextDepartmentCode = getAccessRoleByCode(roleCode)?.default_department_code;
+  if (nextDepartmentCode && refs.accessCreateDepartment) {
+    refs.accessCreateDepartment.value = nextDepartmentCode;
+  }
+}
+
+function onAccessRoleCardClick(event) {
+  const button = event.target.closest('[data-access-role]');
+  if (!button) {
+    return;
+  }
+  state.accessControlSelectedRole = String(button.dataset.accessRole || '');
+  if (refs.accessCreateRole) {
+    refs.accessCreateRole.value = state.accessControlSelectedRole;
+    syncAccessCreateDepartment(state.accessControlSelectedRole);
+  }
+  renderAccessRoleSummary();
+  renderAccessRoleCards();
+}
+
+function onAccessCreateRoleChange() {
+  state.accessControlSelectedRole = refs.accessCreateRole.value;
+  syncAccessCreateDepartment(state.accessControlSelectedRole);
+  renderAccessRoleSummary();
+  renderAccessRoleCards();
+}
+
+async function onAccessCreateUser(event) {
+  event.preventDefault();
+  if (!hasPermission('access_control:write')) {
+    notify('Yeni kullanıcı oluşturma yetkiniz bulunmuyor.', 'warn');
+    return;
+  }
+  const username = refs.accessCreateUsername.value.trim();
+  const displayName = refs.accessCreateDisplayName.value.trim();
+  const password = refs.accessCreatePassword.value;
+  const passwordConfirm = refs.accessCreatePasswordConfirm.value;
+  const roleCode = refs.accessCreateRole.value;
+  const departmentCode = refs.accessCreateDepartment.value;
+  if (!username || username.length < 3) {
+    notify('Kullanıcı adı en az 3 karakter olmalıdır.', 'warn');
+    return;
+  }
+  if (!password || password.length < 12) {
+    notify('Geçici şifre en az 12 karakter olmalıdır.', 'warn');
+    return;
+  }
+  if (new TextEncoder().encode(password).length > 72) {
+    notify('Şifre en fazla 72 byte olabilir.', 'warn');
+    return;
+  }
+  if (password !== passwordConfirm) {
+    notify('Şifre tekrarı eşleşmiyor.', 'warn');
+    return;
+  }
+  const role = getAccessRoleByCode(roleCode);
+  const department = getAccessDepartmentByCode(departmentCode);
+  if (!role || !department) {
+    notify('Rol veya departman seçimi geçersiz.', 'warn');
+    return;
+  }
+  try {
+    const response = await apiFetch('/users', {
+      method: 'POST',
+      body: {
+        username,
+        display_name: displayName || null,
+        password,
+        role: role.code,
+        department_code: department.code,
+        permissions: Array.from(buildAccessRoleDefaultSet(role.code)).sort(),
+        is_active: refs.accessCreateActive.checked,
+      },
+    });
+    state.accessControlSelectedUserId = Number(response.user?.user_id || 0);
+    state.accessControlDraftPermissions = new Set(response.user?.permissions || []);
+    refs.accessCreateUserForm.reset();
+    refs.accessCreateActive.checked = true;
+    refs.accessCreateTwoFactor.checked = true;
+    refs.accessCreateRole.value = role.code;
+    syncAccessCreateDepartment(role.code);
+    showAccessTotpResult(response, 'Yeni kullanıcı için Authenticator kurulumu');
+    await loadAccessControl();
+    notify(`${username} kullanıcısı oluşturuldu.`, 'success');
+  } catch (error) {
+    notify(error.message, 'error');
+  }
+}
+
+function showAccessTotpResult(response, title) {
+  if (!refs.accessTotpResult) {
+    return;
+  }
+  if (!response?.otpauth_qr_svg_data_uri) {
+    refs.accessTotpResult.hidden = true;
+    return;
+  }
+  refs.accessTotpResult.hidden = false;
+  refs.accessTotpResultTitle.textContent = title;
+  refs.accessTotpResultUser.textContent = `${response.user?.username || '-'} hesabı için QR kodu aşağıdadır.`;
+  refs.accessTotpQrImage.src = response.otpauth_qr_svg_data_uri;
+  refs.accessTotpSecret.textContent = response.totp_secret || '-';
+  refs.accessTotpUri.textContent = response.otpauth_uri || '-';
+}
+
+function onAccessUsersListClick(event) {
+  const permissionsButton = event.target.closest('[data-access-edit-permissions]');
+  if (permissionsButton) {
+    const userId = Number(permissionsButton.dataset.accessEditPermissions || 0);
+    const user = getAccessUserById(userId);
+    if (!user) {
+      return;
+    }
+    state.accessControlSelectedUserId = userId;
+    state.accessControlDraftPermissions = new Set(user.permissions || []);
+    renderAccessUsersList();
+    renderAccessPermissionEditor();
+    return;
+  }
+  const saveButton = event.target.closest('[data-access-save-user]');
+  if (saveButton) {
+    void saveAccessUser(Number(saveButton.dataset.accessSaveUser || 0));
+    return;
+  }
+  const rotateButton = event.target.closest('[data-access-rotate-totp]');
+  if (rotateButton) {
+    void rotateAccessUserTotp(Number(rotateButton.dataset.accessRotateTotp || 0));
+  }
+}
+
+async function saveAccessUser(userId) {
+  if (!hasPermission('access_control:write')) {
+    notify('Bu kullanıcıyı güncelleme yetkiniz bulunmuyor.', 'warn');
+    return;
+  }
+  const user = getAccessUserById(userId);
+  if (!user) {
+    notify('Kullanıcı bulunamadı.', 'error');
+    return;
+  }
+  const userKey = String(userId);
+  const displayNameInput = refs.accessUsersList.querySelector(`[data-user-display="${userKey}"]`);
+  const passwordInput = refs.accessUsersList.querySelector(`[data-user-password="${userKey}"]`);
+  const roleSelect = refs.accessUsersList.querySelector(`[data-user-role="${userKey}"]`);
+  const departmentSelect = refs.accessUsersList.querySelector(`[data-user-department="${userKey}"]`);
+  const activeInput = refs.accessUsersList.querySelector(`[data-user-active="${userKey}"]`);
+  const payload = {
+    display_name: displayNameInput ? displayNameInput.value.trim() : user.display_name || '',
+  };
+  const nextPassword = passwordInput ? String(passwordInput.value || '') : '';
+  if (nextPassword) {
+    if (nextPassword.length < 12) {
+      notify('Yeni geçici şifre en az 12 karakter olmalıdır.', 'warn');
+      return;
+    }
+    if (new TextEncoder().encode(nextPassword).length > 72) {
+      notify('Şifre en fazla 72 byte olabilir.', 'warn');
+      return;
+    }
+    payload.new_password = nextPassword;
+  }
+  if (Number(userId) !== Number(state.me?.user_id || 0)) {
+    payload.role = roleSelect ? roleSelect.value : user.role;
+    payload.department_code = departmentSelect ? departmentSelect.value : user.department_code;
+    payload.is_active = Boolean(activeInput?.checked);
+  } else {
+    payload.department_code = departmentSelect ? departmentSelect.value : user.department_code;
+  }
+  try {
+    const response = await apiFetch(`/users/${encodeURIComponent(userId)}`, {method: 'PUT', body: payload});
+    state.accessControlSelectedUserId = userId;
+    state.accessControlSelectedRole = String(response.user?.role || state.accessControlSelectedRole);
+    state.accessControlDraftPermissions = new Set(response.user?.permissions || []);
+    await loadAccessControl();
+    notify(`${user.username} kullanıcısı güncellendi.`, 'success');
+  } catch (error) {
+    notify(error.message, 'error');
+  }
+}
+
+async function rotateAccessUserTotp(userId) {
+  if (!hasPermission('access_control:write')) {
+    notify('2FA yenileme yetkiniz bulunmuyor.', 'warn');
+    return;
+  }
+  const user = getAccessUserById(userId);
+  if (!user) {
+    notify('Kullanıcı bulunamadı.', 'error');
+    return;
+  }
+  if (!confirm(`${user.username} kullanıcısı için Authenticator kurulumunu yenilemek istiyor musunuz?`)) {
+    return;
+  }
+  try {
+    const response = await apiFetch(`/users/${encodeURIComponent(userId)}/rotate-totp`, {method: 'POST', body: {}});
+    state.accessControlSelectedUserId = userId;
+    state.accessControlDraftPermissions = new Set(response.user?.permissions || []);
+    showAccessTotpResult(response, 'Authenticator kurulumu yenilendi');
+    await loadAccessControl();
+    notify(`${user.username} için 2FA kurulumu yenilendi.`, 'success');
+  } catch (error) {
+    notify(error.message, 'error');
+  }
+}
+
+function onAccessPermissionTreeChange(event) {
+  const input = event.target.closest('[data-access-permission]');
+  if (!input) {
+    return;
+  }
+  const permissionKey = String(input.dataset.accessPermission || '');
+  if (!permissionKey) {
+    return;
+  }
+  if (!(state.accessControlDraftPermissions instanceof Set)) {
+    state.accessControlDraftPermissions = new Set();
+  }
+  if (input.checked) {
+    state.accessControlDraftPermissions.add(permissionKey);
+  } else {
+    state.accessControlDraftPermissions.delete(permissionKey);
+  }
+  renderAccessPermissionEditor();
+}
+
+function onAccessResetPermissions() {
+  const user = getAccessSelectedUser();
+  if (!user) {
+    notify('Önce bir kullanıcı seçin.', 'warn');
+    return;
+  }
+  if (!hasPermission('access_control:write') || Number(user.user_id) === Number(state.me?.user_id || 0)) {
+    notify('Bu kullanıcı için izin sıfırlama yetkiniz bulunmuyor.', 'warn');
+    return;
+  }
+  state.accessControlDraftPermissions = buildAccessRoleDefaultSet(user.role);
+  renderAccessPermissionEditor();
+  notify('Rol varsayılan izinleri yüklendi. Kaydetmek için butonu kullanın.', 'success');
+}
+
+async function onAccessSavePermissions() {
+  const user = getAccessSelectedUser();
+  if (!user) {
+    notify('Önce bir kullanıcı seçin.', 'warn');
+    return;
+  }
+  if (!hasPermission('access_control:write') || Number(user.user_id) === Number(state.me?.user_id || 0)) {
+    notify('Bu kullanıcı için izin güncelleme yetkiniz bulunmuyor.', 'warn');
+    return;
+  }
+  try {
+    const response = await apiFetch(`/users/${encodeURIComponent(user.user_id)}/permissions`, {
+      method: 'PUT',
+      body: {
+        permissions: Array.from(state.accessControlDraftPermissions || []).sort(),
+      },
+    });
+    state.accessControlSelectedUserId = Number(user.user_id);
+    state.accessControlDraftPermissions = new Set(response.user?.permissions || []);
+    await loadAccessControl();
+    notify(`${user.username} için izinler kaydedildi.`, 'success');
   } catch (error) {
     notify(error.message, 'error');
   }

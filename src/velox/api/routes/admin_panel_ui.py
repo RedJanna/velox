@@ -65,10 +65,11 @@ def render_admin_panel_html() -> str:
         <button data-nav="faq"><span class="nav-label"><strong>Sık Sorulan Sorular</strong><span>Hazır yanıt yönetimi</span></span><span>06</span></button>
         <button data-nav="restaurant"><span class="nav-label"><strong>Restoran Yönetimi</strong><span>Masa ve kapasite ayarları</span></span><span>07</span></button>
         <button data-nav="notifications"><span class="nav-label"><strong>Bildirim Ayarları</strong><span>WhatsApp bildirim numaraları</span></span><span>08</span></button>
-        <button data-nav="whatsappapi"><span class="nav-label"><strong>WhatsApp API</strong><span>Meta bağlantısı ve şablonlar</span></span><span>09</span></button>
-        <button data-nav="system"><span class="nav-label"><strong>Sistem Durumu</strong><span>Sunucu ve bağlantı kontrolleri</span></span><span>10</span></button>
-        <button data-nav="chatlab"><span class="nav-label"><strong>Test Paneli</strong><span>Canlı test ve değerlendirme</span></span><span>11</span></button>
-        <button data-nav="debug"><span class="nav-label"><strong>Hata Raporları</strong><span>Canlı tarama bulguları</span></span><span>12</span></button>
+        <button data-nav="accesscontrol"><span class="nav-label"><strong>Rol ve Yetkiler</strong><span>Kullanıcı, rol ve izin yönetimi</span></span><span>09</span></button>
+        <button data-nav="whatsappapi"><span class="nav-label"><strong>WhatsApp API</strong><span>Meta bağlantısı ve şablonlar</span></span><span>10</span></button>
+        <button data-nav="system"><span class="nav-label"><strong>Sistem Durumu</strong><span>Sunucu ve bağlantı kontrolleri</span></span><span>11</span></button>
+        <button data-nav="chatlab"><span class="nav-label"><strong>Test Paneli</strong><span>Canlı test ve değerlendirme</span></span><span>12</span></button>
+        <button data-nav="debug"><span class="nav-label"><strong>Hata Raporları</strong><span>Canlı tarama bulguları</span></span><span>13</span></button>
       </nav>
 
       <section class="sidebar-card">
@@ -823,6 +824,121 @@ def render_admin_panel_html() -> str:
               <div class="field full"><button class="inline-button primary" type="submit">Numara Ekle</button></div>
             </form>
           </article>
+        </section>
+
+        <section data-view="accesscontrol" class="section-grid" hidden>
+          <div id="accessOverviewCards" class="card-grid card-grid-3"></div>
+
+          <div class="access-control-layout">
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Rol Şablonları</h3><p>Otel operasyonunda kullanılan yetki şablonlarını, varsayılan departmanlarını ve erişim yoğunluğunu inceleyin.</p></div>
+                <div class="badge info">Rol = yetki şablonu</div>
+              </div>
+              <div id="accessRoleSummary" class="helper-panel mb-md"></div>
+              <div id="accessRoleCards" class="access-role-grid"></div>
+            </article>
+
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Yeni Admin Kullanıcısı</h3><p>Kullanıcı adı, geçici şifre, rol, departman ve zorunlu 2FA bilgilerini tek akışta tanımlayın.</p></div>
+                <div class="badge warn">2FA zorunlu</div>
+              </div>
+              <form id="accessCreateUserForm" class="field-grid">
+                <div class="field">
+                  <label for="accessCreateUsername">Kullanıcı adı</label>
+                  <input id="accessCreateUsername" name="username" autocomplete="off" minlength="3" maxlength="100" required>
+                </div>
+                <div class="field">
+                  <label for="accessCreateDisplayName">Görünen ad</label>
+                  <input id="accessCreateDisplayName" name="display_name" maxlength="100" placeholder="Örn. Ayşe Demir">
+                </div>
+                <div class="field">
+                  <label for="accessCreatePassword">Geçici şifre</label>
+                  <input id="accessCreatePassword" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="72" required>
+                </div>
+                <div class="field">
+                  <label for="accessCreatePasswordConfirm">Şifre tekrarı</label>
+                  <input id="accessCreatePasswordConfirm" name="password_confirm" type="password" autocomplete="new-password" minlength="12" maxlength="72" required>
+                </div>
+                <div class="field access-field-role">
+                  <label for="accessCreateRole">Rol (Yetki şablonu)</label>
+                  <select id="accessCreateRole" name="role" required></select>
+                  <small>Panelde hangi ekranlara ve hangi işlemlere erişeceğini belirler.</small>
+                </div>
+                <div class="field access-field-department">
+                  <label for="accessCreateDepartment">Departman (Otel birimi)</label>
+                  <select id="accessCreateDepartment" name="department_code" required></select>
+                  <small>Kullanıcının otel organizasyonunda hangi ekibe bağlı olduğunu tanımlar.</small>
+                </div>
+                <div class="field full access-toggle-grid">
+                  <label class="toggle-row" for="accessCreateActive">
+                    <span class="toggle-copy">
+                      <strong>Hesap aktif</strong>
+                      <small>Pasif kullanıcı panele giriş yapamaz.</small>
+                    </span>
+                    <span class="switch">
+                      <input id="accessCreateActive" name="is_active" type="checkbox" checked>
+                      <span class="switch-track"><span class="switch-thumb"></span></span>
+                    </span>
+                  </label>
+                  <label class="toggle-row access-toggle-locked" for="accessCreateTwoFactor">
+                    <span class="toggle-copy">
+                      <strong>Zorunlu 2FA</strong>
+                      <small>Güvenlik politikası gereği kapatılamaz; kullanıcı ilk girişte Authenticator kurulumu yapar.</small>
+                    </span>
+                    <span class="switch">
+                      <input id="accessCreateTwoFactor" name="two_factor_required" type="checkbox" checked disabled>
+                      <span class="switch-track"><span class="switch-thumb"></span></span>
+                    </span>
+                  </label>
+                </div>
+                <div class="field full">
+                  <button class="inline-button primary" type="submit">Kullanıcı Oluştur ve Rol Ata</button>
+                </div>
+              </form>
+
+              <div id="accessTotpResult" class="helper-panel mt-md" hidden>
+                <div class="helper-box">
+                  <strong id="accessTotpResultTitle">Authenticator Kurulumu</strong>
+                  <p id="accessTotpResultUser" class="muted"></p>
+                </div>
+                <div class="qr-wrap">
+                  <img id="accessTotpQrImage" alt="Authenticator QR kodu">
+                </div>
+                <div class="helper-box">
+                  <strong>Authenticator Secret</strong>
+                  <p id="accessTotpSecret" class="mono"></p>
+                </div>
+                <div class="helper-box">
+                  <strong>otpauth URI</strong>
+                  <p id="accessTotpUri" class="mono"></p>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div class="access-control-main">
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Kullanıcılar ve Rol Değişikliği</h3><p>Mevcut kullanıcıların rolü, departmanı, aktiflik durumu ve 2FA kayıtları kontrollü şekilde yönetilir.</p></div>
+                <div class="badge dark">Departman = organizasyon birimi</div>
+              </div>
+              <div id="accessUsersList" class="access-user-list"></div>
+            </article>
+
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>İzin Düzenleyici</h3><p>Seçili kullanıcının pencere ve işlem izinlerini toggle yapısı ile güncelleyin. Rol varsayılanına dönme seçeneği korunur.</p></div>
+                <div class="module-actions">
+                  <button id="accessResetPermissionsButton" class="inline-button secondary" type="button">Rol Varsayılana Dön</button>
+                  <button id="accessSavePermissionsButton" class="inline-button primary" type="button">İzinleri Kaydet</button>
+                </div>
+              </div>
+              <div id="accessPermissionMeta" class="helper-panel mb-md"></div>
+              <div id="accessPermissionTree" class="access-permission-tree"></div>
+            </article>
+          </div>
         </section>
 
         <section data-view="whatsappapi" class="section-grid" hidden>

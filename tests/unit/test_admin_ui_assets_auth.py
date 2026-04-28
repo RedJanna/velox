@@ -644,8 +644,21 @@ def test_admin_panel_shell_uses_turkish_labels() -> None:
     assert "Slot Yönetimi" in html
     assert "Talep Takibi" in html
     assert "Bildirim Numaraları" in html
+    assert "Rol ve Yetkiler" in html
     assert "Restoran Plan Çizimi" in html
     assert "Masa Ayrıntıları" in html
+
+
+def test_admin_panel_contains_access_control_view() -> None:
+    html = render_admin_panel_html()
+
+    assert 'data-nav="accesscontrol"' in html
+    assert 'data-view="accesscontrol"' in html
+    assert 'id="accessCreateUserForm"' in html
+    assert 'id="accessUsersList"' in html
+    assert 'id="accessPermissionTree"' in html
+    assert "Kullanıcılar ve Rol Değişikliği" in html
+    assert "İzin Düzenleyici" in html
 
 
 def test_admin_panel_script_loads_hotel_facts_status_and_publish_actions() -> None:
@@ -676,6 +689,10 @@ def test_admin_panel_script_loads_hotel_facts_status_and_publish_actions() -> No
     assert "CHILD_POLICY_OPTIONS" in ADMIN_PANEL_SCRIPT
     assert "BEDDING_AVAILABILITY_OPTIONS" in ADMIN_PANEL_SCRIPT
     assert "LAUNDRY_TURNAROUND_OPTIONS" in ADMIN_PANEL_SCRIPT
+    assert "loadAccessControl" in ADMIN_PANEL_SCRIPT
+    assert "/access-control/catalog" in ADMIN_PANEL_SCRIPT
+    assert "data-access-edit-permissions" in ADMIN_PANEL_SCRIPT
+
 
 
 def test_admin_panel_script_tracks_hash_navigation_for_chatlab() -> None:
