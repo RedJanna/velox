@@ -697,7 +697,12 @@ def test_admin_panel_script_loads_hotel_facts_status_and_publish_actions() -> No
     assert "rol değişikliği için önce ikinci bir admin hesabı oluşturup bu kullanıcıyı onunla düzenleyin" in ADMIN_PANEL_SCRIPT
     assert "editableUser?.user_id || state.accessControlUsers[0]?.user_id || 0" in ADMIN_PANEL_SCRIPT
     assert "${!canWrite ? 'disabled' : ''}" not in ADMIN_PANEL_SCRIPT
-    assert 'data-user-display="${escapeHtml(user.user_id)}" maxlength="100" value="${escapeHtml(user.display_name || \'\')}" ${!hasWritePermission ? \'disabled\' : \'\'}' in ADMIN_PANEL_SCRIPT
+    assert 'data-user-display="${escapeHtml(user.user_id)}" maxlength="100" value="${escapeHtml(draftDisplayName || \'\')}" ${!hasWritePermission ? \'disabled\' : \'\'}' in ADMIN_PANEL_SCRIPT
+    assert "accessControlPreviewRole" in ADMIN_PANEL_SCRIPT
+    assert "renderAccessPermissionGroups(rolePermissions, rolePermissions, false)" in ADMIN_PANEL_SCRIPT
+    assert "refs.accessUsersList?.addEventListener('change', onAccessUsersListChange)" in ADMIN_PANEL_SCRIPT
+    assert "data-access-locked-toggle" in ADMIN_PANEL_SCRIPT
+    assert "Zorunlu 2FA güvenlik politikası gereği kapatılamaz" in ADMIN_PANEL_SCRIPT
 
 
 

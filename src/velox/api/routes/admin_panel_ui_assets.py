@@ -415,7 +415,9 @@ const state = {
   accessControlUsers: [],
   accessControlSelectedRole: '',
   accessControlSelectedUserId: 0,
+  accessControlPreviewRole: '',
   accessControlDraftPermissions: new Set(),
+  accessControlUserDrafts: {},
   faqs: [],
   faqDetail: null,
   hotelDetail: null,
@@ -585,6 +587,8 @@ function bindEvents() {
   refs.accessCreateRole?.addEventListener('change', onAccessCreateRoleChange);
   refs.accessRoleCards?.addEventListener('click', onAccessRoleCardClick);
   refs.accessUsersList?.addEventListener('click', onAccessUsersListClick);
+  refs.accessUsersList?.addEventListener('input', onAccessUsersListInput);
+  refs.accessUsersList?.addEventListener('change', onAccessUsersListChange);
   refs.accessPermissionTree?.addEventListener('change', onAccessPermissionTreeChange);
   refs.accessResetPermissionsButton?.addEventListener('click', onAccessResetPermissions);
   refs.accessSavePermissionsButton?.addEventListener('click', onAccessSavePermissions);
@@ -2456,9 +2460,13 @@ async function loadAccessControl() {
   ]);
   state.accessControlCatalog = catalogResponse;
   state.accessControlUsers = Array.isArray(usersResponse.items) ? usersResponse.items : [];
+  state.accessControlUserDrafts = {};
   ensureAccessControlSelection();
+  const previewRole = getAccessRoleByCode(state.accessControlPreviewRole);
   const selectedUser = getAccessSelectedUser();
-  if (selectedUser) {
+  if (previewRole) {
+    state.accessControlDraftPermissions = buildAccessRoleDefaultSet(previewRole.code);
+  } else if (selectedUser) {
     state.accessControlDraftPermissions = new Set(selectedUser.permissions || []);
   }
   renderAccessControl();
@@ -2469,11 +2477,18 @@ function ensureAccessControlSelection() {
   if (!roles.length) {
     state.accessControlSelectedRole = '';
     state.accessControlSelectedUserId = 0;
+    state.accessControlPreviewRole = '';
     state.accessControlDraftPermissions = new Set();
     return;
   }
   if (!roles.some(item => String(item.code) === String(state.accessControlSelectedRole))) {
     state.accessControlSelectedRole = String(roles[0].code);
+  }
+  if (
+    state.accessControlPreviewRole &&
+    !roles.some(item => String(item.code) === String(state.accessControlPreviewRole))
+  ) {
+    state.accessControlPreviewRole = '';
   }
   if (
     state.accessControlSelectedUserId &&
@@ -2632,12 +2647,29 @@ function renderAccessUsersList() {
   }
   refs.accessUsersList.innerHTML = users.map(user => {
     const isSelf = Number(user.user_id) === Number(state.me?.user_id || 0);
-    const selected = Number(user.user_id) === Number(state.accessControlSelectedUserId || 0);
+    const selected = !state.accessControlPreviewRole && Number(user.user_id) === Number(state.accessControlSelectedUserId || 0);
+    const draft = getAccessUserDraft(user.user_id);
+    const draftRole = draft.role || user.role;
+    const draftDepartment = draft.department_code || user.department_code;
+    const draftIsActive = typeof draft.is_active === 'boolean' ? draft.is_active : user.is_active;
+    const draftDisplayName = Object.prototype.hasOwnProperty.call(draft, 'display_name') ? draft.display_name : (user.display_name || '');
+    const draftDepartmentLabel = getAccessDepartmentByCode(draftDepartment)?.label || user.department_label || draftDepartment || '-';
+    const draftRoleLabel = getAccessRoleByCode(draftRole)?.label || user.role_label || draftRole;
     const overrideCount = Object.keys(user.permission_overrides || {}).length;
-    const canEditRole = hasWritePermission && !isSelf;
+    const canEditRole = hasWritePermission && !isSelf && !user.is_super_admin;
+    const activeLockedReason = !hasWritePermission
+      ? 'Aktiflik durumunu değiştirme yetkiniz bulunmuyor.'
+      : isSelf
+        ? 'Giriş yaptığınız hesabı aynı oturumdan pasife alamazsınız.'
+        : user.is_super_admin
+          ? 'Korunan super admin hesabı pasife alınamaz.'
+          : '';
+    const twoFactorLockedReason = 'Zorunlu 2FA güvenlik politikası gereği kapatılamaz; gerekiyorsa 2FA QR yenileme butonunu kullanın.';
     const roleHelpText = isSelf
       ? 'Giriş yaptığınız hesabın rolü güvenlik nedeniyle bu karttan değiştirilemez. Rol değişikliği için başka bir admin hesabı ile bu kullanıcıyı düzenleyin.'
-      : hasWritePermission
+      : user.is_super_admin
+        ? 'Korunan super admin hesabının rolü düşürülemez; tüm izinleri açık kalır.'
+        : hasWritePermission
         ? 'Rol, hangi pencere ve işlem ailelerine erişileceğini belirler.'
         : 'Rol değiştirme yetkiniz bulunmuyor.';
     const departmentHelpText = isSelf
@@ -2650,22 +2682,22 @@ function renderAccessUsersList() {
             <h4>${escapeHtml(user.display_name || user.username)}</h4>
             <p>${escapeHtml(user.username)} hesabının rol, departman, aktiflik ve güvenlik akışlarını bu karttan yönetin.</p>
             <div class="access-user-badges">
-              <span class="access-chip role">${escapeHtml(user.role_label || user.role)}</span>
-              <span class="access-chip department">${escapeHtml(user.department_label || user.department_code || '-')}</span>
+              <span class="access-chip role">${escapeHtml(draftRoleLabel)}</span>
+              <span class="access-chip department">${escapeHtml(draftDepartmentLabel)}</span>
               <span class="access-chip security">${escapeHtml((user.permissions || []).length)} etkin izin</span>
               <span class="access-chip">${escapeHtml(overrideCount)} özel izin farkı</span>
               ${isSelf ? '<span class="access-chip self">Giriş yaptığınız hesap</span>' : ''}
             </div>
           </div>
           <div class="stack">
-            <span class="pill ${user.is_active ? 'success' : 'closed'}">${escapeHtml(user.is_active ? 'Aktif' : 'Pasif')}</span>
+            <span class="pill ${draftIsActive ? 'success' : 'closed'}">${escapeHtml(draftIsActive ? 'Aktif' : 'Pasif')}</span>
             <span class="pill ${user.totp_enrolled ? 'info' : 'warn'}">${escapeHtml(user.totp_enrolled ? '2FA kayıtlı' : '2FA kurulacak')}</span>
           </div>
         </header>
         <div class="access-user-controls">
           <div class="field">
             <label for="accessDisplayName-${escapeHtml(user.user_id)}">Görünen ad</label>
-            <input id="accessDisplayName-${escapeHtml(user.user_id)}" data-user-display="${escapeHtml(user.user_id)}" maxlength="100" value="${escapeHtml(user.display_name || '')}" ${!hasWritePermission ? 'disabled' : ''}>
+            <input id="accessDisplayName-${escapeHtml(user.user_id)}" data-user-display="${escapeHtml(user.user_id)}" maxlength="100" value="${escapeHtml(draftDisplayName || '')}" ${!hasWritePermission ? 'disabled' : ''}>
           </div>
           <div class="field">
             <label for="accessPassword-${escapeHtml(user.user_id)}">Yeni geçici şifre</label>
@@ -2674,29 +2706,29 @@ function renderAccessUsersList() {
           <div class="field access-field-role">
             <label for="accessRole-${escapeHtml(user.user_id)}">Rol (Yetki şablonu)</label>
             <select id="accessRole-${escapeHtml(user.user_id)}" data-user-role="${escapeHtml(user.user_id)}" ${canEditRole ? '' : 'disabled'}>
-              ${renderAccessRoleOptions(user.role)}
+              ${renderAccessRoleOptions(draftRole)}
             </select>
             <small>${escapeHtml(roleHelpText)}</small>
           </div>
           <div class="field access-field-department">
             <label for="accessDepartment-${escapeHtml(user.user_id)}">Departman (Otel birimi)</label>
             <select id="accessDepartment-${escapeHtml(user.user_id)}" data-user-department="${escapeHtml(user.user_id)}" ${!hasWritePermission ? 'disabled' : ''}>
-              ${renderAccessDepartmentOptions(user.department_code)}
+              ${renderAccessDepartmentOptions(draftDepartment)}
             </select>
             <small>${escapeHtml(departmentHelpText)}</small>
           </div>
           <div class="field full access-toggle-grid">
-            <label class="toggle-row" for="accessActive-${escapeHtml(user.user_id)}">
+            <label class="toggle-row ${activeLockedReason ? 'access-toggle-locked' : ''}" for="accessActive-${escapeHtml(user.user_id)}" ${activeLockedReason ? `data-access-locked-toggle="${escapeHtml(activeLockedReason)}"` : ''}>
               <span class="toggle-copy">
                 <strong>Hesap aktif</strong>
                 <small>Pasif kullanıcı giriş yapamaz.</small>
               </span>
               <span class="switch">
-                <input id="accessActive-${escapeHtml(user.user_id)}" data-user-active="${escapeHtml(user.user_id)}" type="checkbox" ${user.is_active ? 'checked' : ''} ${!hasWritePermission || isSelf ? 'disabled' : ''}>
+                <input id="accessActive-${escapeHtml(user.user_id)}" data-user-active="${escapeHtml(user.user_id)}" type="checkbox" ${draftIsActive ? 'checked' : ''} ${activeLockedReason ? 'disabled' : ''}>
                 <span class="switch-track"><span class="switch-thumb"></span></span>
               </span>
             </label>
-            <label class="toggle-row access-toggle-locked" for="accessTwoFactor-${escapeHtml(user.user_id)}">
+            <label class="toggle-row access-toggle-locked" for="accessTwoFactor-${escapeHtml(user.user_id)}" data-access-locked-toggle="${escapeHtml(twoFactorLockedReason)}">
               <span class="toggle-copy">
                 <strong>Zorunlu 2FA</strong>
                 <small>Politika gereği açık tutulur; gerekirse QR yenilenir.</small>
@@ -2720,6 +2752,28 @@ function renderAccessUsersList() {
 }
 
 function renderAccessPermissionEditor() {
+  const previewRole = getAccessRoleByCode(state.accessControlPreviewRole);
+  if (previewRole) {
+    const rolePermissions = buildAccessRoleDefaultSet(previewRole.code);
+    const department = getAccessDepartmentByCode(previewRole.default_department_code);
+    state.accessControlDraftPermissions = rolePermissions;
+    refs.accessResetPermissionsButton.disabled = true;
+    refs.accessSavePermissionsButton.disabled = true;
+    refs.accessPermissionMeta.innerHTML = `
+      <div class="helper-box">
+        <strong>${escapeHtml(previewRole.label)} rol şablonu</strong>
+        <p>${escapeHtml(previewRole.description || 'Bu rol için açıklama bulunmuyor.')} Bu görünüm rolün varsayılan izinlerini gösterir; kullanıcıya uygulamak için kullanıcı kartındaki rol alanını seçip değişiklikleri kaydedin.</p>
+        <div class="access-summary-row">
+          <span class="access-chip role">${escapeHtml(rolePermissions.size)} varsayılan izin</span>
+          <span class="access-chip department">${escapeHtml(department?.label || previewRole.default_department_code || '-')}</span>
+          <span class="access-chip security">Önizleme modu</span>
+        </div>
+      </div>
+      <div class="helper-box"><strong>Rol önizlemesi</strong><p>Rol şablonları katalogtan gelir; bu ekranda doğrudan düzenlenmez. Değişiklik için ilgili kullanıcıya rol atayın veya kullanıcı bazlı izinleri kullanıcı kartından açın.</p></div>
+    `;
+    refs.accessPermissionTree.innerHTML = renderAccessPermissionGroups(rolePermissions, rolePermissions, false);
+    return;
+  }
   const user = getAccessSelectedUser();
   if (!user) {
     refs.accessResetPermissionsButton.disabled = true;
@@ -2732,33 +2786,48 @@ function renderAccessPermissionEditor() {
     state.accessControlDraftPermissions = new Set(user.permissions || []);
   }
   const isSelf = Number(user.user_id) === Number(state.me?.user_id || 0);
-  const roleDefaults = buildAccessRoleDefaultSet(user.role);
+  const draft = getAccessUserDraft(user.user_id);
+  const effectiveRole = draft.role || user.role;
+  const effectiveDepartment = draft.department_code || user.department_code;
+  const effectiveRoleLabel = getAccessRoleByCode(effectiveRole)?.label || user.role_label || effectiveRole;
+  const effectiveDepartmentLabel = getAccessDepartmentByCode(effectiveDepartment)?.label || user.department_label || effectiveDepartment || '-';
+  const roleDefaults = buildAccessRoleDefaultSet(effectiveRole);
   const hasWritePermission = hasPermission('access_control:write');
-  const canWrite = hasWritePermission && !isSelf;
+  const canWrite = hasWritePermission && !isSelf && !user.is_super_admin;
   const overrideCount = Object.keys(user.permission_overrides || {}).length;
   refs.accessResetPermissionsButton.disabled = !canWrite;
   refs.accessSavePermissionsButton.disabled = !canWrite;
   const lockMessage = isSelf
     ? 'Bu kayıt şu an giriş yaptığınız admin hesabı. Güvenlik nedeniyle kendi rolünüz, aktifliğiniz ve izin kümeniz bu ekrandan değiştirilemez. Başka bir admin hesabı oluşturup bu kullanıcıyı onunla düzenleyin.'
+    : user.is_super_admin
+      ? 'Korunan super admin hesabının izin kümesi azaltılamaz; tüm izinleri açık kalır.'
     : !hasWritePermission
       ? 'Bu kullanıcı için izin değişikliği yapma yetkiniz bulunmuyor.'
       : '';
   refs.accessPermissionMeta.innerHTML = `
-    <div class="helper-box">
-      <strong>${escapeHtml(user.display_name || user.username)}</strong>
-      <p>${escapeHtml(user.role_label || user.role)} rolündeki kullanıcının etkin izinleri düzenleniyor. Kaydedilen farklar rol varsayılanının üzerine kullanıcı bazlı override olarak işlenir.</p>
-      <div class="access-summary-row">
-        <span class="access-chip role">${escapeHtml((user.role_label || user.role))}</span>
-        <span class="access-chip department">${escapeHtml(user.department_label || user.department_code || '-')}</span>
+      <div class="helper-box">
+        <strong>${escapeHtml(user.display_name || user.username)}</strong>
+        <p>${escapeHtml(effectiveRoleLabel)} rolündeki kullanıcının etkin izinleri düzenleniyor. Kaydedilen farklar rol varsayılanının üzerine kullanıcı bazlı override olarak işlenir.</p>
+        <div class="access-summary-row">
+        <span class="access-chip role">${escapeHtml(effectiveRoleLabel)}</span>
+        <span class="access-chip department">${escapeHtml(effectiveDepartmentLabel)}</span>
         <span class="access-chip security">${escapeHtml(state.accessControlDraftPermissions.size)} seçili izin</span>
         <span class="access-chip">${escapeHtml(overrideCount)} kayıtlı override</span>
       </div>
     </div>
     ${!canWrite ? `<div class="helper-box"><strong>Değişiklik kilitli</strong><p>${escapeHtml(lockMessage)}</p></div>` : ''}
   `;
-  refs.accessPermissionTree.innerHTML = (state.accessControlCatalog?.permission_groups || []).map(group => {
+  refs.accessPermissionTree.innerHTML = renderAccessPermissionGroups(
+    state.accessControlDraftPermissions,
+    roleDefaults,
+    canWrite,
+  );
+}
+
+function renderAccessPermissionGroups(permissionSet, roleDefaults, canWrite) {
+  return (state.accessControlCatalog?.permission_groups || []).map(group => {
     const items = Array.isArray(group.items) ? group.items : [];
-    const activeCount = items.filter(item => state.accessControlDraftPermissions.has(item.key)).length;
+    const activeCount = items.filter(item => permissionSet.has(item.key)).length;
     return `
       <section class="access-permission-group" aria-labelledby="permission-group-${escapeHtml(group.group)}">
         <div class="access-permission-head">
@@ -2772,7 +2841,7 @@ function renderAccessPermissionEditor() {
           </div>
         </div>
         ${items.map(item => {
-          const enabled = state.accessControlDraftPermissions.has(item.key);
+          const enabled = permissionSet.has(item.key);
           const roleDefaultEnabled = roleDefaults.has(item.key);
           const flags = [];
           if (roleDefaultEnabled) {
@@ -2828,6 +2897,22 @@ function getAccessUserById(userId) {
   return (state.accessControlUsers || []).find(item => Number(item.user_id) === Number(userId)) || null;
 }
 
+function getAccessUserDraft(userId) {
+  return state.accessControlUserDrafts?.[String(userId)] || {};
+}
+
+function setAccessUserDraftValue(userId, key, value) {
+  const userKey = String(userId || '');
+  if (!userKey) {
+    return;
+  }
+  state.accessControlUserDrafts = state.accessControlUserDrafts || {};
+  state.accessControlUserDrafts[userKey] = {
+    ...(state.accessControlUserDrafts[userKey] || {}),
+    [key]: value,
+  };
+}
+
 function getAccessSelectedUser() {
   return getAccessUserById(state.accessControlSelectedUserId);
 }
@@ -2849,19 +2934,27 @@ function onAccessRoleCardClick(event) {
     return;
   }
   state.accessControlSelectedRole = String(button.dataset.accessRole || '');
+  state.accessControlPreviewRole = state.accessControlSelectedRole;
+  state.accessControlDraftPermissions = buildAccessRoleDefaultSet(state.accessControlSelectedRole);
   if (refs.accessCreateRole) {
     refs.accessCreateRole.value = state.accessControlSelectedRole;
     syncAccessCreateDepartment(state.accessControlSelectedRole);
   }
   renderAccessRoleSummary();
   renderAccessRoleCards();
+  renderAccessUsersList();
+  renderAccessPermissionEditor();
 }
 
 function onAccessCreateRoleChange() {
   state.accessControlSelectedRole = refs.accessCreateRole.value;
+  state.accessControlPreviewRole = state.accessControlSelectedRole;
+  state.accessControlDraftPermissions = buildAccessRoleDefaultSet(state.accessControlSelectedRole);
   syncAccessCreateDepartment(state.accessControlSelectedRole);
   renderAccessRoleSummary();
   renderAccessRoleCards();
+  renderAccessUsersList();
+  renderAccessPermissionEditor();
 }
 
 async function onAccessCreateUser(event) {
@@ -2912,6 +3005,7 @@ async function onAccessCreateUser(event) {
       },
     });
     state.accessControlSelectedUserId = Number(response.user?.user_id || 0);
+    state.accessControlPreviewRole = '';
     state.accessControlDraftPermissions = new Set(response.user?.permissions || []);
     refs.accessCreateUserForm.reset();
     refs.accessCreateActive.checked = true;
@@ -2950,10 +3044,19 @@ function onAccessUsersListClick(event) {
     if (!user) {
       return;
     }
+    state.accessControlPreviewRole = '';
     state.accessControlSelectedUserId = userId;
+    state.accessControlSelectedRole = String(user.role || state.accessControlSelectedRole);
     state.accessControlDraftPermissions = new Set(user.permissions || []);
+    renderAccessRoleSummary();
+    renderAccessRoleCards();
     renderAccessUsersList();
     renderAccessPermissionEditor();
+    return;
+  }
+  const lockedToggle = event.target.closest('[data-access-locked-toggle]');
+  if (lockedToggle) {
+    notify(lockedToggle.dataset.accessLockedToggle || 'Bu ayar güvenlik nedeniyle kilitli.', 'warn');
     return;
   }
   const saveButton = event.target.closest('[data-access-save-user]');
@@ -2964,6 +3067,62 @@ function onAccessUsersListClick(event) {
   const rotateButton = event.target.closest('[data-access-rotate-totp]');
   if (rotateButton) {
     void rotateAccessUserTotp(Number(rotateButton.dataset.accessRotateTotp || 0));
+  }
+}
+
+function onAccessUsersListInput(event) {
+  const displayNameInput = event.target.closest('[data-user-display]');
+  if (!displayNameInput) {
+    return;
+  }
+  setAccessUserDraftValue(
+    Number(displayNameInput.dataset.userDisplay || 0),
+    'display_name',
+    displayNameInput.value,
+  );
+}
+
+function onAccessUsersListChange(event) {
+  const roleSelect = event.target.closest('[data-user-role]');
+  if (roleSelect) {
+    const userId = Number(roleSelect.dataset.userRole || 0);
+    const role = getAccessRoleByCode(roleSelect.value);
+    if (!userId || !role) {
+      return;
+    }
+    const departmentSelect = refs.accessUsersList.querySelector(`[data-user-department="${userId}"]`);
+    setAccessUserDraftValue(userId, 'role', role.code);
+    if (departmentSelect && !departmentSelect.disabled && role.default_department_code) {
+      departmentSelect.value = role.default_department_code;
+      setAccessUserDraftValue(userId, 'department_code', role.default_department_code);
+    }
+    state.accessControlSelectedUserId = userId;
+    state.accessControlSelectedRole = String(role.code);
+    state.accessControlPreviewRole = String(role.code);
+    state.accessControlDraftPermissions = buildAccessRoleDefaultSet(role.code);
+    renderAccessRoleSummary();
+    renderAccessRoleCards();
+    renderAccessPermissionEditor();
+    notify('Rol şablonu önizlendi. Uygulamak için Değişiklikleri Kaydet butonunu kullanın.', 'success');
+    return;
+  }
+  const departmentSelect = event.target.closest('[data-user-department]');
+  if (departmentSelect) {
+    const userId = Number(departmentSelect.dataset.userDepartment || 0);
+    setAccessUserDraftValue(userId, 'department_code', departmentSelect.value);
+    state.accessControlSelectedUserId = userId;
+    state.accessControlPreviewRole = '';
+    renderAccessPermissionEditor();
+    notify('Departman seçimi güncellendi. Kalıcı yapmak için Değişiklikleri Kaydet butonunu kullanın.', 'success');
+    return;
+  }
+  const activeInput = event.target.closest('[data-user-active]');
+  if (activeInput) {
+    const userId = Number(activeInput.dataset.userActive || 0);
+    setAccessUserDraftValue(userId, 'is_active', Boolean(activeInput.checked));
+    state.accessControlSelectedUserId = userId;
+    state.accessControlPreviewRole = '';
+    notify('Aktiflik durumu değiştirildi. Kalıcı yapmak için Değişiklikleri Kaydet butonunu kullanın.', 'success');
   }
 }
 
@@ -3008,6 +3167,7 @@ async function saveAccessUser(userId) {
   try {
     const response = await apiFetch(`/users/${encodeURIComponent(userId)}`, {method: 'PUT', body: payload});
     state.accessControlSelectedUserId = userId;
+    state.accessControlPreviewRole = '';
     state.accessControlSelectedRole = String(response.user?.role || state.accessControlSelectedRole);
     state.accessControlDraftPermissions = new Set(response.user?.permissions || []);
     await loadAccessControl();
@@ -3033,6 +3193,7 @@ async function rotateAccessUserTotp(userId) {
   try {
     const response = await apiFetch(`/users/${encodeURIComponent(userId)}/rotate-totp`, {method: 'POST', body: {}});
     state.accessControlSelectedUserId = userId;
+    state.accessControlPreviewRole = '';
     state.accessControlDraftPermissions = new Set(response.user?.permissions || []);
     showAccessTotpResult(response, 'Authenticator kurulumu yenilendi');
     await loadAccessControl();
@@ -3049,6 +3210,11 @@ function onAccessPermissionTreeChange(event) {
   }
   const permissionKey = String(input.dataset.accessPermission || '');
   if (!permissionKey) {
+    return;
+  }
+  if (state.accessControlPreviewRole) {
+    notify('Rol şablonu önizleme modunda doğrudan düzenlenemez.', 'warn');
+    renderAccessPermissionEditor();
     return;
   }
   if (!(state.accessControlDraftPermissions instanceof Set)) {
@@ -3095,6 +3261,7 @@ async function onAccessSavePermissions() {
       },
     });
     state.accessControlSelectedUserId = Number(user.user_id);
+    state.accessControlPreviewRole = '';
     state.accessControlDraftPermissions = new Set(response.user?.permissions || []);
     await loadAccessControl();
     notify(`${user.username} için izinler kaydedildi.`, 'success');
