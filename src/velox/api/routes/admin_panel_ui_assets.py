@@ -2665,7 +2665,7 @@ function renderAccessUsersList() {
         <div class="access-user-controls">
           <div class="field">
             <label for="accessDisplayName-${escapeHtml(user.user_id)}">Görünen ad</label>
-            <input id="accessDisplayName-${escapeHtml(user.user_id)}" data-user-display="${escapeHtml(user.user_id)}" maxlength="100" value="${escapeHtml(user.display_name || '')}" ${!canWrite ? 'disabled' : ''}>
+            <input id="accessDisplayName-${escapeHtml(user.user_id)}" data-user-display="${escapeHtml(user.user_id)}" maxlength="100" value="${escapeHtml(user.display_name || '')}" ${!hasWritePermission ? 'disabled' : ''}>
           </div>
           <div class="field">
             <label for="accessPassword-${escapeHtml(user.user_id)}">Yeni geçici şifre</label>
