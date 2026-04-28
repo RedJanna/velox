@@ -692,6 +692,10 @@ def test_admin_panel_script_loads_hotel_facts_status_and_publish_actions() -> No
     assert "loadAccessControl" in ADMIN_PANEL_SCRIPT
     assert "/access-control/catalog" in ADMIN_PANEL_SCRIPT
     assert "data-access-edit-permissions" in ADMIN_PANEL_SCRIPT
+    assert "Giriş yaptığınız hesap" in ADMIN_PANEL_SCRIPT
+    assert "İzinleri Görüntüle" in ADMIN_PANEL_SCRIPT
+    assert "rol değişikliği için önce ikinci bir admin hesabı oluşturup bu kullanıcıyı onunla düzenleyin" in ADMIN_PANEL_SCRIPT
+    assert "editableUser?.user_id || state.accessControlUsers[0]?.user_id || 0" in ADMIN_PANEL_SCRIPT
 
 
 

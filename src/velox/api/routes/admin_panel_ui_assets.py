@@ -306,6 +306,7 @@ tbody tr:hover{background:#fffcf7}
 .access-chip.role{background:#eef4ff;color:#1d4ed8}
 .access-chip.department{background:#e8f8f3;color:#0f766e}
 .access-chip.security{background:#fff2dd;color:#92400e}
+.access-chip.self{background:#eef2ff;color:#4338ca}
 .access-overview-card{display:flex;flex-direction:column;gap:10px}
 .access-overview-card h4{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .access-overview-card strong{font-size:30px;line-height:1;font-family:var(--serif)}
@@ -319,6 +320,8 @@ tbody tr:hover{background:#fffcf7}
 .access-user-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
 .access-user-controls .field{margin:0}
 .access-user-controls .field.full{grid-column:1/-1}
+.access-user-card.is-self-locked{background:#fffdf7;border-color:rgba(187,138,42,.32)}
+.access-user-card.is-self-locked.is-selected{box-shadow:0 14px 28px rgba(187,138,42,.12);background:#fffaf0}
 .access-user-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
 .access-user-note{padding:10px 12px;border-radius:14px;background:#fffaf0;border:1px dashed rgba(187,138,42,.28);font-size:12px;color:#7c4b06}
 .access-permission-head{margin-bottom:12px}
@@ -2479,6 +2482,14 @@ function ensureAccessControlSelection() {
     state.accessControlSelectedUserId = 0;
     state.accessControlDraftPermissions = new Set();
   }
+  if (!state.accessControlSelectedUserId) {
+    const editableUser = state.accessControlUsers.find(
+      item => Number(item.user_id) !== Number(state.me?.user_id || 0),
+    );
+    state.accessControlSelectedUserId = Number(
+      editableUser?.user_id || state.accessControlUsers[0]?.user_id || 0,
+    );
+  }
 }
 
 function renderAccessControlUnavailable(message) {
@@ -2614,7 +2625,7 @@ function syncAccessCreateFormState() {
 
 function renderAccessUsersList() {
   const users = state.accessControlUsers || [];
-  const canWrite = hasPermission('access_control:write');
+  const hasWritePermission = hasPermission('access_control:write');
   if (!users.length) {
     refs.accessUsersList.innerHTML = '<div class="access-editor-empty"><h4>Kayıtlı kullanıcı yok</h4><p>Bu otel kapsamında henüz ek yönetim kullanıcısı bulunmuyor.</p></div>';
     return;
@@ -2623,8 +2634,17 @@ function renderAccessUsersList() {
     const isSelf = Number(user.user_id) === Number(state.me?.user_id || 0);
     const selected = Number(user.user_id) === Number(state.accessControlSelectedUserId || 0);
     const overrideCount = Object.keys(user.permission_overrides || {}).length;
+    const canEditRole = hasWritePermission && !isSelf;
+    const roleHelpText = isSelf
+      ? 'Giriş yaptığınız hesabın rolü güvenlik nedeniyle bu karttan değiştirilemez. Rol değişikliği için başka bir admin hesabı ile bu kullanıcıyı düzenleyin.'
+      : hasWritePermission
+        ? 'Rol, hangi pencere ve işlem ailelerine erişileceğini belirler.'
+        : 'Rol değiştirme yetkiniz bulunmuyor.';
+    const departmentHelpText = isSelf
+      ? 'Bu hesapta departman bilgisi güncellenebilir; ancak rol, aktiflik ve izin kümesi kilitli tutulur.'
+      : 'Departman, kullanıcının oteldeki organizasyon konumunu tanımlar.';
     return `
-      <article class="access-user-card ${selected ? 'is-selected' : ''}">
+      <article class="access-user-card ${selected ? 'is-selected' : ''} ${isSelf ? 'is-self-locked' : ''}">
         <header>
           <div>
             <h4>${escapeHtml(user.display_name || user.username)}</h4>
@@ -2634,6 +2654,7 @@ function renderAccessUsersList() {
               <span class="access-chip department">${escapeHtml(user.department_label || user.department_code || '-')}</span>
               <span class="access-chip security">${escapeHtml((user.permissions || []).length)} etkin izin</span>
               <span class="access-chip">${escapeHtml(overrideCount)} özel izin farkı</span>
+              ${isSelf ? '<span class="access-chip self">Giriş yaptığınız hesap</span>' : ''}
             </div>
           </div>
           <div class="stack">
@@ -2648,21 +2669,21 @@ function renderAccessUsersList() {
           </div>
           <div class="field">
             <label for="accessPassword-${escapeHtml(user.user_id)}">Yeni geçici şifre</label>
-            <input id="accessPassword-${escapeHtml(user.user_id)}" data-user-password="${escapeHtml(user.user_id)}" type="password" minlength="12" maxlength="72" placeholder="Boş bırakırsanız değişmez" ${!canWrite ? 'disabled' : ''}>
+            <input id="accessPassword-${escapeHtml(user.user_id)}" data-user-password="${escapeHtml(user.user_id)}" type="password" minlength="12" maxlength="72" placeholder="Boş bırakırsanız değişmez" ${!hasWritePermission ? 'disabled' : ''}>
           </div>
           <div class="field access-field-role">
             <label for="accessRole-${escapeHtml(user.user_id)}">Rol (Yetki şablonu)</label>
-            <select id="accessRole-${escapeHtml(user.user_id)}" data-user-role="${escapeHtml(user.user_id)}" ${!canWrite || isSelf ? 'disabled' : ''}>
+            <select id="accessRole-${escapeHtml(user.user_id)}" data-user-role="${escapeHtml(user.user_id)}" ${canEditRole ? '' : 'disabled'}>
               ${renderAccessRoleOptions(user.role)}
             </select>
-            <small>Rol, hangi pencere ve işlem ailelerine erişileceğini belirler.</small>
+            <small>${escapeHtml(roleHelpText)}</small>
           </div>
           <div class="field access-field-department">
             <label for="accessDepartment-${escapeHtml(user.user_id)}">Departman (Otel birimi)</label>
-            <select id="accessDepartment-${escapeHtml(user.user_id)}" data-user-department="${escapeHtml(user.user_id)}" ${!canWrite ? 'disabled' : ''}>
+            <select id="accessDepartment-${escapeHtml(user.user_id)}" data-user-department="${escapeHtml(user.user_id)}" ${!hasWritePermission ? 'disabled' : ''}>
               ${renderAccessDepartmentOptions(user.department_code)}
             </select>
-            <small>Departman, kullanıcının oteldeki organizasyon konumunu tanımlar.</small>
+            <small>${escapeHtml(departmentHelpText)}</small>
           </div>
           <div class="field full access-toggle-grid">
             <label class="toggle-row" for="accessActive-${escapeHtml(user.user_id)}">
@@ -2671,7 +2692,7 @@ function renderAccessUsersList() {
                 <small>Pasif kullanıcı giriş yapamaz.</small>
               </span>
               <span class="switch">
-                <input id="accessActive-${escapeHtml(user.user_id)}" data-user-active="${escapeHtml(user.user_id)}" type="checkbox" ${user.is_active ? 'checked' : ''} ${!canWrite || isSelf ? 'disabled' : ''}>
+                <input id="accessActive-${escapeHtml(user.user_id)}" data-user-active="${escapeHtml(user.user_id)}" type="checkbox" ${user.is_active ? 'checked' : ''} ${!hasWritePermission || isSelf ? 'disabled' : ''}>
                 <span class="switch-track"><span class="switch-thumb"></span></span>
               </span>
             </label>
@@ -2686,12 +2707,12 @@ function renderAccessUsersList() {
               </span>
             </label>
           </div>
-          ${isSelf ? '<div class="field full"><div class="access-user-note">Kendi rolünüz, aktiflik durumunuz ve izin kümeniz bu akıştan değiştirilemez. Gerekirse yalnızca görünen ad veya şifre güncelleyin.</div></div>' : ''}
+          ${isSelf ? '<div class="field full"><div class="access-user-note">Bu kayıt şu an giriş yaptığınız admin hesabı. Güvenlik nedeniyle kendi rolünüzü, aktiflik durumunuzu ve izin kümenizi bu akıştan değiştiremezsiniz. Gerekirse departman, görünen ad veya şifreyi güncelleyin; rol değişikliği için önce ikinci bir admin hesabı oluşturup bu kullanıcıyı onunla düzenleyin.</div></div>' : ''}
         </div>
         <div class="access-user-actions">
-          <button class="action-button secondary ${selected ? 'is-active' : ''}" type="button" data-access-edit-permissions="${escapeHtml(user.user_id)}">İzinleri Düzenle</button>
-          <button class="action-button primary" type="button" data-access-save-user="${escapeHtml(user.user_id)}" ${!canWrite ? 'disabled' : ''}>Değişiklikleri Kaydet</button>
-          <button class="action-button warn" type="button" data-access-rotate-totp="${escapeHtml(user.user_id)}" ${!canWrite ? 'disabled' : ''}>2FA QR Yenile</button>
+          <button class="action-button secondary ${selected ? 'is-active' : ''}" type="button" data-access-edit-permissions="${escapeHtml(user.user_id)}">${isSelf ? 'İzinleri Görüntüle' : 'İzinleri Düzenle'}</button>
+          <button class="action-button primary" type="button" data-access-save-user="${escapeHtml(user.user_id)}" ${!hasWritePermission ? 'disabled' : ''}>Değişiklikleri Kaydet</button>
+          <button class="action-button warn" type="button" data-access-rotate-totp="${escapeHtml(user.user_id)}" ${!hasWritePermission ? 'disabled' : ''}>2FA QR Yenile</button>
         </div>
       </article>
     `;
@@ -2710,11 +2731,18 @@ function renderAccessPermissionEditor() {
   if (!(state.accessControlDraftPermissions instanceof Set)) {
     state.accessControlDraftPermissions = new Set(user.permissions || []);
   }
+  const isSelf = Number(user.user_id) === Number(state.me?.user_id || 0);
   const roleDefaults = buildAccessRoleDefaultSet(user.role);
-  const canWrite = hasPermission('access_control:write') && Number(user.user_id) !== Number(state.me?.user_id || 0);
+  const hasWritePermission = hasPermission('access_control:write');
+  const canWrite = hasWritePermission && !isSelf;
   const overrideCount = Object.keys(user.permission_overrides || {}).length;
   refs.accessResetPermissionsButton.disabled = !canWrite;
   refs.accessSavePermissionsButton.disabled = !canWrite;
+  const lockMessage = isSelf
+    ? 'Bu kayıt şu an giriş yaptığınız admin hesabı. Güvenlik nedeniyle kendi rolünüz, aktifliğiniz ve izin kümeniz bu ekrandan değiştirilemez. Başka bir admin hesabı oluşturup bu kullanıcıyı onunla düzenleyin.'
+    : !hasWritePermission
+      ? 'Bu kullanıcı için izin değişikliği yapma yetkiniz bulunmuyor.'
+      : '';
   refs.accessPermissionMeta.innerHTML = `
     <div class="helper-box">
       <strong>${escapeHtml(user.display_name || user.username)}</strong>
@@ -2726,7 +2754,7 @@ function renderAccessPermissionEditor() {
         <span class="access-chip">${escapeHtml(overrideCount)} kayıtlı override</span>
       </div>
     </div>
-    ${!canWrite ? '<div class="helper-box"><strong>Değişiklik kilitli</strong><p>Kendi kullanıcı kaydınızın izin seti bu ekrandan değiştirilemez.</p></div>' : ''}
+    ${!canWrite ? `<div class="helper-box"><strong>Değişiklik kilitli</strong><p>${escapeHtml(lockMessage)}</p></div>` : ''}
   `;
   refs.accessPermissionTree.innerHTML = (state.accessControlCatalog?.permission_groups || []).map(group => {
     const items = Array.isArray(group.items) ? group.items : [];
