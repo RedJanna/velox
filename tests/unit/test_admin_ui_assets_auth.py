@@ -641,7 +641,7 @@ def test_admin_panel_shell_uses_turkish_labels() -> None:
     assert "Kapsam" in html
     assert "Yapılandırmayı Yenile" in html
     assert "SSS Kayıtları" in html
-    assert "Slot Yönetimi" in html
+    assert "Kapasite Aralığı Yönetimi" in html
     assert "Talep Takibi" in html
     assert "Bildirim Numaraları" in html
     assert "Rol ve Yetkiler" in html
@@ -694,7 +694,7 @@ def test_admin_panel_script_loads_hotel_facts_status_and_publish_actions() -> No
     assert "data-access-edit-permissions" in ADMIN_PANEL_SCRIPT
     assert "Giriş yaptığınız hesap" in ADMIN_PANEL_SCRIPT
     assert "İzinleri Görüntüle" in ADMIN_PANEL_SCRIPT
-    assert "rol değişikliği için önce ikinci bir admin hesabı oluşturup bu kullanıcıyı onunla düzenleyin" in ADMIN_PANEL_SCRIPT
+    assert "rol değişikliği için önce ikinci bir yönetici hesabı oluşturup bu kullanıcıyı onunla düzenleyin" in ADMIN_PANEL_SCRIPT
     assert "editableUser?.user_id || state.accessControlUsers[0]?.user_id || 0" in ADMIN_PANEL_SCRIPT
     assert "${!canWrite ? 'disabled' : ''}" not in ADMIN_PANEL_SCRIPT
     assert 'data-user-display="${escapeHtml(user.user_id)}" maxlength="100" value="${escapeHtml(draftDisplayName || \'\')}" ${!hasWritePermission ? \'disabled\' : \'\'}' in ADMIN_PANEL_SCRIPT
@@ -867,7 +867,7 @@ def test_admin_panel_script_handles_structured_detail_messages() -> None:
     assert "hotel_profile_conflict" in ADMIN_PANEL_SCRIPT
     assert "hotel_facts_publish_conflict" in ADMIN_PANEL_SCRIPT
     assert "hotel_facts_rollback_conflict" in ADMIN_PANEL_SCRIPT
-    assert "Liste boyutu farkli" in ADMIN_PANEL_SCRIPT
+    assert "Liste boyutu farklı" in ADMIN_PANEL_SCRIPT
     assert "Yerel " in ADMIN_PANEL_SCRIPT
     assert "JSON'u Forma Aktar" in render_admin_panel_html()
 
@@ -882,7 +882,7 @@ def test_admin_panel_debug_artifact_ui_includes_preview_and_context_copy() -> No
     assert "data-debug-artifact-finding-id" in ADMIN_PANEL_SCRIPT
     assert "data-debug-artifact-id" in ADMIN_PANEL_SCRIPT
     assert "groupDebugArtifacts(" in ADMIN_PANEL_SCRIPT
-    assert "Bu run temiz tamamlandı." in ADMIN_PANEL_SCRIPT
+    assert "Bu tarama temiz tamamlandı." in ADMIN_PANEL_SCRIPT
     assert ".debug-artifact-summary" in ADMIN_PANEL_STYLE
     assert ".debug-artifact-card.is-active" in ADMIN_PANEL_STYLE
     assert ".debug-artifact-dialog" in ADMIN_PANEL_STYLE
@@ -936,7 +936,7 @@ console.log(JSON.stringify({
 
     assert result == {
         "disabled": False,
-        "statusText": "HTTP tarama hazır · screenshot yok",
+        "statusText": "HTTP taraması hazır · ekran görüntüsü yok",
         "className": "badge warn",
     }
 

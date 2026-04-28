@@ -125,17 +125,17 @@ async def bootstrap_admin_account(body: BootstrapAdminRequest, request: Request)
     async with db.acquire() as conn:
         admin_count = int(await conn.fetchval("SELECT COUNT(*) FROM admin_users") or 0)
         if admin_count > 0:
-            raise HTTPException(status_code=409, detail="Bootstrap already completed")
+            raise HTTPException(status_code=409, detail="İlk kurulum zaten tamamlanmış")
         if not _bootstrap_permitted(request, body.bootstrap_token):
-            raise HTTPException(status_code=403, detail="Bootstrap requires localhost access or a valid bootstrap token")
+            raise HTTPException(status_code=403, detail="İlk kurulum için localhost erişimi veya geçerli kurulum anahtarı gerekir")
 
         hotel_exists = await conn.fetchval("SELECT 1 FROM hotels WHERE hotel_id = $1", body.hotel_id)
         if hotel_exists != 1:
-            raise HTTPException(status_code=404, detail="Hotel not found")
+            raise HTTPException(status_code=404, detail="Otel bulunamadı")
 
         existing_user = await conn.fetchval("SELECT 1 FROM admin_users WHERE username = $1", body.username)
         if existing_user == 1:
-            raise HTTPException(status_code=409, detail="Username already exists")
+            raise HTTPException(status_code=409, detail="Bu kullanıcı adı zaten kullanılıyor")
 
         totp_secret = body.totp_secret.strip() if body.totp_secret else generate_totp_secret()
         password_hash = hash_password(body.password)
@@ -185,13 +185,13 @@ async def bootstrap_admin_account(body: BootstrapAdminRequest, request: Request)
 async def recover_admin_totp(body: RecoverTotpRequest, request: Request) -> RecoverTotpResponse:
     """Regenerate TOTP secret for an existing admin account via bootstrap recovery token."""
     if not _bootstrap_permitted(request, body.bootstrap_token):
-        raise HTTPException(status_code=403, detail="Recovery requires localhost access or a valid bootstrap token")
+        raise HTTPException(status_code=403, detail="Kurtarma işlemi için localhost erişimi veya geçerli kurulum anahtarı gerekir")
 
     db = request.app.state.db_pool
     async with db.acquire() as conn:
         row = await conn.fetchrow("SELECT id, username FROM admin_users WHERE username = $1 AND is_active = true", body.username)
         if row is None:
-            raise HTTPException(status_code=404, detail="Admin user not found")
+            raise HTTPException(status_code=404, detail="Yönetici kullanıcısı bulunamadı")
 
         refreshed_secret = generate_totp_secret()
         if body.new_password:

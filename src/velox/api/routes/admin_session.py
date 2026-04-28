@@ -77,7 +77,7 @@ class SessionPreferenceUpdateRequest(BaseModel):
     def validate_verification_preset(cls, value: str) -> str:
         """Reject unsupported verification presets."""
         if value not in _VERIFICATION_PRESET_VALUES:
-            raise ValueError("Unsupported verification preset")
+            raise ValueError("Desteklenmeyen doğrulama tekrarı seçeneği")
         return value
 
     @field_validator("session_preset")
@@ -85,7 +85,7 @@ class SessionPreferenceUpdateRequest(BaseModel):
     def validate_session_preset(cls, value: str) -> str:
         """Reject unsupported session presets."""
         if value not in _SESSION_PRESET_VALUES:
-            raise ValueError("Unsupported session preset")
+            raise ValueError("Desteklenmeyen oturum süresi seçeneği")
         return value
 
 
@@ -116,10 +116,10 @@ async def refresh_admin_session(request: Request, response: Response) -> TokenRe
         record = await fetch_trusted_device_record(conn, request.cookies.get(TRUSTED_DEVICE_COOKIE_NAME))
         if record is None or not bool(record["is_active"]):
             clear_access_cookies(response)
-            raise HTTPException(status_code=401, detail="Remembered device not available")
+            raise HTTPException(status_code=401, detail="Kayıtlı cihaz oturumu kullanılamıyor")
         if not trusted_device_is_active(record.get("session_expires_at")):
             clear_access_cookies(response)
-            raise HTTPException(status_code=401, detail="Remembered session expired")
+            raise HTTPException(status_code=401, detail="Kayıtlı cihaz oturumunun süresi doldu")
 
         session_expires_at = await refresh_trusted_device_session(
             conn,
@@ -189,13 +189,13 @@ async def update_admin_session_preferences(
             user.user_id,
         )
         if admin_row is None or not bool(admin_row["is_active"]):
-            raise HTTPException(status_code=403, detail="Account disabled")
+            raise HTTPException(status_code=403, detail="Hesap pasif durumda")
 
         totp_secret = str(admin_row["totp_secret"] or "").strip()
         if not totp_secret:
-            raise HTTPException(status_code=403, detail="Two-factor authentication is not configured for this account")
+            raise HTTPException(status_code=403, detail="Bu hesap için iki aşamalı doğrulama yapılandırılmamış")
         if not body.otp_code or not verify_totp_code(totp_secret, body.otp_code):
-            raise HTTPException(status_code=401, detail="Google Authenticator kodu gecersiz")
+            raise HTTPException(status_code=401, detail="Google Authenticator kodu geçersiz")
 
         token = await upsert_trusted_device_record(
             conn,

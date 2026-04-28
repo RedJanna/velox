@@ -484,29 +484,29 @@ function diffJsonValues(localValue, serverValue, path = '') {
         path ? `${path}.${key}` : key,
       ));
     });
-    return items.length ? items : [{path: currentPath, label: 'Obje icerigi farkli'}];
+    return items.length ? items : [{path: currentPath, label: 'Nesne içeriği farklı'}];
   }
 
   if (Array.isArray(localValue) && Array.isArray(serverValue)) {
     if (localValue.length !== serverValue.length) {
       return [{
         path: currentPath,
-        label: `Liste boyutu farkli (${localValue.length} / ${serverValue.length})`,
+        label: `Liste boyutu farklı (${localValue.length} / ${serverValue.length})`,
       }];
     }
-    return [{path: currentPath, label: 'Liste icerigi farkli'}];
+    return [{path: currentPath, label: 'Liste içeriği farklı'}];
   }
 
   if (typeof localValue === 'undefined') {
     return [{path: currentPath, label: 'Sunucuda eklendi'}];
   }
   if (typeof serverValue === 'undefined') {
-    return [{path: currentPath, label: 'Sunucudan kaldirildi'}];
+    return [{path: currentPath, label: 'Sunucudan kaldırıldı'}];
   }
   if (valueKind(localValue) !== valueKind(serverValue)) {
     return [{
       path: currentPath,
-      label: `Tip farkli (${valueKind(localValue)} / ${valueKind(serverValue)})`,
+      label: `Tip farklı (${valueKind(localValue)} / ${valueKind(serverValue)})`,
     }];
   }
 
@@ -2732,7 +2732,7 @@ function onHotelProfileSectionChange(event) {
       scheduleHotelFactsDraftValidation({silent: true});
     } catch (_error) {
       field.classList.add('is-invalid');
-      notify('JSON alani parse edilemedi. Lutfen gecerli JSON girin.', 'error');
+      notify('JSON alanı ayrıştırılamadı. Lütfen geçerli JSON girin.', 'error');
     }
   }
 }
@@ -4647,23 +4647,23 @@ function renderSessionPreferences() {
   );
   refs.sessionSummary.innerHTML = `
     <div class="helper-box">
-      <strong>Giris hizlandirma</strong>
-      <p>${prefs.has_trusted_device ? 'Bu cihaz tanimli. OTP tekrari ve oturum suresi secimleri aktif.' : 'Bu cihaz icin hizli giris kapali. Etkinlestirmek icin switchi acin ve 6 haneli kodu girin.'}</p>
+      <strong>Giriş hızlandırma</strong>
+      <p>${prefs.has_trusted_device ? 'Bu cihaz tanımlı. OTP tekrar süresi ve oturum süresi seçimleri aktif.' : 'Bu cihaz için hızlı giriş kapalı. Etkinleştirmek için anahtarı açın ve 6 haneli kodu girin.'}</p>
     </div>
     <div class="status-strip">
       <div class="helper-box">
-        <strong>Dogrulama tekrar suresi</strong>
+        <strong>Doğrulama tekrar süresi</strong>
         <p>${prefs.has_trusted_device ? escapeHtml(formatDate(prefs.verification_expires_at)) : '-'}</p>
       </div>
       <div class="helper-box">
-        <strong>Oturum hatirlama</strong>
+        <strong>Oturum hatırlama</strong>
         <p>${prefs.has_trusted_device ? escapeHtml(formatDate(prefs.session_expires_at)) : '-'}</p>
       </div>
     </div>
   `;
   refs.trustedDevicePanel.innerHTML = prefs.has_trusted_device ? `
     <div class="helper-box">
-      <strong>${escapeHtml(prefs.device_label || 'Tarayici cihazi')}</strong>
+      <strong>${escapeHtml(prefs.device_label || 'Tarayıcı cihazı')}</strong>
       <p>${escapeHtml(prefs.user_label || 'Aktif kullanıcı')} için tanımlı.</p>
       <div class="detail-list">
         <span>OTP atlama: ${prefs.verification_active ? 'Açık' : 'Kapalı'}</span>
@@ -4912,7 +4912,7 @@ async function apiFetch(path, {method = 'GET', body = null, auth = true, allowRe
       body: body ? JSON.stringify(body) : null,
     });
   } catch (_error) {
-    throw new Error('Baglanti sorunu. Lutfen tekrar deneyin.');
+    throw new Error('Bağlantı sorunu. Lütfen tekrar deneyin.');
   }
   return handleResponse(response, {auth, allowRefresh, logoutOn401, request: {path, method, body}});
 }
@@ -4922,7 +4922,7 @@ async function apiFetchFromAbsolute(path) {
   try {
     response = await fetch(path, {credentials: 'same-origin'});
   } catch (_error) {
-    throw new Error('Baglanti sorunu. Lutfen tekrar deneyin.');
+    throw new Error('Bağlantı sorunu. Lütfen tekrar deneyin.');
   }
   return handleResponse(response, {auth: false, allowRefresh: false, logoutOn401: false, request: null});
 }
@@ -5020,7 +5020,7 @@ async function onVisibilityChange() {
   if (!recovered) {
     clearClientSession();
     showAuth();
-    notify('Oturum suresi doldu — lutfen tekrar giris yapin.', 'warn');
+    notify('Oturum süresi doldu; lütfen tekrar giriş yapın.', 'warn');
   }
 }
 
@@ -5050,25 +5050,25 @@ async function loadNotifPhones() {
     const phones = await apiFetch('/notification-phones');
     renderNotifPhones(phones);
   } catch (err) {
-    notify('Bildirim numaralari yuklenemedi: ' + (err.message || err), 'error');
+    notify('Bildirim numaraları yüklenemedi: ' + (err.message || err), 'error');
   }
 }
 
 function renderNotifPhones(phones) {
   if (!refs.notifPhoneTableBody) return;
   if (!phones || !phones.length) {
-    refs.notifPhoneTableBody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><p>Kayit yok</p></div></td></tr>';
+    refs.notifPhoneTableBody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><p>Kayıt yok</p></div></td></tr>';
     return;
   }
   refs.notifPhoneTableBody.innerHTML = phones.map(p => {
     const isDefault = p.is_default;
     const removeBtn = isDefault
-      ? '<span class="badge dark">Varsayilan</span>'
-      : `<button class="inline-button danger" data-remove-phone="${escapeHtml(p.phone)}" aria-label="${escapeHtml((p.label || p.phone) + ' bildirim numarasini kaldir')}">Kaldir</button>`;
+      ? '<span class="badge dark">Varsayılan</span>'
+      : `<button class="inline-button danger" data-remove-phone="${escapeHtml(p.phone)}" aria-label="${escapeHtml((p.label || p.phone) + ' bildirim numarasını kaldır')}">Kaldır</button>`;
     return `<tr>
       <td><code>${escapeHtml(p.phone)}</code></td>
       <td>${escapeHtml(p.label || '-')}</td>
-      <td>${isDefault ? 'Evet' : 'Hayir'}</td>
+      <td>${isDefault ? 'Evet' : 'Hayır'}</td>
       <td>${removeBtn}</td>
     </tr>`;
   }).join('');
@@ -5098,14 +5098,14 @@ async function onAddNotifPhone(event) {
 }
 
 async function removeNotifPhone(phone) {
-  if (!confirm('Bu numarayi kaldirmak istediginize emin misiniz?')) return;
+  if (!confirm('Bu numarayı kaldırmak istediğinize emin misiniz?')) return;
   const encoded = phone.replace('+', '_');
   try {
     await apiFetch('/notification-phones/' + encoded, {method: 'DELETE'});
-    notify('Numara kaldirildi', 'success');
+    notify('Numara kaldırıldı', 'success');
     await loadNotifPhones();
   } catch (err) {
-    notify('Numara kaldirilamadi: ' + (err.message || err), 'error');
+    notify('Numara kaldırılamadı: ' + (err.message || err), 'error');
   }
 }
 """

@@ -48,7 +48,7 @@ class AdminUserCreateRequest(BaseModel):
         """Trim usernames before persistence."""
         normalized = value.strip()
         if len(normalized) < 3:
-            raise ValueError("Username must contain at least 3 visible characters")
+            raise ValueError("Kullanıcı adı en az 3 görünür karakter içermelidir")
         return normalized
 
     @field_validator("password")
@@ -62,7 +62,7 @@ class AdminUserCreateRequest(BaseModel):
     def reject_none_role(cls, value: Role) -> Role:
         """Keep the placeholder NONE role out of persisted admin users."""
         if value == Role.NONE:
-            raise ValueError("Role.NONE cannot be assigned to an admin user")
+            raise ValueError("Boş rol bir yönetici kullanıcısına atanamaz")
         return value
 
 
@@ -88,7 +88,7 @@ class AdminUserUpdateRequest(BaseModel):
     def reject_none_role(cls, value: Role | None) -> Role | None:
         """Keep the placeholder NONE role out of persisted admin users."""
         if value == Role.NONE:
-            raise ValueError("Role.NONE cannot be assigned to an admin user")
+            raise ValueError("Boş rol bir yönetici kullanıcısına atanamaz")
         return value
 
 
@@ -147,7 +147,7 @@ async def create_admin_user(
     async with db.acquire() as conn:
         existing_user = await conn.fetchval("SELECT 1 FROM admin_users WHERE username = $1", body.username)
         if existing_user == 1:
-            raise HTTPException(status_code=409, detail="Username already exists")
+            raise HTTPException(status_code=409, detail="Bu kullanıcı adı zaten kullanılıyor")
 
         totp_secret = generate_totp_secret()
         password_hash = hash_password(body.password)
@@ -178,7 +178,7 @@ async def create_admin_user(
             body.is_active,
         )
         if row is None:
-            raise HTTPException(status_code=500, detail="Admin user could not be created")
+            raise HTTPException(status_code=500, detail="Yönetici kullanıcısı oluşturulamadı")
 
         permission_overrides = None
         if body.permissions is not None:
@@ -214,13 +214,13 @@ async def update_admin_user(
     check_permission(user, "access_control:write")
     payload = body.model_dump(exclude_unset=True)
     if not payload:
-        raise HTTPException(status_code=400, detail="No fields to update")
+        raise HTTPException(status_code=400, detail="Güncellenecek alan bulunamadı")
 
     db = request.app.state.db_pool
     async with db.acquire() as conn:
         current_row = await fetch_admin_user_for_hotel(conn, admin_user_id, user.hotel_id)
         if current_row is None:
-            raise HTTPException(status_code=404, detail="Admin user not found")
+            raise HTTPException(status_code=404, detail="Yönetici kullanıcısı bulunamadı")
 
         next_role = body.role or Role(str(current_row["role"]))
         target_is_super_admin = is_super_admin_username(str(current_row["username"]))
@@ -229,9 +229,9 @@ async def update_admin_user(
         super_admin_demote = target_is_super_admin and next_role != Role.ADMIN
         super_admin_deactivate = target_is_super_admin and body.is_active is False
         if self_role_change or self_deactivate:
-            raise HTTPException(status_code=400, detail="Your own role or activation state cannot be changed from this flow")
+            raise HTTPException(status_code=400, detail="Kendi rolünüz veya hesap aktiflik durumunuz bu akıştan değiştirilemez")
         if super_admin_demote or super_admin_deactivate:
-            raise HTTPException(status_code=400, detail="Protected super admin access cannot be reduced from this flow")
+            raise HTTPException(status_code=400, detail="Korunan süper yönetici erişimi bu akıştan azaltılamaz")
 
         next_department = normalize_department_code(
             body.department_code if "department_code" in payload else str(current_row.get("department_code") or ""),
@@ -269,7 +269,7 @@ async def update_admin_user(
 
         updated_row = await fetch_admin_user_for_hotel(conn, admin_user_id, user.hotel_id)
         if updated_row is None:
-            raise HTTPException(status_code=404, detail="Admin user not found")
+            raise HTTPException(status_code=404, detail="Yönetici kullanıcısı bulunamadı")
 
     return {
         "status": "updated",
@@ -292,7 +292,7 @@ async def update_admin_user_permissions(
     async with db.acquire() as conn:
         current_row = await fetch_admin_user_for_hotel(conn, admin_user_id, user.hotel_id)
         if current_row is None:
-            raise HTTPException(status_code=404, detail="Admin user not found")
+            raise HTTPException(status_code=404, detail="Yönetici kullanıcısı bulunamadı")
         role = Role(str(current_row["role"]))
         if is_super_admin_username(str(current_row["username"])):
             await clear_admin_user_permission_overrides(conn, admin_user_id)
@@ -304,7 +304,7 @@ async def update_admin_user_permissions(
                 ),
             }
         if admin_user_id == user.user_id:
-            raise HTTPException(status_code=400, detail="Your own permission set cannot be changed from this flow")
+            raise HTTPException(status_code=400, detail="Kendi izin kümeniz bu akıştan değiştirilemez")
         permission_overrides = await replace_admin_user_permission_overrides(
             conn,
             admin_user_id=admin_user_id,
@@ -329,7 +329,7 @@ async def rotate_admin_user_totp(
     async with db.acquire() as conn:
         current_row = await fetch_admin_user_for_hotel(conn, admin_user_id, user.hotel_id)
         if current_row is None:
-            raise HTTPException(status_code=404, detail="Admin user not found")
+            raise HTTPException(status_code=404, detail="Yönetici kullanıcısı bulunamadı")
         ensure_hotel_access(user, current_row["hotel_id"])
 
         refreshed_secret = generate_totp_secret()
@@ -358,7 +358,7 @@ async def rotate_admin_user_totp(
         )
         updated_row = await fetch_admin_user_for_hotel(conn, admin_user_id, user.hotel_id)
         if updated_row is None:
-            raise HTTPException(status_code=404, detail="Admin user not found")
+            raise HTTPException(status_code=404, detail="Yönetici kullanıcısı bulunamadı")
 
     otpauth_uri = build_otpauth_uri(
         secret=refreshed_secret,

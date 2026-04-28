@@ -147,7 +147,7 @@ ADMIN_WHATSAPP_SCRIPT = """\
       if (normalized === 'whatsappapi') {
         var pageTitle = document.getElementById('pageTitle');
         var pageLead = document.getElementById('pageLead');
-        pageTitle && (pageTitle.textContent = 'WhatsApp API');
+        pageTitle && (pageTitle.textContent = 'WhatsApp Bağlantısı');
         pageLead && (pageLead.textContent = 'Meta Cloud API bağlantısı, webhook ve şablon durumlarını yönetin.');
         loadWhatsAppIntegration();
       }
@@ -188,14 +188,14 @@ ADMIN_WHATSAPP_SCRIPT = """\
     refs.whatsappStatusCards.innerHTML = [
       statusCard('Bağlantı', statusLabel(status), integration.display_phone_number || integration.phone_number_id || 'Numara yok'),
       statusCard('Webhook', statusLabel(webhook), config.webhook_url || '-'),
-      statusCard('Token', integration.token_mask || 'not_stored', integration.token_expires_at ? formatDate(integration.token_expires_at) : 'Süre bilgisi yok'),
+      statusCard('Token', integration.token_mask || 'Saklanmadı', integration.token_expires_at ? formatDate(integration.token_expires_at) : 'Süre bilgisi yok'),
       statusCard('Şablonlar', String(templateSummary.approved || 0) + ' onaylı', String(templateSummary.total || 0) + ' toplam kayıt')
     ].join('');
     refs.whatsappConfigChecklist.innerHTML = [
-      checkRow(config.meta_app_configured, 'Meta App', 'App ID ve App Secret backend tarafında tanımlı.'),
-      checkRow(config.embedded_signup_configured, 'Embedded Signup', 'Config ID tanımlıysa bağlantı popup akışı açılır.'),
-      checkRow(config.token_encryption_configured, 'Token şifreleme', 'Access token veritabanında şifreli saklanır.'),
-      checkRow(config.verify_token_configured && config.app_secret_configured, 'Webhook güvenliği', 'Verify token ve app secret hazır.')
+      checkRow(config.meta_app_configured, 'Meta Uygulaması', 'Uygulama kimliği ve uygulama gizli anahtarı backend tarafında tanımlı.'),
+      checkRow(config.embedded_signup_configured, 'Gömülü Kayıt', 'Yapılandırma kimliği tanımlıysa bağlantı açılır pencere akışı açılır.'),
+      checkRow(config.token_encryption_configured, 'Token şifreleme', 'Erişim token değeri veritabanında şifreli saklanır.'),
+      checkRow(config.verify_token_configured && config.app_secret_configured, 'Webhook güvenliği', 'Doğrulama token değeri ve uygulama gizli anahtarı hazır.')
     ].join('');
     refs.whatsappIntegrationMeta.innerHTML = renderIntegrationMeta(payload);
     refs.whatsappEvents.innerHTML = renderEvents(payload.events || []);
@@ -207,8 +207,25 @@ ADMIN_WHATSAPP_SCRIPT = """\
   }
 
   function statusLabel(value) {
+    var key = String(value || '').toLowerCase();
+    var labels = {
+      not_connected: 'Bağlı değil',
+      connected: 'Bağlı',
+      healthy: 'Sağlıklı',
+      verified: 'Doğrulandı',
+      subscribed: 'Abone edildi',
+      unknown: 'Bilinmiyor',
+      pending: 'Beklemede',
+      queued: 'Kuyrukta',
+      authorized: 'Yetkilendirildi',
+      completed: 'Tamamlandı',
+      error: 'Hata',
+      failed: 'Başarısız',
+      expired: 'Süresi doldu',
+    };
+    if (labels[key]) return labels[key];
     var raw = String(value || '').replace(/_/g, ' ');
-    return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : '-';
+    return raw ? raw.charAt(0).toLocaleUpperCase('tr-TR') + raw.slice(1) : '-';
   }
 
   function checkRow(ok, title, detail) {
@@ -220,14 +237,14 @@ ADMIN_WHATSAPP_SCRIPT = """\
     var integration = payload.integration || {};
     var config = payload.config || {};
     if (!integration.id) {
-      return '<div class="empty-state"><h4>Bağlı numara yok</h4><p>Meta popup akışı veya gelişmiş manuel kayıt ile ilk bağlantıyı oluşturun.</p></div>';
+      return '<div class="empty-state"><h4>Bağlı numara yok</h4><p>Meta açılır pencere akışı veya gelişmiş manuel kayıt ile ilk bağlantıyı oluşturun.</p></div>';
     }
     return '<div class="helper-grid">' +
-      helperBox('Business ID', integration.business_id || '-') +
-      helperBox('WABA ID', integration.waba_id || '-') +
-      helperBox('Phone Number ID', integration.phone_number_id || '-') +
+      helperBox('İşletme Kimliği', integration.business_id || '-') +
+      helperBox('WABA Kimliği', integration.waba_id || '-') +
+      helperBox('Telefon Numarası Kimliği', integration.phone_number_id || '-') +
       helperBox('Kalite', integration.quality_rating || '-') +
-      helperBox('Webhook URL', config.webhook_url || '-') +
+      helperBox('Webhook Adresi', config.webhook_url || '-') +
       helperBox('Son kontrol', integration.last_health_check_at ? formatDate(integration.last_health_check_at) : '-') +
     '</div>';
   }
@@ -290,10 +307,10 @@ ADMIN_WHATSAPP_SCRIPT = """\
     try {
       var session = await apiFetch('/hotels/' + encodeURIComponent(state.selectedHotelId) + '/whatsapp/connect-sessions', {method: 'POST', body: {}});
       state.whatsappConnectSessionId = session.session_id;
-      refs.whatsappConnectStatus.textContent = 'Meta bağlantı penceresi açıldı. İşlem tamamlanınca bu modal güncellenecek.';
+      refs.whatsappConnectStatus.textContent = 'Meta bağlantı penceresi açıldı. İşlem tamamlanınca bu pencere güncellenecek.';
       var popup = window.open(session.auth_url, 'velox_meta_whatsapp_signup', 'width=720,height=760,noopener=false');
       if (!popup) {
-        notify('Açılır pencere engellendi. Tarayıcıda popup izni verip tekrar deneyin.', 'warn');
+        notify('Açılır pencere engellendi. Tarayıcıda açılır pencere izni verip tekrar deneyin.', 'warn');
       }
       pollConnectSession(session.session_id);
     } catch (error) {
@@ -349,7 +366,7 @@ ADMIN_WHATSAPP_SCRIPT = """\
       return '<button class="whatsapp-asset-button" type="button" data-asset-index="' + index + '">' +
         '<strong>' + escapeHtml(title) + '</strong>' +
         '<span>' + escapeHtml(detail || '-') + '</span>' +
-        '<span class="mono">Phone Number ID: ' + escapeHtml(item.phone_number_id || '-') + '</span>' +
+        '<span class="mono">Telefon Numarası Kimliği: ' + escapeHtml(item.phone_number_id || '-') + '</span>' +
       '</button>';
     }).join('');
   }
@@ -409,7 +426,7 @@ ADMIN_WHATSAPP_SCRIPT = """\
 
   function renderTemplates(items) {
     if (!items.length) {
-      refs.whatsappTemplates.innerHTML = '<div class="empty-state"><p>Henüz template kaydı yok.</p></div>';
+      refs.whatsappTemplates.innerHTML = '<div class="empty-state"><p>Henüz şablon kaydı yok.</p></div>';
       return;
     }
     refs.whatsappTemplates.innerHTML = items.map(function(item) {
@@ -420,7 +437,7 @@ ADMIN_WHATSAPP_SCRIPT = """\
   async function syncTemplates() {
     try {
       var result = await apiFetch('/hotels/' + encodeURIComponent(state.selectedHotelId) + '/whatsapp/templates/sync', {method: 'POST', body: {}});
-      notify(result.count + ' template senkronize edildi.', 'success');
+      notify(result.count + ' şablon senkronize edildi.', 'success');
       await loadWhatsAppIntegration();
     } catch (error) {
       notify(error.message, 'error');
@@ -433,14 +450,14 @@ ADMIN_WHATSAPP_SCRIPT = """\
     try {
       body.components = body.components_json ? JSON.parse(body.components_json) : [];
     } catch (_error) {
-      notify('Components JSON geçerli değil.', 'error');
+      notify('Bileşenler JSON\\'u geçerli değil.', 'error');
       return;
     }
     delete body.components_json;
     try {
       await apiFetch('/hotels/' + encodeURIComponent(state.selectedHotelId) + '/whatsapp/templates', {method: 'POST', body: body});
       refs.whatsappTemplateForm.reset();
-      notify('Template taslağı kaydedildi.', 'success');
+      notify('Şablon taslağı kaydedildi.', 'success');
       await loadTemplatesOnly();
     } catch (error) {
       notify(error.message, 'error');

@@ -40,53 +40,53 @@ class RoleDefinition:
 DEPARTMENT_CATALOG: dict[str, DepartmentDefinition] = {
     DepartmentCode.MANAGEMENT.value: DepartmentDefinition(
         code=DepartmentCode.MANAGEMENT.value,
-        label="Management",
-        description="General manager, executive office, and hotel leadership.",
+        label="Yönetim",
+        description="Genel müdürlük, yönetici ofisi ve otel liderliği.",
     ),
     DepartmentCode.FRONT_OFFICE.value: DepartmentDefinition(
         code=DepartmentCode.FRONT_OFFICE.value,
-        label="Front Office / Reception",
-        description="Reception, check-in, check-out, and daily guest operations.",
+        label="Ön Büro / Resepsiyon",
+        description="Resepsiyon, giriş-çıkış işlemleri ve günlük misafir operasyonları.",
     ),
     DepartmentCode.RESERVATION_SALES.value: DepartmentDefinition(
         code=DepartmentCode.RESERVATION_SALES.value,
-        label="Reservation and Sales",
-        description="Reservation intake, pricing follow-up, and sales coordination.",
+        label="Rezervasyon ve Satış",
+        description="Rezervasyon kabulü, fiyat takibi ve satış koordinasyonu.",
     ),
     DepartmentCode.GUEST_RELATIONS.value: DepartmentDefinition(
         code=DepartmentCode.GUEST_RELATIONS.value,
-        label="Guest Relations / Concierge",
-        description="Guest communication, concierge requests, and satisfaction follow-up.",
+        label="Misafir İlişkileri / Konsiyerj",
+        description="Misafir iletişimi, konsiyerj talepleri ve memnuniyet takibi.",
     ),
     DepartmentCode.FOOD_BEVERAGE.value: DepartmentDefinition(
         code=DepartmentCode.FOOD_BEVERAGE.value,
-        label="Food and Beverage",
-        description="Restaurant, kitchen, and table operation workflows.",
+        label="Yiyecek ve İçecek",
+        description="Restoran, mutfak ve masa operasyonu iş akışları.",
     ),
     DepartmentCode.HOUSEKEEPING.value: DepartmentDefinition(
         code=DepartmentCode.HOUSEKEEPING.value,
-        label="Housekeeping",
-        description="Room preparation, cleanliness, and floor operations.",
+        label="Kat Hizmetleri",
+        description="Oda hazırlığı, temizlik ve kat operasyonları.",
     ),
     DepartmentCode.MAINTENANCE.value: DepartmentDefinition(
         code=DepartmentCode.MAINTENANCE.value,
-        label="Maintenance / Technical Service",
-        description="Facility maintenance, repair, and technical intervention.",
+        label="Bakım / Teknik Servis",
+        description="Tesis bakımı, onarım ve teknik müdahale süreçleri.",
     ),
     DepartmentCode.FINANCE.value: DepartmentDefinition(
         code=DepartmentCode.FINANCE.value,
-        label="Finance / Accounting",
-        description="Billing, reconciliation, and internal financial controls.",
+        label="Finans / Muhasebe",
+        description="Faturalama, mutabakat ve iç finans kontrolleri.",
     ),
     DepartmentCode.SECURITY.value: DepartmentDefinition(
         code=DepartmentCode.SECURITY.value,
-        label="Security",
-        description="Security operations, incident handling, and access monitoring.",
+        label="Güvenlik",
+        description="Güvenlik operasyonları, olay yönetimi ve erişim takibi.",
     ),
     DepartmentCode.OTHER.value: DepartmentDefinition(
         code=DepartmentCode.OTHER.value,
-        label="Other",
-        description="Temporary or cross-functional assignment outside the standard hotel departments.",
+        label="Diğer",
+        description="Standart otel departmanları dışındaki geçici veya çapraz görevler.",
     ),
 }
 
@@ -94,39 +94,39 @@ DEPARTMENT_CATALOG: dict[str, DepartmentDefinition] = {
 ROLE_CATALOG: dict[Role, RoleDefinition] = {
     Role.ADMIN: RoleDefinition(
         role=Role.ADMIN,
-        label="Hotel Admin",
-        description="Full hotel-level access including user, role, and permission administration.",
+        label="Otel Yöneticisi",
+        description="Kullanıcı, rol ve izin yönetimi dahil otel düzeyinde tam erişim.",
         default_department_code=DepartmentCode.MANAGEMENT.value,
     ),
     Role.SALES: RoleDefinition(
         role=Role.SALES,
-        label="Reservation and Sales",
-        description="Reservation pipeline, guest communication, and commercial follow-up permissions.",
+        label="Rezervasyon ve Satış",
+        description="Rezervasyon süreci, misafir iletişimi ve ticari takip izinleri.",
         default_department_code=DepartmentCode.RESERVATION_SALES.value,
     ),
     Role.OPS: RoleDefinition(
         role=Role.OPS,
-        label="Front Office and Operations",
-        description="Operational queue management for hotel, stay, and transfer workflows.",
+        label="Ön Büro ve Operasyon",
+        description="Otel, konaklama ve transfer iş akışları için operasyon kuyruğu yönetimi.",
         default_department_code=DepartmentCode.FRONT_OFFICE.value,
     ),
     Role.CHEF: RoleDefinition(
         role=Role.CHEF,
-        label="Food and Beverage Approver",
-        description="Restaurant and kitchen approval workflows with limited operational visibility.",
+        label="Yiyecek ve İçecek Onay Yetkilisi",
+        description="Restoran ve mutfak onay süreçleri için sınırlı operasyon görünürlüğü.",
         default_department_code=DepartmentCode.FOOD_BEVERAGE.value,
     ),
 }
 
 
 PERMISSION_GROUP_LABELS: dict[str, str] = {
-    "overview": "Overview",
-    "access_control": "Access Control",
-    "hotel": "Hotel Configuration",
-    "conversation": "Conversations",
-    "hold": "Reservation and Approval Flows",
-    "ticket": "Tickets",
-    "notification": "Notification Phones",
+    "overview": "Genel Bakış",
+    "access_control": "Erişim Yönetimi",
+    "hotel": "Otel Yapılandırması",
+    "conversation": "Konuşmalar",
+    "hold": "Rezervasyon ve Onay Akışları",
+    "ticket": "Destek Talepleri",
+    "notification": "Bildirim Numaraları",
 }
 
 
@@ -134,86 +134,86 @@ PERMISSION_CATALOG: dict[str, PermissionDefinition] = {
     "dashboard:read": PermissionDefinition(
         key="dashboard:read",
         group="overview",
-        label="View dashboard",
-        description="Access summary widgets, operational cards, and overview queues.",
+        label="Genel bakışı görüntüleme",
+        description="Özet kartlara, operasyon kartlarına ve genel bakış kuyruklarına erişim sağlar.",
     ),
     "access_control:read": PermissionDefinition(
         key="access_control:read",
         group="access_control",
-        label="View users and roles",
-        description="See admin users, available roles, departments, and permission templates.",
+        label="Kullanıcıları ve rolleri görüntüleme",
+        description="Yönetici kullanıcılarını, kullanılabilir rolleri, departmanları ve izin şablonlarını gösterir.",
         is_sensitive=True,
     ),
     "access_control:write": PermissionDefinition(
         key="access_control:write",
         group="access_control",
-        label="Manage users and roles",
-        description="Create users, change roles, rotate TOTP enrollment, and edit permission assignments.",
+        label="Kullanıcıları ve rolleri yönetme",
+        description="Kullanıcı oluşturma, rol değiştirme, TOTP kurulumunu yenileme ve izin atamalarını düzenleme yetkisi verir.",
         is_sensitive=True,
     ),
     "hotels:read": PermissionDefinition(
         key="hotels:read",
         group="hotel",
-        label="View hotel configuration",
-        description="Read hotel profile, facts, and operational configuration values.",
+        label="Otel yapılandırmasını görüntüleme",
+        description="Otel profilini, bilgi kayıtlarını ve operasyonel yapılandırma değerlerini görüntüler.",
     ),
     "hotels:write": PermissionDefinition(
         key="hotels:write",
         group="hotel",
-        label="Edit hotel configuration",
-        description="Modify hotel profile, facts, and operational configuration values.",
+        label="Otel yapılandırmasını düzenleme",
+        description="Otel profilini, bilgi kayıtlarını ve operasyonel yapılandırma değerlerini değiştirir.",
         is_sensitive=True,
     ),
     "conversations:read": PermissionDefinition(
         key="conversations:read",
         group="conversation",
-        label="View conversations",
-        description="Inspect guest conversation history, state, and handoff information.",
+        label="Konuşmaları görüntüleme",
+        description="Misafir konuşma geçmişini, durumunu ve insan devri bilgisini inceler.",
     ),
     "holds:read": PermissionDefinition(
         key="holds:read",
         group="hold",
-        label="View holds",
-        description="Read stay, restaurant, and transfer hold queues.",
+        label="Onay kayıtlarını görüntüleme",
+        description="Konaklama, restoran ve transfer onay kuyruklarını görüntüler.",
     ),
     "holds:approve": PermissionDefinition(
         key="holds:approve",
         group="hold",
-        label="Approve holds",
-        description="Approve, create, or update operational holds and reservation workflows.",
+        label="Onay kayıtlarını onaylama",
+        description="Operasyonel onay kayıtlarını ve rezervasyon iş akışlarını onaylama, oluşturma veya güncelleme yetkisi verir.",
         is_sensitive=True,
     ),
     "holds:reject": PermissionDefinition(
         key="holds:reject",
         group="hold",
-        label="Reject holds",
-        description="Reject or archive approval flows and reservation requests.",
+        label="Onay kayıtlarını reddetme",
+        description="Onay akışlarını ve rezervasyon taleplerini reddetme veya arşivleme yetkisi verir.",
         is_sensitive=True,
     ),
     "tickets:read": PermissionDefinition(
         key="tickets:read",
         group="ticket",
-        label="View tickets",
-        description="Inspect ticket queues and service escalation history.",
+        label="Destek taleplerini görüntüleme",
+        description="Destek talebi kuyruklarını ve servis devri geçmişini inceler.",
     ),
     "tickets:write": PermissionDefinition(
         key="tickets:write",
         group="ticket",
-        label="Update tickets",
-        description="Reassign, resolve, or close operational tickets.",
+        label="Destek taleplerini güncelleme",
+        description="Operasyonel destek taleplerini yeniden atama, çözme veya kapatma yetkisi verir.",
         is_sensitive=True,
     ),
     "notification_phones:read": PermissionDefinition(
         key="notification_phones:read",
         group="notification",
-        label="View notification phones",
-        description="See WhatsApp notification phone mappings for the hotel.",
+        label="Bildirim numaralarını görüntüleme",
+        description="Otel için WhatsApp bildirim numarası eşleşmelerini görüntüler.",
     ),
     "notification_phones:write": PermissionDefinition(
         key="notification_phones:write",
         group="notification",
-        label="Manage notification phones",
-        description="Add or remove notification phone mappings used for escalations.",
+        label="Bildirim numaralarını yönetme",
+        description="Eskalasyonlarda kullanılan bildirim numarası eşleşmelerini ekleme veya kaldırma yetkisi verir.",
         is_sensitive=True,
     ),
 }
@@ -312,7 +312,7 @@ def normalize_department_code(value: str | None, *, role: Role | None = None) ->
     if not normalized:
         return default_department_for_role(role or Role.NONE)
     if normalized not in DEPARTMENT_CATALOG:
-        raise ValueError(f"Unsupported department code: {normalized}")
+        raise ValueError(f"Desteklenmeyen departman kodu: {normalized}")
     return normalized
 
 
@@ -321,7 +321,7 @@ def validate_permission_keys(permission_keys: set[str] | list[str]) -> set[str]:
     normalized = {item.strip() for item in permission_keys if item and item.strip()}
     invalid = sorted(normalized - set(PERMISSION_CATALOG))
     if invalid:
-        raise ValueError(f"Unsupported permission keys: {', '.join(invalid)}")
+        raise ValueError(f"Desteklenmeyen izin anahtarları: {', '.join(invalid)}")
     return normalized
 
 

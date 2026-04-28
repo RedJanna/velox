@@ -469,16 +469,16 @@ function hasTableId(tableId, excludeId){
 function askTableId(defaultValue, excludeId){
   var fallback = normalizeTableId(defaultValue || '');
   while(true){
-    var input = window.prompt('Masa numarasi zorunlu. Ornek: A1, 12, H-07', fallback);
+    var input = window.prompt('Masa numarası zorunlu. Örnek: A1, 12, H-07', fallback);
     if(input === null) return null;
     var candidate = normalizeTableId(input);
     if(!candidate){
-      notify('Masa numarasi bos birakilamaz.', 'warn');
+      notify('Masa numarası boş bırakılamaz.', 'warn');
       fallback = candidate;
       continue;
     }
     if(hasTableId(candidate, excludeId)){
-      notify('Bu masa numarasi zaten kullaniliyor.', 'warn');
+      notify('Bu masa numarası zaten kullanılıyor.', 'warn');
       fallback = candidate;
       continue;
     }
@@ -553,9 +553,9 @@ function renderFloorPlanSelect(){
     var tableCount = (plan.layout_data && plan.layout_data.tables) ? plan.layout_data.tables.length : 0;
     var shapeCount = (plan.layout_data && plan.layout_data.shapes) ? plan.layout_data.shapes.length : 0;
     var suffix = '';
-    if(tableCount > 0 || shapeCount > 0) suffix = ' (' + tableCount + ' masa, ' + shapeCount + ' sekil)';
+    if(tableCount > 0 || shapeCount > 0) suffix = ' (' + tableCount + ' masa, ' + shapeCount + ' şekil)';
     var dateInfo = plan.updated_at ? ' - ' + String(plan.updated_at).slice(0,10) : '';
-    return '<option value="' + escapeHtml(pid) + '">' + escapeHtml((plan.name || 'Adsiz Plan') + activeTag + suffix + dateInfo) + '</option>';
+    return '<option value="' + escapeHtml(pid) + '">' + escapeHtml((plan.name || 'Adsız Plan') + activeTag + suffix + dateInfo) + '</option>';
   }).join('');
   select.innerHTML = opts;
   if(fpState.planId){
@@ -579,10 +579,10 @@ function updateDirtyIndicator(){
   if(badge){
     if(fpState.planId){
       badge.textContent = 'ID: ' + String(fpState.planId).slice(0,8);
-      badge.title = 'Plan ID: ' + String(fpState.planId);
+      badge.title = 'Plan kimliği: ' + String(fpState.planId);
     } else {
       badge.textContent = 'Yeni';
-      badge.title = 'Henuz kaydedilmemis yeni plan';
+      badge.title = 'Henüz kaydedilmemiş yeni plan';
     }
   }
   updatePlanInfoBar();
@@ -598,7 +598,7 @@ function updatePlanInfoBar(){
     if(fpState.planId){
       var currentPlan = floorPlanCollection.find(function(p){ return String(p.id) === String(fpState.planId); });
       var isActive = currentPlan && currentPlan.is_active;
-      badgeEl.textContent = isActive ? '\u2605 Aktif Plan' : 'Kayitli Plan';
+      badgeEl.textContent = isActive ? '\u2605 Aktif Plan' : 'Kayıtlı Plan';
       badgeEl.className = 'fp-plan-badge' + (isActive ? '' : ' is-new');
     } else {
       badgeEl.textContent = 'Yeni Plan';
@@ -607,12 +607,12 @@ function updatePlanInfoBar(){
   }
   if(dateEl){
     var plan = floorPlanCollection.find(function(p){ return fpState.planId && String(p.id) === String(fpState.planId); });
-    dateEl.textContent = plan && plan.updated_at ? 'Son guncelleme: ' + String(plan.updated_at).slice(0,16).replace('T',' ') : '';
+    dateEl.textContent = plan && plan.updated_at ? 'Son güncelleme: ' + String(plan.updated_at).slice(0,16).replace('T',' ') : '';
   }
   if(countEl){
     var tc = fpState.tables.length;
     var sc = fpState.shapes.length;
-    countEl.textContent = tc + ' masa, ' + sc + ' sekil';
+    countEl.textContent = tc + ' masa, ' + sc + ' şekil';
   }
   // Toggle delete & activate button visibility
   var delBtn = document.getElementById('deleteFloorPlanBtn');
@@ -679,7 +679,7 @@ function syncShapeEditState(el, shape){
   if(editBtn){
     editBtn.classList.toggle('active', isEditing);
     editBtn.setAttribute('aria-pressed', isEditing ? 'true' : 'false');
-    editBtn.setAttribute('title', isEditing ? 'Sekil duzenlemeyi kapat' : 'Sekil duzenle');
+    editBtn.setAttribute('title', isEditing ? 'Şekil düzenlemeyi kapat' : 'Şekil düzenle');
   }
   var resizeHandle = el.querySelector('.shape-resize-handle');
   if(resizeHandle){
@@ -781,7 +781,7 @@ function initFloorPlanEditor(){
       // Don't reload if already on this plan
       if(fpState.planId && String(fpState.planId) === String(selectedPlanId) && !fpState._dirty) return;
       if(fpState._dirty){
-        var shouldSave = window.confirm('Mevcut planda kaydedilmemis degisiklikler var. Kaydetmek ister misiniz?');
+    var shouldSave = window.confirm('Mevcut planda kaydedilmemiş değişiklikler var. Kaydetmek ister misiniz?');
         if(shouldSave) await saveFloorPlan({silent:true});
       }
       // Cancel pending auto-save
@@ -796,13 +796,13 @@ function initFloorPlanEditor(){
         if(freshPlan){
           loadFloorPlanFromPayload(freshPlan);
         } else {
-          notify('Secilen plan bulunamadi.', 'warn');
+          notify('Seçilen plan bulunamadı.', 'warn');
         }
       }catch(e){
         // Fallback to cached version
         var cached = floorPlanCollection.find(function(item){ return String(item.id) === String(selectedPlanId); });
         if(cached) loadFloorPlanFromPayload(cached);
-        else notify('Plan yuklenemedi.', 'error');
+        else notify('Plan yüklenemedi.', 'error');
       }
     });
     planSelect.dataset.bound = '1';
@@ -816,7 +816,7 @@ function initFloorPlanEditor(){
       if(planName === null) return; // cancelled
       // Save current dirty plan before switching
       if(fpState._dirty){
-        var shouldSave = window.confirm('Mevcut planda kaydedilmemis degisiklikler var. Kaydetmek ister misiniz?');
+        var shouldSave = window.confirm('Mevcut planda kaydedilmemiş değişiklikler var. Kaydetmek ister misiniz?');
         if(shouldSave) await saveFloorPlan({silent:true});
       }
       // Cancel pending auto-save to prevent stale writes
@@ -835,7 +835,7 @@ function initFloorPlanEditor(){
       // Deselect in plan list
       var select = document.getElementById('floorPlanSelect');
       if(select) select.value = '';
-      notify('Yeni plan "' + escapeHtml(planName) + '" olusturuldu. Cizime baslayin, degisiklikler otomatik kaydedilir.', 'info');
+      notify('Yeni plan "' + escapeHtml(planName) + '" oluşturuldu. Çizime başlayın; değişiklikler otomatik kaydedilir.', 'info');
     });
     newPlanBtn.dataset.bound = '1';
   }
@@ -844,8 +844,8 @@ function initFloorPlanEditor(){
   var delPlanBtn = document.getElementById('deleteFloorPlanBtn');
   if(delPlanBtn && delPlanBtn.dataset.bound !== '1'){
     delPlanBtn.addEventListener('click', async function(){
-      if(!fpState.planId){ notify('Silinecek kayitli plan yok.','warn'); return; }
-      if(!confirm('Bu plani kalici olarak silmek istediginizden emin misiniz? Plan: ' + (fpState.planName || '-'))) return;
+      if(!fpState.planId){ notify('Silinecek kayıtlı plan yok.','warn'); return; }
+      if(!confirm('Bu planı kalıcı olarak silmek istediğinizden emin misiniz? Plan: ' + (fpState.planName || '-'))) return;
       var hid = state.hotelId || state.selectedHotelId;
       try{
         await apiFetch('/hotels/' + hid + '/restaurant/floor-plans/' + fpState.planId, {method:'DELETE'});
@@ -866,15 +866,15 @@ function initFloorPlanEditor(){
   var actPlanBtn = document.getElementById('activateFloorPlanBtn');
   if(actPlanBtn && actPlanBtn.dataset.bound !== '1'){
     actPlanBtn.addEventListener('click', async function(){
-      if(!fpState.planId){ notify('Aktif yapilacak kayitli plan yok.','warn'); return; }
+      if(!fpState.planId){ notify('Aktif yapılacak kayıtlı plan yok.','warn'); return; }
       var hid = state.hotelId || state.selectedHotelId;
       try{
         await apiFetch('/hotels/' + hid + '/restaurant/floor-plans/' + fpState.planId + '/activate', {method:'POST'});
-        notify('Plan "' + escapeHtml(fpState.planName) + '" aktif yapildi.','success');
+        notify('Plan "' + escapeHtml(fpState.planName) + '" aktif yapıldı.','success');
         await loadFloorPlan();
         await syncFloorPlanToServiceMode();
       }catch(e){
-        notify('Plan aktif yapilamadi.','error');
+        notify('Plan aktif yapılamadı.','error');
       }
     });
     actPlanBtn.dataset.bound = '1';
@@ -893,7 +893,7 @@ function initFloorPlanEditor(){
 
   var clearBtn = document.getElementById('fpClearBtn');
   if(clearBtn) clearBtn.addEventListener('click', function(){
-    if(!confirm('Tum masalari ve sekilleri silmek istediginizden emin misiniz?')) return;
+    if(!confirm('Tüm masaları ve şekilleri silmek istediğinizden emin misiniz?')) return;
     pushUndo();
     fpState.tables = [];
     fpState.shapes = [];
@@ -993,7 +993,7 @@ function renderCanvasTable(canvas, t){
   var html = svgData.svg;
   html += '<span class="table-label">' + escapeHtml(t.label||t.table_id) + '</span>';
   html += '<div class="table-actions">';
-  html += '<button class="tbl-act-btn rot" title="Dondur" aria-label="Dondur">&#x21BB;</button>';
+  html += '<button class="tbl-act-btn rot" title="Döndür" aria-label="Döndür">&#x21BB;</button>';
   html += '<button class="tbl-act-btn dup" title="Kopyala" aria-label="Kopyala">&#x2398;</button>';
   html += '<button class="tbl-act-btn del" title="Sil" aria-label="Sil">&times;</button>';
   html += '</div>';
@@ -1050,7 +1050,7 @@ function renderCanvasShape(canvas, s){
   el.style.width = s.width + 'px';
   el.style.height = s.height + 'px';
   el.style.setProperty('--rot', getRotation(s) + 'deg');
-  el.innerHTML = '<div class="shape-body" aria-hidden="true"></div><div class="shape-actions"><button class="shape-act-btn edit" title="Sekil duzenle" aria-label="Sekil duzenle" aria-pressed="false">&#x25C8;</button><button class="shape-act-btn rot" title="Dondur" aria-label="Dondur">&#x21BB;</button><button class="shape-act-btn del" title="Sil" aria-label="Sil">&times;</button></div><button class="shape-resize-handle" type="button" aria-label="Boyutlandir"></button>';
+  el.innerHTML = '<div class="shape-body" aria-hidden="true"></div><div class="shape-actions"><button class="shape-act-btn edit" title="Şekil düzenle" aria-label="Şekil düzenle" aria-pressed="false">&#x25C8;</button><button class="shape-act-btn rot" title="Döndür" aria-label="Döndür">&#x21BB;</button><button class="shape-act-btn del" title="Sil" aria-label="Sil">&times;</button></div><button class="shape-resize-handle" type="button" aria-label="Boyutlandır"></button>';
   makeDraggable(el, canvas, function(nx,ny){
     s.x = nx; s.y = ny;
   });
@@ -1266,7 +1266,7 @@ function showPlanNamePrompt(defaultName){
       + '<h4>' + FLOOR_PLAN_NAME_PROMPT_TITLE + '</h4>'
       + '<input type="text" id="fpNamePromptInput" maxlength="80" placeholder="' + FLOOR_PLAN_NAME_PLACEHOLDER + '" value="' + escapeHtml(defaultName || '') + '" autofocus>'
       + '<div class="fp-name-prompt-actions">'
-      + '<button class="inline-button secondary" id="fpNamePromptCancel" type="button">Iptal</button>'
+      + '<button class="inline-button secondary" id="fpNamePromptCancel" type="button">İptal</button>'
       + '<button class="inline-button primary" id="fpNamePromptOk" type="button">Kaydet</button>'
       + '</div></div>';
     document.body.appendChild(overlay);
@@ -1293,7 +1293,7 @@ function showPlanNamePrompt(defaultName){
 async function saveFloorPlan(options){
   var opts = options || {};
   var hid = state.hotelId || state.selectedHotelId;
-  if(!hid){ if(!opts.silent) notify('Otel secilmedi','error'); return false; }
+  if(!hid){ if(!opts.silent) notify('Otel seçilmedi','error'); return false; }
   // Block auto-save for unnamed new plans to prevent accidental "Ana Plan" entries
   if(opts.fromAutoSave && !fpState.planId && (!fpState.planName || fpState.planName === 'Ana Plan' || fpState.planName === '')){
     return false;
@@ -1401,7 +1401,7 @@ async function loadDailyView(){
   canvas.innerHTML = '';
 
   var hid = state.hotelId || state.selectedHotelId;
-  if(!hid){ notify('Otel secilmedi','error'); return; }
+  if(!hid){ notify('Otel seçilmedi','error'); return; }
 
   try{
     var res = await apiFetch('/hotels/' + hid + '/restaurant/tables/daily-view?target_date=' + encodeURIComponent(dateInput.value));
@@ -1438,7 +1438,7 @@ async function loadDailyView(){
       canvas.innerHTML = '<div class="empty-state">' + DAILY_VIEW_EMPTY_MESSAGE + '</div>';
     }
   }catch(e){
-    notify('Gunluk gorunum yuklenemedi','error');
+    notify('Günlük görünüm yüklenemedi','error');
   }
 }
 
@@ -1453,9 +1453,9 @@ async function openTableDetail(holdId){
     var listRes = await apiFetch('/holds/restaurant?hotel_id=' + hid + '&per_page=100');
     var listData = listRes;
     var hold = (listData.items||[]).find(function(h){ return h.hold_id === holdId; });
-    if(!hold){ notify('Rezervasyon bulunamadi','error'); return; }
+    if(!hold){ notify('Rezervasyon bulunamadı','error'); return; }
 
-    document.getElementById('tableDetailTitle').textContent = 'Masa Detayi - ' + escapeHtml(holdId);
+    document.getElementById('tableDetailTitle').textContent = 'Masa Detayı - ' + escapeHtml(holdId);
     document.getElementById('tdGuestName').value = hold.guest_name || '';
     document.getElementById('tdPhone').textContent = hold.phone ? ('***' + (hold.phone||'').slice(-4)) : '-';
     document.getElementById('tdPartySize').value = hold.party_size || '';
@@ -1472,7 +1472,7 @@ async function openTableDetail(holdId){
     dialog.dataset.holdId = holdId;
     dialog.showModal();
   }catch(e){
-    notify('Detay yuklenemedi','error');
+    notify('Detay yüklenemedi','error');
   }
 }
 
@@ -1517,11 +1517,11 @@ function initTableDetailDialog(){
         }catch(statusErr){}
       }
 
-      notify('Rezervasyon guncellendi','success');
+      notify('Rezervasyon güncellendi','success');
       dialog.close();
       loadDailyView();
     }catch(e){
-      notify('Guncelleme basarisiz','error');
+      notify('Güncelleme başarısız','error');
     }
   });
 
@@ -1535,7 +1535,7 @@ function initTableDetailDialog(){
       notify('+15 dakika eklendi (toplam: ' + data.total_extended_minutes + ' dk)','success');
       document.getElementById('tdTime').value = data.new_time || '';
     }catch(e){
-      var errMsg = e.message || 'Uzatma basarisiz';
+      var errMsg = e.message || 'Uzatma başarısız';
       notify(errMsg,'error');
     }
   });
@@ -1544,17 +1544,17 @@ function initTableDetailDialog(){
   if(cancelBtn) cancelBtn.addEventListener('click', async function(){
     var holdId = dialog.dataset.holdId;
     if(!holdId) return;
-    if(!confirm('Bu rezervasyonu iptal etmek istediginizden emin misiniz?')) return;
+    if(!confirm('Bu rezervasyonu iptal etmek istediğinizden emin misiniz?')) return;
     try{
       await apiFetch('/holds/restaurant/' + encodeURIComponent(holdId) + '/status', {
         method:'PUT',
-        body:({status:'IPTAL',reason:'Admin tarafindan iptal'})
+        body:({status:'IPTAL',reason:'Yönetici tarafından iptal'})
       });
       notify('Rezervasyon iptal edildi','success');
       dialog.close();
       loadDailyView();
     }catch(e){
-      notify('Iptal basarisiz','error');
+      notify('İptal başarısız','error');
     }
   });
 }
@@ -1576,7 +1576,7 @@ function applyRestaurantModeUI(mode){
   }
   createButtons.forEach(function(createBtn){
     createBtn.disabled = normalized === 'MANUEL';
-    createBtn.title = normalized === 'MANUEL' ? 'Manuel modda panelden rezervasyon olusturma kapali.' : '';
+    createBtn.title = normalized === 'MANUEL' ? 'Manuel modda panelden rezervasyon oluşturma kapalı.' : '';
   });
 }
 
@@ -1596,7 +1596,7 @@ function initRestaurantSettings(){
   form.addEventListener('submit', async function(e){
     e.preventDefault();
     var hid = state.hotelId || state.selectedHotelId;
-    if(!hid){ notify('Otel secilmedi','error'); return; }
+    if(!hid){ notify('Otel seçilmedi','error'); return; }
 
     var enabled = document.getElementById('dailyCapToggle').checked;
     var count = parseInt(document.getElementById('dailyCapCount').value,10);
@@ -1606,9 +1606,9 @@ function initRestaurantSettings(){
     var maxParty = parseInt(document.getElementById('restaurantMaxPartySize').value,10);
     var chefPhoneEl = document.getElementById('restaurantChefPhone');
     var chefPhone = chefPhoneEl ? chefPhoneEl.value.trim() : '';
-    if(isNaN(count) || count < 1){ notify('Gecerli bir gunluk rezervasyon sayisi girin','error'); return; }
-    if(isNaN(dailyPartyCount) || dailyPartyCount < 1){ notify('Gecerli bir gunluk toplam kisi sayisi girin','error'); return; }
-    if(isNaN(minParty) || minParty < 1 || isNaN(maxParty) || maxParty < minParty){ notify('Gecerli bir kisi araligi girin','error'); return; }
+    if(isNaN(count) || count < 1){ notify('Geçerli bir günlük rezervasyon sayısı girin','error'); return; }
+    if(isNaN(dailyPartyCount) || dailyPartyCount < 1){ notify('Geçerli bir günlük toplam kişi sayısı girin','error'); return; }
+    if(isNaN(minParty) || minParty < 1 || isNaN(maxParty) || maxParty < minParty){ notify('Geçerli bir kişi aralığı girin','error'); return; }
 
     try{
       await apiFetch('/hotels/' + hid + '/restaurant/settings', {
@@ -1624,7 +1624,7 @@ function initRestaurantSettings(){
           chef_phone:chefPhone
         })
       });
-      notify('Kapasite ayarlari kaydedildi','success');
+      notify('Kapasite ayarları kaydedildi','success');
     }catch(e){
       notify('Ayarlar kaydedilemedi','error');
     }
@@ -1660,9 +1660,9 @@ async function loadRestaurantSettings(){
 /* ── Service Mode ─────────────────────────── */
 
 const SERVICE_MEALS = {
-  breakfast: {label:'Kahvalti', start:'08:00', end:'10:30'},
-  lunch: {label:'Ogle', start:'12:00', end:'17:00'},
-  dinner: {label:'Aksam', start:'18:00', end:'22:00'}
+  breakfast: {label:'Kahvaltı', start:'08:00', end:'10:30'},
+  lunch: {label:'Öğle', start:'12:00', end:'17:00'},
+  dinner: {label:'Akşam', start:'18:00', end:'22:00'}
 };
 
 let serviceState = {
@@ -1729,7 +1729,7 @@ function ensureServiceModeDialogScaffold(){
   dialog.innerHTML = ''
     + '<div class="service-mode-shell service-mode-v2">'
     + '  <header class="service-mode-header">'
-    + '    <div><h3>Servis Modu</h3><p>Operasyon plani (V2 yerlesim)</p></div>'
+    + '    <div><h3>Servis Modu</h3><p>Operasyon planı (V2 yerleşim)</p></div>'
     + '    <div class="service-mode-actions">'
     + '      <button type="button" id="serviceModePrevDay" class="inline-button secondary" title="Onceki gun (Alt+Sol)">←</button>'
     + '      <input type="date" id="serviceModeDate" aria-label="Servis modu tarihi">'
@@ -1744,27 +1744,27 @@ function ensureServiceModeDialogScaffold(){
     + '      <article class="module-card service-panel service-meta-panel"><h4>Guncel Bilgi</h4><div class="service-meta-row"><strong>Tarih:</strong> <span id="serviceMetaDate">-</span></div><div class="service-meta-row"><strong>Saat:</strong> <span id="serviceMetaTime">-</span></div><div class="service-meta-row"><strong>Chef:</strong> <span id="serviceMetaChef">-</span></div></article>'
     + '    </aside>'
     + '    <section class="service-col service-col-center">'
-    + '      <div class="service-mode-canvas-wrap service-panel service-canvas-panel"><div id="serviceModeCanvas" class="floor-plan-canvas service-mode-canvas" aria-label="Servis modu masa plani"></div></div>'
+    + '      <div class="service-mode-canvas-wrap service-panel service-canvas-panel"><div id="serviceModeCanvas" class="floor-plan-canvas service-mode-canvas" aria-label="Servis modu masa planı"></div></div>'
     + '    </section>'
     + '    <aside class="service-col service-col-right">'
     + '      <article class="module-card service-panel">'
-    + '        <h4>Yeni Rezervasyon Olustur</h4>'
+    + '        <h4>Yeni Rezervasyon Oluştur</h4>'
     + '        <form id="serviceModeQuickCreateForm" class="dense-form">'
-    + '          <div class="field full"><label>Misafir Adi</label><input type="text" placeholder="Ad Soyad"></div>'
-    + '          <div class="field"><label>Kisi</label><input type="number" min="1" placeholder="2"></div>'
+    + '          <div class="field full"><label>Misafir Adı</label><input type="text" placeholder="Ad Soyad"></div>'
+    + '          <div class="field"><label>Kişi</label><input type="number" min="1" placeholder="2"></div>'
     + '          <div class="field"><label>Saat</label><input type="time"></div>'
     + '          <div class="field full"><label>Telefon</label><input type="tel" placeholder="+90..."></div>'
     + '          <div class="field full"><label>Not</label><textarea rows="3" placeholder="Opsiyonel not"></textarea></div>'
-    + '          <div class="field full"><button type="button" class="inline-button primary">Olustur (yakinda)</button></div>'
+    + '          <div class="field full"><button type="button" class="inline-button primary">Oluştur (yakında)</button></div>'
     + '        </form>'
     + '      </article>'
     + '    </aside>'
     + '  </div>'
     + '  <div class="service-mode-bottom-v2">'
-    + '    <div class="service-bottom-block"><h5>Ogun Secimi</h5><div class="filter-chips" id="serviceModeMealChips" aria-label="Ogun secimi"><button type="button" class="filter-chip" data-service-meal="breakfast" title="Kahvalti (1)">Kahvalti</button><button type="button" class="filter-chip" data-service-meal="lunch" title="Ogle (2)">Ogle</button><button type="button" class="filter-chip is-active" data-service-meal="dinner" title="Aksam (3)">Aksam</button></div></div>'
-    + '    <div class="service-bottom-block"><h5>Diger Durumlar (Reddedilen / Gelmeyen)</h5><div id="serviceModeOtherList" class="service-list"></div></div>'
-    + '    <div class="service-bottom-block"><h5>Plan ve Alan</h5><div class="filter-chips" id="serviceModeAreaChips" aria-label="Alan secimi"><button type="button" class="filter-chip is-active" data-service-area="main">Ana Mekan</button><button type="button" class="filter-chip" data-service-area="pool">Havuz</button></div><div class="stack" style="gap:8px;align-items:flex-start;margin-top:8px;"><label style="font-size:.78rem;color:var(--muted);">Plan:</label><select id="serviceModePlanSelect" aria-label="Servis modu plan secimi"></select></div></div>'
-    + '    <div class="service-bottom-block"><h5>Masa Ekle (Surukle)</h5><div id="serviceModeToolbox" class="service-toolbox"></div></div>'
+    + '    <div class="service-bottom-block"><h5>Öğün Seçimi</h5><div class="filter-chips" id="serviceModeMealChips" aria-label="Öğün seçimi"><button type="button" class="filter-chip" data-service-meal="breakfast" title="Kahvaltı (1)">Kahvaltı</button><button type="button" class="filter-chip" data-service-meal="lunch" title="Öğle (2)">Öğle</button><button type="button" class="filter-chip is-active" data-service-meal="dinner" title="Akşam (3)">Akşam</button></div></div>'
+    + '    <div class="service-bottom-block"><h5>Diğer Durumlar (Reddedilen / Gelmeyen)</h5><div id="serviceModeOtherList" class="service-list"></div></div>'
+    + '    <div class="service-bottom-block"><h5>Plan ve Alan</h5><div class="filter-chips" id="serviceModeAreaChips" aria-label="Alan seçimi"><button type="button" class="filter-chip is-active" data-service-area="main">Ana Mekân</button><button type="button" class="filter-chip" data-service-area="pool">Havuz</button></div><div class="stack" style="gap:8px;align-items:flex-start;margin-top:8px;"><label style="font-size:.78rem;color:var(--muted);">Plan:</label><select id="serviceModePlanSelect" aria-label="Servis modu plan seçimi"></select></div></div>'
+    + '    <div class="service-bottom-block"><h5>Masa Ekle (Sürükle)</h5><div id="serviceModeToolbox" class="service-toolbox"></div></div>'
     + '  </div>'
     + '</div>';
 
@@ -1776,7 +1776,7 @@ async function openServiceMode(){
   var dialog = ensureServiceModeDialogScaffold();
   if(!dialog) return;
   var hid = state.selectedHotelId || state.hotelId;
-  if(!hid){ notify('Hotel secin.', 'warn'); return; }
+  if(!hid){ notify('Otel seçin.', 'warn'); return; }
 
   serviceState.open = true;
   serviceState.date = getOperationalTodayIso();
@@ -1817,7 +1817,7 @@ async function openServiceMode(){
     renderServiceMode();
     startServiceModePolling();
   }catch(error){
-    notify(error.message || 'Servis modu verileri yuklenemedi.', 'error');
+    notify(error.message || 'Servis modu verileri yüklenemedi.', 'error');
     renderServiceMode();
   }
 }
@@ -1825,7 +1825,7 @@ async function openServiceMode(){
 async function closeServiceMode(){
   var dialog = document.getElementById('serviceModeDialog');
   if(serviceState.dirty){
-    var shouldSave = window.confirm('Kaydedilmemis plan secimi var. Kapatmadan once kaydedilsin mi?');
+    var shouldSave = window.confirm('Kaydedilmemiş plan seçimi var. Kapatmadan önce kaydedilsin mi?');
     if(shouldSave){
       await saveServiceModePlanPrefs();
     }
@@ -1946,14 +1946,14 @@ function renderServiceCanvas(){
   canvas.innerHTML = '';
   var plan = getServiceActivePlan();
   if(!plan || !plan.layout_data){
-    canvas.innerHTML = '<div class="empty-state"><p>Bu alan icin plan secilmedi. Lutfen plan secin.</p></div>';
+    canvas.innerHTML = '<div class="empty-state"><p>Bu alan için plan seçilmedi. Lütfen plan seçin.</p></div>';
     return;
   }
   applyThemeClassToCanvas(canvas, (plan.layout_data && plan.layout_data.floor_theme) || DEFAULT_FLOOR_THEME);
   var tables = (plan.layout_data.tables || []);
   var shapes = (plan.layout_data.shapes || []);
   if(!tables.length && !shapes.length){
-    canvas.innerHTML = '<div class="empty-state"><p>Plan bos - henuz masa veya sekil eklenmemis.</p></div>';
+    canvas.innerHTML = '<div class="empty-state"><p>Plan boş; henüz masa veya şekil eklenmemiş.</p></div>';
     return;
   }
 
@@ -2047,11 +2047,11 @@ function renderServiceCanvas(){
       tip.className = 'service-table-tooltip';
       if(hold){
         tip.innerHTML = '<strong>' + escapeHtml(hold.guest_name || '-') + '</strong><br>'
-          + escapeHtml(hold.time || '-') + ' · ' + escapeHtml(String(hold.party_size || '-')) + ' kisi<br>'
+          + escapeHtml(hold.time || '-') + ' · ' + escapeHtml(String(hold.party_size || '-')) + ' kişi<br>'
           + 'Durum: ' + escapeHtml(hold.status || '-')
           + (hold.notes ? '<br>Not: ' + escapeHtml(String(hold.notes).slice(0,60)) : '');
       } else {
-        tip.innerHTML = '<strong>' + escapeHtml(t.table_id) + '</strong> - ' + escapeHtml(t.type) + '<br>Bos masa (' + (TABLE_DIMS[t.type]||{}).w + 'px)';
+        tip.innerHTML = '<strong>' + escapeHtml(t.table_id) + '</strong> - ' + escapeHtml(t.type) + '<br>Boş masa (' + (TABLE_DIMS[t.type]||{}).w + 'px)';
       }
       el.appendChild(tip);
     });
@@ -2138,17 +2138,17 @@ function renderServiceCanvas(){
   legend.className = 'service-table-legend';
   legend.innerHTML = '<h6>Masa Tipleri</h6>';
   var legendTypes = [
-    {type:'TABLE_2', capacity:2, label:'2 Kisilik', svg:miniSvg2()},
-    {type:'TABLE_4', capacity:4, label:'4 Kisilik', svg:miniSvg4()},
-    {type:'TABLE_6', capacity:6, label:'6 Kisilik', svg:miniSvg6()},
-    {type:'TABLE_8', capacity:8, label:'8 Kisilik', svg:miniSvg8()},
-    {type:'TABLE_10', capacity:10, label:'10 Kisilik', svg:miniSvg10()}
+    {type:'TABLE_2', capacity:2, label:'2 Kişilik', svg:miniSvg2()},
+    {type:'TABLE_4', capacity:4, label:'4 Kişilik', svg:miniSvg4()},
+    {type:'TABLE_6', capacity:6, label:'6 Kişilik', svg:miniSvg6()},
+    {type:'TABLE_8', capacity:8, label:'8 Kişilik', svg:miniSvg8()},
+    {type:'TABLE_10', capacity:10, label:'10 Kişilik', svg:miniSvg10()}
   ];
   legendTypes.forEach(function(lt){
     var row = document.createElement('div');
     row.className = 'service-legend-row';
     row.draggable = true;
-    row.setAttribute('aria-label', lt.label + ' masa surukle');
+    row.setAttribute('aria-label', lt.label + ' masa sürükle');
     row.innerHTML = lt.svg + '<span>' + escapeHtml(lt.label) + '</span>';
     row.addEventListener('dragstart', function(ev){
       ev.dataTransfer.setData('application/velox-table', JSON.stringify({type:lt.type, capacity:lt.capacity}));
@@ -2173,7 +2173,7 @@ function renderServiceCanvas(){
       var dropY = (ev.clientY - canvasRect2.top - parseFloat(scaler.style.top || 0)) / scale + oy;
       dropX = Math.round(dropX / 20) * 20;
       dropY = Math.round(dropY / 20) * 20;
-      var tableId = window.prompt('Masa numarasi girin:', 'T' + info.capacity + '-' + Math.floor(Math.random()*100));
+      var tableId = window.prompt('Masa numarası girin:', 'T' + info.capacity + '-' + Math.floor(Math.random()*100));
       if(!tableId) return;
       var activePlan = getServiceActivePlan();
       if(!activePlan || !activePlan.id) return;
@@ -2215,7 +2215,7 @@ function renderServiceCanvas(){
     if(hitTable){
       await assignHoldToServiceTable(holdId, hitTable);
     } else {
-      notify('Lutfen rezervasyonu bir masanin uzerine birakin.', 'warn');
+      notify('Lütfen rezervasyonu bir masanın üzerine bırakın.', 'warn');
     }
   };
 }
@@ -2238,11 +2238,11 @@ function renderServiceReservationLists(){
 }
 
 function renderServiceHoldCards(items, draggable){
-  if(!items.length) return '<div class="empty-state"><p>Kayit yok.</p></div>';
+  if(!items.length) return '<div class="empty-state"><p>Kayıt yok.</p></div>';
   return items.map(function(item){
     return '<article class="service-reservation-card" draggable="' + (draggable ? 'true' : 'false') + '" data-service-hold-id="' + escapeHtml(item.hold_id) + '">'
       + '<strong>' + escapeHtml(item.guest_name || item.hold_id) + '</strong>'
-      + '<small>' + escapeHtml(item.time || '-') + ' · ' + escapeHtml(item.party_size || '-') + ' kisi</small>'
+      + '<small>' + escapeHtml(item.time || '-') + ' · ' + escapeHtml(item.party_size || '-') + ' kişi</small>'
       + '<small>Durum: ' + escapeHtml(item.status || '-') + '</small>'
       + '</article>';
   }).join('');
@@ -2261,11 +2261,11 @@ async function assignHoldToServiceTable(holdId, table){
       method:'PUT',
       body:({table_id:String(table.table_id || ''), table_type:String(table.type || '')})
     });
-    notify('Rezervasyon masaya atandi.', 'success');
+    notify('Rezervasyon masaya atandı.', 'success');
     await loadServiceModeHolds();
     renderServiceMode();
   }catch(error){
-    notify(error.message || 'Masa atamasi basarisiz.', 'error');
+    notify(error.message || 'Masa ataması başarısız.', 'error');
   }
 }
 
@@ -2282,7 +2282,7 @@ async function saveServiceTablePosition(tableId, newX, newY){
     await apiFetch('/hotels/' + hid + '/restaurant/floor-plans/' + activePlan.id, {method:'PUT', body:{layout_data: updatedLayout}});
     // Update local cache so next render uses new position
     activePlan.layout_data = updatedLayout;
-  }catch(e){ notify(e.message || 'Masa pozisyonu kaydedilemedi.', 'error'); }
+  }catch(e){ notify(e.message || 'Masa konumu kaydedilemedi.', 'error'); }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -2297,7 +2297,7 @@ function getOrCreateCtxMenu(){
   el.id = 'svcCtxMenu';
   el.className = 'svc-ctx-menu';
   el.setAttribute('role', 'menu');
-  el.setAttribute('aria-label', 'Masa islemleri');
+  el.setAttribute('aria-label', 'Masa işlemleri');
   document.body.appendChild(el);
   return el;
 }
@@ -2342,12 +2342,12 @@ if(!window.__svcCtxGlobalBound){
 // ── Validate target table ID ───────────────────────────
 function validateMoveTarget(targetId, currentTableId){
   var id = String(targetId || '').trim().toUpperCase();
-  if(!id) return {ok:false, error:'Masa numarasi bos birakilamaz.'};
-  if(id === String(currentTableId || '').trim().toUpperCase()) return {ok:false, error:'Ayni masa numarasi - farkli bir masa secin.'};
+  if(!id) return {ok:false, error:'Masa numarası boş bırakılamaz.'};
+  if(id === String(currentTableId || '').trim().toUpperCase()) return {ok:false, error:'Aynı masa numarası; farklı bir masa seçin.'};
   var plan = getServiceActivePlan();
-  if(!plan || !plan.layout_data) return {ok:false, error:'Aktif plan bulunamadi.'};
+  if(!plan || !plan.layout_data) return {ok:false, error:'Aktif plan bulunamadı.'};
   var found = (plan.layout_data.tables || []).find(function(t){ return String(t.table_id || '').trim().toUpperCase() === id; });
-  if(!found) return {ok:false, error:'Planda "' + id + '" numarali masa bulunamadi.'};
+  if(!found) return {ok:false, error:'Planda "' + id + '" numaralı masa bulunamadı.'};
   // Check if target table already has a hold for this meal/date
   var occupied = (serviceState.holds || []).find(function(h){
     return String(h.table_id || '').trim().toUpperCase() === id
@@ -2355,7 +2355,7 @@ function validateMoveTarget(targetId, currentTableId){
       && isHoldInMeal(h, serviceState.meal)
       && h.status !== 'IPTAL' && h.status !== 'GELMEDI';
   });
-  if(occupied) return {ok:false, error:'Masa "' + id + '" bu ogun icin zaten dolu (' + escapeHtml(occupied.guest_name || occupied.hold_id) + ').'};
+  if(occupied) return {ok:false, error:'Masa "' + id + '" bu öğün için zaten dolu (' + escapeHtml(occupied.guest_name || occupied.hold_id) + ').'};
   return {ok:true, tableData:found, cleanId:id};
 }
 
@@ -2385,22 +2385,22 @@ function showRemoveTableConfirm(hold, table){
     + '<div class="svc-confirm-box">'
     + '  <div class="svc-confirm-head">'
     + '    <h4>Masa ' + escapeHtml(table.table_id) + ' \u2014 Aktif Rezervasyon</h4>'
-    + '    <p><strong>' + escapeHtml(hold.guest_name || hold.hold_id) + '</strong> icin '
+    + '    <p><strong>' + escapeHtml(hold.guest_name || hold.hold_id) + '</strong> için '
     + escapeHtml(hold.time || '-') + ' saatinde ' + escapeHtml(String(hold.party_size || '-'))
-    + ' kisilik aktif rezervasyon mevcut. Masayi kaldirmadan once ne yapmak istiyorsunuz?</p>'
+    + ' kişilik aktif rezervasyon mevcut. Masayı kaldırmadan önce ne yapmak istiyorsunuz?</p>'
     + '  </div>'
     + '  <div class="svc-confirm-body">'
     + '    <div class="svc-confirm-option" data-action="remove-hold" tabindex="0" role="button">'
     + '      <div class="opt-icon opt-remove">\u2716</div>'
-    + '      <div class="opt-text"><strong>Rezervasyonu kaldir</strong><span>Rezervasyon iptal edilir ve masa plandan kaldirilir</span></div>'
+    + '      <div class="opt-text"><strong>Rezervasyonu kaldır</strong><span>Rezervasyon iptal edilir ve masa plandan kaldırılır</span></div>'
     + '    </div>'
     + '    <div class="svc-confirm-option" data-action="move-hold" tabindex="0" role="button">'
     + '      <div class="opt-icon opt-move">\u21C4</div>'
-    + '      <div class="opt-text"><strong>Baska masaya tasi</strong><span>Rezervasyon yeni masaya aktarilir, bu masa plandan kaldirilir</span></div>'
+    + '      <div class="opt-text"><strong>Başka masaya taşı</strong><span>Rezervasyon yeni masaya aktarılır, bu masa plandan kaldırılır</span></div>'
     + '    </div>'
     + '  </div>'
     + '  <div class="svc-confirm-foot">'
-    + '    <button type="button" class="svc-cancel-btn" data-action="cancel">Vazgec</button>'
+    + '    <button type="button" class="svc-cancel-btn" data-action="cancel">Vazgeç</button>'
     + '  </div>'
     + '</div>';
 
@@ -2422,14 +2422,14 @@ function showRemoveTableConfirm(hold, table){
       backdrop.removeEventListener('click', handler);
       try{
         await apiFetch('/holds/restaurant/' + encodeURIComponent(hold.hold_id) + '/status', {
-          method:'PUT', body:{status:'IPTAL', reason:'Servis Modu - masa kaldirildi, rezervasyon iptal'}
+          method:'PUT', body:{status:'IPTAL', reason:'Servis modu - masa kaldırıldı, rezervasyon iptal'}
         });
         await removeTableFromPlan(table.table_id);
-        notify('Rezervasyon iptal edildi, masa plandan kaldirildi.', 'success');
+        notify('Rezervasyon iptal edildi, masa plandan kaldırıldı.', 'success');
         await loadServiceModeHolds();
         await loadServiceModePlans();
         renderServiceMode();
-      }catch(e){ notify(e.message || 'Islem basarisiz.', 'error'); }
+      }catch(e){ notify(e.message || 'İşlem başarısız.', 'error'); }
       return;
     }
 
@@ -2446,10 +2446,10 @@ function showRemoveTableConfirm(hold, table){
 function showMoveHoldModal(hold, currentTable, removeAfterMove){
   var backdrop = getOrCreateConfirm();
   var title = removeAfterMove
-    ? 'Rezervasyonu Tasi & Masayi Kaldir'
-    : 'Rezervasyonu Baska Masaya Tasi';
+    ? 'Rezervasyonu Taşı ve Masayı Kaldır'
+    : 'Rezervasyonu Başka Masaya Taşı';
   var desc = '<strong>' + escapeHtml(hold.guest_name || hold.hold_id) + '</strong> - '
-    + escapeHtml(hold.time || '-') + ', ' + escapeHtml(String(hold.party_size || '-')) + ' kisi';
+    + escapeHtml(hold.time || '-') + ', ' + escapeHtml(String(hold.party_size || '-')) + ' kişi';
 
   backdrop.innerHTML = ''
     + '<div class="svc-confirm-box">'
@@ -2458,15 +2458,15 @@ function showMoveHoldModal(hold, currentTable, removeAfterMove){
     + '    <p>' + desc + '</p>'
     + '  </div>'
     + '  <div class="svc-confirm-body">'
-    + '    <label style="font-size:.76rem;color:var(--muted);">Hedef masa numarasi</label>'
+    + '    <label style="font-size:.76rem;color:var(--muted);">Hedef masa numarası</label>'
     + '    <div class="svc-move-input-group">'
-    + '      <input type="text" class="svc-move-input" id="svcMoveTargetInput" placeholder="Ornek: A3, T4-12" autocomplete="off" spellcheck="false">'
-    + '      <button type="button" class="svc-move-submit" id="svcMoveSubmitBtn">Tasi</button>'
+    + '      <input type="text" class="svc-move-input" id="svcMoveTargetInput" placeholder="Örnek: A3, T4-12" autocomplete="off" spellcheck="false">'
+    + '      <button type="button" class="svc-move-submit" id="svcMoveSubmitBtn">Taşı</button>'
     + '    </div>'
     + '    <div class="svc-move-error" id="svcMoveError"></div>'
     + '  </div>'
     + '  <div class="svc-confirm-foot">'
-    + '    <button type="button" class="svc-cancel-btn" id="svcMoveCancelBtn">Vazgec</button>'
+    + '    <button type="button" class="svc-cancel-btn" id="svcMoveCancelBtn">Vazgeç</button>'
     + '  </div>'
     + '</div>';
 
@@ -2492,23 +2492,23 @@ function showMoveHoldModal(hold, currentTable, removeAfterMove){
     input.classList.remove('has-error');
     errorEl.textContent = '';
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Tasiyor...';
+    submitBtn.textContent = 'Taşınıyor...';
     try{
       await moveHoldToTable(hold.hold_id, v.tableData);
       if(removeAfterMove){
         await removeTableFromPlan(currentTable.table_id);
-        notify('Rezervasyon ' + v.cleanId + ' masasina tasindi, eski masa kaldirildi.', 'success');
+        notify('Rezervasyon ' + v.cleanId + ' masasına taşındı, eski masa kaldırıldı.', 'success');
         await loadServiceModePlans();
       } else {
-        notify('Rezervasyon ' + v.cleanId + ' masasina tasindi.', 'success');
+        notify('Rezervasyon ' + v.cleanId + ' masasına taşındı.', 'success');
       }
       closeSvcConfirm();
       await loadServiceModeHolds();
       renderServiceMode();
     }catch(e){
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Tasi';
-      errorEl.textContent = e.message || 'Tasima basarisiz.';
+      submitBtn.textContent = 'Taşı';
+      errorEl.textContent = e.message || 'Taşıma başarısız.';
     }
   }
 
@@ -2530,7 +2530,7 @@ function openSvcTableContextMenu(ev, table, hold){
   closeSvcCtxMenu(); // close any existing
 
   var menu = getOrCreateCtxMenu();
-  var headerLabel = escapeHtml(table.table_id) + (hold ? (' \u2014 ' + escapeHtml(hold.guest_name || hold.hold_id)) : ' \u2014 Bos');
+  var headerLabel = escapeHtml(table.table_id) + (hold ? (' \u2014 ' + escapeHtml(hold.guest_name || hold.hold_id)) : ' \u2014 Boş');
 
   var items = '';
 
@@ -2538,23 +2538,23 @@ function openSvcTableContextMenu(ev, table, hold){
     items += ''
       + '<button class="svc-ctx-item" data-ctx="swap" role="menuitem">'
       + '  <span class="ctx-icon icon-swap">\u21C4</span>'
-      + '  <span class="ctx-label">Degistir<small>Rezervasyonu baska masaya tasi</small></span>'
+      + '  <span class="ctx-label">Değiştir<small>Rezervasyonu başka masaya taşı</small></span>'
       + '</button>'
       + '<button class="svc-ctx-item" data-ctx="unassign" role="menuitem">'
       + '  <span class="ctx-icon icon-remove">\u2716</span>'
-      + '  <span class="ctx-label">Masa Atamasini Kaldir<small>Rezervasyon sidebar&#39;a doner</small></span>'
+      + '  <span class="ctx-label">Masa Atamasını Kaldır<small>Rezervasyon listeye döner</small></span>'
       + '</button>'
       + '<div class="svc-ctx-sep"></div>'
       + '<button class="svc-ctx-item ctx-danger" data-ctx="cancel-hold" role="menuitem">'
       + '  <span class="ctx-icon icon-cancel">\u26A0</span>'
-      + '  <span class="ctx-label">Rezervasyonu Iptal Et<small>Tamamen iptal edilir</small></span>'
+      + '  <span class="ctx-label">Rezervasyonu İptal Et<small>Tamamen iptal edilir</small></span>'
       + '</button>';
   }
 
   items += '<div class="svc-ctx-sep"></div>'
     + '<button class="svc-ctx-item ctx-danger" data-ctx="remove-table" role="menuitem">'
     + '  <span class="ctx-icon icon-remove">\u2716</span>'
-    + '  <span class="ctx-label">Masayi Plandan Kaldir<small>Masa kalici olarak silinir</small></span>'
+    + '  <span class="ctx-label">Masayı Plandan Kaldır<small>Masa kalıcı olarak silinir</small></span>'
     + '</button>';
 
   menu.innerHTML = '<div class="svc-ctx-menu-header">' + headerLabel + '</div>' + items;
@@ -2589,13 +2589,13 @@ function openSvcTableContextMenu(ev, table, hold){
         await apiFetch('/holds/restaurant/' + encodeURIComponent(hold.hold_id), {
           method:'PUT', body:{table_id:''}
         });
-        notify('Masa atamasi kaldirildi - rezervasyon sidebar\\'a donduruldu.', 'success');
+        notify('Masa ataması kaldırıldı; rezervasyon listeye döndü.', 'success');
         await loadServiceModeHolds();
         renderServiceMode();
 
       } else if(action === 'cancel-hold' && hold){
         await apiFetch('/holds/restaurant/' + encodeURIComponent(hold.hold_id) + '/status', {
-          method:'PUT', body:{status:'IPTAL', reason:'Servis Modu context menu - iptal'}
+          method:'PUT', body:{status:'IPTAL', reason:'Servis modu bağlam menüsü - iptal'}
         });
         notify('Rezervasyon iptal edildi.', 'success');
         await loadServiceModeHolds();
@@ -2606,12 +2606,12 @@ function openSvcTableContextMenu(ev, table, hold){
           showRemoveTableConfirm(hold, table);
         } else {
           await removeTableFromPlan(table.table_id);
-          notify('Masa "' + table.table_id + '" plandan kaldirildi.', 'success');
+          notify('Masa "' + table.table_id + '" plandan kaldırıldı.', 'success');
           await loadServiceModePlans();
           renderServiceMode();
         }
       }
-    }catch(e){ notify(e.message || 'Islem basarisiz.', 'error'); }
+    }catch(e){ notify(e.message || 'İşlem başarısız.', 'error'); }
   });
 }
 
@@ -2627,9 +2627,9 @@ async function saveServiceModePlanPrefs(){
       })
     });
     serviceState.dirty = false;
-    notify('Servis modu plan secimleri kaydedildi.', 'success');
+    notify('Servis modu plan seçimleri kaydedildi.', 'success');
   }catch(error){
-    notify(error.message || 'Plan secimi kaydedilemedi.', 'error');
+    notify(error.message || 'Plan seçimi kaydedilemedi.', 'error');
   }
 }
 
@@ -2685,7 +2685,7 @@ function bindServiceModeEvents(){
     if(btn.dataset.serviceModeBound === '1') return;
     btn.addEventListener('click', async function(){
       if(serviceState.dirty){
-        var shouldSave = window.confirm('Plan secimi degisti. Alan degistirmeden once kaydedilsin mi?');
+        var shouldSave = window.confirm('Plan seçimi değişti. Alan değiştirmeden önce kaydedilsin mi?');
         if(shouldSave){
           await saveServiceModePlanPrefs();
         }
@@ -2712,11 +2712,11 @@ function bindServiceModeEvents(){
   if(toolboxEl && !toolboxEl.dataset.bound){
     toolboxEl.dataset.bound = '1';
     var tableTypes = [
-      {type:'TABLE_2', capacity:2, label:'2 Kisilik', svg:miniSvg2()},
-      {type:'TABLE_4', capacity:4, label:'4 Kisilik', svg:miniSvg4()},
-      {type:'TABLE_6', capacity:6, label:'6 Kisilik', svg:miniSvg6()},
-      {type:'TABLE_8', capacity:8, label:'8 Kisilik', svg:miniSvg8()},
-      {type:'TABLE_10', capacity:10, label:'10 Kisilik', svg:miniSvg10()}
+      {type:'TABLE_2', capacity:2, label:'2 Kişilik', svg:miniSvg2()},
+      {type:'TABLE_4', capacity:4, label:'4 Kişilik', svg:miniSvg4()},
+      {type:'TABLE_6', capacity:6, label:'6 Kişilik', svg:miniSvg6()},
+      {type:'TABLE_8', capacity:8, label:'8 Kişilik', svg:miniSvg8()},
+      {type:'TABLE_10', capacity:10, label:'10 Kişilik', svg:miniSvg10()}
     ];
     tableTypes.forEach(function(tt){
       var item = document.createElement('div');

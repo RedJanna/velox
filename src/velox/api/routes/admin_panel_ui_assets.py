@@ -706,13 +706,13 @@ function bindDelegatedEvents() {
       const approveButton = target;
       const originalLabel = approveButton.textContent;
       approveButton.disabled = true;
-      approveButton.textContent = 'Onaylaniyor...';
+      approveButton.textContent = 'Onaylanıyor...';
       try {
         const result = await apiFetch(`/holds/${target.dataset.approveHold}/approve?force=true`, {method: 'POST', body: {notes: ''}});
         if (result && result.status === 'already_processed') {
-          notify('Hold zaten islenmis durumda. Tekrar onay tetiklenmedi.', 'info');
+          notify('Onay kaydı zaten işlenmiş durumda. Tekrar onay tetiklenmedi.', 'info');
         } else {
-          notify('Hold onaylandı.', 'success');
+          notify('Onay kaydı onaylandı.', 'success');
         }
         const tab = state.activeHoldsTab || 'stay';
         if (tab === 'stay') loadStayHolds();
@@ -731,7 +731,7 @@ function bindDelegatedEvents() {
     if (target.dataset.rejectHold) {
       refs.decisionMode.value = 'reject';
       refs.decisionHoldId.value = target.dataset.rejectHold;
-      refs.decisionTitle.textContent = 'Hold reddet';
+      refs.decisionTitle.textContent = 'Onay kaydını reddet';
       refs.decisionLead.textContent = 'İsterseniz gerekçe yazın; boş bırakarak da reddedebilirsiniz.';
       refs.decisionReason.value = '';
       refs.decisionDialog.showModal();
@@ -873,7 +873,7 @@ function renderBootstrapState() {
   refs.bootstrapSummary.innerHTML = `
     <div class="helper-box">
       <strong>İlk yönetici hesabı gerekli</strong>
-      <p>Veritabanında admin kullanıcısı yok. İlk hesap oluşturulduktan sonra panel doğrudan 2FA ile çalışacak.</p>
+      <p>Veritabanında yönetici kullanıcısı yok. İlk hesap oluşturulduktan sonra panel doğrudan 2FA ile çalışacak.</p>
     </div>
     <div class="helper-box">
       <strong>Erişim modu</strong>
@@ -1000,7 +1000,7 @@ async function onBootstrap(event) {
     refs.otpUri.textContent = response.otpauth_uri;
     refs.loginForm.username.value = response.username;
     refs.loginForm.password.value = payload.password;
-    notify('İlk admin hesabı oluşturuldu. QR okutun ve kodu doğrulayın.', 'success');
+    notify('İlk yönetici hesabı oluşturuldu. QR okutun ve kodu doğrulayın.', 'success');
   } catch (error) {
     notify(error.message, 'error');
   }
@@ -1037,7 +1037,7 @@ async function onTotpRecovery(event) {
 async function onBootstrapVerify(event) {
   event.preventDefault();
   if (!state.bootstrapPending) {
-    notify('Önce ilk admin hesabını oluşturun.', 'warn');
+    notify('Önce ilk yönetici hesabını oluşturun.', 'warn');
     return;
   }
   const payload = formToJson(refs.otpVerifyForm);
@@ -1173,7 +1173,7 @@ function setView(view) {
     accesscontrol: ['Rol ve Yetkiler', 'Kullanıcı, rol, departman ve pencere bazlı işlem izinlerini aynı ekranda yönetin.'],
     system: ['Sistem Durumu', 'Sunucu sağlığı, alan adı ve güvenlik ayarlarını kontrol edin.'],
     chatlab: ['Test Paneli', 'Yapay zekâyı canlı test edin, puanlayın ve raporlayın.'],
-    debug: ['Hata Raporları', 'Canlı panelde başlatılan report-only taramaların bulgularını inceleyin.'],
+    debug: ['Hata Raporları', 'Canlı panelde başlatılan yalnızca raporlama amaçlı taramaların bulgularını inceleyin.'],
   }[view] || ['Yönetim Paneli', 'Yönetim merkezi'];
 
   refs.pageTitle.textContent = meta[0];
@@ -1240,7 +1240,7 @@ function onHotelScopeChange() {
 function openDebugRunModal() {
   if (!refs.debugRunDialog) return;
   if (!state.debugWorkerReady) {
-    notify(state.debugWorkerMessage || 'Debug worker hazır değil.', 'error');
+    notify(state.debugWorkerMessage || 'Hata tarama işleyicisi hazır değil.', 'error');
     return;
   }
   if (!state.debugBrowserScanAvailable && state.debugBrowserScanMessage) {
@@ -1347,7 +1347,7 @@ async function onDebugDetailClick(event) {
   try {
     if (action === 'cancel') {
       await apiFetch(`/debug/runs/${encodeURIComponent(state.activeDebugRunId)}/cancel`, {method: 'POST', body: {}});
-      notify('Debug run için iptal isteği işlendi.', 'success');
+      notify('Hata taraması için iptal isteği işlendi.', 'success');
       await loadDebugRuns({preserveSelection: true});
       return;
     }
@@ -1355,11 +1355,11 @@ async function onDebugDetailClick(event) {
       const response = await apiFetch(`/debug/runs/${encodeURIComponent(state.activeDebugRunId)}/retry`, {method: 'POST', body: {}});
       state.activeDebugRunId = response.run?.id || state.activeDebugRunId;
       state.activeDebugFindingId = '';
-      notify('Debug run yeniden kuyruğa alındı.', 'success');
+      notify('Hata taraması yeniden kuyruğa alındı.', 'success');
       await loadDebugRuns({preserveSelection: true});
     }
   } catch (error) {
-    notify(error.message || 'Debug aksiyonu tamamlanamadı.', 'error');
+    notify(error.message || 'Hata taraması işlemi tamamlanamadı.', 'error');
   }
 }
 
@@ -1412,7 +1412,7 @@ async function loadDebugRunsSafely(options = {}, {notifyOnError = false} = {}) {
     await loadDebugRuns(options);
   } catch (error) {
     state.debugWorkerReady = false;
-    state.debugWorkerMessage = 'Debug verileri alınamadı.';
+    state.debugWorkerMessage = 'Hata taraması verileri alınamadı.';
     syncDebugTopbarState();
     if (state.currentView === 'debug') {
       renderDebugView();
@@ -1434,7 +1434,7 @@ async function loadDebugStatus() {
     state.debugBrowserScanTarget = String(response.browser_scan_target || '');
   } catch (_error) {
     state.debugWorkerReady = false;
-    state.debugWorkerMessage = 'Debug worker durumu alınamadı.';
+    state.debugWorkerMessage = 'Hata tarama işleyicisi durumu alınamadı.';
     state.debugBrowserScanAvailable = false;
     state.debugBrowserScanMessage = '';
     state.debugBrowserScanMode = '';
@@ -1532,6 +1532,16 @@ function debugStatusBadgeClass(status) {
   return 'warn';
 }
 
+function formatDebugStatusLabel(status) {
+  return {
+    queued: 'Kuyrukta',
+    running: 'Çalışıyor',
+    completed: 'Tamamlandı',
+    failed: 'Başarısız',
+    cancelled: 'İptal edildi',
+  }[String(status || '').toLowerCase()] || String(status || '-');
+}
+
 function debugSeverityBadgeClass(severity) {
   if (severity === 'critical' || severity === 'high') return 'danger';
   if (severity === 'medium') return 'warn';
@@ -1539,37 +1549,54 @@ function debugSeverityBadgeClass(severity) {
   return 'info';
 }
 
+function formatDebugSeverityLabel(severity) {
+  return {
+    critical: 'Kritik',
+    high: 'Yüksek',
+    medium: 'Orta',
+    low: 'Düşük',
+    info: 'Bilgi',
+  }[String(severity || '').toLowerCase()] || String(severity || '-');
+}
+
+function formatDebugModeLabel(mode) {
+  return {
+    aggressive_report_only: 'Yalnızca raporlama',
+    report_only: 'Yalnızca raporlama',
+  }[String(mode || '').toLowerCase()] || String(mode || '-');
+}
+
 function formatDebugArtifactTypeLabel(artifactType) {
   if (artifactType === 'screenshot') return 'Ekran görüntüsü';
   if (artifactType === 'console_log') return 'Konsol kaydı';
   if (artifactType === 'network_log') return 'Ağ kaydı';
-  if (artifactType === 'dom_snapshot') return 'DOM snapshot';
-  if (artifactType === 'trace') return 'Trace';
-  return artifactType || 'Artifact';
+  if (artifactType === 'dom_snapshot') return 'DOM anlık görüntüsü';
+  if (artifactType === 'trace') return 'İz kaydı';
+  return artifactType || 'Kanıt';
 }
 
 function getDebugArtifactScreenLabel(item) {
   const screen = item?.metadata?.screen;
   if (screen) return String(screen);
   const storagePath = String(item?.storage_path || '');
-  if (storagePath.includes('admin_shell')) return 'Admin Panel';
-  if (storagePath.includes('chatlab_shell')) return 'Chat Lab';
+  if (storagePath.includes('admin_shell')) return 'Yönetim Paneli';
+  if (storagePath.includes('chatlab_shell')) return 'Test Paneli';
   return 'Diğer Kanıtlar';
 }
 
 function getDebugArtifactContextNote() {
   const finding = state.debugFindings.find(item => item.id === state.activeDebugFindingId);
   if (finding && state.debugArtifactScope === 'finding') {
-    return 'Bu artifact listesi yalnız seçili bulguya bağlı kanıtları gösterir.';
+    return 'Bu kanıt listesi yalnızca seçili bulguya bağlı kanıtları gösterir.';
   }
   if (finding && state.debugArtifactScope === 'run_fallback') {
-    return 'Bu bulguya doğrudan bağlı artifact yok. Aşağıda run seviyesinde kaydedilen kanıtlar gösteriliyor.';
+    return 'Bu bulguya doğrudan bağlı kanıt yok. Aşağıda tarama seviyesinde kaydedilen kanıtlar gösteriliyor.';
   }
   const findingCount = Number(state.debugRunDetail?.summary?.finding_count || 0);
   if (!finding && findingCount === 0) {
-    return 'Bu run temiz tamamlandı. Aşağıdaki görseller bulgu değil, taramanın gerçekten hangi ekranlara ulaştığının kanıtıdır.';
+    return 'Bu tarama temiz tamamlandı. Aşağıdaki görseller bulgu değil, taramanın gerçekten hangi ekranlara ulaştığının kanıtıdır.';
   }
-  return 'Aşağıdaki artifactlar tarama sırasında kaydedilen ekran görüntüsü ve teknik kanıtlardır.';
+  return 'Aşağıdaki kanıtlar tarama sırasında kaydedilen ekran görüntüsü ve teknik kayıtlardır.';
 }
 
 function groupDebugArtifacts(items) {
@@ -1736,7 +1763,7 @@ function openDebugArtifactPreview(artifactId) {
   state.activeDebugArtifactId = artifact.id || '';
   state.highlightedDebugArtifactId = artifact.id || state.highlightedDebugArtifactId;
   refs.debugArtifactPreviewTitle.textContent = `${formatDebugArtifactTypeLabel(artifact.artifact_type)} · ${getDebugArtifactScreenLabel(artifact)}`;
-  refs.debugArtifactPreviewMeta.textContent = buildDebugArtifactMetaLine(artifact) || 'Artifact ayrıntıları';
+  refs.debugArtifactPreviewMeta.textContent = buildDebugArtifactMetaLine(artifact) || 'Kanıt ayrıntıları';
   refs.debugArtifactPreviewPath.textContent = String(artifact.storage_path || '-');
   if (contentUrl) {
     refs.debugArtifactPreviewLink.hidden = false;
@@ -1772,14 +1799,14 @@ function syncDebugTopbarState() {
   if (!refs.debugTopbarStatus || !refs.debugStartButton) return;
   refs.debugTopbarStatus.hidden = false;
   if (!state.debugWorkerReady) {
-    refs.debugTopbarStatus.textContent = state.debugWorkerMessage || 'Worker kapalı';
+    refs.debugTopbarStatus.textContent = state.debugWorkerMessage || 'İşleyici kapalı';
     refs.debugTopbarStatus.className = 'badge danger';
     refs.debugStartButton.disabled = true;
     return;
   }
   if (!activeRun) {
     if (!state.debugBrowserScanAvailable && state.debugBrowserScanMessage) {
-      refs.debugTopbarStatus.textContent = 'HTTP tarama hazır · screenshot yok';
+      refs.debugTopbarStatus.textContent = 'HTTP taraması hazır · ekran görüntüsü yok';
       refs.debugTopbarStatus.className = 'badge warn';
     } else {
       refs.debugTopbarStatus.textContent = 'Boşta';
@@ -1812,7 +1839,7 @@ function renderDebugRunList() {
     refs.debugRunList.innerHTML = `
       <div class="empty-state">
         <h4>Henüz hata taraması yok</h4>
-        <p>Topbardaki Hata Taraması butonundan yeni bir run başlatabilirsiniz.</p>
+        <p>Üst çubuktaki Hata Taraması butonundan yeni bir tarama başlatabilirsiniz.</p>
       </div>
     `;
     return;
@@ -1826,11 +1853,11 @@ function renderDebugRunList() {
             <h4>${escapeHtml(describeDebugScope(item.scope))}</h4>
             <div class="muted">${escapeHtml(formatDate(item.queued_at) || '-')}</div>
           </div>
-          <span class="pill ${debugStatusBadgeClass(item.status)}">${escapeHtml(item.status)}</span>
+          <span class="pill ${debugStatusBadgeClass(item.status)}">${escapeHtml(formatDebugStatusLabel(item.status))}</span>
         </header>
-        <div class="muted">${escapeHtml(item.failure_reason || 'Run kaydı oluşturuldu ve işlenmeyi bekliyor.')}</div>
+      <div class="muted">${escapeHtml(item.failure_reason || 'Tarama kaydı oluşturuldu ve işlenmeyi bekliyor.')}</div>
         <div class="debug-card-meta">
-          <span>${escapeHtml(item.mode || '-')}</span>
+          <span>${escapeHtml(formatDebugModeLabel(item.mode))}</span>
           <span>${escapeHtml(String(item.finding_count || 0))} bulgu</span>
         </div>
       </article>
@@ -1844,7 +1871,7 @@ function renderDebugFindingList() {
   if (!state.activeDebugRunId) {
     refs.debugFindingList.innerHTML = `
       <div class="empty-state">
-        <h4>Run seçilmedi</h4>
+        <h4>Tarama seçilmedi</h4>
         <p>Bulguları görmek için soldan bir tarama kaydı seçin.</p>
       </div>
     `;
@@ -1853,7 +1880,7 @@ function renderDebugFindingList() {
   if (!state.debugFindings.length) {
     const waitingText = state.debugRunDetail?.status === 'queued' || state.debugRunDetail?.status === 'running'
       ? 'Tarama sürüyor. Bulgular geldikçe burada listelenecek.'
-      : 'Bu run için henüz bulgu üretilmedi.';
+      : 'Bu tarama için henüz bulgu üretilmedi.';
     refs.debugFindingList.innerHTML = `
       <div class="empty-state">
         <h4>Bulgu bekleniyor</h4>
@@ -1869,7 +1896,7 @@ function renderDebugFindingList() {
           <h4>${escapeHtml(item.screen || '-')}</h4>
           <div class="muted">${escapeHtml(item.action_label || item.category)}</div>
         </div>
-        <span class="pill ${debugSeverityBadgeClass(item.severity)}">${escapeHtml(item.severity)}</span>
+        <span class="pill ${debugSeverityBadgeClass(item.severity)}">${escapeHtml(formatDebugSeverityLabel(item.severity))}</span>
       </header>
       <div>${escapeHtml(item.description || '-')}</div>
       <div class="debug-card-meta">
@@ -1889,15 +1916,15 @@ function renderDebugSummary() {
     refs.debugActiveRunStatus.textContent = '-';
     refs.debugActiveRunMeta.textContent = 'Henüz tarama başlatılmadı.';
     refs.debugSummaryFindings.textContent = '0';
-    refs.debugSummaryCounts.textContent = 'Critical 0 / High 0 / Medium 0 / Low 0';
+    refs.debugSummaryCounts.textContent = 'Kritik 0 / Yüksek 0 / Orta 0 / Düşük 0';
     refs.debugSummaryScope.textContent = '-';
     return;
   }
   const summary = run.summary || {};
-  refs.debugActiveRunStatus.textContent = run.status || '-';
+    refs.debugActiveRunStatus.textContent = formatDebugStatusLabel(run.status);
   refs.debugActiveRunMeta.textContent = run.failure_reason || `${formatDate(run.queued_at) || '-'} · ${describeDebugScope(run.scope)}`;
   refs.debugSummaryFindings.textContent = String(summary.finding_count || state.debugFindings.length || 0);
-  refs.debugSummaryCounts.textContent = `Critical ${summary.critical_count || 0} / High ${summary.high_count || 0} / Medium ${summary.medium_count || 0} / Low ${summary.low_count || 0}`;
+  refs.debugSummaryCounts.textContent = `Kritik ${summary.critical_count || 0} / Yüksek ${summary.high_count || 0} / Orta ${summary.medium_count || 0} / Düşük ${summary.low_count || 0}`;
   refs.debugSummaryScope.textContent = describeDebugScope(run.scope);
 }
 
@@ -1910,7 +1937,7 @@ function renderDebugDetailPanel() {
       <div class="debug-detail-grid">
         <div class="debug-detail-section">
           <strong>Sorun Özeti</strong>
-          <div><span class="pill ${debugSeverityBadgeClass(finding.severity)}">${escapeHtml(finding.severity)}</span></div>
+          <div><span class="pill ${debugSeverityBadgeClass(finding.severity)}">${escapeHtml(formatDebugSeverityLabel(finding.severity))}</span></div>
           <p>${escapeHtml(finding.description || '-')}</p>
         </div>
         <div class="debug-detail-section">
@@ -1930,7 +1957,7 @@ function renderDebugDetailPanel() {
           <pre>${escapeHtml(JSON.stringify(finding.evidence || {}, null, 2) || '{}')}</pre>
         </div>
         <div class="debug-detail-section">
-          <strong>Artifact'lar ve Kanıtlar</strong>
+          <strong>Kanıtlar</strong>
           ${artifactMarkup}
         </div>
       </div>
@@ -1941,7 +1968,7 @@ function renderDebugDetailPanel() {
     refs.debugDetailPanel.innerHTML = `
       <div class="empty-state">
         <h4>Seçim bekleniyor</h4>
-        <p>Detay görmek için soldan bir run veya ortadan bir bulgu seçin.</p>
+        <p>Detay görmek için soldan bir tarama veya ortadan bir bulgu seçin.</p>
       </div>
     `;
     return;
@@ -1950,12 +1977,12 @@ function renderDebugDetailPanel() {
   refs.debugDetailPanel.innerHTML = `
     <div class="debug-detail-grid">
       <div class="debug-detail-section">
-        <strong>Run Durumu</strong>
+        <strong>Tarama Durumu</strong>
         <div class="debug-toolbar">
-          <span class="pill ${debugStatusBadgeClass(run.status)}">${escapeHtml(run.status || '-')}</span>
+          <span class="pill ${debugStatusBadgeClass(run.status)}">${escapeHtml(formatDebugStatusLabel(run.status))}</span>
           <span class="pill info">${escapeHtml(describeDebugScope(run.scope))}</span>
         </div>
-        <p class="muted">${escapeHtml(run.failure_reason || 'Run detayları aşağıda özetleniyor.')}</p>
+        <p class="muted">${escapeHtml(run.failure_reason || 'Tarama ayrıntıları aşağıda özetleniyor.')}</p>
       </div>
       <div class="debug-detail-section">
         <strong>Zaman Çizelgesi</strong>
@@ -1963,7 +1990,7 @@ function renderDebugDetailPanel() {
           `Kuyruğa alındı: ${formatDate(run.queued_at) || '-'}`,
           `Başladı: ${formatDate(run.started_at) || '-'}`,
           `Bitti: ${formatDate(run.finished_at) || '-'}`,
-          `Heartbeat: ${formatDate(run.last_heartbeat_at) || '-'}`,
+          `Son canlılık sinyali: ${formatDate(run.last_heartbeat_at) || '-'}`,
         ].join('\\n'))}</pre>
       </div>
       <div class="debug-detail-section">
@@ -1978,7 +2005,7 @@ function renderDebugDetailPanel() {
         </div>
       </div>
       <div class="debug-detail-section">
-        <strong>Artifact'lar ve Kanıtlar</strong>
+        <strong>Kanıtlar</strong>
         ${artifactMarkup}
       </div>
     </div>
@@ -1989,7 +2016,7 @@ function renderDebugArtifacts() {
   if (!state.debugArtifacts.length) {
     return `
       <div class="debug-empty-compact">
-        <h4>Artifact bulunamadı</h4>
+        <h4>Kanıt bulunamadı</h4>
         <p>Bu seçim için henüz ekran görüntüsü veya ek kanıt kaydedilmedi.</p>
       </div>
     `;
@@ -1998,11 +2025,11 @@ function renderDebugArtifacts() {
   const screenCount = groups.length;
   const scopeLabel = state.debugArtifactScope === 'finding'
     ? 'Bulgu kanıtı'
-    : (state.debugArtifactScope === 'run_fallback' ? 'Run kanıtı (yedek)' : 'Run kanıtı');
+    : (state.debugArtifactScope === 'run_fallback' ? 'Tarama kanıtı (yedek)' : 'Tarama kanıtı');
   return `
     <div class="debug-artifact-groups">
       <section class="debug-artifact-summary">
-        <strong>${escapeHtml(scopeLabel)} · ${escapeHtml(String(state.debugArtifacts.length))} artifact · ${escapeHtml(String(screenCount))} ekran</strong>
+        <strong>${escapeHtml(scopeLabel)} · ${escapeHtml(String(state.debugArtifacts.length))} kanıt · ${escapeHtml(String(screenCount))} ekran</strong>
         <p>${escapeHtml(getDebugArtifactContextNote())}</p>
       </section>
       ${groups.map(group => `
@@ -2538,14 +2565,14 @@ function renderAccessOverviewCards() {
       note: `${departments.length} otel birimi ile eşleştirilmiş rol kataloğu`,
     },
     {
-      title: 'Admin Kullanıcıları',
+      title: 'Yönetici Kullanıcıları',
       value: users.length,
       note: `${users.filter(item => item.is_active).length} aktif hesap şu anda panele erişebilir`,
     },
     {
       title: '2FA Hazır',
       value: totpReadyCount,
-      note: `${Math.max(users.length - totpReadyCount, 0)} hesap için yeni Authenticator kurulumu gerekebilir`,
+      note: `${Math.max(users.length - totpReadyCount, 0)} hesap için yeni Authenticator uygulaması kurulumu gerekebilir`,
     },
   ].map(item => `
     <article class="overview-card access-overview-card">
@@ -2662,13 +2689,13 @@ function renderAccessUsersList() {
       : isSelf
         ? 'Giriş yaptığınız hesabı aynı oturumdan pasife alamazsınız.'
         : user.is_super_admin
-          ? 'Korunan super admin hesabı pasife alınamaz.'
+          ? 'Korunan süper yönetici hesabı pasife alınamaz.'
           : '';
     const twoFactorLockedReason = 'Zorunlu 2FA güvenlik politikası gereği kapatılamaz; gerekiyorsa 2FA QR yenileme butonunu kullanın.';
     const roleHelpText = isSelf
-      ? 'Giriş yaptığınız hesabın rolü güvenlik nedeniyle bu karttan değiştirilemez. Rol değişikliği için başka bir admin hesabı ile bu kullanıcıyı düzenleyin.'
+      ? 'Giriş yaptığınız hesabın rolü güvenlik nedeniyle bu karttan değiştirilemez. Rol değişikliği için başka bir yönetici hesabı ile bu kullanıcıyı düzenleyin.'
       : user.is_super_admin
-        ? 'Korunan super admin hesabının rolü düşürülemez; tüm izinleri açık kalır.'
+        ? 'Korunan süper yönetici hesabının rolü düşürülemez; tüm izinleri açık kalır.'
         : hasWritePermission
         ? 'Rol, hangi pencere ve işlem ailelerine erişileceğini belirler.'
         : 'Rol değiştirme yetkiniz bulunmuyor.';
@@ -2739,7 +2766,7 @@ function renderAccessUsersList() {
               </span>
             </label>
           </div>
-          ${isSelf ? '<div class="field full"><div class="access-user-note">Bu kayıt şu an giriş yaptığınız admin hesabı. Güvenlik nedeniyle kendi rolünüzü, aktiflik durumunuzu ve izin kümenizi bu akıştan değiştiremezsiniz. Gerekirse departman, görünen ad veya şifreyi güncelleyin; rol değişikliği için önce ikinci bir admin hesabı oluşturup bu kullanıcıyı onunla düzenleyin.</div></div>' : ''}
+          ${isSelf ? '<div class="field full"><div class="access-user-note">Bu kayıt şu an giriş yaptığınız yönetici hesabı. Güvenlik nedeniyle kendi rolünüzü, aktiflik durumunuzu ve izin kümenizi bu akıştan değiştiremezsiniz. Gerekirse departman, görünen ad veya şifreyi güncelleyin; rol değişikliği için önce ikinci bir yönetici hesabı oluşturup bu kullanıcıyı onunla düzenleyin.</div></div>' : ''}
         </div>
         <div class="access-user-actions">
           <button class="action-button secondary ${selected ? 'is-active' : ''}" type="button" data-access-edit-permissions="${escapeHtml(user.user_id)}">${isSelf ? 'İzinleri Görüntüle' : 'İzinleri Düzenle'}</button>
@@ -2779,7 +2806,7 @@ function renderAccessPermissionEditor() {
     refs.accessResetPermissionsButton.disabled = true;
     refs.accessSavePermissionsButton.disabled = true;
     refs.accessPermissionMeta.innerHTML = '<div class="helper-box"><strong>Kullanıcı seçin</strong><p>İzin ağacını açmak için soldaki kartlardan bir kullanıcı seçin.</p></div>';
-    refs.accessPermissionTree.innerHTML = '<div class="access-editor-empty"><h4>Henüz kullanıcı seçilmedi</h4><p>Bir kullanıcı seçtiğinizde pencere erişimleri ve işlem izinleri burada toggle menüsü ile açılır.</p></div>';
+    refs.accessPermissionTree.innerHTML = '<div class="access-editor-empty"><h4>Henüz kullanıcı seçilmedi</h4><p>Bir kullanıcı seçtiğinizde pencere erişimleri ve işlem izinleri burada anahtar menüsü ile açılır.</p></div>';
     return;
   }
   if (!(state.accessControlDraftPermissions instanceof Set)) {
@@ -2798,21 +2825,21 @@ function renderAccessPermissionEditor() {
   refs.accessResetPermissionsButton.disabled = !canWrite;
   refs.accessSavePermissionsButton.disabled = !canWrite;
   const lockMessage = isSelf
-    ? 'Bu kayıt şu an giriş yaptığınız admin hesabı. Güvenlik nedeniyle kendi rolünüz, aktifliğiniz ve izin kümeniz bu ekrandan değiştirilemez. Başka bir admin hesabı oluşturup bu kullanıcıyı onunla düzenleyin.'
+    ? 'Bu kayıt şu an giriş yaptığınız yönetici hesabı. Güvenlik nedeniyle kendi rolünüz, aktifliğiniz ve izin kümeniz bu ekrandan değiştirilemez. Başka bir yönetici hesabı oluşturup bu kullanıcıyı onunla düzenleyin.'
     : user.is_super_admin
-      ? 'Korunan super admin hesabının izin kümesi azaltılamaz; tüm izinleri açık kalır.'
+      ? 'Korunan süper yönetici hesabının izin kümesi azaltılamaz; tüm izinleri açık kalır.'
     : !hasWritePermission
       ? 'Bu kullanıcı için izin değişikliği yapma yetkiniz bulunmuyor.'
       : '';
   refs.accessPermissionMeta.innerHTML = `
       <div class="helper-box">
         <strong>${escapeHtml(user.display_name || user.username)}</strong>
-        <p>${escapeHtml(effectiveRoleLabel)} rolündeki kullanıcının etkin izinleri düzenleniyor. Kaydedilen farklar rol varsayılanının üzerine kullanıcı bazlı override olarak işlenir.</p>
+        <p>${escapeHtml(effectiveRoleLabel)} rolündeki kullanıcının etkin izinleri düzenleniyor. Kaydedilen farklar rol varsayılanının üzerine kullanıcı bazlı özel izin farkı olarak işlenir.</p>
         <div class="access-summary-row">
         <span class="access-chip role">${escapeHtml(effectiveRoleLabel)}</span>
         <span class="access-chip department">${escapeHtml(effectiveDepartmentLabel)}</span>
         <span class="access-chip security">${escapeHtml(state.accessControlDraftPermissions.size)} seçili izin</span>
-        <span class="access-chip">${escapeHtml(overrideCount)} kayıtlı override</span>
+        <span class="access-chip">${escapeHtml(overrideCount)} kayıtlı özel izin farkı</span>
       </div>
     </div>
     ${!canWrite ? `<div class="helper-box"><strong>Değişiklik kilitli</strong><p>${escapeHtml(lockMessage)}</p></div>` : ''}
@@ -3012,7 +3039,7 @@ async function onAccessCreateUser(event) {
     refs.accessCreateTwoFactor.checked = true;
     refs.accessCreateRole.value = role.code;
     syncAccessCreateDepartment(role.code);
-    showAccessTotpResult(response, 'Yeni kullanıcı için Authenticator kurulumu');
+    showAccessTotpResult(response, 'Yeni kullanıcı için Authenticator uygulaması kurulumu');
     await loadAccessControl();
     notify(`${username} kullanıcısı oluşturuldu.`, 'success');
   } catch (error) {
@@ -3187,7 +3214,7 @@ async function rotateAccessUserTotp(userId) {
     notify('Kullanıcı bulunamadı.', 'error');
     return;
   }
-  if (!confirm(`${user.username} kullanıcısı için Authenticator kurulumunu yenilemek istiyor musunuz?`)) {
+  if (!confirm(`${user.username} kullanıcısı için Authenticator uygulaması kurulumunu yenilemek istiyor musunuz?`)) {
     return;
   }
   try {
@@ -3195,7 +3222,7 @@ async function rotateAccessUserTotp(userId) {
     state.accessControlSelectedUserId = userId;
     state.accessControlPreviewRole = '';
     state.accessControlDraftPermissions = new Set(response.user?.permissions || []);
-    showAccessTotpResult(response, 'Authenticator kurulumu yenilendi');
+    showAccessTotpResult(response, 'Authenticator uygulaması kurulumu yenilendi');
     await loadAccessControl();
     notify(`${user.username} için 2FA kurulumu yenilendi.`, 'success');
   } catch (error) {

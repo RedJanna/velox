@@ -51,7 +51,7 @@ def render_admin_panel_html() -> str:
       <div class="brand">
         <div class="brand-mark">NX</div>
         <div>
-          <h1>NexlumeAI<br>Admin</h1>
+          <h1>NexlumeAI<br>Yönetim</h1>
           <p>Misafir konuşmaları, onaylar ve otel ayarları tek yerden yönetilir.</p>
         </div>
       </div>
@@ -59,14 +59,14 @@ def render_admin_panel_html() -> str:
       <nav id="nav" class="nav" aria-label="Yönetim paneli gezinmesi">
         <button data-nav="dashboard"><span class="nav-label"><strong>Genel Bakış</strong><span>Anlık durum özeti</span></span><span>01</span></button>
         <button data-nav="conversations"><span class="nav-label"><strong>Konuşmalar</strong><span>Misafir mesajları ve geçmiş</span></span><span>02</span></button>
-        <button data-nav="holds"><span class="nav-label"><strong>Onay Bekleyenler</strong><span>Rezervasyon onay ve red islemleri</span></span><span>03</span></button>
+        <button data-nav="holds"><span class="nav-label"><strong>Onay Bekleyenler</strong><span>Rezervasyon onay ve ret işlemleri</span></span><span>03</span></button>
         <button data-nav="tickets"><span class="nav-label"><strong>Destek Talepleri</strong><span>Ekibe aktarılan görevler</span></span><span>04</span></button>
         <button data-nav="hotels"><span class="nav-label"><strong>Otel Bilgileri</strong><span>Otel profili ve ayarları</span></span><span>05</span></button>
         <button data-nav="faq"><span class="nav-label"><strong>Sık Sorulan Sorular</strong><span>Hazır yanıt yönetimi</span></span><span>06</span></button>
         <button data-nav="restaurant"><span class="nav-label"><strong>Restoran Yönetimi</strong><span>Masa ve kapasite ayarları</span></span><span>07</span></button>
         <button data-nav="notifications"><span class="nav-label"><strong>Bildirim Ayarları</strong><span>WhatsApp bildirim numaraları</span></span><span>08</span></button>
         <button data-nav="accesscontrol"><span class="nav-label"><strong>Rol ve Yetkiler</strong><span>Kullanıcı, rol ve izin yönetimi</span></span><span>09</span></button>
-        <button data-nav="whatsappapi"><span class="nav-label"><strong>WhatsApp API</strong><span>Meta bağlantısı ve şablonlar</span></span><span>10</span></button>
+        <button data-nav="whatsappapi"><span class="nav-label"><strong>WhatsApp Bağlantısı</strong><span>Meta bağlantısı ve şablonlar</span></span><span>10</span></button>
         <button data-nav="system"><span class="nav-label"><strong>Sistem Durumu</strong><span>Sunucu ve bağlantı kontrolleri</span></span><span>11</span></button>
         <button data-nav="chatlab"><span class="nav-label"><strong>Test Paneli</strong><span>Canlı test ve değerlendirme</span></span><span>12</span></button>
         <button data-nav="debug"><span class="nav-label"><strong>Hata Raporları</strong><span>Canlı tarama bulguları</span></span><span>13</span></button>
@@ -184,11 +184,11 @@ def render_admin_panel_html() -> str:
                 <input id="bootstrap-password" name="password" type="password" minlength="12" maxlength="72" required>
               </div>
               <div class="field full">
-                <label for="bootstrap-token">Bootstrap token</label>
-                <input id="bootstrap-token" name="bootstrap_token" placeholder="ENV ile açıldıysa gerekli olabilir">
+                <label for="bootstrap-token">İlk kurulum anahtarı</label>
+                <input id="bootstrap-token" name="bootstrap_token" placeholder="Ortam değişkeniyle etkinleştirildiyse gerekli olabilir">
               </div>
               <div class="field full">
-                <button class="sidebar-button primary" type="submit">İlk Admin Hesabını Oluştur</button>
+                <button class="sidebar-button primary" type="submit">İlk Yönetici Hesabını Oluştur</button>
               </div>
             </form>
             <section id="totpRecovery" class="helper-panel mt-md" hidden>
@@ -202,7 +202,7 @@ def render_admin_panel_html() -> str:
                   <input id="recovery-username" name="username" required>
                 </div>
                 <div class="field">
-                  <label for="recovery-token">Bootstrap token</label>
+                  <label for="recovery-token">İlk kurulum anahtarı</label>
                   <input id="recovery-token" name="bootstrap_token" required>
                 </div>
                 <div class="field full">
@@ -216,17 +216,17 @@ def render_admin_panel_html() -> str:
             </section>
             <div id="otpSetup" class="helper-panel" hidden>
               <div class="helper-box">
-                <strong>Google Authenticator QR</strong>
+                <strong>Google Authenticator QR Kodu</strong>
                 <div class="qr-wrap">
                   <img id="otpQrImage" alt="Google Authenticator QR">
                 </div>
               </div>
               <div class="helper-box">
-                <strong>Authenticator Secret</strong>
+                <strong>Authenticator Gizli Anahtarı</strong>
                 <p id="otpSecret" class="mono"></p>
               </div>
               <div class="helper-box">
-                <strong>otpauth URI</strong>
+                <strong>otpauth Adresi</strong>
                 <p id="otpUri" class="mono"></p>
               </div>
             </div>
@@ -325,7 +325,7 @@ def render_admin_panel_html() -> str:
                 </form>
                 <div class="table-shell">
                   <table class="holds-table"><thead><tr>
-                    <th class="table-select">Seç</th><th>Aç</th><th>Rez. No</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Tarih</th><th>Tutar</th>
+                    <th class="table-select">Seç</th><th>Aç</th><th>Rez. No</th><th>Onay Kaydı</th><th>Durum</th><th>Misafir</th><th>Tarih</th><th>Tutar</th>
                   </tr></thead><tbody id="stayHoldTableBody"></tbody></table>
                 </div>
               </article>
@@ -362,7 +362,7 @@ def render_admin_panel_html() -> str:
                 </form>
                 <div class="table-shell">
                   <table class="holds-table"><thead><tr>
-                    <th>Aç</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Tarih/Saat</th><th>Kişi</th>
+                    <th>Aç</th><th>Onay Kaydı</th><th>Durum</th><th>Misafir</th><th>Tarih/Saat</th><th>Kişi</th>
                   </tr></thead><tbody id="restaurantHoldTableBodyLegacy"></tbody></table>
                 </div>
               </article>
@@ -407,7 +407,7 @@ def render_admin_panel_html() -> str:
                 </form>
                 <div class="table-shell">
                   <table class="holds-table"><thead><tr>
-                    <th class="table-select">Seç</th><th>Aç</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Güzergâh</th><th>Tarih</th>
+                    <th class="table-select">Seç</th><th>Aç</th><th>Onay Kaydı</th><th>Durum</th><th>Misafir</th><th>Güzergâh</th><th>Tarih</th>
                   </tr></thead><tbody id="transferHoldTableBody"></tbody></table>
                 </div>
               </article>
@@ -530,15 +530,15 @@ def render_admin_panel_html() -> str:
         <section data-view="restaurant" class="section-grid" hidden>
           <article class="module-card">
             <div class="module-header">
-              <div><h3>Slot Yönetimi</h3><p>Kapasiteyi tarih ve rezervasyon saati bazında takip edin, kalan kapasiteyi görsel olarak izleyin.</p></div>
+              <div><h3>Kapasite Aralığı Yönetimi</h3><p>Kapasiteyi tarih ve rezervasyon saati bazında takip edin, kalan kapasiteyi görsel olarak izleyin.</p></div>
               <div class="stack" style="align-items:flex-end;gap:8px;">
                 <button id="openServiceModeBtn" class="inline-button primary" type="button" aria-label="Servis modunu aç" onclick="window.__veloxOpenServiceMode && window.__veloxOpenServiceMode()">Servis Modu</button>
               </div>
             </div>
             <form id="slotFilters" class="toolbar">
-              <input name="date_from" type="date" aria-label="Slot başlangıç tarihi">
-              <input name="date_to" type="date" aria-label="Slot bitiş tarihi">
-              <select name="display_interval" id="slotDisplayInterval" aria-label="Slot gösterim aralığı">
+              <input name="date_from" type="date" aria-label="Kapasite aralığı başlangıç tarihi">
+              <input name="date_to" type="date" aria-label="Kapasite aralığı bitiş tarihi">
+              <select name="display_interval" id="slotDisplayInterval" aria-label="Kapasite aralığı gösterim aralığı">
                 <option value="1m">Her 1 dakika</option>
                 <option value="1h">Her 1 saat</option>
                 <option value="2h">Her 2 saat</option>
@@ -549,15 +549,15 @@ def render_admin_panel_html() -> str:
                 <option value="30d">Her 30 gün</option>
                 <option value="2mo">Her 2 ay</option>
               </select>
-              <button id="loadSlotsButton" class="primary" type="button" aria-label="Slotları getir">Slotları Getir</button>
+              <button id="loadSlotsButton" class="primary" type="button" aria-label="Kapasite aralıklarını getir">Kapasite Aralıklarını Getir</button>
             </form>
             <div class="toolbar" style="margin-top:-4px">
-              <button id="hideSlotsButton" class="inline-button secondary" type="button" aria-label="Slotları kapat">Slotları Kapat</button>
+              <button id="hideSlotsButton" class="inline-button secondary" type="button" aria-label="Kapasite aralıklarını kapat">Kapasite Aralıklarını Kapat</button>
             </div>
             <div id="slotSummaryCards" class="split"></div>
             <div class="table-shell">
               <table>
-                <thead><tr><th>ID</th><th>Tarih</th><th>Rezervasyon Saati</th><th>Alan</th><th>Kalan Slot</th><th>Durum</th><th>İşlem</th></tr></thead>
+                <thead><tr><th>ID</th><th>Tarih</th><th>Rezervasyon Saati</th><th>Alan</th><th>Kalan Kapasite</th><th>Durum</th><th>İşlem</th></tr></thead>
                 <tbody id="slotTableBody"></tbody>
               </table>
             </div>
@@ -565,7 +565,7 @@ def render_admin_panel_html() -> str:
 
           <article class="module-card">
             <div class="module-header">
-              <div><h3>Toplu Slot Temizleme</h3><p>Seçilen tarih ve saat aralığındaki slot kayıtlarını tek seferde silin. Başlangıç ve bitiş saatine denk gelen slotlar da dahildir.</p></div>
+              <div><h3>Toplu Kapasite Aralığı Temizleme</h3><p>Seçilen tarih ve saat aralığındaki kapasite kayıtlarını tek seferde silin. Başlangıç ve bitiş saatine denk gelen kayıtlar da dahildir.</p></div>
             </div>
             <form id="slotDeleteForm" class="dense-form">
               <div class="field"><label>Tarih başlangıcı</label><input name="date_from" type="date" required aria-label="Silme başlangıç tarihi"></div>
@@ -585,7 +585,7 @@ def render_admin_panel_html() -> str:
                 </div>
                 <small>Seçmezseniz tüm günlerde uygular.</small>
               </div>
-              <div class="field full"><button class="inline-button danger" type="submit">Seçili Aralıktaki Slotları Temizle</button></div>
+              <div class="field full"><button class="inline-button danger" type="submit">Seçili Aralıktaki Kapasite Kayıtlarını Temizle</button></div>
             </form>
           </article>
 
@@ -602,7 +602,7 @@ def render_admin_panel_html() -> str:
               <div class="field"><label>Toplam kişi sayısı limiti</label><input name="total_party_size_limit" type="number" min="1" required aria-label="Pencere toplam kişi sayısı limiti"></div>
               <div class="field"><label>Min. kişi sayısı</label><input name="min_party_size" type="number" min="1" value="1" required aria-label="Minimum kişi sayısı"></div>
               <div class="field"><label>Maks. kişi sayısı</label><input name="max_party_size" type="number" min="1" value="8" required aria-label="Maksimum kişi sayısı"></div>
-              <div class="field"><label>Misafire açık mı?</label><input name="is_active" type="checkbox" checked class="checkbox-field" aria-label="Slot aktif mi"></div>
+              <div class="field"><label>Misafire açık mı?</label><input name="is_active" type="checkbox" checked class="checkbox-field" aria-label="Kapasite aralığı aktif mi"></div>
               <div class="field full"><button class="inline-button primary" type="submit">Tarihler Arası Kapasite Oluştur</button></div>
             </form>
           </article>
@@ -664,7 +664,7 @@ def render_admin_panel_html() -> str:
               </form>
               <div class="table-shell">
                 <table class="holds-table"><thead><tr>
-                  <th>Aç</th><th>Hold</th><th>Durum</th><th>Misafir</th><th>Tarih/Saat</th><th>Kişi</th>
+                  <th>Aç</th><th>Onay Kaydı</th><th>Durum</th><th>Misafir</th><th>Tarih/Saat</th><th>Kişi</th>
                 </tr></thead><tbody id="restaurantHoldTableBody"></tbody></table>
               </div>
             </article>
@@ -749,7 +749,7 @@ def render_admin_panel_html() -> str:
                 <div class="toolbox-item" draggable="true" data-table-type="TABLE_10" data-capacity="10" aria-label="10 kişilik masa ekle">
                   <span class="toolbox-preview"><svg viewBox="0 0 52 36"><circle cx="10" cy="3" r="2.5" fill="#78716c"/><circle cx="20" cy="3" r="2.5" fill="#78716c"/><circle cx="30" cy="3" r="2.5" fill="#78716c"/><circle cx="40" cy="3" r="2.5" fill="#78716c"/><circle cx="10" cy="33" r="2.5" fill="#78716c"/><circle cx="20" cy="33" r="2.5" fill="#78716c"/><circle cx="30" cy="33" r="2.5" fill="#78716c"/><circle cx="40" cy="33" r="2.5" fill="#78716c"/><circle cx="3" cy="18" r="2.5" fill="#78716c"/><circle cx="49" cy="18" r="2.5" fill="#78716c"/><rect x="7" y="9" width="38" height="18" rx="4" fill="#d4a574" stroke="#92400e" stroke-width="1.5"/></svg></span> 10 Kişilik
                 </div>
-                <p class="toolbox-title">Sekiller</p>
+                <p class="toolbox-title">Şekiller</p>
                 <div class="toolbox-item" draggable="true" data-shape-type="HORIZONTAL_DIVIDER" aria-label="Yatay ayırıcı ekle">━ Yatay Ayırıcı</div>
                 <div class="toolbox-item" draggable="true" data-shape-type="VERTICAL_DIVIDER" aria-label="Dikey ayırıcı ekle">┃ Dikey Ayırıcı</div>
                 <div class="toolbox-item" draggable="true" data-shape-type="WALL" aria-label="Duvar ekle">&#9632; Duvar</div>
@@ -793,7 +793,7 @@ def render_admin_panel_html() -> str:
                 <div class="field"><label>Saat</label><input id="tdTime" name="time" type="time" aria-label="Rezervasyon saati"></div>
                 <div class="field full"><label>Notlar</label><textarea id="tdNotes" name="notes" maxlength="500" rows="2" aria-label="Notlar"></textarea></div>
                 <div class="readonly-info">
-                  <p>Hold ID: <span id="tdHoldId"></span></p>
+                  <p>Onay Kaydı ID: <span id="tdHoldId"></span></p>
                   <p>Oluşturulma: <span id="tdCreatedAt"></span></p>
                   <p>Onaylayan: <span id="tdApprovedBy"></span></p>
                 </div>
@@ -841,7 +841,7 @@ def render_admin_panel_html() -> str:
 
             <article class="module-card">
               <div class="module-header">
-                <div><h3>Yeni Admin Kullanıcısı</h3><p>Kullanıcı adı, geçici şifre, rol, departman ve zorunlu 2FA bilgilerini tek akışta tanımlayın.</p></div>
+                <div><h3>Yeni Yönetici Kullanıcısı</h3><p>Kullanıcı adı, geçici şifre, rol, departman ve zorunlu 2FA bilgilerini tek akışta tanımlayın.</p></div>
                 <div class="badge warn">2FA zorunlu</div>
               </div>
               <form id="accessCreateUserForm" class="field-grid">
@@ -907,11 +907,11 @@ def render_admin_panel_html() -> str:
                   <img id="accessTotpQrImage" alt="Authenticator QR kodu">
                 </div>
                 <div class="helper-box">
-                  <strong>Authenticator Secret</strong>
+                  <strong>Authenticator Gizli Anahtarı</strong>
                   <p id="accessTotpSecret" class="mono"></p>
                 </div>
                 <div class="helper-box">
-                  <strong>otpauth URI</strong>
+                  <strong>otpauth Adresi</strong>
                   <p id="accessTotpUri" class="mono"></p>
                 </div>
               </div>
@@ -929,7 +929,7 @@ def render_admin_panel_html() -> str:
 
             <article class="module-card">
               <div class="module-header">
-                <div><h3>İzin Düzenleyici</h3><p>Seçili kullanıcının pencere ve işlem izinlerini toggle yapısı ile güncelleyin. Rol varsayılanına dönme seçeneği korunur.</p></div>
+                <div><h3>İzin Düzenleyici</h3><p>Seçili kullanıcının ekran ve işlem izinlerini anahtar yapısı ile güncelleyin. Rol varsayılanına dönme seçeneği korunur.</p></div>
                 <div class="module-actions">
                   <button id="accessResetPermissionsButton" class="inline-button secondary" type="button">Rol Varsayılana Dön</button>
                   <button id="accessSavePermissionsButton" class="inline-button primary" type="button">İzinleri Kaydet</button>
@@ -951,7 +951,7 @@ def render_admin_panel_html() -> str:
               <div class="whatsapp-guide-highlight"><b>1</b><span>Başlamadan önce Meta Business, WABA, telefon ve HTTPS webhook hazırlığını kontrol edin.</span></div>
               <div class="whatsapp-guide-highlight"><b>2</b><span>Önerilen yol olarak Meta ile Bağlan akışını kullanın; manuel kayıt sadece yedek yoldur.</span></div>
               <div class="whatsapp-guide-highlight"><b>3</b><span>Webhook Abone Et, Sağlık Kontrolü ve Meta'dan Senkronize Et adımlarını tamamlayın.</span></div>
-              <div class="whatsapp-guide-highlight"><b>4</b><span>24 saatlik pencere dışındaki mesajlar için onaylı template hazırlayın.</span></div>
+              <div class="whatsapp-guide-highlight"><b>4</b><span>24 saatlik pencere dışındaki mesajlar için onaylı şablon hazırlayın.</span></div>
             </div>
           </article>
           <div id="whatsappStatusCards" class="whatsapp-status-grid"></div>
@@ -971,19 +971,19 @@ def render_admin_panel_html() -> str:
 
             <article class="module-card">
               <div class="module-header">
-                <div><h3>Gelişmiş Manuel Kayıt</h3><p>Meta popup akışı kullanılamadığında teknik bilgiler buradan kaydedilir.</p></div>
+                <div><h3>Gelişmiş Manuel Kayıt</h3><p>Meta açılır pencere akışı kullanılamadığında teknik bilgiler buradan kaydedilir.</p></div>
               </div>
               <form id="whatsappManualForm" class="dense-form">
-                <div class="field"><label>Business ID</label><input name="business_id" autocomplete="off"></div>
-                <div class="field"><label>WABA ID</label><input name="waba_id" autocomplete="off"></div>
-                <div class="field"><label>Phone Number ID</label><input name="phone_number_id" autocomplete="off" required></div>
+                <div class="field"><label>İşletme Kimliği (Business ID)</label><input name="business_id" autocomplete="off"></div>
+                <div class="field"><label>WABA Kimliği</label><input name="waba_id" autocomplete="off"></div>
+                <div class="field"><label>Telefon Numarası Kimliği</label><input name="phone_number_id" autocomplete="off" required></div>
                 <div class="field"><label>Görünen numara</label><input name="display_phone_number" autocomplete="off"></div>
                 <div class="field"><label>Doğrulanmış ad</label><input name="verified_name" autocomplete="off"></div>
                 <div class="field"><label>Kalite</label><input name="quality_rating" autocomplete="off"></div>
                 <div class="field"><label>Mesaj limiti</label><input name="messaging_limit" autocomplete="off"></div>
-                <div class="field"><label>Token scope</label><input name="token_scopes" placeholder="scope1,scope2" autocomplete="off"></div>
-                <div class="field full"><label>Access token</label><input class="whatsapp-secret-input" name="access_token" type="password" autocomplete="off" placeholder="Boş bırakırsanız mevcut token korunur"></div>
-                <div class="field full"><label>Webhook verify token</label><input class="whatsapp-secret-input" name="webhook_verify_token" type="password" autocomplete="off" placeholder="Boş bırakırsanız mevcut değer korunur"></div>
+                <div class="field"><label>Token izin kapsamı</label><input name="token_scopes" placeholder="izin1,izin2" autocomplete="off"></div>
+                <div class="field full"><label>Erişim token'ı</label><input class="whatsapp-secret-input" name="access_token" type="password" autocomplete="off" placeholder="Boş bırakırsanız mevcut token korunur"></div>
+                <div class="field full"><label>Webhook doğrulama token'ı</label><input class="whatsapp-secret-input" name="webhook_verify_token" type="password" autocomplete="off" placeholder="Boş bırakırsanız mevcut değer korunur"></div>
                 <div class="field full"><button class="inline-button primary" type="submit">Bağlantıyı Kaydet</button></div>
               </form>
             </article>
@@ -992,22 +992,22 @@ def render_admin_panel_html() -> str:
           <div class="split">
             <article class="module-card">
               <div class="module-header">
-                <div><h3>Template Mesajları</h3><p>24 saat penceresi kapalı konuşmalar için onaylı template gerekir.</p></div>
+                <div><h3>Şablon Mesajları</h3><p>24 saat penceresi kapalı konuşmalar için onaylı şablon gerekir.</p></div>
                 <button id="whatsappTemplateSyncButton" class="inline-button secondary" type="button">Meta'dan Senkronize Et</button>
               </div>
               <div id="whatsappTemplates" class="whatsapp-template-list"></div>
               <form id="whatsappTemplateForm" class="field-grid mt-lg">
-                <div class="field"><label>Template adı</label><input name="name" required></div>
+                <div class="field"><label>Şablon adı</label><input name="name" required></div>
                 <div class="field"><label>Dil</label><input name="language" placeholder="tr" required></div>
                 <div class="field"><label>Kategori</label><input name="category" placeholder="UTILITY"></div>
-                <div class="field full"><label>Components JSON</label><textarea name="components_json" class="whatsapp-secret-input" style="min-height:90px" placeholder="[]"></textarea></div>
+                <div class="field full"><label>Bileşenler JSON'u</label><textarea name="components_json" class="whatsapp-secret-input" style="min-height:90px" placeholder="[]"></textarea></div>
                 <div class="field full"><button class="inline-button primary" type="submit">Yerel Taslak Kaydet</button></div>
               </form>
             </article>
 
             <article class="module-card">
               <div class="module-header">
-                <div><h3>Bağlantı Günlüğü</h3><p>Secret içermeyen bağlantı olayları.</p></div>
+                <div><h3>Bağlantı Günlüğü</h3><p>Gizli anahtar içermeyen bağlantı olayları.</p></div>
               </div>
               <div id="whatsappEvents" class="whatsapp-event-list"></div>
             </article>
@@ -1074,26 +1074,26 @@ def render_admin_panel_html() -> str:
         <section data-view="debug" class="section-grid" hidden>
           <div class="debug-summary-grid">
             <article class="overview-card">
-              <h4>Aktif Run</h4>
+              <h4>Aktif Tarama</h4>
               <strong id="debugActiveRunStatus">-</strong>
               <span id="debugActiveRunMeta">Henüz tarama başlatılmadı.</span>
             </article>
             <article class="overview-card">
               <h4>Toplam Bulgu</h4>
               <strong id="debugSummaryFindings">0</strong>
-              <span id="debugSummaryCounts">Critical 0 / High 0 / Medium 0 / Low 0</span>
+              <span id="debugSummaryCounts">Kritik 0 / Yüksek 0 / Orta 0 / Düşük 0</span>
             </article>
             <article class="overview-card">
               <h4>Kapsam</h4>
               <strong id="debugSummaryScope">-</strong>
-              <span id="debugSummaryScopeMeta">Aktif run seçildiğinde kapsam burada görünür.</span>
+              <span id="debugSummaryScopeMeta">Aktif tarama seçildiğinde kapsam burada görünür.</span>
             </article>
           </div>
 
           <div class="debug-layout">
             <article class="module-card debug-column">
               <div class="module-header">
-                <div><h3>Run Listesi</h3><p>Kuyruktaki ve tamamlanan taramaları bu panelden takip edin.</p></div>
+                <div><h3>Tarama Listesi</h3><p>Kuyruktaki ve tamamlanan taramaları bu panelden takip edin.</p></div>
                 <div class="module-actions">
                   <button id="debugRefreshButton" class="inline-button secondary" type="button">Yenile</button>
                 </div>
@@ -1101,14 +1101,14 @@ def render_admin_panel_html() -> str:
               <div id="debugRunList" class="debug-run-list">
                 <div class="empty-state">
                   <h4>Henüz hata taraması yok</h4>
-                  <p>Topbardaki Hata Taraması butonundan yeni bir run başlatabilirsiniz.</p>
+                  <p>Üst çubuktaki Hata Taraması butonundan yeni bir tarama başlatabilirsiniz.</p>
                 </div>
               </div>
             </article>
 
             <article class="module-card debug-column">
               <div class="module-header">
-                <div><h3>Bulgular</h3><p>Seçili run için tespit edilen issue kayıtları burada listelenir.</p></div>
+                <div><h3>Bulgular</h3><p>Seçili tarama için tespit edilen bulgu kayıtları burada listelenir.</p></div>
                 <div class="module-actions">
                   <span id="debugFindingCountBadge" class="pill info">0 kayıt</span>
                 </div>
@@ -1116,19 +1116,19 @@ def render_admin_panel_html() -> str:
               <div id="debugFindingList" class="debug-finding-list">
                 <div class="empty-state">
                   <h4>Bulgu bekleniyor</h4>
-                  <p>Bu run için henüz bulgu üretilmedi.</p>
+                  <p>Bu tarama için henüz bulgu üretilmedi.</p>
                 </div>
               </div>
             </article>
 
             <article class="module-card debug-column">
               <div class="module-header">
-                <div><h3>Detay</h3><p>Run veya bulgu seçildiğinde teknik özet ve önerilen düzeltme burada görünür.</p></div>
+                <div><h3>Detay</h3><p>Tarama veya bulgu seçildiğinde teknik özet ve önerilen düzeltme burada görünür.</p></div>
               </div>
               <div id="debugDetailPanel" class="helper-panel">
                 <div class="empty-state">
                   <h4>Seçim bekleniyor</h4>
-                  <p>Detay görmek için soldan bir run veya ortadan bir bulgu seçin.</p>
+                  <p>Detay görmek için soldan bir tarama veya ortadan bir bulgu seçin.</p>
                 </div>
               </div>
             </article>
@@ -1171,7 +1171,7 @@ def render_admin_panel_html() -> str:
 
         <section class="service-col service-col-center">
           <div class="service-mode-canvas-wrap service-panel service-canvas-panel">
-            <div id="serviceModeCanvas" class="floor-plan-canvas service-mode-canvas" aria-label="Servis modu masa plani"></div>
+            <div id="serviceModeCanvas" class="floor-plan-canvas service-mode-canvas" aria-label="Servis modu masa planı"></div>
           </div>
         </section>
 
@@ -1244,8 +1244,8 @@ def render_admin_panel_html() -> str:
         <p id="whatsappConnectStatus">Bağlantı oturumu bekleniyor.</p>
       </div>
       <div id="whatsappOauthSteps" class="field-grid">
-        <div class="whatsapp-oauth-step"><span>1</span><div><strong>Oturum oluştur</strong><p>Backend kısa süreli ve CSRF state içeren bağlantı oturumu üretir.</p></div></div>
-        <div class="whatsapp-oauth-step"><span>2</span><div><strong>Meta popup</strong><p>Yetkilendirme ayrı popup içinde tamamlanır; token frontend'e dönmez.</p></div></div>
+        <div class="whatsapp-oauth-step"><span>1</span><div><strong>Oturum oluştur</strong><p>Backend kısa süreli ve CSRF durumu içeren bağlantı oturumu üretir.</p></div></div>
+        <div class="whatsapp-oauth-step"><span>2</span><div><strong>Meta açılır penceresi</strong><p>Yetkilendirme ayrı açılır pencerede tamamlanır; token frontend'e dönmez.</p></div></div>
         <div class="whatsapp-oauth-step"><span>3</span><div><strong>Numara seçimi</strong><p>Yetki sonrası erişilebilir WhatsApp numaraları backend'den alınır ve seçilen numara aktif bağlantıya dönüştürülür.</p></div></div>
       </div>
       <div id="whatsappAssets" class="whatsapp-asset-picker"></div>
@@ -1267,30 +1267,30 @@ def render_admin_panel_html() -> str:
           <section class="whatsapp-guide-panel">
             <span class="whatsapp-guide-kicker">Önerilen yol</span>
             <h4>Önce Meta ile Bağlan akışını deneyin</h4>
-            <p>Bu ekrandaki <strong>Meta ile Bağlan</strong> düğmesi kullanıcıyı mümkün olduğunca Velox içinde tutar. Meta oturumu güvenli popup içinde tamamlanır, token frontend'e yazılmaz, yetki sonrası erişilebilir WhatsApp numaraları burada listelenir.</p>
+            <p>Bu ekrandaki <strong>Meta ile Bağlan</strong> düğmesi kullanıcıyı mümkün olduğunca Velox içinde tutar. Meta oturumu güvenli açılır pencerede tamamlanır, token frontend'e yazılmaz, yetki sonrası erişilebilir WhatsApp numaraları burada listelenir.</p>
             <ul class="whatsapp-guide-safe-list">
-              <li>Popup açılırsa manuel formu doldurmanız gerekmez.</li>
+              <li>Açılır pencere açılırsa manuel formu doldurmanız gerekmez.</li>
               <li>Token şifreli saklanır ve ekranda geri gösterilmez.</li>
-              <li>Bağlantıdan sonra webhook, sağlık kontrolü ve template senkronu bu ekrandan yapılır.</li>
+              <li>Bağlantıdan sonra webhook, sağlık kontrolü ve şablon senkronizasyonu bu ekrandan yapılır.</li>
             </ul>
           </section>
           <section class="whatsapp-guide-mini-screen" aria-label="Meta kurulum ekranı örneği">
             <div class="whatsapp-guide-mini-top"><span class="whatsapp-guide-mini-dot"></span><span class="whatsapp-guide-mini-dot"></span><span class="whatsapp-guide-mini-dot"></span></div>
             <div class="whatsapp-guide-mini-body">
-              <div class="whatsapp-guide-mini-row"><strong>Business Settings</strong><span>Business ID</span></div>
-              <div class="whatsapp-guide-mini-row"><strong>WhatsApp Manager</strong><span>WABA ID</span></div>
-              <div class="whatsapp-guide-mini-row"><strong>API Setup</strong><span>Phone Number ID</span></div>
-              <div class="whatsapp-guide-mini-row"><strong>Webhooks</strong><span>Callback URL + Verify Token</span></div>
-              <div class="whatsapp-guide-mini-row"><strong>Templates</strong><span>24 saat dışı mesajlar</span></div>
+              <div class="whatsapp-guide-mini-row"><strong>İşletme Ayarları</strong><span>İşletme Kimliği</span></div>
+              <div class="whatsapp-guide-mini-row"><strong>WhatsApp Yöneticisi</strong><span>WABA Kimliği</span></div>
+              <div class="whatsapp-guide-mini-row"><strong>API Kurulumu</strong><span>Telefon Numarası Kimliği</span></div>
+              <div class="whatsapp-guide-mini-row"><strong>Webhook'lar</strong><span>Geri Çağrı URL'si + Doğrulama Token'ı</span></div>
+              <div class="whatsapp-guide-mini-row"><strong>Şablonlar</strong><span>24 saat dışı mesajlar</span></div>
             </div>
           </section>
         </div>
 
         <section class="whatsapp-guide-result" aria-label="Kurulum sonucunda beklenen durum">
           <div><strong>Bağlantı</strong><span>Doğru WhatsApp numarası Velox'a bağlı görünür.</span></div>
-          <div><strong>Webhook</strong><span>Meta gelen mesajları public HTTPS endpoint'e gönderir.</span></div>
+          <div><strong>Webhook</strong><span>Meta gelen mesajları herkese açık HTTPS uç noktasına gönderir.</span></div>
           <div><strong>Token</strong><span>Gerekli izinlere sahip, canlı kullanım için uygun token saklanır.</span></div>
-          <div><strong>Template</strong><span>24 saatlik pencere kapalıyken kullanılacak onaylı mesajlar hazırdır.</span></div>
+          <div><strong>Şablon</strong><span>24 saatlik pencere kapalıyken kullanılacak onaylı mesajlar hazırdır.</span></div>
         </section>
 
         <section class="whatsapp-guide-panel">
@@ -1300,10 +1300,10 @@ def render_admin_panel_html() -> str:
           <div class="whatsapp-guide-checklist">
             <div class="whatsapp-guide-checkitem"><b>✓</b><span>Meta Business portföyünde yönetici yetkiniz var.</span></div>
             <div class="whatsapp-guide-checkitem"><b>✓</b><span>Bağlanacak telefon numarası SMS veya sesli arama ile doğrulama alabiliyor.</span></div>
-            <div class="whatsapp-guide-checkitem"><b>✓</b><span>Velox webhook adresi public HTTPS üzerinden erişilebilir. Localhost veya HTTP kullanılmaz.</span></div>
-            <div class="whatsapp-guide-checkitem"><b>✓</b><span>Meta App tarafında WhatsApp ve Webhooks ürünleri yapılandırılmış.</span></div>
+            <div class="whatsapp-guide-checkitem"><b>✓</b><span>Velox webhook adresi herkese açık HTTPS üzerinden erişilebilir. Localhost veya HTTP kullanılmaz.</span></div>
+            <div class="whatsapp-guide-checkitem"><b>✓</b><span>Meta uygulaması tarafında WhatsApp ve Webhook ürünleri yapılandırılmış.</span></div>
             <div class="whatsapp-guide-checkitem"><b>✓</b><span>Canlı kullanım için kısa süreli test token yerine sistem kullanıcısı veya uzun ömürlü uygun token planlandı.</span></div>
-            <div class="whatsapp-guide-checkitem"><b>✓</b><span>İlk giden mesajlar için en az bir onaylı utility template hazırlamayı planladınız.</span></div>
+            <div class="whatsapp-guide-checkitem"><b>✓</b><span>İlk giden mesajlar için en az bir onaylı yardımcı işlem şablonu hazırlamayı planladınız.</span></div>
           </div>
         </section>
 
@@ -1314,7 +1314,7 @@ def render_admin_panel_html() -> str:
             <div class="whatsapp-guide-path-card recommended">
               <strong>Meta ile Bağlan</strong>
               <span class="whatsapp-guide-badge">Önerilen</span>
-              <p>Yeni kullanıcılar için en güvenli akıştır. Popup içinde Meta izni alınır, Velox erişilebilir WABA ve numaraları backend üzerinden listeler.</p>
+              <p>Yeni kullanıcılar için en güvenli akıştır. Açılır pencere içinde Meta izni alınır, Velox erişilebilir WABA ve numaraları backend üzerinden listeler.</p>
               <ul>
                 <li>Token tarayıcıda görünmez.</li>
                 <li>ID karıştırma riski azalır.</li>
@@ -1324,11 +1324,11 @@ def render_admin_panel_html() -> str:
             <div class="whatsapp-guide-path-card">
               <strong>Gelişmiş Manuel Kayıt</strong>
               <span class="whatsapp-guide-badge">Yedek yol</span>
-              <p>Sadece popup akışı çalışmıyorsa veya teknik ekip Meta bilgilerini ayrıca verdiyse kullanın. Her alanı Meta'daki doğru kaynaktan kopyalamak gerekir.</p>
+              <p>Sadece açılır pencere akışı çalışmıyorsa veya teknik ekip Meta bilgilerini ayrıca verdiyse kullanın. Her alanı Meta'daki doğru kaynaktan kopyalamak gerekir.</p>
               <ul>
-                <li>Business ID, WABA ID ve Phone Number ID karıştırılmamalı.</li>
-                <li>Access token izinleri manuel kontrol edilmeli.</li>
-                <li>Webhook verify token backend değeriyle aynı olmalı.</li>
+                <li>İşletme Kimliği, WABA Kimliği ve Telefon Numarası Kimliği karıştırılmamalı.</li>
+                <li>Erişim token'ı izinleri manuel kontrol edilmeli.</li>
+                <li>Webhook doğrulama token'ı backend değeriyle aynı olmalı.</li>
               </ul>
             </div>
           </div>
@@ -1341,7 +1341,7 @@ def render_admin_panel_html() -> str:
               <h4>Meta Business hesabını hazırlayın</h4>
               <p>Kurulumu yapacak kişinin Meta Business portföyünde yönetici veya gerekli varlık yetkilerine sahip olması gerekir. İşletme adı, web sitesi, ülke ve iletişim bilgileri doğru olmalıdır.</p>
               <ul>
-                <li>Business Settings içinde doğru işletme portföyünü seçin.</li>
+                <li>İşletme Ayarları ekranında doğru işletme portföyünü seçin.</li>
                 <li>WhatsApp hesabı ve telefon numarası aynı işletme altında veya size paylaşılmış varlık olarak görünmeli.</li>
                 <li>İşletme doğrulaması her kurulumda ilk dakika şartı olmayabilir, fakat canlı kullanım, limit ve güvenilirlik için eksik bırakılmamalıdır.</li>
               </ul>
@@ -1351,12 +1351,12 @@ def render_admin_panel_html() -> str:
           <div class="whatsapp-guide-step">
             <b>2</b>
             <div>
-              <h4>Business ID, WABA ID ve Phone Number ID ayrımını netleştirin</h4>
+              <h4>İşletme Kimliği, WABA Kimliği ve Telefon Numarası Kimliği ayrımını netleştirin</h4>
               <p>Meta tarafında üç farklı kimlik vardır. Bunlar aynı şey değildir ve yanlış alana yazılırsa bağlantı başarısız olur.</p>
               <ul>
-                <li><strong>Business ID</strong>: Meta Business portföyünün kimliğidir.</li>
-                <li><strong>WABA ID</strong>: WhatsApp Business Account kimliğidir.</li>
-                <li><strong>Phone Number ID</strong>: Mesaj gönderecek telefonun API kimliğidir. Phone Number ID, görünen telefon numarası değildir.</li>
+                <li><strong>İşletme Kimliği (Business ID)</strong>: Meta Business portföyünün kimliğidir.</li>
+                <li><strong>WABA Kimliği</strong>: WhatsApp Business Account kimliğidir.</li>
+                <li><strong>Telefon Numarası Kimliği</strong>: Mesaj gönderecek telefonun API kimliğidir. Telefon Numarası Kimliği, görünen telefon numarası değildir.</li>
               </ul>
             </div>
           </div>
@@ -1368,7 +1368,7 @@ def render_admin_panel_html() -> str:
               <p>Meta, telefon numarasının WABA altında görünmesini ve Cloud API için kayıtlı olmasını bekler. Kayıt sırasında 6 haneli iki adımlı doğrulama PIN'i belirlenebilir.</p>
               <ul>
                 <li>Numara WhatsApp Business uygulamasında aktifse taşıma veya bağlantı kısıtlarını kontrol edin.</li>
-                <li>Embedded Signup ile bağlanan numaranın kayıt adımı geciktirilmemelidir; Meta tarafında süre sınırı olabilir.</li>
+                <li>Gömülü kayıt akışıyla bağlanan numaranın kayıt adımı geciktirilmemelidir; Meta tarafında süre sınırı olabilir.</li>
                 <li>PIN'i kaybederseniz ileride numara yönetimi zorlaşır; güvenli yerde saklayın, chat içinde paylaşmayın.</li>
               </ul>
             </div>
@@ -1378,9 +1378,9 @@ def render_admin_panel_html() -> str:
             <b>4</b>
             <div>
               <h4>Velox'ta Meta ile Bağlan akışını çalıştırın</h4>
-              <p>Bu sayfada <strong>Meta ile Bağlan</strong> düğmesine basın, ardından <strong>Meta Penceresini Aç</strong> ile yetkilendirmeyi tamamlayın. Meta ekranı güvenlik nedeniyle iframe içinde açılamazsa popup kullanılır.</p>
+              <p>Bu sayfada <strong>Meta ile Bağlan</strong> düğmesine basın, ardından <strong>Meta Penceresini Aç</strong> ile yetkilendirmeyi tamamlayın. Meta ekranı güvenlik nedeniyle iframe içinde açılamazsa açılır pencere kullanılır.</p>
               <ul>
-                <li>Popup engellenirse tarayıcı adres çubuğundan bu site için popup izni verin.</li>
+                <li>Açılır pencere engellenirse tarayıcı adres çubuğundan bu site için açılır pencere izni verin.</li>
                 <li>Meta girişinden sonra doğru işletme ve doğru WhatsApp numarasını seçin.</li>
                 <li>Velox'a döndüğünüzde listelenen numaradan gerçek otel numarasını seçin.</li>
               </ul>
@@ -1391,10 +1391,10 @@ def render_admin_panel_html() -> str:
             <b>5</b>
             <div>
               <h4>Webhook'u doğrulayın ve WABA'ya abone edin</h4>
-              <p>Meta'nın gelen mesajları Velox'a göndermesi için Webhooks ürünü, Callback URL, Verify Token ve WABA aboneliği tamamlanmalıdır.</p>
+              <p>Meta'nın gelen mesajları Velox'a göndermesi için Webhook ürünü, geri çağrı URL'si, doğrulama token'ı ve WABA aboneliği tamamlanmalıdır.</p>
               <ul>
-                <li>Webhook URL public HTTPS olmalı ve bu sistemde <code>/api/v1/webhook/whatsapp</code> yoluna gitmelidir.</li>
-                <li>Verify Token değeri backend tarafındaki <code>WHATSAPP_VERIFY_TOKEN</code> ile aynı olmalıdır.</li>
+                <li>Webhook URL'si herkese açık HTTPS olmalı ve bu sistemde <code>/api/v1/webhook/whatsapp</code> yoluna gitmelidir.</li>
+                <li>Doğrulama token'ı değeri backend tarafındaki <code>WHATSAPP_VERIFY_TOKEN</code> ile aynı olmalıdır.</li>
                 <li>Bu ekrandaki <strong>Webhook Abone Et</strong> düğmesi WABA aboneliğini tamamlamaya çalışır.</li>
               </ul>
             </div>
@@ -1403,12 +1403,12 @@ def render_admin_panel_html() -> str:
           <div class="whatsapp-guide-step">
             <b>6</b>
             <div>
-              <h4>Access token izinlerini kontrol edin</h4>
-              <p>Token, mesaj göndermek ve WABA varlıklarını yönetmek için doğru izinlere sahip olmalıdır. Access token, App Secret değildir; Verify Token değildir.</p>
+              <h4>Erişim token'ı izinlerini kontrol edin</h4>
+              <p>Token, mesaj göndermek ve WABA varlıklarını yönetmek için doğru izinlere sahip olmalıdır. Erişim token'ı, uygulama gizli anahtarı veya doğrulama token'ı değildir.</p>
               <ul>
                 <li>Mesaj göndermek için <code>whatsapp_business_messaging</code> gerekir.</li>
-                <li>WABA, numara, template ve webhook yönetimi için <code>whatsapp_business_management</code> gerekir.</li>
-                <li>Bazı varlık listeleme ve onboarding akışlarında <code>business_management</code> gerekebilir.</li>
+                <li>WABA, numara, şablon ve webhook yönetimi için <code>whatsapp_business_management</code> gerekir.</li>
+                <li>Bazı varlık listeleme ve katılım akışlarında <code>business_management</code> gerekebilir.</li>
               </ul>
             </div>
           </div>
@@ -1417,10 +1417,10 @@ def render_admin_panel_html() -> str:
             <b>7</b>
             <div>
               <h4>Sağlık kontrolünü çalıştırın</h4>
-              <p><strong>Sağlık Kontrolü</strong> düğmesi token, Phone Number ID, WABA eşleşmesi ve webhook durumunu doğrulamak için kullanılır. Kartlarda kırmızı veya uyarı durumu varsa canlı kullanıma geçmeyin.</p>
+              <p><strong>Sağlık Kontrolü</strong> düğmesi token, Telefon Numarası Kimliği, WABA eşleşmesi ve webhook durumunu doğrulamak için kullanılır. Kartlarda kırmızı veya uyarı durumu varsa canlı kullanıma geçmeyin.</p>
               <ul>
                 <li>Bağlantı kartında doğru görünen numara olmalı.</li>
-                <li>Webhook kartında doğru public URL görünmeli.</li>
+                <li>Webhook kartında doğru herkese açık URL görünmeli.</li>
                 <li>Token kartı kayıtlı token olduğunu göstermeli, ham token görünmemeli.</li>
               </ul>
             </div>
@@ -1429,11 +1429,11 @@ def render_admin_panel_html() -> str:
           <div class="whatsapp-guide-step">
             <b>8</b>
             <div>
-              <h4>Template mesajlarını hazırlayın</h4>
-              <p>Misafir size son 24 saat içinde yazdıysa serbest yanıt gönderebilirsiniz. 24 saatlik pencere kapandıysa, yeni mesaj başlatmak için Meta tarafından onaylı template gerekir.</p>
+              <h4>Şablon mesajlarını hazırlayın</h4>
+              <p>Misafir size son 24 saat içinde yazdıysa serbest yanıt gönderebilirsiniz. 24 saatlik pencere kapandıysa, yeni mesaj başlatmak için Meta tarafından onaylı şablon gerekir.</p>
               <ul>
-                <li>Meta'da template adı, dil, kategori ve değişken örneklerini girip onaya gönderin.</li>
-                <li>Otel hatırlatmaları için genelde utility template kullanılır; pazarlama içeriklerini ayrıca değerlendirin.</li>
+                <li>Meta'da şablon adı, dil, kategori ve değişken örneklerini girip onaya gönderin.</li>
+                <li>Otel hatırlatmaları için genelde yardımcı işlem şablonu kullanılır; pazarlama içeriklerini ayrıca değerlendirin.</li>
                 <li>Onaylandıktan sonra bu ekrandan <strong>Meta'dan Senkronize Et</strong> ile Velox listesini güncelleyin.</li>
               </ul>
             </div>
@@ -1447,7 +1447,7 @@ def render_admin_panel_html() -> str:
               <ul>
                 <li>Gelen mesaj bağlantı günlüğünde veya ilgili sohbet akışında görünmeli.</li>
                 <li>İçeriden gönderilen test mesajı WhatsApp'a ulaşmalı.</li>
-                <li>24 saat dışı senaryo için onaylı template ile ayrıca deneme yapılmalı.</li>
+                <li>24 saat dışı senaryo için onaylı şablon ile ayrıca deneme yapılmalı.</li>
               </ul>
             </div>
           </div>
@@ -1457,14 +1457,14 @@ def render_admin_panel_html() -> str:
           <span class="whatsapp-guide-kicker">Manuel form</span>
           <h4>Her alanı nereden bulurum ve neyle karıştırmamalıyım?</h4>
           <div class="whatsapp-field-grid">
-            <div class="whatsapp-field-card"><strong>Business ID</strong><p>Meta Business portföyünün kimliğidir. Business Settings ekranında veya URL'deki <code>business_id</code> değerinde görülür.</p><small>WABA ID değildir.</small></div>
-            <div class="whatsapp-field-card"><strong>WABA ID</strong><p>WhatsApp Business Account kimliğidir. WhatsApp Manager veya Business Settings içindeki WhatsApp hesabı detayından alınır.</p><small>Bir işletmede birden fazla WABA olabilir.</small></div>
-            <div class="whatsapp-field-card"><strong>Phone Number ID</strong><p>Mesaj gönderecek telefonun API kimliğidir. WABA altındaki phone numbers veya API Setup ekranında görünür.</p><small>+90 ile başlayan görünen telefon numarası değildir.</small></div>
-            <div class="whatsapp-field-card"><strong>Görünen numara</strong><p>Kullanıcının WhatsApp'ta gördüğü numaradır. Kontrol amaçlıdır; API çağrılarında Phone Number ID kullanılır.</p><small>Yanlış numara seçimini fark etmek için doldurun.</small></div>
-            <div class="whatsapp-field-card"><strong>Token scope</strong><p>Token'ın sahip olduğu izinleri virgülle yazabilirsiniz: <code>whatsapp_business_messaging,whatsapp_business_management</code>.</p><small>Eksik scope, mesaj veya webhook hatası üretir.</small></div>
-            <div class="whatsapp-field-card"><strong>Access token</strong><p>Meta Graph API'ye erişim anahtarıdır. Sadece password alanına girilir, kayıttan sonra geri gösterilmez.</p><small>Access token, App Secret değildir; Verify Token değildir.</small></div>
-            <div class="whatsapp-field-card"><strong>Webhook verify token</strong><p>Meta webhook doğrulamasında sizin belirlediğiniz gizli metindir. Backend'deki <code>WHATSAPP_VERIFY_TOKEN</code> ile birebir aynı olmalıdır.</p><small>Access token yerine yazılmaz.</small></div>
-            <div class="whatsapp-field-card"><strong>Webhook URL</strong><p>Meta'nın gelen mesajları göndereceği public HTTPS adrestir. Bu sistemde <code>/api/v1/webhook/whatsapp</code> yoluna gider.</p><small>HTTP, localhost veya erişilemeyen intranet adresi kullanmayın.</small></div>
+            <div class="whatsapp-field-card"><strong>İşletme Kimliği (Business ID)</strong><p>Meta Business portföyünün kimliğidir. İşletme Ayarları ekranında veya URL'deki <code>business_id</code> değerinde görülür.</p><small>WABA kimliği değildir.</small></div>
+            <div class="whatsapp-field-card"><strong>WABA Kimliği</strong><p>WhatsApp Business Account kimliğidir. WhatsApp Yöneticisi veya İşletme Ayarları içindeki WhatsApp hesabı detayından alınır.</p><small>Bir işletmede birden fazla WABA olabilir.</small></div>
+            <div class="whatsapp-field-card"><strong>Telefon Numarası Kimliği</strong><p>Mesaj gönderecek telefonun API kimliğidir. WABA altındaki telefon numaraları veya API Kurulumu ekranında görünür.</p><small>+90 ile başlayan görünen telefon numarası değildir.</small></div>
+            <div class="whatsapp-field-card"><strong>Görünen numara</strong><p>Kullanıcının WhatsApp'ta gördüğü numaradır. Kontrol amaçlıdır; API çağrılarında Telefon Numarası Kimliği kullanılır.</p><small>Yanlış numara seçimini fark etmek için doldurun.</small></div>
+            <div class="whatsapp-field-card"><strong>Token izin kapsamı</strong><p>Token'ın sahip olduğu izinleri virgülle yazabilirsiniz: <code>whatsapp_business_messaging,whatsapp_business_management</code>.</p><small>Eksik izin kapsamı mesaj veya webhook hatası üretir.</small></div>
+            <div class="whatsapp-field-card"><strong>Erişim token'ı</strong><p>Meta Graph API'ye erişim anahtarıdır. Yalnızca şifre alanına girilir, kayıttan sonra geri gösterilmez.</p><small>Erişim token'ı, uygulama gizli anahtarı veya doğrulama token'ı değildir.</small></div>
+            <div class="whatsapp-field-card"><strong>Webhook doğrulama token'ı</strong><p>Meta webhook doğrulamasında sizin belirlediğiniz gizli metindir. Backend'deki <code>WHATSAPP_VERIFY_TOKEN</code> ile birebir aynı olmalıdır.</p><small>Erişim token'ı yerine yazılmaz.</small></div>
+            <div class="whatsapp-field-card"><strong>Webhook URL'si</strong><p>Meta'nın gelen mesajları göndereceği herkese açık HTTPS adresidir. Bu sistemde <code>/api/v1/webhook/whatsapp</code> yoluna gider.</p><small>HTTP, localhost veya erişilemeyen intranet adresi kullanmayın.</small></div>
           </div>
         </section>
 
@@ -1472,24 +1472,24 @@ def render_admin_panel_html() -> str:
           <span class="whatsapp-guide-kicker">Sorun çözme</span>
           <h4>Takılırsanız hızlı teşhis tablosu</h4>
           <div class="whatsapp-guide-troubleshoot">
-            <div class="whatsapp-trouble-card"><strong>Popup açılmıyor</strong><p>Tarayıcı popup engelliyor olabilir. Adres çubuğundaki popup uyarısından <code>velox.nexlumeai.com</code> için izin verin ve Meta Penceresini Aç düğmesine tekrar basın.</p></div>
-            <div class="whatsapp-trouble-card"><strong>Meta'da numara görünmüyor</strong><p>Yanlış Business seçilmiş, WABA size paylaşılmamış veya token izinleri eksik olabilir. Business ID, WABA erişimi ve <code>whatsapp_business_management</code> iznini kontrol edin.</p></div>
-            <div class="whatsapp-trouble-card"><strong>Sağlık kontrolü başarısız</strong><p>Token süresi dolmuş, Phone Number ID yanlış, numara kayıtlı değil veya token bu WABA'ya yetkili değil olabilir. Önce ID eşleşmesini, sonra token scope listesini kontrol edin.</p></div>
-            <div class="whatsapp-trouble-card"><strong>Webhook abone edilemiyor</strong><p>Meta App içinde Webhooks ürünü eksik, callback URL doğrulanmamış veya WABA aboneliği için yönetim izni eksik olabilir. Verify Token eşleşmesini ve public HTTPS erişimini kontrol edin.</p></div>
-            <div class="whatsapp-trouble-card"><strong>Gelen mesaj Velox'a düşmüyor</strong><p>WABA aboneliği yapılmamış, webhook messages alanı aktif değil, callback URL yanlış veya app secret imza doğrulaması başarısız olabilir. Bağlantı Günlüğü ve webhook durum kartını kontrol edin.</p></div>
-            <div class="whatsapp-trouble-card"><strong>24 saat sonrası mesaj gitmiyor</strong><p>Serbest metin yalnızca açık müşteri hizmeti penceresinde gönderilebilir. Pencere kapalıysa onaylı template seçin veya template'i Meta'da onaya gönderin.</p></div>
+            <div class="whatsapp-trouble-card"><strong>Açılır pencere açılmıyor</strong><p>Tarayıcı açılır pencereyi engelliyor olabilir. Adres çubuğundaki uyarıdan <code>velox.nexlumeai.com</code> için izin verin ve Meta Penceresini Aç düğmesine tekrar basın.</p></div>
+            <div class="whatsapp-trouble-card"><strong>Meta'da numara görünmüyor</strong><p>Yanlış işletme seçilmiş, WABA size paylaşılmamış veya token izinleri eksik olabilir. İşletme Kimliği, WABA erişimi ve <code>whatsapp_business_management</code> iznini kontrol edin.</p></div>
+            <div class="whatsapp-trouble-card"><strong>Sağlık kontrolü başarısız</strong><p>Token süresi dolmuş, Telefon Numarası Kimliği yanlış, numara kayıtlı değil veya token bu WABA'ya yetkili değil olabilir. Önce kimlik eşleşmesini, sonra token izin kapsamı listesini kontrol edin.</p></div>
+            <div class="whatsapp-trouble-card"><strong>Webhook abone edilemiyor</strong><p>Meta uygulaması içinde Webhook ürünü eksik, geri çağrı URL'si doğrulanmamış veya WABA aboneliği için yönetim izni eksik olabilir. Doğrulama token'ı eşleşmesini ve herkese açık HTTPS erişimini kontrol edin.</p></div>
+            <div class="whatsapp-trouble-card"><strong>Gelen mesaj Velox'a düşmüyor</strong><p>WABA aboneliği yapılmamış, webhook mesajlar alanı aktif değil, geri çağrı URL'si yanlış veya uygulama gizli anahtarıyla imza doğrulaması başarısız olabilir. Bağlantı Günlüğü ve webhook durum kartını kontrol edin.</p></div>
+            <div class="whatsapp-trouble-card"><strong>24 saat sonrası mesaj gitmiyor</strong><p>Serbest metin yalnızca açık müşteri hizmeti penceresinde gönderilebilir. Pencere kapalıysa onaylı şablon seçin veya şablonu Meta'da onaya gönderin.</p></div>
           </div>
         </section>
 
         <section class="whatsapp-guide-warning danger">
           <h4>En sık yapılan hatalar</h4>
           <ul>
-            <li>Görünen telefon numarasını Phone Number ID alanına yazmak.</li>
-            <li>WABA ID yerine Business ID girmek veya tam tersini yapmak.</li>
-            <li>Access token, App Secret veya Verify Token değerlerini birbirinin yerine kullanmak.</li>
+            <li>Görünen telefon numarasını Telefon Numarası Kimliği alanına yazmak.</li>
+            <li>WABA Kimliği yerine İşletme Kimliği girmek veya tam tersini yapmak.</li>
+            <li>Erişim token'ı, uygulama gizli anahtarı veya doğrulama token'ı değerlerini birbirinin yerine kullanmak.</li>
             <li>24 saat süresi dolmuş kullanıcıya onaysız serbest mesaj göndermeye çalışmak.</li>
             <li>Test ekranındaki kısa süreli token ile canlı kullanıma geçmek.</li>
-            <li>Webhook URL'yi HTTP veya localhost olarak ayarlamak; Meta için public HTTPS gerekir.</li>
+            <li>Webhook URL'sini HTTP veya localhost olarak ayarlamak; Meta için herkese açık HTTPS gerekir.</li>
             <li>Telefon numarası kayıt/iki adımlı doğrulama PIN adımını tamamlamadan mesaj göndermeyi denemek.</li>
           </ul>
         </section>
@@ -1497,12 +1497,12 @@ def render_admin_panel_html() -> str:
         <section class="whatsapp-guide-warning">
           <h4>Bittiğini nasıl anlarım?</h4>
           <ul>
-            <li>Bağlantı durum kartında doğru WhatsApp numarası ve Phone Number ID görünüyor.</li>
+            <li>Bağlantı durum kartında doğru WhatsApp numarası ve Telefon Numarası Kimliği görünüyor.</li>
             <li>Webhook durumu doğrulandı veya <strong>Webhook Abone Et</strong> işlemi başarılı oldu.</li>
-            <li><strong>Sağlık Kontrolü</strong> token, WABA ve Phone Number ID eşleşmesini onayladı.</li>
-            <li>En az bir onaylı template <strong>Meta'dan Senkronize Et</strong> ile Velox listesine geldi.</li>
+            <li><strong>Sağlık Kontrolü</strong> token, WABA ve Telefon Numarası Kimliği eşleşmesini onayladı.</li>
+            <li>En az bir onaylı şablon <strong>Meta'dan Senkronize Et</strong> ile Velox listesine geldi.</li>
             <li>Test numarasından gelen mesaj Velox'a düştü ve Velox'tan gönderilen yanıt WhatsApp'a ulaştı.</li>
-            <li>24 saatlik pencere dışında serbest metin yerine onaylı template kullanıldığını test ettiniz.</li>
+            <li>24 saatlik pencere dışında serbest metin yerine onaylı şablon kullanıldığını test ettiniz.</li>
           </ul>
         </section>
       </div>
@@ -1535,7 +1535,7 @@ def render_admin_panel_html() -> str:
         <div class="field full">
           <label class="toggle-row" for="debugIncludeChatLab">
             <span class="toggle-copy">
-              <strong>Chat Lab iframe dahil</strong>
+              <strong>Test paneli iframe'i dahil</strong>
               <small>Tarama sırasında test paneli iframe içeriğini de tarar.</small>
             </span>
             <span class="switch">
@@ -1547,8 +1547,8 @@ def render_admin_panel_html() -> str:
         <div class="field full">
           <label class="toggle-row" for="debugIncludePopups">
             <span class="toggle-copy">
-              <strong>Popup ve yeni pencereleri izle</strong>
-              <small>Yeni sekme, popup ve dialog yüzeyleri varsa rapora dahil edilir.</small>
+              <strong>Açılır pencere ve yeni pencereleri izle</strong>
+              <small>Yeni sekme, açılır pencere ve dialog yüzeyleri varsa rapora dahil edilir.</small>
             </span>
             <span class="switch">
               <input id="debugIncludePopups" name="include_popups" type="checkbox" checked>
@@ -1559,8 +1559,8 @@ def render_admin_panel_html() -> str:
         <div class="field full">
           <label class="toggle-row" for="debugIncludeModals">
             <span class="toggle-copy">
-              <strong>Modal ve flyout davranışlarını dahil et</strong>
-              <small>Overlay, drawer ve panel açma/kapama akışları güvenli modda test edilir.</small>
+              <strong>Modal ve açılır panel davranışlarını dahil et</strong>
+              <small>Katman, çekmece ve panel açma/kapama akışları güvenli modda test edilir.</small>
             </span>
             <span class="switch">
               <input id="debugIncludeModals" name="include_modals" type="checkbox" checked>
@@ -1570,8 +1570,8 @@ def render_admin_panel_html() -> str:
         </div>
         <div class="field full">
           <div class="helper-box">
-            <strong>Report-only koruması açık</strong>
-            <p>Kaydetme, gönderme, onaylama ve silme gibi canlı veri etkileyen adımlar debug oturumunda engellenecektir.</p>
+            <strong>Yalnızca raporlama koruması açık</strong>
+            <p>Kaydetme, gönderme, onaylama ve silme gibi canlı veriyi etkileyen adımlar hata ayıklama oturumunda engellenecektir.</p>
           </div>
         </div>
         <div class="field full dialog-actions">
@@ -1582,17 +1582,17 @@ def render_admin_panel_html() -> str:
     </div>
   </dialog>
 
-  <dialog id="debugArtifactPreviewDialog" class="dialog debug-artifact-dialog" aria-label="Artifact önizleme">
+  <dialog id="debugArtifactPreviewDialog" class="dialog debug-artifact-dialog" aria-label="Kanıt önizleme">
     <div class="dialog-card debug-artifact-dialog-card">
       <div class="dialog-head">
-        <h3 id="debugArtifactPreviewTitle">Artifact önizleme</h3>
-        <p id="debugArtifactPreviewMeta">Seçili artifact ayrıntıları burada görünür.</p>
+        <h3 id="debugArtifactPreviewTitle">Kanıt önizleme</h3>
+        <p id="debugArtifactPreviewMeta">Seçili kanıtın ayrıntıları burada görünür.</p>
       </div>
       <div class="debug-artifact-preview-shell">
-        <img id="debugArtifactPreviewImage" class="debug-artifact-preview-large" alt="Artifact önizleme" hidden>
+        <img id="debugArtifactPreviewImage" class="debug-artifact-preview-large" alt="Kanıt önizleme" hidden>
         <div id="debugArtifactPreviewEmpty" class="debug-empty-compact" hidden>
           <h4>Önizleme yok</h4>
-          <p>Bu artifact görsel önizleme desteklemiyor. Dosyayı yeni sekmede açabilirsiniz.</p>
+          <p>Bu kanıt görsel önizlemeyi desteklemiyor. Dosyayı yeni sekmede açabilirsiniz.</p>
         </div>
       </div>
       <div class="debug-artifact-preview-meta">

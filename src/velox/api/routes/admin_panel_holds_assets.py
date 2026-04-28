@@ -55,27 +55,27 @@ ADMIN_HOLDS_SCRIPT = """\
 // Hold Module — Shared Constants & Status Labels
 // ---------------------------------------------------------------------------
 const STATUS_LABELS_TR = {
-  '': 'Tumu',
+  '': 'Tümü',
   'PENDING_APPROVAL': 'Onay Bekliyor',
-  'PMS_PENDING': 'PMS Isleniyor',
-  'PMS_CREATED': 'PMS Olusturuldu',
-  'PAYMENT_PENDING': 'Odeme Bekliyor',
-  'PAYMENT_EXPIRED': 'Odeme Suresi Doldu',
-  'MANUAL_REVIEW': 'Inceleme Gerekli',
-  'PMS_FAILED': 'PMS Hatasi',
-  'APPROVED': 'Onaylandi',
-  'CONFIRMED': 'Tamamlandi',
+  'PMS_PENDING': 'PMS İşleniyor',
+  'PMS_CREATED': 'PMS Oluşturuldu',
+  'PAYMENT_PENDING': 'Ödeme Bekliyor',
+  'PAYMENT_EXPIRED': 'Ödeme Süresi Doldu',
+  'MANUAL_REVIEW': 'İnceleme Gerekli',
+  'PMS_FAILED': 'PMS Hatası',
+  'APPROVED': 'Onaylandı',
+  'CONFIRMED': 'Tamamlandı',
   'REJECTED': 'Reddedildi',
   'BEKLEMEDE': 'Onay Bekliyor',
-  'ONAYLANDI': 'Onaylandi',
+  'ONAYLANDI': 'Onaylandı',
   'GELDI': 'Geldi',
   'GELMEDI': 'Gelmedi',
-  'IPTAL': 'Iptal',
-  'DEGISIKLIK_UYGULA': 'Degisiklik Uygula',
+  'IPTAL': 'İptal',
+  'DEGISIKLIK_UYGULA': 'Değişiklik Uygula',
 };
 const STAY_STATUS_KEYS = ['', 'PENDING_APPROVAL', 'PMS_PENDING', 'PMS_CREATED', 'PAYMENT_PENDING', 'PAYMENT_EXPIRED', 'MANUAL_REVIEW', 'PMS_FAILED', 'APPROVED', 'CONFIRMED'];
 const SIMPLE_STATUS_KEYS = ['', 'PENDING_APPROVAL', 'APPROVED', 'CONFIRMED'];
-const ARCHIVE_SCOPE_LABELS = {active: 'Aktif', archived: 'Arsiv'};
+const ARCHIVE_SCOPE_LABELS = {active: 'Aktif', archived: 'Arşiv'};
 const RESTAURANT_STATUS_KEYS = ['', 'BEKLEMEDE', 'ONAYLANDI', 'GELDI', 'GELMEDI', 'IPTAL', 'DEGISIKLIK_UYGULA'];
 
 function holdStatusLabel(status) {
@@ -132,7 +132,7 @@ function isHoldApproveActionable(item) {
 
 function holdApproveButtonLabel(item) {
   const status = String(item?.status || '').toUpperCase();
-  if (status === 'MANUAL_REVIEW' && holdNeedsManualReviewIntervention(item)) return 'Inceleme Gerekli';
+  if (status === 'MANUAL_REVIEW' && holdNeedsManualReviewIntervention(item)) return 'İnceleme Gerekli';
   if (['APPROVED', 'MANUAL_REVIEW', 'PMS_FAILED'].includes(status)) return 'Yeniden Dene';
   return 'Onayla';
 }
@@ -140,20 +140,20 @@ function holdApproveButtonLabel(item) {
 function mapFailedTool(toolName) {
   const n = String(toolName || '').trim();
   if (!n) return '-';
-  if (n === 'booking_create_reservation') return 'PMS rezervasyon olusturma';
-  if (n === 'booking_get_reservation') return 'PMS readback dogrulamasi';
-  if (n === 'payment_request_prepayment') return 'Odeme talebi olusturma';
+  if (n === 'booking_create_reservation') return 'PMS rezervasyon oluşturma';
+  if (n === 'booking_get_reservation') return 'PMS okuma doğrulaması';
+  if (n === 'payment_request_prepayment') return 'Ödeme talebi oluşturma';
   return n;
 }
 
 function mapManualReviewReason(reason) {
   const n = String(reason || '').trim();
   if (!n) return '-';
-  if (n === 'create_missing_identifiers') return 'PMS create yanitinda reservation id/voucher gelmedi.';
-  if (n === 'create_unverified_after_readback') return 'Create sonrasi readback dogrulamasi basarisiz.';
+  if (n === 'create_missing_identifiers') return 'PMS oluşturma yanıtında rezervasyon ID veya voucher bilgisi gelmedi.';
+  if (n === 'create_unverified_after_readback') return 'Oluşturma sonrası PMS okuma doğrulaması başarısız.';
   if (n.startsWith('create_failed:')) {
     const parts = n.split(':');
-    return 'PMS create hatasi (' + (parts[1] || 'UnknownError') + '), aksiyon: ' + (parts[2] || 'manual_review') + '.';
+    return 'PMS oluşturma hatası (' + (parts[1] || 'BilinmeyenHata') + '), aksiyon: ' + (parts[2] || 'manuel_inceleme') + '.';
   }
   return n;
 }
@@ -166,10 +166,10 @@ function formatHoldTechnicalState(item) {
   const failedTool = mapFailedTool(item.last_failed_tool);
   const failedErrorType = item.last_failed_error_type ? String(item.last_failed_error_type) : '-';
   return '<div class="stack">'
-    + '<span class="muted">Workflow: <strong>' + escapeHtml(workflowState) + '</strong></span>'
+    + '<span class="muted">İş akışı: <strong>' + escapeHtml(workflowState) + '</strong></span>'
     + '<span class="muted">PMS ID: <strong>' + escapeHtml(reservationId) + '</strong></span>'
     + '<span class="muted">Voucher: <strong>' + escapeHtml(voucherNo) + '</strong></span>'
-    + '<span class="muted">Son hata araci: <strong>' + escapeHtml(failedTool) + '</strong></span>'
+    + '<span class="muted">Son hata aracı: <strong>' + escapeHtml(failedTool) + '</strong></span>'
     + '<span class="muted">Hata tipi: <strong>' + escapeHtml(failedErrorType) + '</strong></span>'
     + '<span class="muted">Not: <strong>' + escapeHtml(manualReason) + '</strong></span>'
     + '</div>';
@@ -185,12 +185,12 @@ function holdTimelineLevel(item) {
 function formatHoldTimeline(item) {
   const approvalTs = item.approval_decided_at || item.approved_at || null;
   const rows = [
-    {label: 'Hold olusturuldu', value: item.created_at ? formatDate(item.created_at) : '-', level: 'done'},
-    {label: 'Admin onayi', value: approvalTs ? formatDate(approvalTs) : 'Bekleniyor', level: approvalTs ? 'done' : 'warn'},
-    {label: 'PMS create basladi', value: item.pms_create_started_at ? formatDate(item.pms_create_started_at) : 'Baslamadi', level: item.pms_create_started_at ? 'done' : 'warn'},
-    {label: 'PMS create tamamlandi', value: item.pms_create_completed_at ? formatDate(item.pms_create_completed_at) : 'Tamamlanmadi', level: item.pms_create_completed_at ? 'done' : 'warn'},
-    {label: 'Odeme talebi', value: item.payment_requested_at ? formatDate(item.payment_requested_at) : 'Olusturulmadi', level: item.payment_requested_at ? 'done' : 'warn'},
-    {label: 'Mevcut workflow', value: String(item.workflow_state || item.status || '-'), level: holdTimelineLevel(item)},
+    {label: 'Onay kaydı oluşturuldu', value: item.created_at ? formatDate(item.created_at) : '-', level: 'done'},
+    {label: 'Yönetici onayı', value: approvalTs ? formatDate(approvalTs) : 'Bekleniyor', level: approvalTs ? 'done' : 'warn'},
+    {label: 'PMS oluşturma başladı', value: item.pms_create_started_at ? formatDate(item.pms_create_started_at) : 'Başlamadı', level: item.pms_create_started_at ? 'done' : 'warn'},
+    {label: 'PMS oluşturma tamamlandı', value: item.pms_create_completed_at ? formatDate(item.pms_create_completed_at) : 'Tamamlanmadı', level: item.pms_create_completed_at ? 'done' : 'warn'},
+    {label: 'Ödeme talebi', value: item.payment_requested_at ? formatDate(item.payment_requested_at) : 'Oluşturulmadı', level: item.payment_requested_at ? 'done' : 'warn'},
+    {label: 'Mevcut iş akışı', value: String(item.workflow_state || item.status || '-'), level: holdTimelineLevel(item)},
   ];
   return '<div class="hold-timeline">' + rows.map(function(row) {
     return '<div class="hold-timeline-item"><span class="hold-timeline-dot ' + escapeHtml(row.level) + '"></span><div><strong>' + escapeHtml(row.label) + '</strong><span>' + escapeHtml(row.value) + '</span></div></div>';
@@ -208,7 +208,7 @@ function formatHoldSummary(item) {
   return '<div class="hold-summary-grid">'
     + '<div><span>Misafir</span><strong>' + escapeHtml(guest) + '</strong></div>'
     + '<div><span>Tarih</span><strong>' + escapeHtml(checkin) + ' → ' + escapeHtml(checkout) + '</strong></div>'
-    + '<div><span>Kisi</span><strong>' + escapeHtml(String(adults)) + 'Y / ' + escapeHtml(String(children)) + 'C</strong></div>'
+    + '<div><span>Kişi</span><strong>' + escapeHtml(String(adults)) + 'Y / ' + escapeHtml(String(children)) + 'Ç</strong></div>'
     + '<div><span>Tutar</span><strong>' + total + '</strong></div>'
     + '<div><span>Politika</span><strong>' + escapeHtml(cancelPolicy) + '</strong></div>'
     + '<div><span>Tip</span><strong>' + escapeHtml(String(item.type || '-').toUpperCase()) + '</strong></div>'
@@ -285,7 +285,7 @@ function syncStayBulkActions() {
   const selectable = (state.stayHolds || []).filter(isStayArchivable).map(function(item) { return String(item.hold_id); });
   const allSelected = selectable.length > 0 && selectable.every(function(id) { return state.selectedStayHoldIds.has(id); });
   if (selectBtn) {
-    selectBtn.textContent = allSelected ? 'Secimi Kaldir' : 'Sec';
+    selectBtn.textContent = allSelected ? 'Seçimi Kaldır' : 'Seç';
     selectBtn.disabled = state.stayArchiveMode || selectable.length === 0;
   }
   if (bulkBtn) {
@@ -299,7 +299,7 @@ function syncTransferBulkActions() {
   const selectable = (state.transferHolds || []).filter(isTransferArchivable).map(function(item) { return String(item.hold_id); });
   const allSelected = selectable.length > 0 && selectable.every(function(id) { return state.selectedTransferHoldIds.has(id); });
   if (selectBtn) {
-    selectBtn.textContent = allSelected ? 'Secimi Kaldir' : 'Sec';
+    selectBtn.textContent = allSelected ? 'Seçimi Kaldır' : 'Seç';
     selectBtn.disabled = state.transferArchiveMode || selectable.length === 0;
   }
   if (bulkBtn) {
@@ -339,10 +339,10 @@ function renderStayHoldRows(items) {
     var isSelectable = !state.stayArchiveMode && isStayArchivable(item);
     var isChecked = state.selectedStayHoldIds.has(holdId);
     return '<tr class="' + (isSelected ? 'is-selected' : '') + '" data-open-hold="' + escapeHtml(item.hold_id) + '">'
-      + '<td class="table-select"><input type="checkbox" class="hold-select-box" data-hold-select="stay" data-hold-id="' + escapeHtml(holdId) + '" ' + (isChecked ? 'checked' : '') + (isSelectable ? '' : ' disabled') + ' aria-label="' + escapeHtml(holdId + ' sec') + '"></td>'
-      + '<td><button class="inline-button hold-detail-button" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayini ac') + '">Detay</button></td>'
+      + '<td class="table-select"><input type="checkbox" class="hold-select-box" data-hold-select="stay" data-hold-id="' + escapeHtml(holdId) + '" ' + (isChecked ? 'checked' : '') + (isSelectable ? '' : ' disabled') + ' aria-label="' + escapeHtml(holdId + ' seç') + '"></td>'
+      + '<td><button class="inline-button hold-detail-button" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayını aç') + '">Detay</button></td>'
       + '<td><span class="rez-no-cell">' + escapeHtml(item.reservation_no || '-') + '</span></td>'
-      + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Hotel ' + escapeHtml(String(item.hotel_id)) + '</span></div></td>'
+      + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Otel ' + escapeHtml(String(item.hotel_id)) + '</span></div></td>'
       + '<td><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span></td>'
       + '<td>' + escapeHtml(holdDraftField(item, 'guest_name', '-')) + '</td>'
       + '<td><span class="muted">' + escapeHtml(holdDraftField(item, 'checkin_date', '-')) + ' → ' + escapeHtml(holdDraftField(item, 'checkout_date', '-')) + '</span></td>'
@@ -360,7 +360,7 @@ function selectStayHold(holdId) {
 
 function renderStayHoldDetail(item) {
   if (!item) {
-    refs.stayHoldDetail.innerHTML = '<div class="empty-state"><p>Detay icin listeden bir kayit secin.</p></div>';
+    refs.stayHoldDetail.innerHTML = '<div class="empty-state"><p>Detay için listeden bir kayıt seçin.</p></div>';
     return;
   }
   var stayNotes = holdDraftField(item, 'notes', '');
@@ -368,27 +368,27 @@ function renderStayHoldDetail(item) {
   refs.stayHoldDetail.innerHTML = '<div class="module-header"><div>'
     + '<h3>' + escapeHtml(String(item.hold_id || 'Hold')) + '</h3>'
     + '<p class="rez-no-hero">' + escapeHtml(item.reservation_no || '-') + '</p>'
-    + '<p class="muted">KONAKLAMA · Hotel ' + escapeHtml(String(item.hotel_id || '-')) + '</p>'
+    + '<p class="muted">KONAKLAMA · Otel ' + escapeHtml(String(item.hotel_id || '-')) + '</p>'
     + '</div><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span></div>'
     + '<div class="hold-summary-grid mb-md">'
     + formatHoldSummaryDetailCell('Misafir', holdDraftField(item, 'guest_name', '-'))
     + formatHoldSummaryDetailCell('Tarih', holdDraftField(item, 'checkin_date', '-') + ' → ' + holdDraftField(item, 'checkout_date', '-'))
-    + formatHoldSummaryDetailCell('Kisi', holdDraftField(item, 'adults', '0') + 'Y / ' + holdChildrenCount(item) + 'C')
+    + formatHoldSummaryDetailCell('Kişi', holdDraftField(item, 'adults', '0') + 'Y / ' + holdChildrenCount(item) + 'Ç')
     + formatHoldSummaryDetailCell('Toplam', holdDraftField(item, 'total_price_eur', '-') + ' EUR')
     + formatHoldSummaryDetailCell('Politika', holdDraftField(item, 'cancel_policy_type', '-'))
     + formatHoldSummaryDetailCell('Telefon', holdDraftField(item, 'phone', '-'))
     + formatHoldSummaryDetailCell('Notlar', hasSpecialRequest ? stayNotes : '-')
     + '</div>'
     + '<div class="helper-box"><strong>Teknik Durum</strong>' + formatHoldTechnicalState(item) + '</div>'
-    + '<div class="helper-box mt-md"><strong>Islem Zaman Cizelgesi</strong>' + formatHoldTimeline(item) + '</div>'
+    + '<div class="helper-box mt-md"><strong>İşlem Zaman Çizelgesi</strong>' + formatHoldTimeline(item) + '</div>'
     + '<div class="dialog-actions hold-detail-actions mt-lg">'
-    + '<button class="action-button primary" data-approve-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' holdunu onayla') + '" ' + (isHoldApproveActionable(item) ? '' : 'disabled') + '>' + escapeHtml(holdApproveButtonLabel(item)) + '</button>'
-    + '<button class="action-button danger" data-reject-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' holdunu reddet') + '">Reddet</button>'
+    + '<button class="action-button primary" data-approve-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' onay kaydını onayla') + '" ' + (isHoldApproveActionable(item) ? '' : 'disabled') + '>' + escapeHtml(holdApproveButtonLabel(item)) + '</button>'
+    + '<button class="action-button danger" data-reject-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' onay kaydını reddet') + '">Reddet</button>'
     + '</div>';
 }
 
 // Stay creation wizard — 3-step direct flow (no availability query)
-var STAY_WIZARD_LABELS = ['Misafir', 'Detay', 'Ozet'];
+var STAY_WIZARD_LABELS = ['Misafir', 'Detay', 'Özet'];
 
 function toggleStayCreatePanel() {
   var panel = document.getElementById('stayHoldCreatePanel');
@@ -442,58 +442,58 @@ function renderStayWizardGuest(bodyEl) {
   bodyEl.innerHTML = '<div class="toggle-mode"><label><input type="checkbox" id="stayUseExisting" ' + (state.stayWizardUseExisting ? 'checked' : '') + '> Mevcut rezervasyonu kullan</label></div>'
     + '<div class="field-grid">'
     + (state.stayWizardUseExisting
-      ? '<div class="field full"><label>Rezervasyon Numarasi</label><input id="stayLookupResNo" placeholder="VLX-21966-..." aria-label="Mevcut rezervasyon numarasi"></div>'
-      : '<div class="field"><label>Misafir Adi *</label><input id="stayGuestName" value="' + escapeHtml(d.guest_name || '') + '" aria-label="Misafir adi"></div>'
+      ? '<div class="field full"><label>Rezervasyon Numarası</label><input id="stayLookupResNo" placeholder="VLX-21966-..." aria-label="Mevcut rezervasyon numarası"></div>'
+      : '<div class="field"><label>Misafir Adı *</label><input id="stayGuestName" value="' + escapeHtml(d.guest_name || '') + '" aria-label="Misafir adı"></div>'
         + '<div class="field"><label>Telefon *</label><input id="stayPhone" value="' + escapeHtml(d.phone || '') + '" placeholder="+905..." aria-label="Telefon"></div>'
         + '<div class="field"><label>E-posta</label><input id="stayEmail" type="email" value="' + escapeHtml(d.email || '') + '" placeholder="misafir@ornek.com" aria-label="E-posta"></div>'
-        + '<div class="field"><label>Uyruk</label><select id="stayNationality" aria-label="Uyruk"><option value="TR"' + ((d.nationality || 'TR') === 'TR' ? ' selected' : '') + '>TR - Turkiye</option><option value="GB"' + (d.nationality === 'GB' ? ' selected' : '') + '>GB - Ingiltere</option><option value="DE"' + (d.nationality === 'DE' ? ' selected' : '') + '>DE - Almanya</option><option value="RU"' + (d.nationality === 'RU' ? ' selected' : '') + '>RU - Rusya</option><option value="NL"' + (d.nationality === 'NL' ? ' selected' : '') + '>NL - Hollanda</option><option value="US"' + (d.nationality === 'US' ? ' selected' : '') + '>US - ABD</option><option value="OTHER"' + (d.nationality === 'OTHER' ? ' selected' : '') + '>Diger</option></select></div>')
+        + '<div class="field"><label>Uyruk</label><select id="stayNationality" aria-label="Uyruk"><option value="TR"' + ((d.nationality || 'TR') === 'TR' ? ' selected' : '') + '>TR - Türkiye</option><option value="GB"' + (d.nationality === 'GB' ? ' selected' : '') + '>GB - İngiltere</option><option value="DE"' + (d.nationality === 'DE' ? ' selected' : '') + '>DE - Almanya</option><option value="RU"' + (d.nationality === 'RU' ? ' selected' : '') + '>RU - Rusya</option><option value="NL"' + (d.nationality === 'NL' ? ' selected' : '') + '>NL - Hollanda</option><option value="US"' + (d.nationality === 'US' ? ' selected' : '') + '>US - ABD</option><option value="OTHER"' + (d.nationality === 'OTHER' ? ' selected' : '') + '>Diğer</option></select></div>')
     + '</div>'
     + '<div class="wizard-nav">'
     + (state.stayWizardUseExisting
       ? '<button class="inline-button primary" type="button" data-stay-lookup-action aria-label="Rezervasyon ara">Rezervasyonu Ara</button>'
-      : '<span></span><button class="inline-button primary" type="button" data-stay-wizard-next aria-label="Sonraki adim">Sonraki</button>')
+      : '<span></span><button class="inline-button primary" type="button" data-stay-wizard-next aria-label="Sonraki adım">Sonraki</button>')
     + '</div>';
 }
 
-// Step 2 — Detay: tarih, kisi, oda tipi, pansiyon, fiyat, iptal politikasi
+// Step 2 — Detay: tarih, kişi, oda tipi, pansiyon, fiyat, iptal politikası
 function renderStayWizardDetails(bodyEl) {
   var d = state.stayDraft || {};
   var today = new Date().toISOString().split('T')[0];
   var rooms = state.stayProfileRoomTypes || [];
-  var roomOpts = '<option value="">-- Oda tipi secin --</option>' + rooms.map(function(r) {
+  var roomOpts = '<option value="">-- Oda tipi seçin --</option>' + rooms.map(function(r) {
     var sel = String(d.room_type_id) === String(r.pms_room_type_id) ? ' selected' : '';
-    return '<option value="' + escapeHtml(String(r.pms_room_type_id)) + '"' + sel + '>' + escapeHtml(r.name) + ' (max ' + escapeHtml(String(r.max_pax)) + ')</option>';
+    return '<option value="' + escapeHtml(String(r.pms_room_type_id)) + '"' + sel + '>' + escapeHtml(r.name) + ' (maks. ' + escapeHtml(String(r.max_pax)) + ')</option>';
   }).join('');
-  var boardOpts = '<option value="BB"' + ((d.board_type || 'BB') === 'BB' ? ' selected' : '') + '>Oda Kahvalti (BB)</option>'
-    + '<option value="HB"' + (d.board_type === 'HB' ? ' selected' : '') + '>Yarim Pansiyon (HB)</option>'
+  var boardOpts = '<option value="BB"' + ((d.board_type || 'BB') === 'BB' ? ' selected' : '') + '>Oda Kahvaltı (BB)</option>'
+    + '<option value="HB"' + (d.board_type === 'HB' ? ' selected' : '') + '>Yarım Pansiyon (HB)</option>'
     + '<option value="FB"' + (d.board_type === 'FB' ? ' selected' : '') + '>Tam Pansiyon (FB)</option>'
-    + '<option value="AI"' + (d.board_type === 'AI' ? ' selected' : '') + '>Her Sey Dahil (AI)</option>'
+    + '<option value="AI"' + (d.board_type === 'AI' ? ' selected' : '') + '>Her Şey Dahil (AI)</option>'
     + '<option value="RO"' + (d.board_type === 'RO' ? ' selected' : '') + '>Sadece Oda (RO)</option>';
-  var cancelOpts = '<option value="FREE_CANCEL"' + ((d.cancel_policy_type || 'FREE_CANCEL') === 'FREE_CANCEL' ? ' selected' : '') + '>Ucretsiz Iptal</option>'
-    + '<option value="NON_REFUNDABLE"' + (d.cancel_policy_type === 'NON_REFUNDABLE' ? ' selected' : '') + '>Iade Edilmez</option>';
+  var cancelOpts = '<option value="FREE_CANCEL"' + ((d.cancel_policy_type || 'FREE_CANCEL') === 'FREE_CANCEL' ? ' selected' : '') + '>Ücretsiz İptal</option>'
+    + '<option value="NON_REFUNDABLE"' + (d.cancel_policy_type === 'NON_REFUNDABLE' ? ' selected' : '') + '>İade Edilmez</option>';
   bodyEl.innerHTML = '<div class="field-grid">'
-    + '<div class="field"><label>Giris Tarihi *</label><input id="stayCheckin" type="date" min="' + escapeHtml(today) + '" value="' + escapeHtml(d.checkin_date || '') + '" aria-label="Giris tarihi"></div>'
-    + '<div class="field"><label>Cikis Tarihi *</label><input id="stayCheckout" type="date" min="' + escapeHtml(today) + '" value="' + escapeHtml(d.checkout_date || '') + '" aria-label="Cikis tarihi"></div>'
-    + '<div class="field"><label>Yetiskin *</label><input id="stayAdults" type="number" min="1" max="6" value="' + escapeHtml(String(d.adults || 1)) + '" aria-label="Yetiskin sayisi"></div>'
-    + '<div class="field"><label>Cocuk Yaslari (virgul ile)</label><input id="stayChdAges" value="' + escapeHtml((d.chd_ages || []).join(',')) + '" placeholder="4,8" aria-label="Cocuk yaslari"></div>'
+    + '<div class="field"><label>Giriş Tarihi *</label><input id="stayCheckin" type="date" min="' + escapeHtml(today) + '" value="' + escapeHtml(d.checkin_date || '') + '" aria-label="Giriş tarihi"></div>'
+    + '<div class="field"><label>Çıkış Tarihi *</label><input id="stayCheckout" type="date" min="' + escapeHtml(today) + '" value="' + escapeHtml(d.checkout_date || '') + '" aria-label="Çıkış tarihi"></div>'
+    + '<div class="field"><label>Yetişkin *</label><input id="stayAdults" type="number" min="1" max="6" value="' + escapeHtml(String(d.adults || 1)) + '" aria-label="Yetişkin sayısı"></div>'
+    + '<div class="field"><label>Çocuk Yaşları (virgülle)</label><input id="stayChdAges" value="' + escapeHtml((d.chd_ages || []).join(',')) + '" placeholder="4,8" aria-label="Çocuk yaşları"></div>'
     + '<div class="field"><label>Oda Tipi *</label><select id="stayRoomType" aria-label="Oda tipi">' + roomOpts + '</select></div>'
     + '<div class="field"><label>Pansiyon Tipi</label><select id="stayBoardType" aria-label="Pansiyon tipi">' + boardOpts + '</select></div>'
-    + '<div class="field"><label>Iptal Politikasi</label><select id="stayCancelPolicy" aria-label="Iptal politikasi">' + cancelOpts + '</select></div>'
+    + '<div class="field"><label>İptal Politikası</label><select id="stayCancelPolicy" aria-label="İptal politikası">' + cancelOpts + '</select></div>'
     + '<div class="field"><label>Toplam Fiyat (EUR) *</label><input id="stayTotalPrice" type="number" min="0" step="0.01" value="' + escapeHtml(String(d.total_price_eur || '')) + '" placeholder="0.00" aria-label="Toplam fiyat EUR"></div>'
     + '</div>'
-    + '<div class="wizard-nav"><button class="inline-button secondary" type="button" data-stay-wizard-prev aria-label="Onceki adim">Geri</button><button class="inline-button primary" type="button" data-stay-wizard-next aria-label="Ozete git">Ozet</button></div>';
+    + '<div class="wizard-nav"><button class="inline-button secondary" type="button" data-stay-wizard-prev aria-label="Önceki adım">Geri</button><button class="inline-button primary" type="button" data-stay-wizard-next aria-label="Özete git">Özet</button></div>';
 }
 
-// Step 3 — Ozet & olustur
+// Step 3 — Özet & oluştur
 function renderStayWizardSummary(bodyEl) {
   var d = state.stayDraft || {};
   var rooms = state.stayProfileRoomTypes || [];
   var selectedRoom = rooms.find(function(r) { return String(r.pms_room_type_id) === String(d.room_type_id); });
   var roomName = selectedRoom ? selectedRoom.name : '-';
-  var boardLabels = {BB: 'Oda Kahvalti', HB: 'Yarim Pansiyon', FB: 'Tam Pansiyon', AI: 'Her Sey Dahil', RO: 'Sadece Oda'};
-  var cancelLabels = {FREE_CANCEL: 'Ucretsiz Iptal', NON_REFUNDABLE: 'Iade Edilmez'};
+  var boardLabels = {BB: 'Oda Kahvaltı', HB: 'Yarım Pansiyon', FB: 'Tam Pansiyon', AI: 'Her Şey Dahil', RO: 'Sadece Oda'};
+  var cancelLabels = {FREE_CANCEL: 'Ücretsiz İptal', NON_REFUNDABLE: 'İade Edilmez'};
   var cloneInfo = state.stayWizardUseExisting
-    ? '<div class="helper-box mt-md"><strong>Kopya Modu</strong><p>Bu islem secilen rezervasyonun ayni detaylarla yeni bir kopyasini olusturur. Sadece yeni rezervasyon numarasi otomatik uretilir.</p></div>'
+    ? '<div class="helper-box mt-md"><strong>Kopya Modu</strong><p>Bu işlem seçilen rezervasyonun aynı detaylarla yeni bir kopyasını oluşturur. Yalnızca yeni rezervasyon numarası otomatik üretilir.</p></div>'
     : '';
 
   function sRow(label, value) {
@@ -508,15 +508,15 @@ function renderStayWizardSummary(bodyEl) {
     + sRow('Uyruk', d.nationality || 'TR')
     + '</div>'
     + '<div class="summary-card"><h4>Konaklama</h4>'
-    + sRow('Giris', d.checkin_date)
-    + sRow('Cikis', d.checkout_date)
-    + sRow('Yetiskin', d.adults || 1)
-    + sRow('Cocuk', d.chd_ages && d.chd_ages.length ? d.chd_ages.join(', ') + ' yas' : 'Yok')
+    + sRow('Giriş', d.checkin_date)
+    + sRow('Çıkış', d.checkout_date)
+    + sRow('Yetişkin', d.adults || 1)
+    + sRow('Çocuk', d.chd_ages && d.chd_ages.length ? d.chd_ages.join(', ') + ' yaş' : 'Yok')
     + '</div>'
     + '<div class="summary-card"><h4>Oda</h4>'
     + sRow('Oda Tipi', roomName)
     + sRow('Pansiyon', boardLabels[d.board_type] || d.board_type || '-')
-    + sRow('Iptal Politikasi', cancelLabels[d.cancel_policy_type] || d.cancel_policy_type || '-')
+    + sRow('İptal Politikası', cancelLabels[d.cancel_policy_type] || d.cancel_policy_type || '-')
     + '</div>'
     + '<div class="summary-card"><h4>Notlar</h4>'
     + '<div class="field full" style="margin-top:4px"><textarea id="stayNotes" rows="3" aria-label="Notlar" style="width:100%;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:8px">' + escapeHtml(d.notes || '') + '</textarea></div>'
@@ -525,7 +525,7 @@ function renderStayWizardSummary(bodyEl) {
     + '<div class="summary-total"><span class="total-label">Toplam Tutar</span><span class="total-value">' + escapeHtml(String(d.total_price_eur || 0)) + ' EUR</span></div>'
     + cloneInfo
     + '<div class="wizard-nav"><button class="inline-button secondary" type="button" data-stay-wizard-prev>Geri</button>'
-    + '<button class="inline-button primary" type="button" data-stay-submit-action>' + (state.stayWizardUseExisting ? 'Rezervasyonu Kopyala' : 'Rezervasyon Olustur') + '</button></div>';
+    + '<button class="inline-button primary" type="button" data-stay-submit-action>' + (state.stayWizardUseExisting ? 'Rezervasyonu Kopyala' : 'Rezervasyon Oluştur') + '</button></div>';
 }
 
 function collectStayDraftFromStep(step) {
@@ -569,7 +569,7 @@ function collectStayDraftFromStep(step) {
 async function lookupStayReservationNo() {
   var resNoEl = document.getElementById('stayLookupResNo');
   if (!resNoEl || !resNoEl.value.trim()) {
-    notify('Rezervasyon numarasi girin.', 'warn');
+    notify('Rezervasyon numarası girin.', 'warn');
     return;
   }
   try {
@@ -578,11 +578,11 @@ async function lookupStayReservationNo() {
     state.stayDraft.guest_name = state.stayDraft.guest_name || '';
     state.stayDraft.phone = state.stayDraft.phone || '';
     state.stayWizardReprocessHoldId = result.hold_id;
-    notify('Rezervasyon bulundu. Ayni bilgilerle yeni rezervasyon olusturabilirsiniz.', 'success');
+    notify('Rezervasyon bulundu. Aynı bilgilerle yeni rezervasyon oluşturabilirsiniz.', 'success');
     state.stayWizardStep = 2;
     renderStayWizardStep();
   } catch (error) {
-    notify(error.message || 'Bu rezervasyon numarasiyla kayit bulunamadi.', 'warn');
+    notify(error.message || 'Bu rezervasyon numarasıyla kayıt bulunamadı.', 'warn');
   }
 }
 
@@ -591,12 +591,12 @@ async function submitStayHold() {
   var draft = state.stayDraft || {};
   if (state.stayWizardUseExisting) {
     if (!state.stayWizardReprocessHoldId) {
-      notify('Once mevcut rezervasyon numarasi ile kaydi bulun.', 'warn');
+      notify('Önce mevcut rezervasyon numarası ile kaydı bulun.', 'warn');
       return;
     }
     try {
       var cloneResult = await apiFetch('/holds/stay/' + encodeURIComponent(state.stayWizardReprocessHoldId) + '/clone', {method: 'POST'});
-      notify('Rezervasyon kopyasi olusturuldu: ' + (cloneResult.reservation_no || cloneResult.hold_id), 'success');
+      notify('Rezervasyon kopyası oluşturuldu: ' + (cloneResult.reservation_no || cloneResult.hold_id), 'success');
       toggleStayCreatePanel();
       loadStayHolds();
       loadDashboard();
@@ -606,12 +606,12 @@ async function submitStayHold() {
     return;
   }
 
-  if (!draft.guest_name) { notify('Misafir adi zorunlu.', 'warn'); return; }
-  if (!draft.checkin_date || !draft.checkout_date) { notify('Tarih alanlari zorunlu.', 'warn'); return; }
+  if (!draft.guest_name) { notify('Misafir adı zorunlu.', 'warn'); return; }
+  if (!draft.checkin_date || !draft.checkout_date) { notify('Tarih alanları zorunlu.', 'warn'); return; }
 
   var totalPrice = Number(draft.total_price_eur || 0);
-  if (!totalPrice || totalPrice <= 0) { notify('Gecerli bir fiyat girin.', 'warn'); return; }
-  if (!draft.room_type_id) { notify('Oda tipi secin.', 'warn'); return; }
+  if (!totalPrice || totalPrice <= 0) { notify('Geçerli bir fiyat girin.', 'warn'); return; }
+  if (!draft.room_type_id) { notify('Oda tipi seçin.', 'warn'); return; }
 
   // Resolve rate mapping from cancel policy
   var rateMapping = {FREE_CANCEL: {rate_type_id: 24178, rate_code_id: 183666}, NON_REFUNDABLE: {rate_type_id: 24171, rate_code_id: 183659}};
@@ -640,7 +640,7 @@ async function submitStayHold() {
       notes: draft.notes || '',
     };
     var result = await apiFetch('/holds/stay/create', {method: 'POST', body: payload});
-    notify('Konaklama rezervasyonu olusturuldu: ' + (result.reservation_no || result.hold_id), 'success');
+    notify('Konaklama rezervasyonu oluşturuldu: ' + (result.reservation_no || result.hold_id), 'success');
     state.stayDraft = {};
     toggleStayCreatePanel();
     loadStayHolds();
@@ -773,13 +773,13 @@ function renderRestaurantHoldRows(items) {
     var requestTags = detectSpecialRequestTags(item.notes);
     var requestTagHtml = requestTags.length ? '<div class="inline-flex-center" style="flex-wrap:wrap">' + requestTags.map(function(tag){ return '<span class="pill info">' + escapeHtml(tag) + '</span>'; }).join('') + '</div>' : '';
     return '<tr class="' + (isSelected ? 'is-selected ' : '') + (hasSpecialRequest ? 'has-special-request' : '') + '" data-open-hold="' + escapeHtml(item.hold_id) + '">'
-      + '<td><button class="inline-button hold-detail-button" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayini ac') + '">Detay</button></td>'
-      + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Hotel ' + escapeHtml(String(item.hotel_id)) + '</span>' + (hasSpecialRequest ? '<span class="pill warn">Ozel Istek Var</span>' : '') + requestTagHtml + '</div></td>'
+      + '<td><button class="inline-button hold-detail-button" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayını aç') + '">Detay</button></td>'
+      + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Otel ' + escapeHtml(String(item.hotel_id)) + '</span>' + (hasSpecialRequest ? '<span class="pill warn">Özel İstek Var</span>' : '') + requestTagHtml + '</div></td>'
       + '<td><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span></td>'
       + '<td>' + escapeHtml(item.guest_name || '-') + '</td>'
       + '<td><span class="muted">' + escapeHtml(item.date || '-') + ' ' + escapeHtml(item.time || '') + '</span>'
-      + (item.created_at ? '<br><small class="muted">Olusturma: ' + escapeHtml(formatDate(item.created_at)) + '</small>' : '') + '</td>'
-      + '<td>' + escapeHtml(String(item.party_size || '-')) + ' kisi' + (hasSpecialRequest ? '<br><small style="color:#92400e;font-weight:700">' + escapeHtml((item.notes || '').trim().slice(0, 60)) + '</small>' : '') + '</td>'
+      + (item.created_at ? '<br><small class="muted">Oluşturma: ' + escapeHtml(formatDate(item.created_at)) + '</small>' : '') + '</td>'
+      + '<td>' + escapeHtml(String(item.party_size || '-')) + ' kişi' + (hasSpecialRequest ? '<br><small style="color:#92400e;font-weight:700">' + escapeHtml((item.notes || '').trim().slice(0, 60)) + '</small>' : '') + '</td>'
       + '</tr>';
   }).join('');
 }
@@ -793,7 +793,7 @@ function selectRestaurantHold(holdId) {
 
 function renderRestaurantHoldDetail(item) {
   if (!item) {
-    refs.restaurantHoldDetail.innerHTML = '<div class="empty-state"><p>Detay icin listeden bir kayit secin.</p></div>';
+    refs.restaurantHoldDetail.innerHTML = '<div class="empty-state"><p>Detay için listeden bir kayıt seçin.</p></div>';
     return;
   }
   var status = String(item.status || '').toUpperCase();
@@ -806,12 +806,12 @@ function renderRestaurantHoldDetail(item) {
   var requestTagHtml = requestTags.length ? '<div class="inline-flex-center" style="flex-wrap:wrap;justify-content:flex-end">' + requestTags.map(function(tag){ return '<span class="pill info">' + escapeHtml(tag) + '</span>'; }).join('') + '</div>' : '';
   refs.restaurantHoldDetail.innerHTML = '<div class="module-header"><div>'
     + '<h3>' + escapeHtml(String(item.hold_id || 'Hold')) + '</h3>'
-    + '<p class="muted">RESTORAN · Hotel ' + escapeHtml(String(item.hotel_id || '-')) + '</p>'
-    + '</div><div class="stack" style="align-items:flex-end"><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span>' + (String(item.approved_by || '').toUpperCase() === 'AI_RESTAURAN' ? '<span class="pill info">AI Restoran</span>' : '') + (hasSpecialRequest ? '<span class="pill warn">Ozel Istek</span>' : '') + requestTagHtml + '</div></div>'
+    + '<p class="muted">RESTORAN · Otel ' + escapeHtml(String(item.hotel_id || '-')) + '</p>'
+    + '</div><div class="stack" style="align-items:flex-end"><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span>' + (String(item.approved_by || '').toUpperCase() === 'AI_RESTAURAN' ? '<span class="pill info">Yapay Zekâ Restoran</span>' : '') + (hasSpecialRequest ? '<span class="pill warn">Özel İstek</span>' : '') + requestTagHtml + '</div></div>'
     + '<div class="hold-summary-grid mb-md">'
     + formatHoldSummaryDetailCell('Misafir', item.guest_name || '-')
     + formatHoldSummaryDetailCell('Tarih', (item.date || '-') + ' ' + (item.time || ''))
-    + formatHoldSummaryDetailCell('Kisi Sayisi', String(item.party_size || '-'))
+    + formatHoldSummaryDetailCell('Kişi Sayısı', String(item.party_size || '-'))
     + formatHoldSummaryDetailCell('Alan', item.area || '-')
     + formatHoldSummaryDetailCell('Telefon', item.phone || '-')
     + formatHoldSummaryDetailCell('Notlar', hasSpecialRequest ? (item.notes || '-') : '-')
@@ -843,11 +843,11 @@ async function submitRestaurantHold(event) {
     phone: form.phone.value.trim(),
     notes: form.notes ? form.notes.value.trim() : '',
   };
-  if (!payload.guest_name) { notify('Misafir adi zorunlu.', 'warn'); return; }
-  if (!payload.slot_id) { notify('Slot ID zorunlu.', 'warn'); return; }
+  if (!payload.guest_name) { notify('Misafir adı zorunlu.', 'warn'); return; }
+  if (!payload.slot_id) { notify('Kapasite aralığı kimliği zorunlu.', 'warn'); return; }
   try {
     await apiFetch('/holds/restaurant/create', {method: 'POST', body: payload});
-    notify('Restoran rezervasyonu olusturuldu.', 'success');
+    notify('Restoran rezervasyonu oluşturuldu.', 'success');
     form.reset();
     toggleRestaurantCreatePanel();
     loadRestaurantHolds();
@@ -887,13 +887,13 @@ function renderTransferHoldRows(items) {
     var isSelectable = !state.transferArchiveMode && isTransferArchivable(item);
     var isChecked = state.selectedTransferHoldIds.has(holdId);
     return '<tr class="' + (isSelected ? 'is-selected' : '') + '" data-open-hold="' + escapeHtml(item.hold_id) + '">'
-      + '<td class="table-select"><input type="checkbox" class="hold-select-box" data-hold-select="transfer" data-hold-id="' + escapeHtml(holdId) + '" ' + (isChecked ? 'checked' : '') + (isSelectable ? '' : ' disabled') + ' aria-label="' + escapeHtml(holdId + ' sec') + '"></td>'
-      + '<td><button class="inline-button hold-detail-button" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayini ac') + '">Detay</button></td>'
-      + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Hotel ' + escapeHtml(String(item.hotel_id)) + '</span></div></td>'
+      + '<td class="table-select"><input type="checkbox" class="hold-select-box" data-hold-select="transfer" data-hold-id="' + escapeHtml(holdId) + '" ' + (isChecked ? 'checked' : '') + (isSelectable ? '' : ' disabled') + ' aria-label="' + escapeHtml(holdId + ' seç') + '"></td>'
+      + '<td><button class="inline-button hold-detail-button" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayını aç') + '">Detay</button></td>'
+      + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Otel ' + escapeHtml(String(item.hotel_id)) + '</span></div></td>'
       + '<td><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span></td>'
       + '<td>' + escapeHtml(item.guest_name || '-') + '</td>'
       + '<td><span class="muted">' + escapeHtml(item.route || '-') + ' · ' + escapeHtml(item.date || '-') + '</span></td>'
-      + '<td>' + escapeHtml(String(item.pax_count || '-')) + ' kisi</td>'
+      + '<td>' + escapeHtml(String(item.pax_count || '-')) + ' kişi</td>'
       + '</tr>';
   }).join('');
 }
@@ -907,21 +907,21 @@ function selectTransferHold(holdId) {
 
 function renderTransferHoldDetail(item) {
   if (!item) {
-    refs.transferHoldDetail.innerHTML = '<div class="empty-state"><p>Detay icin listeden bir kayit secin.</p></div>';
+    refs.transferHoldDetail.innerHTML = '<div class="empty-state"><p>Detay için listeden bir kayıt seçin.</p></div>';
     return;
   }
   var hasSpecialRequest = hasMeaningfulSpecialRequest(item.notes);
   refs.transferHoldDetail.innerHTML = '<div class="module-header"><div>'
     + '<h3>' + escapeHtml(String(item.hold_id || 'Hold')) + '</h3>'
-    + '<p class="muted">TRANSFER · Hotel ' + escapeHtml(String(item.hotel_id || '-')) + '</p>'
+    + '<p class="muted">TRANSFER · Otel ' + escapeHtml(String(item.hotel_id || '-')) + '</p>'
     + '</div><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span></div>'
     + '<div class="hold-summary-grid mb-md">'
     + formatHoldSummaryDetailCell('Misafir', item.guest_name || '-')
-    + formatHoldSummaryDetailCell('Guzergah', item.route || '-')
+    + formatHoldSummaryDetailCell('Güzergâh', item.route || '-')
     + formatHoldSummaryDetailCell('Tarih', (item.date || '-') + ' ' + (item.time || ''))
-    + formatHoldSummaryDetailCell('Kisi', String(item.pax_count || '-'))
-    + formatHoldSummaryDetailCell('Ucus', item.flight_no || '-')
-    + formatHoldSummaryDetailCell('Arac', item.vehicle_type || '-')
+    + formatHoldSummaryDetailCell('Kişi', String(item.pax_count || '-'))
+    + formatHoldSummaryDetailCell('Uçuş', item.flight_no || '-')
+    + formatHoldSummaryDetailCell('Araç', item.vehicle_type || '-')
     + formatHoldSummaryDetailCell('Fiyat', (item.price_eur ? item.price_eur + ' EUR' : '-'))
     + formatHoldSummaryDetailCell('Telefon', item.phone || '-')
     + formatHoldSummaryDetailCell('Notlar', hasSpecialRequest ? (item.notes || '-') : '-')
@@ -955,12 +955,12 @@ async function submitTransferHold(event) {
     price_eur: form.price_eur ? Number(form.price_eur.value) || null : null,
     notes: form.notes ? form.notes.value.trim() : '',
   };
-  if (!payload.guest_name) { notify('Misafir adi zorunlu.', 'warn'); return; }
-  if (!payload.route) { notify('Guzergah zorunlu.', 'warn'); return; }
+  if (!payload.guest_name) { notify('Misafir adı zorunlu.', 'warn'); return; }
+  if (!payload.route) { notify('Güzergâh zorunlu.', 'warn'); return; }
   if (!payload.date) { notify('Tarih zorunlu.', 'warn'); return; }
   try {
     await apiFetch('/holds/transfer/create', {method: 'POST', body: payload});
-    notify('Transfer rezervasyonu olusturuldu.', 'success');
+    notify('Transfer rezervasyonu oluşturuldu.', 'success');
     form.reset();
     toggleTransferCreatePanel();
     loadTransferHolds();
@@ -1004,13 +1004,13 @@ function toggleSelectAllTransfer() {
 }
 
 async function bulkArchiveSelected(holdType) {
-  if (holdType === 'stay' && state.stayArchiveMode) { notify('Arsiv gorunumunde toplu islem yapilamaz.', 'warn'); return; }
-  if (holdType === 'transfer' && state.transferArchiveMode) { notify('Arsiv gorunumunde toplu islem yapilamaz.', 'warn'); return; }
+  if (holdType === 'stay' && state.stayArchiveMode) { notify('Arşiv görünümünde toplu işlem yapılamaz.', 'warn'); return; }
+  if (holdType === 'transfer' && state.transferArchiveMode) { notify('Arşiv görünümünde toplu işlem yapılamaz.', 'warn'); return; }
   const ids = holdType === 'stay'
     ? Array.from(state.selectedStayHoldIds)
     : Array.from(state.selectedTransferHoldIds);
-  if (!ids.length) { notify('Secili kayit yok.', 'warn'); return; }
-  const ok = window.confirm('Secili kayitlar arsive tasinacak. Emin misiniz?');
+  if (!ids.length) { notify('Seçili kayıt yok.', 'warn'); return; }
+  const ok = window.confirm('Seçili kayıtlar arşive taşınacak. Emin misiniz?');
   if (!ok) return;
   try {
     const result = await apiFetch('/holds/archive', {
@@ -1020,9 +1020,9 @@ async function bulkArchiveSelected(holdType) {
     const archivedCount = (result.archived || []).length;
     const failedCount = (result.failed || []).length;
     const skippedCount = (result.skipped || []).length;
-    if (archivedCount) notify(archivedCount + ' kayit arsive tasindi.', 'success');
-    if (skippedCount) notify(skippedCount + ' kayit zaten arsivdeydi.', 'warn');
-    if (failedCount) notify(failedCount + ' kayit tasinamadi.', 'error');
+    if (archivedCount) notify(archivedCount + ' kayıt arşive taşındı.', 'success');
+    if (skippedCount) notify(skippedCount + ' kayıt zaten arşivdeydi.', 'warn');
+    if (failedCount) notify(failedCount + ' kayıt taşınamadı.', 'error');
     if (holdType === 'stay') {
       state.selectedStayHoldIds = new Set();
       loadStayHolds();
@@ -1032,7 +1032,7 @@ async function bulkArchiveSelected(holdType) {
     }
     loadDashboard();
   } catch (error) {
-    notify(error.message || 'Toplu arsivleme basarisiz.', 'error');
+    notify(error.message || 'Toplu arşivleme başarısız.', 'error');
   }
 }
 
@@ -1065,14 +1065,14 @@ function handleHoldsModuleClick(target) {
     collectStayDraftFromStep(curStep);
     var d = state.stayDraft || {};
     if (curStep === 1 && !state.stayWizardUseExisting) {
-      if (!d.guest_name) { notify('Misafir adi zorunlu.', 'warn'); return true; }
-      if (!d.phone) { notify('Telefon numarasi zorunlu.', 'warn'); return true; }
+      if (!d.guest_name) { notify('Misafir adı zorunlu.', 'warn'); return true; }
+      if (!d.phone) { notify('Telefon numarası zorunlu.', 'warn'); return true; }
     }
     if (curStep === 2) {
-      if (!d.checkin_date || !d.checkout_date) { notify('Giris ve cikis tarihlerini girin.', 'warn'); return true; }
-      if (d.checkout_date <= d.checkin_date) { notify('Cikis tarihi giris tarihinden sonra olmali.', 'warn'); return true; }
-      if (!d.room_type_id) { notify('Oda tipi secin.', 'warn'); return true; }
-      if (!d.total_price_eur || d.total_price_eur <= 0) { notify('Gecerli bir fiyat girin.', 'warn'); return true; }
+      if (!d.checkin_date || !d.checkout_date) { notify('Giriş ve çıkış tarihlerini girin.', 'warn'); return true; }
+      if (d.checkout_date <= d.checkin_date) { notify('Çıkış tarihi giriş tarihinden sonra olmalıdır.', 'warn'); return true; }
+      if (!d.room_type_id) { notify('Oda tipi seçin.', 'warn'); return true; }
+      if (!d.total_price_eur || d.total_price_eur <= 0) { notify('Geçerli bir fiyat girin.', 'warn'); return true; }
     }
     state.stayWizardStep = curStep + 1;
     renderStayWizardStep();
