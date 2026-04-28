@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v5.10 | **Son güncelleme:** 2026-04-28 00:05:07
-> **Değişiklik özeti:** Admin kullanıcı, departman ve granular permission altyapısı için yeni access-control modülleri eklendi.
+> **Sürüm:** v5.11 | **Son güncelleme:** 2026-04-28 18:58:51
+> **Değişiklik özeti:** Yerel pytest geçici klasörü için zorunlu gitignore pattern'i eklendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -276,6 +276,7 @@ secrets.*
 # Python
 __pycache__/
 *.pyc
+.tmp_pytest/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/

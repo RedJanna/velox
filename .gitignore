@@ -33,6 +33,7 @@ env/
 *~
 
 # Testing
+.tmp_pytest/
 .pytest_cache/
 .coverage
 htmlcov/

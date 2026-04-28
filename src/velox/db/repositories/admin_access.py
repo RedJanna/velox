@@ -7,9 +7,11 @@ from typing import Any, Sequence
 
 from velox.config.constants import Role
 from velox.core.admin_access_control import (
+    build_admin_effective_permissions,
     build_effective_permissions,
     get_department_label,
     get_role_label,
+    is_super_admin_username,
     normalize_department_code,
     validate_permission_keys,
 )
@@ -28,6 +30,7 @@ class AdminAccessContext:
     is_active: bool
     permissions: set[str]
     permission_overrides: dict[str, bool]
+    is_super_admin: bool
 
 
 def _build_department_code(raw_value: object, role: Role) -> str:
@@ -81,8 +84,9 @@ async def fetch_admin_access_context(conn: Any, user_id: int) -> AdminAccessCont
         display_name=str(row["display_name"]) if row["display_name"] is not None else None,
         department_code=_build_department_code(row["department_code"], role),
         is_active=bool(row["is_active"]),
-        permissions=build_effective_permissions(role, overrides),
+        permissions=build_admin_effective_permissions(username=str(row["username"]), role=role, overrides=overrides),
         permission_overrides=overrides,
+        is_super_admin=is_super_admin_username(str(row["username"])),
     )
 
 
@@ -127,20 +131,23 @@ async def list_admin_user_access(conn: Any, hotel_id: int) -> list[dict[str, Any
         admin_user_id = int(row["id"])
         overrides = overrides_map.get(admin_user_id, {})
         department_code = _build_department_code(row["department_code"], role)
+        username = str(row["username"])
+        is_super_admin = is_super_admin_username(username)
         items.append(
             {
                 "user_id": admin_user_id,
                 "hotel_id": int(row["hotel_id"]),
-                "username": str(row["username"]),
+                "username": username,
                 "display_name": str(row["display_name"]) if row["display_name"] is not None else None,
                 "role": role.value,
                 "role_label": get_role_label(role),
                 "department_code": department_code,
                 "department_label": get_department_label(department_code),
                 "is_active": bool(row["is_active"]),
+                "is_super_admin": is_super_admin,
                 "two_factor_required": True,
                 "totp_enrolled": bool(str(row["totp_secret"] or "").strip()),
-                "permissions": sorted(build_effective_permissions(role, overrides)),
+                "permissions": sorted(build_admin_effective_permissions(username=username, role=role, overrides=overrides)),
                 "permission_overrides": overrides,
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],
@@ -198,19 +205,22 @@ def build_admin_user_response(
     role = Role(str(row["role"]))
     overrides = permission_overrides or {}
     department_code = _build_department_code(row.get("department_code"), role)
+    username = str(row["username"])
+    is_super_admin = is_super_admin_username(username)
     return {
         "user_id": int(row["id"]),
         "hotel_id": int(row["hotel_id"]),
-        "username": str(row["username"]),
+        "username": username,
         "display_name": str(row["display_name"]) if row.get("display_name") is not None else None,
         "role": role.value,
         "role_label": get_role_label(role),
         "department_code": department_code,
         "department_label": get_department_label(department_code),
         "is_active": bool(row["is_active"]),
+        "is_super_admin": is_super_admin,
         "two_factor_required": True,
         "totp_enrolled": bool(str(row.get("totp_secret") or "").strip()),
-        "permissions": sorted(build_effective_permissions(role, overrides)),
+        "permissions": sorted(build_admin_effective_permissions(username=username, role=role, overrides=overrides)),
         "permission_overrides": overrides,
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at"),

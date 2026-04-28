@@ -234,6 +234,7 @@ async def admin_me(
         "username": user.username,
         "role": user.role.value,
         "role_label": get_role_label(user.role),
+        "is_super_admin": user.is_super_admin,
         "display_name": user.display_name,
         "department_code": user.department_code,
         "department_label": get_department_label(user.department_code),

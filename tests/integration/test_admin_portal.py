@@ -10,6 +10,7 @@ from fastapi import FastAPI
 
 from velox.api.routes import admin, admin_access_control, admin_portal, admin_session
 from velox.config.settings import settings
+from velox.core.admin_access_control import PERMISSION_CATALOG
 from velox.utils.admin_security import ACCESS_COOKIE_NAME, CSRF_COOKIE_NAME, TRUSTED_DEVICE_COOKIE_NAME
 from velox.utils.totp import generate_totp_code
 
@@ -570,3 +571,55 @@ async def test_admin_can_create_and_list_scoped_users(admin_client: httpx.AsyncC
     assert list_payload["total"] == 2
     created_user = next(item for item in list_payload["items"] if item["username"] == "front.office.user")
     assert created_user["permissions"] == ["dashboard:read", "holds:approve", "holds:read"]
+
+
+async def test_owner_super_admin_keeps_full_permissions_and_can_save_own_profile(
+    admin_client: httpx.AsyncClient,
+) -> None:
+    bootstrap_response = await admin_client.post(
+        "/api/v1/admin/bootstrap",
+        json={
+            "hotel_id": 21966,
+            "username": "H893453klkads",
+            "display_name": "Owner Super Admin",
+            "password": "OwnerSuperPass123!",
+            "bootstrap_token": "bootstrap-secret",
+        },
+    )
+    otp_code = generate_totp_code(bootstrap_response.json()["totp_secret"])
+    login_response = await admin_client.post(
+        "/api/v1/admin/login",
+        json={
+            "username": "H893453klkads",
+            "password": "OwnerSuperPass123!",
+            "otp_code": otp_code,
+        },
+    )
+    token = login_response.json()["access_token"]
+
+    me_response = await admin_client.get("/api/v1/admin/me", headers={"Authorization": f"Bearer {token}"})
+    assert me_response.status_code == 200
+    assert me_response.json()["is_super_admin"] is True
+    assert set(me_response.json()["permissions"]) == set(PERMISSION_CATALOG)
+
+    save_response = await admin_client.put(
+        "/api/v1/admin/users/1",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "display_name": "Owner Super Admin Updated",
+            "role": "ADMIN",
+            "department_code": "MANAGEMENT",
+            "is_active": True,
+        },
+    )
+    assert save_response.status_code == 200
+    assert save_response.json()["user"]["display_name"] == "Owner Super Admin Updated"
+
+    permission_response = await admin_client.put(
+        "/api/v1/admin/users/1/permissions",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"permissions": []},
+    )
+    assert permission_response.status_code == 200
+    assert permission_response.json()["user"]["is_super_admin"] is True
+    assert set(permission_response.json()["user"]["permissions"]) == set(PERMISSION_CATALOG)

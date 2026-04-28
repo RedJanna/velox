@@ -27,6 +27,7 @@ class TokenData(BaseModel):
     display_name: str | None = None
     department_code: str | None = None
     permissions: set[str] = Field(default_factory=set)
+    is_super_admin: bool = False
     debug_report_only: bool = False
     debug_run_id: str | None = None
     auth_source: str = "access_token"
@@ -118,6 +119,7 @@ async def get_current_user(
             display_name=context.display_name,
             department_code=context.department_code,
             permissions=context.permissions,
+            is_super_admin=context.is_super_admin,
             auth_source="bearer" if credentials is not None else "cookie",
         )
     except (JWTError, KeyError, ValueError) as exc:

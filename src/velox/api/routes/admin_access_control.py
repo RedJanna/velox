@@ -14,6 +14,7 @@ from velox.core.admin_access_control import (
     get_department_catalog,
     get_permission_catalog,
     get_role_catalog,
+    is_super_admin_username,
     normalize_department_code,
     validate_permission_keys,
 )
@@ -215,9 +216,6 @@ async def update_admin_user(
     if not payload:
         raise HTTPException(status_code=400, detail="No fields to update")
 
-    if admin_user_id == user.user_id and ("role" in payload or payload.get("is_active") is False):
-        raise HTTPException(status_code=400, detail="Your own role or activation state cannot be changed from this flow")
-
     db = request.app.state.db_pool
     async with db.acquire() as conn:
         current_row = await fetch_admin_user_for_hotel(conn, admin_user_id, user.hotel_id)
@@ -225,6 +223,16 @@ async def update_admin_user(
             raise HTTPException(status_code=404, detail="Admin user not found")
 
         next_role = body.role or Role(str(current_row["role"]))
+        target_is_super_admin = is_super_admin_username(str(current_row["username"]))
+        self_role_change = admin_user_id == user.user_id and next_role.value != str(current_row["role"])
+        self_deactivate = admin_user_id == user.user_id and body.is_active is False
+        super_admin_demote = target_is_super_admin and next_role != Role.ADMIN
+        super_admin_deactivate = target_is_super_admin and body.is_active is False
+        if self_role_change or self_deactivate:
+            raise HTTPException(status_code=400, detail="Your own role or activation state cannot be changed from this flow")
+        if super_admin_demote or super_admin_deactivate:
+            raise HTTPException(status_code=400, detail="Protected super admin access cannot be reduced from this flow")
+
         next_department = normalize_department_code(
             body.department_code if "department_code" in payload else str(current_row.get("department_code") or ""),
             role=next_role,
@@ -279,8 +287,6 @@ async def update_admin_user_permissions(
 ) -> dict[str, Any]:
     """Replace one user's permission overrides from the toggle selection UI."""
     check_permission(user, "access_control:write")
-    if admin_user_id == user.user_id:
-        raise HTTPException(status_code=400, detail="Your own permission set cannot be changed from this flow")
     desired_permissions = validate_permission_keys(body.permissions)
     db = request.app.state.db_pool
     async with db.acquire() as conn:
@@ -288,6 +294,17 @@ async def update_admin_user_permissions(
         if current_row is None:
             raise HTTPException(status_code=404, detail="Admin user not found")
         role = Role(str(current_row["role"]))
+        if is_super_admin_username(str(current_row["username"])):
+            await clear_admin_user_permission_overrides(conn, admin_user_id)
+            return {
+                "status": "updated",
+                "user": build_admin_user_response(
+                    row=current_row,
+                    permission_overrides={},
+                ),
+            }
+        if admin_user_id == user.user_id:
+            raise HTTPException(status_code=400, detail="Your own permission set cannot be changed from this flow")
         permission_overrides = await replace_admin_user_permission_overrides(
             conn,
             admin_user_id=admin_user_id,
