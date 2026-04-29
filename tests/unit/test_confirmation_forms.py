@@ -33,7 +33,8 @@ def test_accommodation_confirmation_preview_uses_customer_language_and_masks_pho
 
     preview = build_preview(context)
 
-    assert "Rezervasyon Onaylandı" in preview.html
+    assert "KONAKLAMA REZERVASYON ONAY FORMU" in preview.html
+    assert "linework" in preview.html
     assert "+90 *** *** 4567" in preview.html
     assert "VLX-2026-0418" in preview.html
     assert "Güvenli onay formunuzu buradan görüntüleyebilirsiniz" in preview.whatsapp_message
@@ -62,6 +63,67 @@ def test_restaurant_confirmation_preview_supports_active_language() -> None:
     assert "Reservierung bestätigt" in preview.html
     assert "Restaurantdetails" in preview.html
     assert "R-HOLD-1" in preview.whatsapp_message
+
+
+def test_restaurant_confirmation_uses_prompt_specific_fields() -> None:
+    context = build_context_from_manual_payload(
+        form_type="restaurant",
+        hotel_id=21966,
+        language="en",
+        payload={
+            "confirmation_no": "REST-42",
+            "customer": {"guest_name": "Ada Stone", "phone": "+447700900123"},
+            "details": {
+                "date": "2026-06-12",
+                "time": "19:30",
+                "party_size": "2",
+                "area": "Outdoor",
+                "table": "Terrace front",
+                "occasion": "Anniversary",
+                "notes": "Quiet table",
+            },
+        },
+        generated_at=datetime(2026, 4, 29, 10, 30, tzinfo=UTC),
+    )
+
+    preview = build_preview(context)
+
+    assert "RESTAURANT RESERVATION CONFIRMATION FORM" in preview.html
+    assert "Indoor / Outdoor Preference" in preview.html
+    assert "Table Type / Seating Preference" in preview.html
+    assert "Occasion" in preview.html
+    assert "Authorized Confirmation" in preview.html
+
+
+def test_transfer_confirmation_uses_prompt_specific_fields() -> None:
+    context = build_context_from_manual_payload(
+        form_type="transfer",
+        hotel_id=21966,
+        language="tr",
+        payload={
+            "confirmation_no": "TRF-77",
+            "customer": {"guest_name": "Deneme Misafir", "phone": "+905301234567"},
+            "details": {
+                "transfer_type": "Airport transfer",
+                "pickup_location": "Dalaman Airport",
+                "dropoff_location": "Kassandra Ölüdeniz",
+                "date": "2026-05-18",
+                "time": "14:00",
+                "pax": "3",
+                "vehicle": "VIP Van",
+                "flight_no": "TK1234",
+            },
+        },
+        generated_at=datetime(2026, 4, 29, 10, 30, tzinfo=UTC),
+    )
+
+    preview = build_preview(context)
+
+    assert "TRANSFER REZERVASYON ONAY FORMU" in preview.html
+    assert "Transfer reservation confirmation details" in preview.html
+    assert "Alış Noktası / Pick-up Location" in preview.html
+    assert "Bırakış Noktası / Drop-off Location" in preview.html
+    assert "motif-transfer" in preview.html
 
 
 def test_public_token_validation_and_hashing_are_deterministic() -> None:

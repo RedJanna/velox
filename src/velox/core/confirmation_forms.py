@@ -28,6 +28,7 @@ logger = structlog.get_logger(__name__)
 ConfirmationFormType = Literal["accommodation", "restaurant", "transfer"]
 
 TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{32,160}$")
+ROUTE_SPLIT_PATTERN = re.compile(r"\s*(?:<->|->|→|↔|\bto\b| - | – | — )\s*", re.IGNORECASE)
 DEFAULT_EXPIRY_DAYS = 30
 
 FORM_TYPE_FROM_APPROVAL = {
@@ -562,6 +563,77 @@ COPY: dict[str, dict[str, str]] = {
 }
 
 
+DOCUMENT_PROFILE_COPY: dict[str, dict[ConfirmationFormType, dict[str, str]]] = {
+    "en": {
+        "accommodation": {
+            "title": "ACCOMMODATION RESERVATION CONFIRMATION FORM",
+            "subtitle": "Accommodation reservation confirmation details",
+        },
+        "restaurant": {
+            "title": "RESTAURANT RESERVATION CONFIRMATION FORM",
+            "subtitle": "Restaurant reservation confirmation details",
+        },
+        "transfer": {
+            "title": "TRANSFER RESERVATION CONFIRMATION FORM",
+            "subtitle": "Transfer reservation confirmation details",
+        },
+    },
+    "tr": {
+        "accommodation": {
+            "title": "KONAKLAMA REZERVASYON ONAY FORMU",
+            "subtitle": "Konaklama rezervasyon onay detayları",
+        },
+        "restaurant": {
+            "title": "RESTORAN REZERVASYON ONAY FORMU",
+            "subtitle": "Restoran rezervasyon onay detayları",
+        },
+        "transfer": {
+            "title": "TRANSFER REZERVASYON ONAY FORMU",
+            "subtitle": "Transfer reservation confirmation details",
+        },
+    },
+}
+
+PROMPT_FIELD_LABELS: dict[str, dict[str, str]] = {
+    "en": {
+        "authorized_confirmation": "Authorized Confirmation",
+        "guest_name": "Guest Name",
+        "phone_number": "Phone Number",
+        "reservation_date": "Reservation Date",
+        "reservation_time": "Reservation Time",
+        "restaurant_guest_count": "Number of Guests",
+        "restaurant_seating": "Table Type / Seating Preference",
+        "restaurant_area": "Indoor / Outdoor Preference",
+        "occasion": "Occasion",
+        "special_requests": "Special Requests",
+        "transfer_type": "Transfer Type",
+        "pickup_location": "Pick-up Location",
+        "dropoff_location": "Drop-off Location",
+        "transfer_date": "Transfer Date",
+        "transfer_time": "Transfer Time",
+        "transfer_guests": "Number of Guests",
+    },
+    "tr": {
+        "authorized_confirmation": "Yetkili Onayı / Authorized Confirmation",
+        "guest_name": "Misafir Adı / Guest Name",
+        "phone_number": "Telefon Numarası / Phone Number",
+        "reservation_date": "Rezervasyon Tarihi / Reservation Date",
+        "reservation_time": "Rezervasyon Saati / Reservation Time",
+        "restaurant_guest_count": "Kişi Sayısı / Number of Guests",
+        "restaurant_seating": "Masa Tipi / Seating Preference",
+        "restaurant_area": "İç / Dış Alan Tercihi",
+        "occasion": "Özel Gün / Occasion",
+        "special_requests": "Özel Talepler / Special Requests",
+        "transfer_type": "Transfer Tipi / Transfer Type",
+        "pickup_location": "Alış Noktası / Pick-up Location",
+        "dropoff_location": "Bırakış Noktası / Drop-off Location",
+        "transfer_date": "Transfer Tarihi / Transfer Date",
+        "transfer_time": "Transfer Saati / Transfer Time",
+        "transfer_guests": "Kişi Sayısı / Number of Guests",
+    },
+}
+
+
 def normalize_language(language: str | None) -> str:
     """Normalize a language code to the supported active language set."""
     normalized = str(language or "").strip().lower()
@@ -613,6 +685,38 @@ def _clean(value: object, fallback: str = "-") -> str:
         return fallback
     text = str(value).strip()
     return text if text else fallback
+
+
+def _coalesce_clean(*values: object, fallback: str = "-") -> str:
+    for value in values:
+        text = _clean(value, "")
+        if text:
+            return text
+    return fallback
+
+
+def _prompt_label(language: str, key: str, fallback: str) -> str:
+    language_labels = PROMPT_FIELD_LABELS.get(language)
+    if language_labels and key in language_labels:
+        return language_labels[key]
+    return fallback
+
+
+def _document_profile(form_type: ConfirmationFormType, language: str, labels: dict[str, str]) -> dict[str, str]:
+    language_copy = DOCUMENT_PROFILE_COPY.get(language)
+    if language_copy and form_type in language_copy:
+        return language_copy[form_type]
+    return {"title": labels["confirmed"], "subtitle": labels["intro"]}
+
+
+def _route_endpoints(route: object) -> tuple[str, str]:
+    text = _clean(route, "")
+    if not text:
+        return "", ""
+    parts = [part.strip() for part in ROUTE_SPLIT_PATTERN.split(text, maxsplit=1) if part.strip()]
+    if len(parts) >= 2:
+        return parts[0], parts[1]
+    return "", ""
 
 
 def _format_bool(value: object, language: str) -> str:
@@ -731,8 +835,8 @@ def build_context_from_hold(
             _section(
                 labels["customer_information"],
                 [
-                    ConfirmationDetail(labels["guest"], customer_name, True),
-                    ConfirmationDetail(labels["phone"], mask_phone(draft.get("phone"))),
+                    ConfirmationDetail(_prompt_label(normalized_language, "guest_name", labels["guest"]), customer_name, True),
+                    ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), mask_phone(draft.get("phone"))),
                 ],
             ),
             _section(
@@ -773,19 +877,20 @@ def build_context_from_hold(
             _section(
                 labels["customer_information"],
                 [
-                    ConfirmationDetail(labels["guest"], customer_name, True),
-                    ConfirmationDetail(labels["phone"], mask_phone(row.get("phone"))),
+                    ConfirmationDetail(_prompt_label(normalized_language, "guest_name", labels["guest"]), customer_name, True),
+                    ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), mask_phone(row.get("phone"))),
                 ],
             ),
             _section(
                 labels["restaurant_details"],
                 [
-                    ConfirmationDetail(labels["date"], _format_date(row.get("date")), True),
-                    ConfirmationDetail(labels["time"], _clean(row.get("time")), True),
-                    ConfirmationDetail(labels["party_size"], _clean(row.get("party_size"))),
-                    ConfirmationDetail(labels["area"], _clean(row.get("area"))),
-                    ConfirmationDetail(labels["table"], _clean(row.get("table_id"))),
-                    ConfirmationDetail(labels["notes"], _clean(row.get("notes"))),
+                    ConfirmationDetail(_prompt_label(normalized_language, "reservation_date", labels["date"]), _format_date(row.get("date")), True),
+                    ConfirmationDetail(_prompt_label(normalized_language, "reservation_time", labels["time"]), _clean(row.get("time")), True),
+                    ConfirmationDetail(_prompt_label(normalized_language, "restaurant_guest_count", labels["party_size"]), _clean(row.get("party_size"))),
+                    ConfirmationDetail(_prompt_label(normalized_language, "restaurant_area", labels["area"]), _clean(row.get("area"))),
+                    ConfirmationDetail(_prompt_label(normalized_language, "restaurant_seating", labels["table"]), _clean(row.get("table_id"))),
+                    ConfirmationDetail(_prompt_label(normalized_language, "occasion", labels["notes"]), _clean(row.get("occasion"))),
+                    ConfirmationDetail(_prompt_label(normalized_language, "special_requests", labels["notes"]), _clean(row.get("notes"))),
                 ],
             ),
         )
@@ -804,23 +909,27 @@ def build_context_from_hold(
         )
 
     customer_name = _clean(row.get("guest_name"))
+    pickup_location, dropoff_location = _route_endpoints(row.get("route"))
     sections = (
         _section(
             labels["customer_information"],
             [
-                ConfirmationDetail(labels["guest"], customer_name, True),
-                ConfirmationDetail(labels["phone"], mask_phone(row.get("phone"))),
+                ConfirmationDetail(_prompt_label(normalized_language, "guest_name", labels["guest"]), customer_name, True),
+                ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), mask_phone(row.get("phone"))),
             ],
         ),
         _section(
             labels["transfer_details"],
             [
-                ConfirmationDetail(labels["route"], _clean(row.get("route")), True),
-                ConfirmationDetail(labels["date"], _format_date(row.get("date")), True),
-                ConfirmationDetail(labels["time"], _clean(row.get("time")), True),
-                ConfirmationDetail(labels["pax"], _clean(row.get("pax_count"))),
-                ConfirmationDetail(labels["flight"], _clean(row.get("flight_no"))),
+                ConfirmationDetail(_prompt_label(normalized_language, "transfer_type", labels["route"]), _coalesce_clean(row.get("transfer_type"), row.get("service_type"), fallback="")),
+                ConfirmationDetail(_prompt_label(normalized_language, "pickup_location", labels["route"]), _coalesce_clean(row.get("pickup_location"), row.get("pickup"), pickup_location, fallback=""), True),
+                ConfirmationDetail(_prompt_label(normalized_language, "dropoff_location", labels["route"]), _coalesce_clean(row.get("dropoff_location"), row.get("dropoff"), dropoff_location, fallback=""), True),
+                ConfirmationDetail(labels["route"], _clean(row.get("route"))),
+                ConfirmationDetail(_prompt_label(normalized_language, "transfer_date", labels["date"]), _format_date(row.get("date")), True),
+                ConfirmationDetail(_prompt_label(normalized_language, "transfer_time", labels["time"]), _clean(row.get("time")), True),
+                ConfirmationDetail(_prompt_label(normalized_language, "transfer_guests", labels["pax"]), _clean(row.get("pax_count"))),
                 ConfirmationDetail(labels["vehicle"], _clean(row.get("vehicle_type"))),
+                ConfirmationDetail(labels["flight"], _clean(row.get("flight_no"))),
                 ConfirmationDetail(labels["baby_seat"], _format_bool(row.get("baby_seat"), normalized_language)),
                 ConfirmationDetail(labels["price"], _format_money(row.get("price_eur"), "EUR")),
                 ConfirmationDetail(labels["notes"], _clean(row.get("notes"))),
@@ -868,8 +977,8 @@ def build_context_from_manual_payload(
     customer_section = _section(
         labels["customer_information"],
         [
-            ConfirmationDetail(labels["guest"], customer_name, True),
-            ConfirmationDetail(labels["phone"], mask_phone(phone)),
+            ConfirmationDetail(_prompt_label(normalized_language, "guest_name", labels["guest"]), customer_name, True),
+            ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), mask_phone(phone)),
         ],
     )
 
@@ -892,25 +1001,30 @@ def build_context_from_manual_payload(
         section = _section(
             labels["restaurant_details"],
             [
-                ConfirmationDetail(labels["date"], _format_date(details.get("date")), True),
-                ConfirmationDetail(labels["time"], _clean(details.get("time")), True),
-                ConfirmationDetail(labels["party_size"], _clean(details.get("party_size"))),
-                ConfirmationDetail(labels["area"], _clean(details.get("area"))),
-                ConfirmationDetail(labels["table"], _clean(details.get("table"))),
-                ConfirmationDetail(labels["notes"], _clean(details.get("notes"))),
+                ConfirmationDetail(_prompt_label(normalized_language, "reservation_date", labels["date"]), _format_date(details.get("date")), True),
+                ConfirmationDetail(_prompt_label(normalized_language, "reservation_time", labels["time"]), _clean(details.get("time")), True),
+                ConfirmationDetail(_prompt_label(normalized_language, "restaurant_guest_count", labels["party_size"]), _clean(details.get("party_size"))),
+                ConfirmationDetail(_prompt_label(normalized_language, "restaurant_area", labels["area"]), _clean(details.get("area"))),
+                ConfirmationDetail(_prompt_label(normalized_language, "restaurant_seating", labels["table"]), _clean(details.get("table"))),
+                ConfirmationDetail(_prompt_label(normalized_language, "occasion", labels["notes"]), _clean(details.get("occasion"))),
+                ConfirmationDetail(_prompt_label(normalized_language, "special_requests", labels["notes"]), _clean(details.get("notes"))),
             ],
         )
         note = labels["restaurant_note"]
     elif form_type == "transfer":
+        pickup_location, dropoff_location = _route_endpoints(details.get("route"))
         section = _section(
             labels["transfer_details"],
             [
-                ConfirmationDetail(labels["route"], _clean(details.get("route")), True),
-                ConfirmationDetail(labels["date"], _format_date(details.get("date")), True),
-                ConfirmationDetail(labels["time"], _clean(details.get("time")), True),
-                ConfirmationDetail(labels["pax"], _clean(details.get("pax"))),
-                ConfirmationDetail(labels["flight"], _clean(details.get("flight_no"))),
+                ConfirmationDetail(_prompt_label(normalized_language, "transfer_type", labels["route"]), _clean(details.get("transfer_type"))),
+                ConfirmationDetail(_prompt_label(normalized_language, "pickup_location", labels["route"]), _coalesce_clean(details.get("pickup_location"), pickup_location, fallback=""), True),
+                ConfirmationDetail(_prompt_label(normalized_language, "dropoff_location", labels["route"]), _coalesce_clean(details.get("dropoff_location"), dropoff_location, fallback=""), True),
+                ConfirmationDetail(labels["route"], _clean(details.get("route"))),
+                ConfirmationDetail(_prompt_label(normalized_language, "transfer_date", labels["date"]), _format_date(details.get("date")), True),
+                ConfirmationDetail(_prompt_label(normalized_language, "transfer_time", labels["time"]), _clean(details.get("time")), True),
+                ConfirmationDetail(_prompt_label(normalized_language, "transfer_guests", labels["pax"]), _clean(details.get("pax"))),
                 ConfirmationDetail(labels["vehicle"], _clean(details.get("vehicle"))),
+                ConfirmationDetail(labels["flight"], _clean(details.get("flight_no"))),
                 ConfirmationDetail(labels["baby_seat"], _format_bool(details.get("baby_seat"), normalized_language)),
                 ConfirmationDetail(labels["price"], _clean(details.get("price")), True),
                 ConfirmationDetail(labels["notes"], _clean(details.get("notes"))),
@@ -942,23 +1056,39 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
     labels = copy_for(context.language)
     dir_attr = "rtl" if context.language == "ar" else "ltr"
     type_label = labels[context.form_type]
-    section_html = "\n".join(_render_section(section) for section in context.sections if section.items)
+    document = _document_profile(context.form_type, context.language, labels)
+    confirmation_section = _section(
+        labels["confirmation_information"],
+        [
+            ConfirmationDetail(labels["status"], labels["confirmed_status"], True),
+            ConfirmationDetail(
+                _prompt_label(context.language, "authorized_confirmation", labels["confirmation_information"]),
+                context.hotel_name,
+                True,
+            ),
+        ],
+    )
+    sections = [section for section in context.sections if section.items]
+    sections.append(confirmation_section)
+    section_html = "\n".join(_render_section(section) for section in sections if section.items)
     intro = f"{labels['intro']}"
     generated = _format_generated_at(context.generated_at)
     brand_parts = context.hotel_name.split()
     brand_primary = brand_parts[0] if brand_parts else context.hotel_name
     brand_place = " ".join(brand_parts[1:]) if len(brand_parts) > 1 else context.hotel_name
+    motif_class = f"motif-{context.form_type}"
     return f"""<!doctype html>
 <html lang="{escape(context.language)}" dir="{dir_attr}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <title>{escape(context.hotel_name)} · {escape(labels["document_title"])}</title>
+  <title>{escape(context.hotel_name)} · {escape(document["title"])}</title>
   <style>
     :root {{
-      --paper:#ffffff; --page:#f5f5f2; --ink:#111111; --fume:#2a2a27;
-      --muted:#696966; --line:#deded8; --soft:#eeeeea; --deep:#050505;
+      --paper:#ffffff; --page:#f0f0ec; --ink:#111111; --near:#1b1b18;
+      --fume:#343431; --fume-soft:#ededeb; --muted:#686864; --line:#d8d8d2;
+      --hair:#20201d; --wash:#fafaf8;
     }}
     * {{ box-sizing:border-box; }}
     body {{
@@ -966,72 +1096,103 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
       font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       line-height:1.5;
     }}
-    .page {{ max-width:980px; margin:0 auto; padding:42px 20px; }}
+    .page {{ max-width:900px; margin:0 auto; padding:42px 20px; }}
     .sheet {{
-      background:var(--paper); border:1px solid var(--line); color:var(--ink);
-      box-shadow:0 24px 80px rgba(17,17,17,.08); min-height:720px;
+      position:relative; overflow:hidden; background:var(--paper); color:var(--ink);
+      width:min(100%, 794px); min-height:1123px; margin:0 auto;
+      border:1px solid var(--hair); box-shadow:0 24px 70px rgba(15,15,12,.10);
     }}
-    .brand {{
-      padding:34px 42px 24px; border-bottom:1px solid var(--deep);
-      display:flex; justify-content:space-between; gap:22px; align-items:flex-start;
+    .sheet::before {{
+      content:""; position:absolute; inset:18px; border:1px solid rgba(32,32,29,.18);
+      pointer-events:none; z-index:0;
     }}
-    .brand-lockup {{ min-width:220px; }}
+    .linework {{ position:absolute; inset:0; pointer-events:none; z-index:0; opacity:.95; }}
+    .linework span {{ position:absolute; height:1px; background:repeating-linear-gradient(90deg, rgba(22,22,20,.78) 0 72px, transparent 72px 104px); }}
+    .linework .lw-a {{ top:132px; left:42px; width:48%; }}
+    .linework .lw-b {{ top:172px; right:56px; width:26%; background:linear-gradient(90deg, transparent, rgba(52,52,49,.72), transparent); }}
+    .linework .lw-c {{ top:348px; left:0; width:34%; opacity:.38; }}
+    .linework .lw-d {{ bottom:166px; right:42px; width:42%; opacity:.52; }}
+    .linework .lw-e {{ top:94px; right:88px; width:1px; height:118px; background:linear-gradient(180deg, rgba(17,17,17,.68), transparent); }}
+    .motif-restaurant .lw-a {{ width:36%; }}
+    .motif-restaurant .lw-b {{ top:214px; right:46px; width:34%; }}
+    .motif-restaurant .lw-d {{ bottom:142px; width:32%; }}
+    .motif-transfer .lw-c {{ top:386px; left:36px; width:46%; transform:rotate(-4deg); transform-origin:left center; opacity:.48; }}
+    .motif-transfer .lw-d {{ bottom:188px; width:52%; transform:rotate(3deg); transform-origin:right center; }}
+    .letterhead,.hero,.status-strip,.content,.footer {{ position:relative; z-index:1; }}
+    .letterhead {{
+      min-height:176px; padding:42px 46px 30px; border-bottom:1px solid var(--hair);
+      display:flex; justify-content:space-between; gap:28px; align-items:flex-start;
+    }}
+    .brand-lockup {{ min-width:230px; }}
     .brand-name {{
-      font-family:Georgia, "Times New Roman", serif; font-size:34px; line-height:.95;
-      letter-spacing:.06em; text-transform:uppercase; color:var(--deep);
+      font-family:Georgia, "Times New Roman", serif; font-size:42px; line-height:.86;
+      letter-spacing:.05em; text-transform:uppercase; color:var(--near);
     }}
     .brand-place {{
-      margin-top:12px; padding-top:10px; border-top:1px solid var(--deep);
-      font-size:13px; letter-spacing:.42em; text-transform:uppercase; color:var(--fume);
+      display:inline-block; margin-top:14px; padding-top:10px; border-top:1px solid var(--near);
+      font-size:12px; letter-spacing:.48em; text-transform:uppercase; color:var(--fume);
     }}
-    .doc-meta {{ text-align:end; color:var(--muted); font-size:13px; }}
-    .doc-meta strong {{ display:block; color:var(--ink); font-size:15px; margin-top:4px; }}
-    .hero {{ padding:38px 42px 24px; border-bottom:1px solid var(--line); }}
-    .eyebrow {{ color:var(--muted); font-size:12px; letter-spacing:.18em; text-transform:uppercase; font-weight:800; }}
-    h1 {{ margin:12px 0 12px; font-family:Georgia, "Times New Roman", serif; font-size:48px; line-height:1.04; font-weight:500; }}
-    .intro {{ max-width:760px; color:var(--fume); font-size:17px; margin:0; }}
-    .status-line {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-bottom:1px solid var(--line); }}
-    .status-cell {{ padding:18px 42px; border-inline-end:1px solid var(--line); }}
+    .doc-meta {{ text-align:end; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.08em; }}
+    .doc-meta strong {{ display:block; color:var(--near); font-size:15px; letter-spacing:0; margin-top:8px; text-transform:none; }}
+    .hero {{ padding:44px 46px 30px; border-bottom:1px solid var(--line); }}
+    .eyebrow {{ color:var(--muted); font-size:11px; letter-spacing:.18em; text-transform:uppercase; font-weight:800; }}
+    h1 {{
+      margin:16px 0 12px; max-width:660px; font-family:Georgia, "Times New Roman", serif;
+      font-size:42px; line-height:1.05; font-weight:500; letter-spacing:0; color:var(--near);
+    }}
+    .subtitle {{ margin:0; color:var(--near); font-size:13px; letter-spacing:.11em; text-transform:uppercase; font-weight:800; }}
+    .intro {{ max-width:670px; color:var(--fume); font-size:15px; margin:18px 0 0; }}
+    .status-strip {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-bottom:1px solid var(--hair); background:var(--wash); }}
+    .status-cell {{ min-height:84px; padding:18px 46px; border-inline-end:1px solid var(--line); }}
     .status-cell:last-child {{ border-inline-end:none; }}
-    .status-cell span {{ display:block; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.14em; font-weight:800; }}
-    .status-cell strong {{ display:block; margin-top:7px; color:var(--deep); font-size:16px; }}
-    .content {{ padding:32px 42px 42px; }}
-    .section {{ padding:26px 0; border-bottom:1px solid var(--line); }}
+    .status-cell span {{ display:block; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.14em; font-weight:800; }}
+    .status-cell strong {{ display:block; margin-top:8px; color:var(--near); font-size:15px; overflow-wrap:anywhere; }}
+    .content {{ padding:34px 46px 44px; }}
+    .section {{ padding:28px 0; border-bottom:1px solid var(--line); }}
     .section:first-child {{ padding-top:0; }}
-    .section h2 {{ margin:0 0 18px; font-size:13px; letter-spacing:.18em; text-transform:uppercase; color:var(--fume); }}
-    .details {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); }}
-    .detail {{ background:var(--paper); min-height:92px; padding:18px; }}
-    .detail span {{ display:block; color:var(--muted); font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; }}
-    .detail strong {{ display:block; margin-top:10px; color:var(--ink); font-size:17px; overflow-wrap:anywhere; }}
-    .detail.is-emphasis {{ background:var(--soft); }}
-    .note {{ margin-top:28px; padding:22px 24px; border:1px solid var(--fume); background:#fbfbf9; }}
-    .note h2 {{ margin:0 0 10px; font-family:Georgia, "Times New Roman", serif; font-size:25px; font-weight:500; }}
+    .section-title-row {{ display:flex; align-items:center; gap:18px; margin:0 0 18px; }}
+    .section-title-row h2 {{ margin:0; flex:0 0 auto; font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--fume); }}
+    .section-title-row i {{ flex:1 1 auto; height:1px; background:linear-gradient(90deg, rgba(32,32,29,.72) 0 62px, transparent 62px 88px, rgba(32,32,29,.28) 88px 100%); }}
+    .details {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); border-top:1px solid var(--hair); border-inline-start:1px solid var(--line); }}
+    .detail {{ min-height:88px; padding:18px 18px 16px; border-inline-end:1px solid var(--line); border-bottom:1px solid var(--line); background:rgba(255,255,255,.94); }}
+    .detail span {{ display:block; color:var(--muted); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; }}
+    .detail strong {{ display:block; margin-top:10px; color:var(--ink); font-size:16px; overflow-wrap:anywhere; }}
+    .detail.is-emphasis {{ background:var(--fume-soft); }}
+    .note {{ margin-top:30px; padding:24px 26px; border:1px solid var(--hair); background:#fbfbf9; box-shadow:inset 0 1px 0 rgba(255,255,255,.8); }}
+    .note h2 {{ margin:0 0 10px; font-family:Georgia, "Times New Roman", serif; font-size:24px; font-weight:500; }}
     .note p {{ margin:0; color:var(--fume); }}
     .footer {{
-      padding:20px 42px 34px; border-top:1px solid var(--deep);
+      padding:20px 46px 34px; border-top:1px solid var(--hair);
       display:flex; justify-content:space-between; gap:18px; color:var(--muted); font-size:12px;
     }}
+    @page {{ size:A4; margin:0; }}
     @media(max-width:760px) {{
       .page {{ padding:16px; }}
-      .brand,.hero,.content,.footer {{ padding-left:22px; padding-right:22px; }}
-      .brand,.footer {{ flex-direction:column; }}
+      .sheet {{ min-height:0; }}
+      .letterhead,.hero,.content,.footer {{ padding-left:22px; padding-right:22px; }}
+      .letterhead,.footer {{ flex-direction:column; }}
       .doc-meta {{ text-align:start; }}
-      h1 {{ font-size:36px; }}
-      .status-line,.details {{ grid-template-columns:1fr; }}
+      .brand-name {{ font-size:34px; }}
+      .brand-place {{ letter-spacing:.32em; }}
+      h1 {{ font-size:31px; }}
+      .status-strip,.details {{ grid-template-columns:1fr; }}
       .status-cell {{ border-inline-end:none; border-bottom:1px solid var(--line); }}
       .status-cell:last-child {{ border-bottom:none; }}
     }}
     @media print {{
       body {{ background:#fff; }}
       .page {{ padding:0; max-width:none; }}
-      .sheet {{ box-shadow:none; border:none; }}
+      .sheet {{ box-shadow:none; border:none; width:794px; min-height:1123px; }}
     }}
   </style>
 </head>
 <body>
   <main class="page">
-    <article class="sheet" aria-label="{escape(labels["document_title"])}">
-      <header class="brand">
+    <article class="sheet {motif_class}" aria-label="{escape(labels["document_title"])}">
+      <div class="linework" aria-hidden="true">
+        <span class="lw-a"></span><span class="lw-b"></span><span class="lw-c"></span><span class="lw-d"></span><span class="lw-e"></span>
+      </div>
+      <header class="letterhead">
         <div class="brand-lockup">
           <div class="brand-name">{escape(brand_primary)}</div>
           <div class="brand-place">{escape(brand_place)}</div>
@@ -1043,10 +1204,11 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
       </header>
       <section class="hero">
         <div class="eyebrow">{escape(type_label)} · {escape(labels["confirmed_status"])}</div>
-        <h1>{escape(labels["confirmed"])}</h1>
+        <h1>{escape(document["title"])}</h1>
+        <p class="subtitle">{escape(document["subtitle"])}</p>
         <p class="intro">{escape(intro)}</p>
       </section>
-      <section class="status-line" aria-label="{escape(labels["confirmation_information"])}">
+      <section class="status-strip" aria-label="{escape(labels["confirmation_information"])}">
         <div class="status-cell"><span>{escape(labels["status"])}</span><strong>{escape(labels["confirmed_status"])}</strong></div>
         <div class="status-cell"><span>{escape(labels["guest"])}</span><strong>{escape(context.customer_name)}</strong></div>
         <div class="status-cell"><span>{escape(labels["generated_on"])}</span><strong>{escape(generated)}</strong></div>
@@ -1077,7 +1239,7 @@ def _render_section(section: ConfirmationSection) -> str:
         for item in section.items
     )
     return f"""<section class="section">
-          <h2>{escape(section.title)}</h2>
+          <div class="section-title-row"><h2>{escape(section.title)}</h2><i aria-hidden="true"></i></div>
           <div class="details">{rows}</div>
         </section>"""
 

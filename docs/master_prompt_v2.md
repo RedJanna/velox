@@ -583,10 +583,12 @@ Kapsam:
 - Form tipleri: `accommodation`, `restaurant`, `transfer`
 - Dil kaynagi: admin manuel secimi > conversation.language > `DEFAULT_LANGUAGE`
 - Icerik kaynagi: yalnizca ilgili hold/PMS-readback/tool ciktisi + HOTEL_PROFILE. Eksik bilgi uydurulmaz.
+- HTML tasarim dili: Kassandra Oludeniz logo/letterhead hissiyle uyumlu, A4 dikey, premium sade, beyaz/fume/siyah paletli, ince ve kirik/faded cizgi motifli belge gorunumu kullanilir.
+- Tip bazli icerik: konaklama stay detaylarini; restoran tarih/saat/kisi sayisi/alan/masa-tercihi/ozel gun/ozel talepleri; transfer transfer tipi/alis noktasi/birakis noktasi/guzergah/tarih/saat/yolcu/arac/ucus/notlari destekler.
+- Onay alanlari: her formda durum ve yetkili onayi form icinde gorunur; WhatsApp mesajinda HTML degil yalnizca guvenli link paylasilir.
 - Public URL: `PUBLIC_BASE_URL/confirmations/{unguessable_token}` formatindadir; local `127.0.0.1` linki musteriye gonderilmez.
 - Token DB'de plaintext tutulmaz; sadece HMAC hash + kisa prefix saklanir.
 - HTML snapshot 30 gun varsayilan sureyle aktif kalir; sure bitince veya revoke edilince public route 404 dondurur.
-- WhatsApp mesajinda HTML gonderilmez; tek kisa text mesaj icinde guvenli form linki paylasilir.
 
 Output:
 {

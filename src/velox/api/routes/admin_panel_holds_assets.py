@@ -258,9 +258,13 @@ function confirmationFieldConfig(type) {
       {name: 'party_size', label: 'Kişi Sayısı', type: 'number', required: true},
       {name: 'area', label: 'Alan', required: false},
       {name: 'table', label: 'Masa', required: false},
+      {name: 'occasion', label: 'Özel Gün', required: false},
       {name: 'notes', label: 'Notlar', multiline: true},
     ],
     transfer: [
+      {name: 'transfer_type', label: 'Transfer Tipi', required: false},
+      {name: 'pickup_location', label: 'Alış Noktası', required: false},
+      {name: 'dropoff_location', label: 'Bırakış Noktası', required: false},
       {name: 'route', label: 'Güzergâh', required: true},
       {name: 'date', label: 'Tarih', type: 'date', required: true},
       {name: 'time', label: 'Saat', type: 'time', required: false},
@@ -273,6 +277,14 @@ function confirmationFieldConfig(type) {
     ],
   };
   return {common: common, details: details[type] || details.accommodation};
+}
+
+function splitConfirmationRoute(value) {
+  const text = String(value || '').trim();
+  if (!text) return {pickup: '', dropoff: ''};
+  const parts = text.split(/\\s*(?:<->|->|→|↔|\\bto\\b| - | – | — )\\s*/i).filter(Boolean);
+  if (parts.length < 2) return {pickup: '', dropoff: ''};
+  return {pickup: parts[0] || '', dropoff: parts.slice(1).join(' ') || ''};
 }
 
 function confirmationFieldId(name) {
@@ -364,16 +376,21 @@ function fillConfirmationFromSelectedHold() {
       party_size: item.party_size || '',
       area: item.area || '',
       table: item.table_id || '',
+      occasion: item.occasion || '',
       notes: item.notes || '',
     });
     return;
   }
   const item = state.selectedTransferHold;
   if (!item) { notify('Seçili transfer kaydı yok.', 'warn'); return; }
+  const routeParts = splitConfirmationRoute(item.route || '');
   setConfirmationFieldValues({
     guest_name: item.guest_name || '',
     phone: item.phone || '',
     confirmation_no: item.hold_id || '',
+    transfer_type: item.transfer_type || item.service_type || '',
+    pickup_location: item.pickup_location || item.pickup || routeParts.pickup || '',
+    dropoff_location: item.dropoff_location || item.dropoff || routeParts.dropoff || '',
     route: item.route || '',
     date: item.date || '',
     time: item.time || '',
