@@ -121,6 +121,7 @@ COPY: dict[str, dict[str, str]] = {
         "transfer_details": "Transfer Details",
         "guest": "Guest",
         "phone": "Phone",
+        "email": "Email Address",
         "checkin": "Check-in",
         "checkout": "Check-out",
         "room": "Room",
@@ -167,6 +168,7 @@ COPY: dict[str, dict[str, str]] = {
         "transfer_details": "Transfer Detayları",
         "guest": "Misafir",
         "phone": "Telefon",
+        "email": "E-posta",
         "checkin": "Giriş",
         "checkout": "Çıkış",
         "room": "Oda",
@@ -213,6 +215,7 @@ COPY: dict[str, dict[str, str]] = {
         "transfer_details": "Детали трансфера",
         "guest": "Гость",
         "phone": "Телефон",
+        "email": "Электронная почта",
         "checkin": "Заезд",
         "checkout": "Выезд",
         "room": "Номер",
@@ -259,6 +262,7 @@ COPY: dict[str, dict[str, str]] = {
         "transfer_details": "Transferdetails",
         "guest": "Gast",
         "phone": "Telefon",
+        "email": "E-Mail-Adresse",
         "checkin": "Check-in",
         "checkout": "Check-out",
         "room": "Zimmer",
@@ -305,6 +309,7 @@ COPY: dict[str, dict[str, str]] = {
         "transfer_details": "تفاصيل النقل",
         "guest": "الضيف",
         "phone": "الهاتف",
+        "email": "البريد الإلكتروني",
         "checkin": "تسجيل الوصول",
         "checkout": "تسجيل المغادرة",
         "room": "الغرفة",
@@ -351,6 +356,7 @@ COPY: dict[str, dict[str, str]] = {
         "transfer_details": "Detalles del traslado",
         "guest": "Huésped",
         "phone": "Teléfono",
+        "email": "Correo electrónico",
         "checkin": "Llegada",
         "checkout": "Salida",
         "room": "Habitación",
@@ -397,6 +403,7 @@ COPY: dict[str, dict[str, str]] = {
         "transfer_details": "Détails du transfert",
         "guest": "Client",
         "phone": "Téléphone",
+        "email": "Adresse e-mail",
         "checkin": "Arrivée",
         "checkout": "Départ",
         "room": "Chambre",
@@ -443,6 +450,7 @@ COPY: dict[str, dict[str, str]] = {
         "transfer_details": "接送详情",
         "guest": "客人",
         "phone": "电话",
+        "email": "电子邮件",
         "checkin": "入住",
         "checkout": "退房",
         "room": "房型",
@@ -489,6 +497,7 @@ COPY: dict[str, dict[str, str]] = {
         "transfer_details": "ट्रांसफर विवरण",
         "guest": "अतिथि",
         "phone": "फोन",
+        "email": "ईमेल पता",
         "checkin": "चेक-इन",
         "checkout": "चेक-आउट",
         "room": "कमरा",
@@ -535,6 +544,7 @@ COPY: dict[str, dict[str, str]] = {
         "transfer_details": "Detalhes do transfer",
         "guest": "Hóspede",
         "phone": "Telefone",
+        "email": "E-mail",
         "checkin": "Check-in",
         "checkout": "Check-out",
         "room": "Quarto",
@@ -599,6 +609,7 @@ PROMPT_FIELD_LABELS: dict[str, dict[str, str]] = {
         "authorized_confirmation": "Authorized Confirmation",
         "guest_name": "Guest Name",
         "phone_number": "Phone Number",
+        "email": "Email Address",
         "reservation_date": "Reservation Date",
         "reservation_time": "Reservation Time",
         "restaurant_guest_count": "Number of Guests",
@@ -617,6 +628,7 @@ PROMPT_FIELD_LABELS: dict[str, dict[str, str]] = {
         "authorized_confirmation": "Yetkili Onayı / Authorized Confirmation",
         "guest_name": "Misafir Adı / Guest Name",
         "phone_number": "Telefon Numarası / Phone Number",
+        "email": "E-posta / Email Address",
         "reservation_date": "Rezervasyon Tarihi / Reservation Date",
         "reservation_time": "Rezervasyon Saati / Reservation Time",
         "restaurant_guest_count": "Kişi Sayısı / Number of Guests",
@@ -803,8 +815,7 @@ def _guest_count_label(draft: dict[str, Any], language: str) -> str:
 
 
 def _section(title: str, items: list[ConfirmationDetail]) -> ConfirmationSection:
-    filtered = tuple(item for item in items if item.value and item.value != "-")
-    return ConfirmationSection(title=title, items=filtered)
+    return ConfirmationSection(title=title, items=tuple(items))
 
 
 def build_context_from_hold(
@@ -837,6 +848,7 @@ def build_context_from_hold(
                 [
                     ConfirmationDetail(_prompt_label(normalized_language, "guest_name", labels["guest"]), customer_name, True),
                     ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), mask_phone(draft.get("phone"))),
+                    ConfirmationDetail(_prompt_label(normalized_language, "email", labels["email"]), _clean(draft.get("email"), "")),
                 ],
             ),
             _section(
@@ -879,6 +891,7 @@ def build_context_from_hold(
                 [
                     ConfirmationDetail(_prompt_label(normalized_language, "guest_name", labels["guest"]), customer_name, True),
                     ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), mask_phone(row.get("phone"))),
+                    ConfirmationDetail(_prompt_label(normalized_language, "email", labels["email"]), _clean(row.get("email"), "")),
                 ],
             ),
             _section(
@@ -916,6 +929,7 @@ def build_context_from_hold(
             [
                 ConfirmationDetail(_prompt_label(normalized_language, "guest_name", labels["guest"]), customer_name, True),
                 ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), mask_phone(row.get("phone"))),
+                ConfirmationDetail(_prompt_label(normalized_language, "email", labels["email"]), _clean(row.get("email"), "")),
             ],
         ),
         _section(
@@ -967,18 +981,18 @@ def build_context_from_manual_payload(
     hotel_name = _hotel_name(profile, normalized_language, hotel_id)
     customer = payload.get("customer") if isinstance(payload.get("customer"), dict) else {}
     details = payload.get("details") if isinstance(payload.get("details"), dict) else {}
-    customer_name = _clean(customer.get("guest_name") or payload.get("guest_name"))
+    customer_name = _clean(customer.get("guest_name") or payload.get("guest_name"), "")
     phone = customer.get("phone") or payload.get("phone")
-    confirmation_no = _clean(payload.get("confirmation_no") or details.get("confirmation_no"), "MANUAL-PREVIEW")
-    reference_id = _clean(payload.get("reference_id") or confirmation_no)
-    if customer_name == "-":
-        raise ValueError("guest_name_required")
+    email = customer.get("email") or payload.get("email")
+    confirmation_no = _clean(payload.get("confirmation_no") or details.get("confirmation_no"), "")
+    reference_id = _clean(payload.get("reference_id") or confirmation_no, "MANUAL-PREVIEW")
 
     customer_section = _section(
         labels["customer_information"],
         [
             ConfirmationDetail(_prompt_label(normalized_language, "guest_name", labels["guest"]), customer_name, True),
             ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), mask_phone(phone)),
+            ConfirmationDetail(_prompt_label(normalized_language, "email", labels["email"]), _clean(email, "")),
         ],
     )
 
@@ -1034,8 +1048,6 @@ def build_context_from_manual_payload(
     else:
         raise ValueError("unsupported_confirmation_form_type")
 
-    if not section.items:
-        raise ValueError("reservation_details_required")
     return ConfirmationContext(
         form_type=form_type,
         hotel_id=hotel_id,
@@ -1052,28 +1064,13 @@ def build_context_from_manual_payload(
 
 
 def render_confirmation_html(context: ConfirmationContext) -> str:
-    """Render a premium A4 confirmation form with ornamental linework."""
+    """Render a premium A4 line-form confirmation document."""
     labels = copy_for(context.language)
     dir_attr = "rtl" if context.language == "ar" else "ltr"
-    type_label = labels[context.form_type]
     document = _document_profile(context.form_type, context.language, labels)
-    confirmation_section = _section(
-        labels["confirmation_information"],
-        [
-            ConfirmationDetail(labels["status"], labels["confirmed_status"], True),
-            ConfirmationDetail(
-                _prompt_label(context.language, "authorized_confirmation", labels["confirmation_information"]),
-                context.hotel_name,
-                True,
-            ),
-        ],
-    )
-    field_html = _render_form_fields(context, confirmation_section, labels)
+    document_sections = _render_document_sections(context, labels)
     footer_note_html = _render_footer_note(context)
-    generated = _format_generated_at(context.generated_at)
-    brand_parts = context.hotel_name.split()
-    brand_primary = brand_parts[0] if brand_parts else context.hotel_name
-    brand_place = " ".join(brand_parts[1:]) if len(brand_parts) > 1 else context.hotel_name
+    brand_primary, brand_place = _brand_lockup_names(context.hotel_name)
     motif_class = f"motif-{context.form_type}"
     map_art = _render_map_linework()
     return f"""<!doctype html>
@@ -1085,9 +1082,9 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
   <title>{escape(context.hotel_name)} · {escape(document["title"])}</title>
   <style>
     :root {{
-      --paper:#fbfbf8; --page:#ecece7; --ink:#191916; --near:#11110f;
-      --blue:#203486; --fume:#373733; --muted:#74746f; --line:#b9bab4;
-      --soft-line:#deded8; --hair:#242421; --wash:rgba(255,255,255,.68);
+      --page:#ecebe5; --paper:#fbfaf6; --ink:#1c1c19; --near:#0f0f0d;
+      --fume:#3a3a35; --muted:#72706a; --line:#9f9c94; --soft-line:#dad7ce;
+      --hair:#242421; --wash:rgba(255,255,255,.52);
     }}
     * {{ box-sizing:border-box; }}
     body {{
@@ -1095,18 +1092,23 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
       font-family:"Avenir Next", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       line-height:1.45;
     }}
-    .page {{ max-width:900px; margin:0 auto; padding:32px 18px; }}
+    .page {{ max-width:900px; margin:0 auto; padding:24px 18px; }}
     .sheet {{
-      position:relative; overflow:hidden; isolation:isolate; background:var(--paper); color:var(--ink);
-      width:min(100%, 794px); min-height:1123px; margin:0 auto; padding:36px 44px 28px;
-      border:1px solid rgba(36,36,33,.72); box-shadow:0 26px 80px rgba(18,18,15,.12);
+      position:relative; overflow:hidden; isolation:isolate; color:var(--ink);
+      width:min(100%, 794px); min-height:1123px; margin:0 auto; padding:36px 48px 30px;
+      border:1px solid rgba(36,36,33,.74); box-shadow:0 26px 80px rgba(18,18,15,.13);
+      background:
+        linear-gradient(90deg, rgba(36,36,33,.03) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(36,36,33,.025) 1px, transparent 1px),
+        var(--paper);
+      background-size:38px 38px, 38px 38px, auto;
     }}
     .sheet::before {{
-      content:""; position:absolute; inset:7px; border:1px solid rgba(36,36,33,.5);
+      content:""; position:absolute; inset:9px; border:1px solid rgba(36,36,33,.46);
       pointer-events:none; z-index:0;
     }}
     .sheet::after {{
-      content:""; position:absolute; inset:14px; border:1px solid rgba(36,36,33,.22);
+      content:""; position:absolute; inset:17px; border:1px solid rgba(36,36,33,.18);
       pointer-events:none; z-index:0;
     }}
     .corner {{ position:absolute; z-index:2; width:34px; height:34px; pointer-events:none; }}
@@ -1114,79 +1116,97 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
     .corner-tr {{ top:7px; right:7px; border-top:2px solid rgba(36,36,33,.56); border-right:2px solid rgba(36,36,33,.56); border-top-right-radius:24px; }}
     .corner-bl {{ bottom:7px; left:7px; border-bottom:2px solid rgba(36,36,33,.56); border-left:2px solid rgba(36,36,33,.56); border-bottom-left-radius:24px; }}
     .corner-br {{ bottom:7px; right:7px; border-bottom:2px solid rgba(36,36,33,.56); border-right:2px solid rgba(36,36,33,.56); border-bottom-right-radius:24px; }}
-    .linework,.map-art {{ position:absolute; inset:0; pointer-events:none; z-index:0; color:rgba(35,35,32,.42); }}
-    .linework .route-left {{ position:absolute; left:16px; top:640px; width:64px; height:215px; border-left:1px dashed rgba(36,36,33,.42); border-radius:50%; transform:rotate(5deg); }}
-    .linework .route-right {{ position:absolute; right:11px; top:515px; width:64px; height:250px; border-right:1px dashed rgba(36,36,33,.42); border-radius:50%; transform:rotate(-6deg); }}
+    .linework,.map-art {{ position:absolute; inset:0; pointer-events:none; z-index:0; color:rgba(35,35,32,.34); }}
+    .linework .route-left {{ position:absolute; left:18px; top:18px; width:128px; height:128px; border-top:1px dashed rgba(36,36,33,.32); border-left:1px dashed rgba(36,36,33,.28); border-radius:50%; }}
+    .linework .route-right {{ position:absolute; right:20px; top:500px; width:64px; height:250px; border-right:1px dashed rgba(36,36,33,.36); border-radius:50%; transform:rotate(-6deg); }}
     .linework .pin {{ position:absolute; width:15px; height:15px; border:1px solid rgba(36,36,33,.62); border-radius:50%; }}
     .linework .pin::after {{ content:""; position:absolute; inset:4px; border-radius:50%; background:rgba(36,36,33,.48); }}
-    .linework .pin-a {{ top:642px; left:25px; }}
-    .linework .pin-b {{ right:55px; top:118px; }}
+    .linework .pin-a {{ top:640px; left:24px; }}
+    .linework .pin-b {{ right:54px; top:116px; }}
     .linework .arrow {{ position:absolute; width:0; height:0; border-top:7px solid transparent; border-bottom:7px solid transparent; border-left:9px solid rgba(36,36,33,.48); }}
-    .linework .arrow-right {{ right:36px; top:688px; transform:rotate(106deg); }}
+    .linework .arrow-right {{ right:35px; top:680px; transform:rotate(106deg); }}
+    .starburst {{ position:absolute; top:62px; right:78px; width:56px; height:56px; z-index:1; opacity:.55; }}
+    .starburst::before {{
+      content:""; position:absolute; inset:0; border-radius:50%;
+      background:repeating-conic-gradient(from 0deg, rgba(36,36,33,.56) 0deg 4deg, transparent 4deg 12deg);
+      -webkit-mask:radial-gradient(circle, transparent 0 7px, #000 8px 29px, transparent 30px);
+      mask:radial-gradient(circle, transparent 0 7px, #000 8px 29px, transparent 30px);
+    }}
+    .starburst::after {{ content:""; position:absolute; inset:22px; border:1px solid rgba(36,36,33,.65); border-radius:50%; background:var(--paper); }}
     .decor-map {{ position:absolute; opacity:.55; }}
     .decor-map path,.decor-map circle,.decor-map line {{ fill:none; stroke:currentColor; stroke-width:1; }}
     .decor-map .thin {{ opacity:.35; }}
     .decor-map .dash {{ stroke-dasharray:6 7; opacity:.54; }}
     .decor-map.top {{ top:-18px; right:-6px; width:375px; height:210px; }}
     .decor-map.bottom {{ left:-28px; bottom:-4px; width:360px; height:235px; transform:rotate(-2deg); }}
-    .decor-dots {{ position:absolute; right:86px; bottom:96px; width:86px; height:86px; opacity:.33; background-image:radial-gradient(rgba(36,36,33,.45) 1.2px, transparent 1.2px); background-size:12px 12px; transform:rotate(-15deg); }}
-    .letterhead,.hero,.form-grid,.confirmation-note,.doc-footer {{ position:relative; z-index:1; }}
-    .letterhead {{
-      min-height:132px; display:flex; justify-content:space-between; gap:24px; align-items:flex-start;
+    .decor-dots {{ position:absolute; right:86px; bottom:96px; width:86px; height:86px; opacity:.24; background-image:radial-gradient(rgba(36,36,33,.42) 1.2px, transparent 1.2px); background-size:12px 12px; transform:rotate(-15deg); }}
+    .letterhead,.hero,.document-body,.confirmation-note,.doc-footer {{ position:relative; z-index:1; }}
+    .letterhead {{ display:flex; justify-content:center; align-items:center; min-height:112px; padding-top:2px; }}
+    .brand-lockup {{
+      min-width:300px; max-width:360px; padding:10px 24px 13px; text-align:center;
+      border:1px solid rgba(36,36,33,.58); background:rgba(251,250,246,.72);
     }}
-    .brand-lockup {{ min-width:250px; color:var(--blue); }}
     .brand-name {{
-      font-family:Georgia, "Times New Roman", serif; font-size:45px; line-height:.78;
-      letter-spacing:0; text-transform:uppercase; color:var(--blue); font-weight:700;
+      font-family:Georgia, "Times New Roman", serif; font-size:43px; line-height:.9;
+      letter-spacing:0; text-transform:uppercase; color:var(--near); font-weight:700;
     }}
     .brand-place {{
-      display:block; margin-top:16px; padding-left:92px;
-      font-size:14px; letter-spacing:0; text-transform:uppercase; color:var(--blue); font-weight:800;
+      display:block; margin-top:5px; font-size:12px; letter-spacing:0;
+      text-transform:uppercase; color:var(--fume); font-weight:700;
     }}
-    .doc-meta {{ min-width:170px; text-align:end; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:0; }}
-    .doc-meta strong {{ display:block; color:var(--near); font-size:13px; letter-spacing:0; margin-top:8px; text-transform:none; }}
-    .divider {{ position:relative; height:1px; margin:2px 0 32px; background:rgba(36,36,33,.46); }}
-    .divider::after,.mini-divider::after {{ content:"✦"; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:var(--hair); background:var(--paper); padding:0 12px; font-size:15px; line-height:1; }}
-    .hero {{ text-align:center; margin-bottom:26px; }}
-    .eyebrow {{ color:var(--muted); font-size:10px; letter-spacing:0; text-transform:uppercase; font-weight:800; }}
+    .divider {{ position:relative; height:1px; margin:14px 0 30px; background:rgba(36,36,33,.46); }}
+    .divider::after,.mini-divider::after,.footer-seal::before {{ content:"✦"; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:var(--hair); background:var(--paper); padding:0 12px; font-size:15px; line-height:1; }}
+    .hero {{ text-align:center; margin-bottom:22px; }}
     h1 {{
-      margin:0 auto 8px; max-width:704px; font-family:Georgia, "Times New Roman", serif;
-      font-size:31px; line-height:1.08; font-weight:500; letter-spacing:0; color:var(--near);
-      text-transform:uppercase; text-shadow:0 4px 10px rgba(17,17,14,.12);
+      margin:0 auto 5px; max-width:704px; font-family:Georgia, "Times New Roman", serif;
+      font-size:27px; line-height:1.13; font-weight:500; letter-spacing:0; color:var(--near);
+      text-transform:uppercase;
     }}
-    .subtitle {{ margin:0; color:var(--fume); font-size:17px; letter-spacing:0; }}
-    .mini-divider {{ position:relative; width:350px; max-width:68%; height:1px; margin:22px auto 0; background:rgba(36,36,33,.46); }}
-    .form-grid {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; max-width:684px; margin:0 auto; }}
-    .form-field {{
-      min-height:61px; padding:10px 14px 9px; border:1px solid rgba(36,36,33,.34);
-      border-radius:8px; background:var(--wash); box-shadow:0 8px 22px rgba(20,20,18,.025);
-    }}
-    .form-field.span-half {{ grid-column:span 3; }}
-    .form-field.span-third {{ grid-column:span 2; }}
-    .form-field.span-full {{ grid-column:span 6; }}
-    .form-field.is-notes {{ min-height:78px; }}
-    .form-field.is-emphasis {{ background:rgba(246,246,242,.82); border-color:rgba(36,36,33,.43); }}
-    .field-label {{ color:var(--near); font-size:14px; font-weight:600; letter-spacing:0; }}
-    .field-label em {{ color:#858580; font-size:11px; font-style:italic; font-weight:500; }}
-    .field-value {{ margin-top:8px; color:var(--near); font-size:15px; font-weight:650; overflow-wrap:anywhere; }}
-    .confirmation-note {{ max-width:600px; margin:20px auto 0; text-align:center; color:var(--fume); }}
-    .confirmation-note .note-line {{ position:relative; height:1px; width:378px; max-width:72%; margin:0 auto 18px; background:rgba(36,36,33,.48); }}
+    .subtitle {{ margin:0; color:var(--fume); font-size:14px; font-style:italic; letter-spacing:0; }}
+    .mini-divider {{ position:relative; width:206px; max-width:58%; height:1px; margin:18px auto 0; background:rgba(36,36,33,.46); }}
+    .document-body {{ max-width:670px; margin:0 auto; }}
+    .document-section {{ margin:0 0 16px; }}
+    .section-heading {{ display:flex; align-items:center; gap:10px; margin:0 0 9px; color:var(--near); }}
+    .section-star {{ font-size:14px; line-height:1; }}
+    .section-number {{ font-size:10px; font-weight:700; min-width:15px; }}
+    .section-title {{ margin:0; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0; white-space:nowrap; }}
+    .section-rule {{ flex:1; height:1px; border-top:1px dotted rgba(36,36,33,.42); position:relative; }}
+    .section-rule::after {{ content:""; position:absolute; right:0; top:-2px; width:28px; border-top:1px solid rgba(36,36,33,.68); transform:skewX(-28deg); }}
+    .document-fields {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:28px; row-gap:9px; }}
+    .section-status .document-fields {{ grid-template-columns:repeat(3,minmax(0,1fr)); column-gap:22px; }}
+    .line-field {{ display:grid; grid-template-columns:minmax(92px,auto) 12px minmax(70px,1fr); align-items:end; min-height:23px; break-inside:avoid; }}
+    .line-label {{ color:var(--fume); font-size:11px; font-family:Georgia, "Times New Roman", serif; font-style:italic; white-space:nowrap; }}
+    .line-label em {{ color:#84817a; font-size:10px; font-style:italic; }}
+    .line-colon {{ color:var(--fume); font-size:11px; text-align:center; }}
+    .line-value {{ min-height:18px; border-bottom:1px solid var(--soft-line); color:var(--near); font-size:12px; font-weight:600; overflow-wrap:anywhere; padding:0 4px 2px; }}
+    .line-field.is-wide {{ grid-column:1 / -1; }}
+    .line-field.is-emphasis .line-value {{ border-bottom-color:var(--line); }}
+    .notes-box {{ position:relative; min-height:68px; border:1px solid rgba(36,36,33,.44); background:var(--wash); padding:10px 16px 10px; }}
+    .notes-box::before,.notes-box::after {{ content:""; position:absolute; width:15px; height:15px; border-color:rgba(36,36,33,.55); }}
+    .notes-box::before {{ top:-1px; left:-1px; border-top:1px solid; border-left:1px solid; }}
+    .notes-box::after {{ right:-1px; bottom:-1px; border-right:1px solid; border-bottom:1px solid; }}
+    .notes-label {{ display:block; color:var(--fume); font-size:11px; font-family:Georgia, "Times New Roman", serif; font-style:italic; margin-bottom:8px; }}
+    .notes-label em {{ color:#84817a; font-size:10px; }}
+    .notes-text {{ margin:0; min-height:44px; color:var(--near); font-size:12px; font-weight:600; white-space:pre-wrap; overflow-wrap:anywhere; }}
+    .note-lines {{ height:40px; background:repeating-linear-gradient(to bottom, transparent 0 15px, var(--soft-line) 15px 16px); }}
+    .footer-seal {{ width:70px; height:70px; margin:6px auto 0; border:1px solid rgba(36,36,33,.52); display:flex; align-items:center; justify-content:center; position:relative; color:var(--near); font-family:Georgia, "Times New Roman", serif; font-size:38px; background:rgba(251,250,246,.84); }}
+    .footer-seal::before {{ top:0; background:transparent; font-size:13px; }}
+    .confirmation-note {{ max-width:600px; margin:8px auto 0; text-align:center; color:var(--fume); }}
+    .confirmation-note .note-line {{ position:relative; height:1px; width:378px; max-width:72%; margin:0 auto 12px; background:rgba(36,36,33,.48); }}
     .confirmation-note .note-line::after,.confirmation-note .note-mark::after {{ content:"✦"; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:var(--paper); padding:0 12px; color:var(--hair); font-size:14px; }}
-    .confirmation-note p {{ margin:0 auto 12px; font-size:13px; line-height:1.5; max-width:540px; }}
-    .confirmation-note .note-secondary {{ color:#777772; font-size:12px; }}
+    .confirmation-note p {{ margin:0 auto 7px; font-size:11px; line-height:1.45; max-width:540px; }}
+    .confirmation-note .note-secondary {{ color:#777772; font-size:11px; }}
     .confirmation-note .note-mark {{ position:relative; width:82px; height:1px; margin:6px auto 0; background:rgba(36,36,33,.42); }}
-    .doc-footer {{ margin:18px auto 0; max-width:684px; display:flex; justify-content:space-between; gap:14px; color:#787872; font-size:10px; }}
+    .doc-footer {{ margin:12px auto 0; max-width:684px; display:flex; justify-content:space-between; gap:14px; color:#787872; font-size:9px; text-transform:uppercase; letter-spacing:0; }}
     @page {{ size:A4; margin:0; }}
     @media(max-width:760px) {{
       .page {{ padding:16px; }}
-      .sheet {{ min-height:0; padding:36px 22px 30px; }}
-      .letterhead,.footer {{ flex-direction:column; }}
-      .doc-meta {{ text-align:start; }}
-      .brand-name {{ font-size:37px; }}
-      .brand-place {{ padding-left:52px; letter-spacing:0; }}
-      h1 {{ font-size:30px; }}
-      .form-grid {{ grid-template-columns:1fr; }}
-      .form-field.span-half,.form-field.span-third,.form-field.span-full {{ grid-column:span 1; }}
+      .sheet {{ min-height:0; padding:34px 24px 30px; }}
+      .brand-lockup {{ min-width:0; width:78%; padding:9px 14px 12px; }}
+      .brand-name {{ font-size:33px; }}
+      h1 {{ font-size:23px; }}
+      .document-fields,.section-status .document-fields {{ grid-template-columns:1fr; }}
+      .line-field.is-wide {{ grid-column:auto; }}
       .doc-footer {{ flex-direction:column; }}
     }}
     @media print {{
@@ -1204,36 +1224,31 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
       <div class="linework" aria-hidden="true">
         <span class="route-left"></span><span class="route-right"></span><span class="pin pin-a"></span><span class="pin pin-b"></span><span class="arrow arrow-right"></span><span class="decor-dots"></span>
       </div>
+      <span class="starburst" aria-hidden="true"></span>
       <header class="letterhead">
         <div class="brand-lockup">
           <div class="brand-name">{escape(brand_primary)}</div>
           <div class="brand-place">{escape(brand_place)}</div>
         </div>
-        <div class="doc-meta">
-          <span>{escape(labels["confirmation_no"])}</span>
-          <strong>{escape(context.confirmation_no)}</strong>
-          <span>{escape(labels["generated_on"])}</span>
-          <strong>{escape(generated)}</strong>
-        </div>
       </header>
       <div class="divider" aria-hidden="true"></div>
       <section class="hero">
-        <div class="eyebrow">{escape(type_label)} · {escape(labels["confirmed_status"])}</div>
         <h1>{escape(document["title"])}</h1>
         <p class="subtitle">{escape(document["subtitle"])}</p>
         <div class="mini-divider" aria-hidden="true"></div>
       </section>
-      <section class="form-grid" aria-label="{escape(labels["confirmation_information"])}">
-        {field_html}
+      <section class="document-body" aria-label="{escape(labels["confirmation_information"])}">
+        {document_sections}
       </section>
       <section class="confirmation-note">
         <div class="note-line" aria-hidden="true"></div>
         {footer_note_html}
         <div class="note-mark" aria-hidden="true"></div>
+        <div class="footer-seal" aria-hidden="true">{escape(brand_primary[:1].upper() or "K")}</div>
       </section>
       <footer class="doc-footer">
         <span>{escape(context.hotel_name)}</span>
-        <span>{escape(labels["secure_notice"])}</span>
+        <span>{escape(_document_extra_label(context.language, "official_document"))}</span>
       </footer>
     </article>
   </main>
@@ -1241,63 +1256,213 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
 </html>"""
 
 
-def _render_form_fields(
+def _render_document_sections(
     context: ConfirmationContext,
-    confirmation_section: ConfirmationSection,
     labels: dict[str, str],
 ) -> str:
-    fields: list[ConfirmationDetail] = []
-    for section in context.sections:
-        fields.extend(section.items)
-    fields.extend(confirmation_section.items)
-    fields = _filter_layout_fields(context.form_type, fields, labels)
-    return "\n".join(_render_form_field(context.form_type, item, labels) for item in fields)
+    customer_section = context.sections[0] if context.sections else _section(labels["customer_information"], [])
+    detail_section = context.sections[1] if len(context.sections) > 1 else _section(labels["confirmation_information"], [])
+    detail_items = tuple(item for item in detail_section.items if not _is_note_label(item.label, labels))
+    notes_item = _extract_note_item(detail_section.items, labels)
+    status_section = _build_status_section(context, detail_items, labels)
+    authorization_section = _build_authorization_section(context, labels)
+    sections = (
+        (1, customer_section.title, customer_section.items, "section-customer"),
+        (2, detail_section.title, detail_items, "section-details"),
+        (3, status_section.title, status_section.items, "section-status"),
+        (4, _document_extra_label(context.language, "notes_requests"), (notes_item,), "section-notes"),
+        (5, authorization_section.title, authorization_section.items, "section-authorization"),
+    )
+    return "\n".join(
+        _render_document_section(context.language, number, title, items, class_name, labels)
+        for number, title, items, class_name in sections
+    )
 
 
-def _filter_layout_fields(
-    form_type: ConfirmationFormType,
-    fields: list[ConfirmationDetail],
+def _render_document_section(
+    language: str,
+    number: int,
+    title: str,
+    items: tuple[ConfirmationDetail, ...],
+    class_name: str,
     labels: dict[str, str],
-) -> list[ConfirmationDetail]:
-    if form_type != "transfer":
-        return fields
-    has_pickup = any(_label_contains(field.label, "pickup", "alış") for field in fields)
-    has_dropoff = any(_label_contains(field.label, "drop", "bırak") for field in fields)
-    if not (has_pickup and has_dropoff):
-        return fields
-    return [field for field in fields if field.label != labels["route"]]
+) -> str:
+    heading = (
+        '<div class="section-heading">'
+        '<span class="section-star">✦</span>'
+        f'<span class="section-number">{number}.</span>'
+        f'<h2 class="section-title">{escape(title)}</h2>'
+        '<span class="section-rule" aria-hidden="true"></span>'
+        "</div>"
+    )
+    if class_name == "section-notes":
+        body = _render_notes_box(items[0] if items else ConfirmationDetail(labels["notes"], ""))
+    else:
+        body = '<div class="document-fields">' + "\n".join(_render_line_field(item, labels) for item in items) + "</div>"
+    return f'<section class="document-section {class_name}" lang="{escape(language)}">{heading}{body}</section>'
 
 
-def _render_form_field(form_type: ConfirmationFormType, item: ConfirmationDetail, labels: dict[str, str]) -> str:
-    span_class = _field_span_class(form_type, item.label, labels)
-    note_class = " is-notes" if _is_note_label(item.label, labels) else ""
+def _render_line_field(item: ConfirmationDetail, labels: dict[str, str]) -> str:
     emphasis_class = " is-emphasis" if item.emphasis else ""
+    wide_class = " is-wide" if _is_wide_line_field(item.label, labels) else ""
     main_label, hint_label = _split_field_label(item.label)
     hint_html = f" <em>/ {escape(hint_label)}</em>" if hint_label else ""
+    value = escape(_display_value(item.value)) or "&nbsp;"
     return (
-        f'<div class="form-field {span_class}{note_class}{emphasis_class}">'
-        f'<div class="field-label"><span>{escape(main_label)}</span>{hint_html}</div>'
-        f'<div class="field-value">{escape(item.value)}</div>'
+        f'<div class="line-field{wide_class}{emphasis_class}">'
+        f'<span class="line-label">{escape(main_label)}{hint_html}</span>'
+        '<span class="line-colon">:</span>'
+        f'<span class="line-value">{value}</span>'
         "</div>"
     )
 
 
-def _field_span_class(form_type: ConfirmationFormType, label: str, labels: dict[str, str]) -> str:
-    if _is_note_label(label, labels):
-        return "span-full"
-    if form_type == "transfer":
-        if _label_contains(label, "transfer type", "transfer tipi", labels["route"]):
-            return "span-full"
-        if _label_contains(label, "date", "time", "number of guests", "kişi sayısı", labels["date"], labels["time"], labels["pax"]):
-            return "span-third"
-        return "span-half"
-    if form_type == "restaurant":
-        if _label_contains(label, "date", "time", "number of guests", "kişi sayısı", labels["date"], labels["time"], labels["party_size"]):
-            return "span-third"
-        return "span-half"
-    if _label_contains(label, labels["guests"], labels["total"], labels["policy"]):
-        return "span-third"
-    return "span-half"
+def _render_notes_box(item: ConfirmationDetail) -> str:
+    main_label, hint_label = _split_field_label(item.label)
+    hint_html = f" <em>/ {escape(hint_label)}</em>" if hint_label else ""
+    value = _display_value(item.value)
+    content = f'<p class="notes-text">{escape(value)}</p>' if value else '<div class="note-lines" aria-hidden="true"></div>'
+    return f'<div class="notes-box"><span class="notes-label">{escape(main_label)}{hint_html}</span>{content}</div>'
+
+
+def _build_status_section(
+    context: ConfirmationContext,
+    detail_items: tuple[ConfirmationDetail, ...],
+    labels: dict[str, str],
+) -> ConfirmationSection:
+    total_or_price = _field_value(detail_items, labels["total"], labels["price"], "total", "price", "fiyat")
+    payment_status_label = _document_extra_label(context.language, "payment_status")
+    title_key = "payment_status_section" if context.form_type == "accommodation" else "status_section"
+    items = [
+        ConfirmationDetail(_document_extra_label(context.language, "reservation_number"), context.confirmation_no, True),
+        ConfirmationDetail(_document_extra_label(context.language, "reservation_status"), labels["confirmed_status"], True),
+    ]
+    if context.form_type == "accommodation":
+        items.extend(
+            [
+                ConfirmationDetail(_document_extra_label(context.language, "number_of_nights"), _night_count(detail_items, labels)),
+                ConfirmationDetail(payment_status_label, ""),
+                ConfirmationDetail(_document_extra_label(context.language, "total_amount"), total_or_price, True),
+                ConfirmationDetail(_document_extra_label(context.language, "deposit"), ""),
+                ConfirmationDetail(_document_extra_label(context.language, "balance_due"), ""),
+            ]
+        )
+    else:
+        items.extend(
+            [
+                ConfirmationDetail(_document_extra_label(context.language, "total_amount"), total_or_price, True),
+            ]
+        )
+    return ConfirmationSection(title=_document_extra_label(context.language, title_key), items=tuple(items))
+
+
+def _build_authorization_section(context: ConfirmationContext, labels: dict[str, str]) -> ConfirmationSection:
+    return ConfirmationSection(
+        title=_document_extra_label(context.language, "authorization"),
+        items=(
+            ConfirmationDetail(_document_extra_label(context.language, "prepared_by"), context.hotel_name),
+            ConfirmationDetail(_document_extra_label(context.language, "date"), _format_generated_at(context.generated_at)),
+            ConfirmationDetail(_prompt_label(context.language, "authorized_confirmation", labels["confirmation_information"]), context.hotel_name, True),
+            ConfirmationDetail(_document_extra_label(context.language, "signature"), ""),
+        ),
+    )
+
+
+def _extract_note_item(items: tuple[ConfirmationDetail, ...], labels: dict[str, str]) -> ConfirmationDetail:
+    for item in items:
+        if _is_note_label(item.label, labels):
+            return item
+    return ConfirmationDetail(labels["notes"], "")
+
+
+def _display_value(value: str) -> str:
+    return "" if not value or value == "-" else value
+
+
+def _is_wide_line_field(label: str, labels: dict[str, str]) -> bool:
+    return _label_contains(label, labels["route"], "transfer type", "transfer tipi", "pickup", "drop-off")
+
+
+def _field_value(items: tuple[ConfirmationDetail, ...], *needles: str) -> str:
+    for item in items:
+        if _label_contains(item.label, *needles):
+            value = _display_value(item.value)
+            if value:
+                return value
+    return ""
+
+
+def _night_count(items: tuple[ConfirmationDetail, ...], labels: dict[str, str]) -> str:
+    checkin = _parse_display_date(_field_value(items, labels["checkin"], "check-in", "giriş"))
+    checkout = _parse_display_date(_field_value(items, labels["checkout"], "check-out", "çıkış"))
+    if not checkin or not checkout:
+        return ""
+    nights = (checkout - checkin).days
+    return str(nights) if nights > 0 else ""
+
+
+def _parse_display_date(value: str) -> datetime | None:
+    if not value:
+        return None
+    for date_format in ("%d.%m.%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(value, date_format)  # noqa: DTZ007
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _brand_lockup_names(hotel_name: str) -> tuple[str, str]:
+    parts = hotel_name.split()
+    if not parts:
+        return hotel_name, hotel_name
+    primary = parts[0]
+    place = " ".join(parts[1:]) or hotel_name
+    return primary, place
+
+
+def _document_extra_label(language: str, key: str) -> str:
+    labels = {
+        "en": {
+            "payment_status_section": "Payment & Status",
+            "status_section": "Reservation Status",
+            "notes_requests": "Special Notes / Requests",
+            "authorization": "Authorization",
+            "reservation_number": "Reservation Number",
+            "reservation_status": "Reservation Status",
+            "payment_status": "Payment Status",
+            "total_amount": "Total Amount",
+            "number_of_nights": "Number of Nights",
+            "deposit": "Deposit",
+            "balance_due": "Balance Due",
+            "prepared_by": "Prepared By",
+            "date": "Date",
+            "signature": "Signature",
+            "official_document": "Official Reservation Document",
+        },
+        "tr": {
+            "payment_status_section": "Ödeme ve Durum",
+            "status_section": "Rezervasyon Durumu",
+            "notes_requests": "Özel Notlar / Talepler",
+            "authorization": "Yetkilendirme",
+            "reservation_number": "Rezervasyon Numarası",
+            "reservation_status": "Rezervasyon Durumu",
+            "payment_status": "Ödeme Durumu",
+            "total_amount": "Toplam Tutar",
+            "number_of_nights": "Gece Sayısı",
+            "deposit": "Depozito",
+            "balance_due": "Kalan Tutar",
+            "prepared_by": "Hazırlayan",
+            "date": "Tarih",
+            "signature": "İmza",
+            "official_document": "Resmi Rezervasyon Belgesi",
+        },
+    }
+    selected = labels.get(normalize_language(language), labels["en"])
+    return selected.get(key, labels["en"][key])
 
 
 def _is_note_label(label: str, labels: dict[str, str]) -> bool:

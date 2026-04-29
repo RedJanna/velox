@@ -237,25 +237,26 @@ function formatHoldSummary(item) {
 // ---------------------------------------------------------------------------
 function confirmationFieldConfig(type) {
   const common = [
-    {name: 'guest_name', label: 'Misafir Adı', required: true},
-    {name: 'phone', label: 'Telefon', required: true},
+    {name: 'guest_name', label: 'Misafir Adı', required: false},
+    {name: 'phone', label: 'Telefon', required: false},
+    {name: 'email', label: 'E-posta', required: false},
     {name: 'confirmation_no', label: 'Onay No.', required: false},
   ];
   const details = {
     accommodation: [
-      {name: 'checkin_date', label: 'Giriş Tarihi', type: 'date', required: true},
-      {name: 'checkout_date', label: 'Çıkış Tarihi', type: 'date', required: true},
-      {name: 'room', label: 'Oda', required: true},
+      {name: 'checkin_date', label: 'Giriş Tarihi', type: 'date', required: false},
+      {name: 'checkout_date', label: 'Çıkış Tarihi', type: 'date', required: false},
+      {name: 'room', label: 'Oda', required: false},
       {name: 'board', label: 'Pansiyon', required: false},
-      {name: 'guests', label: 'Kişi', required: true},
+      {name: 'guests', label: 'Kişi', required: false},
       {name: 'total', label: 'Toplam', required: false},
       {name: 'policy', label: 'Politika', required: false},
       {name: 'notes', label: 'Notlar', multiline: true},
     ],
     restaurant: [
-      {name: 'date', label: 'Tarih', type: 'date', required: true},
-      {name: 'time', label: 'Saat', type: 'time', required: true},
-      {name: 'party_size', label: 'Kişi Sayısı', type: 'number', required: true},
+      {name: 'date', label: 'Tarih', type: 'date', required: false},
+      {name: 'time', label: 'Saat', type: 'time', required: false},
+      {name: 'party_size', label: 'Kişi Sayısı', type: 'number', required: false},
       {name: 'area', label: 'Alan', required: false},
       {name: 'table', label: 'Masa', required: false},
       {name: 'occasion', label: 'Özel Gün', required: false},
@@ -265,10 +266,10 @@ function confirmationFieldConfig(type) {
       {name: 'transfer_type', label: 'Transfer Tipi', required: false},
       {name: 'pickup_location', label: 'Alış Noktası', required: false},
       {name: 'dropoff_location', label: 'Bırakış Noktası', required: false},
-      {name: 'route', label: 'Güzergâh', required: true},
-      {name: 'date', label: 'Tarih', type: 'date', required: true},
+      {name: 'route', label: 'Güzergâh', required: false},
+      {name: 'date', label: 'Tarih', type: 'date', required: false},
       {name: 'time', label: 'Saat', type: 'time', required: false},
-      {name: 'pax', label: 'Yolcu', type: 'number', required: true},
+      {name: 'pax', label: 'Yolcu', type: 'number', required: false},
       {name: 'flight_no', label: 'Uçuş', required: false},
       {name: 'vehicle', label: 'Araç', required: false},
       {name: 'baby_seat', label: 'Bebek Koltuğu', required: false},
@@ -352,6 +353,7 @@ function fillConfirmationFromSelectedHold() {
     setConfirmationFieldValues({
       guest_name: draft.guest_name || '',
       phone: draft.phone || '',
+      email: draft.email || '',
       confirmation_no: item.reservation_no || item.voucher_no || item.hold_id || '',
       checkin_date: draft.checkin_date || '',
       checkout_date: draft.checkout_date || '',
@@ -370,6 +372,7 @@ function fillConfirmationFromSelectedHold() {
     setConfirmationFieldValues({
       guest_name: item.guest_name || '',
       phone: item.phone || '',
+      email: item.email || '',
       confirmation_no: item.hold_id || '',
       date: item.date || '',
       time: item.time || '',
@@ -387,6 +390,7 @@ function fillConfirmationFromSelectedHold() {
   setConfirmationFieldValues({
     guest_name: item.guest_name || '',
     phone: item.phone || '',
+    email: item.email || '',
     confirmation_no: item.hold_id || '',
     transfer_type: item.transfer_type || item.service_type || '',
     pickup_location: item.pickup_location || item.pickup || routeParts.pickup || '',
@@ -403,19 +407,22 @@ function fillConfirmationFromSelectedHold() {
   });
 }
 
-function collectConfirmationPayload() {
+function collectConfirmationPayload(validateRequired) {
   const type = state.confirmationFormType || 'accommodation';
   const config = confirmationFieldConfig(type);
+  const shouldValidate = validateRequired !== false;
   const values = {};
   document.querySelectorAll('[data-confirmation-field]').forEach(function(input) {
     values[input.dataset.confirmationField] = input.value.trim();
   });
-  if (!values.guest_name) { notify('Misafir adı zorunlu.', 'warn'); return null; }
-  if (!values.phone) { notify('Telefon zorunlu.', 'warn'); return null; }
-  for (const field of config.details) {
-    if (field.required && !values[field.name]) {
-      notify(field.label + ' zorunlu.', 'warn');
-      return null;
+  if (shouldValidate) {
+    if (!values.guest_name) { notify('Misafir adı zorunlu.', 'warn'); return null; }
+    if (!values.phone) { notify('Telefon zorunlu.', 'warn'); return null; }
+    for (const field of config.details) {
+      if (field.required && !values[field.name]) {
+        notify(field.label + ' zorunlu.', 'warn');
+        return null;
+      }
     }
   }
   const details = {};
@@ -425,15 +432,16 @@ function collectConfirmationPayload() {
   return {
     confirmation_no: values.confirmation_no || '',
     customer: {
-      guest_name: values.guest_name,
-      phone: values.phone,
+      guest_name: values.guest_name || '',
+      phone: values.phone || '',
+      email: values.email || '',
     },
     details: details,
   };
 }
 
 async function previewConfirmationForm() {
-  const payload = collectConfirmationPayload();
+  const payload = collectConfirmationPayload(false);
   if (!payload) return;
   try {
     const data = await apiFetch('/confirmation-forms/preview', {
@@ -454,7 +462,7 @@ async function previewConfirmationForm() {
 }
 
 async function generateConfirmationForm(sendToCustomer) {
-  const payload = collectConfirmationPayload();
+  const payload = collectConfirmationPayload(false);
   if (!payload) return;
   try {
     const data = await apiFetch('/confirmation-forms/generate', {

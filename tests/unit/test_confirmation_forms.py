@@ -40,6 +40,25 @@ def test_accommodation_confirmation_preview_uses_customer_language_and_masks_pho
     assert "Güvenli onay formunuzu buradan görüntüleyebilirsiniz" in preview.whatsapp_message
 
 
+def test_manual_preview_renders_blank_line_template_without_required_fields() -> None:
+    context = build_context_from_manual_payload(
+        form_type="accommodation",
+        hotel_id=21966,
+        language="tr",
+        payload={"customer": {}, "details": {}},
+        generated_at=datetime(2026, 4, 29, 10, 30, tzinfo=UTC),
+    )
+
+    preview = build_preview(context)
+
+    assert "KONAKLAMA REZERVASYON ONAY FORMU" in preview.html
+    assert "document-section section-customer" in preview.html
+    assert "Misafir Adı" in preview.html
+    assert "E-posta" in preview.html
+    assert "Rezervasyon Numarası" in preview.html
+    assert 'line-value">&nbsp;</span>' in preview.html
+
+
 def test_restaurant_confirmation_preview_supports_active_language() -> None:
     context = build_context_from_manual_payload(
         form_type="restaurant",
@@ -61,7 +80,7 @@ def test_restaurant_confirmation_preview_supports_active_language() -> None:
     preview = build_preview(context)
 
     assert "Reservierung bestätigt" in preview.html
-    assert "form-grid" in preview.html
+    assert "document-body" in preview.html
     assert "decor-map" in preview.html
     assert "R-HOLD-1" in preview.whatsapp_message
 
