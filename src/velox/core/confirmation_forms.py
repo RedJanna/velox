@@ -621,7 +621,7 @@ PROMPT_FIELD_LABELS: dict[str, dict[str, str]] = {
         "reservation_time": "Rezervasyon Saati / Reservation Time",
         "restaurant_guest_count": "Kişi Sayısı / Number of Guests",
         "restaurant_seating": "Masa Tipi / Seating Preference",
-        "restaurant_area": "İç / Dış Alan Tercihi",
+        "restaurant_area": "İç/Dış Alan Tercihi / Indoor/Outdoor Preference",
         "occasion": "Özel Gün / Occasion",
         "special_requests": "Özel Talepler / Special Requests",
         "transfer_type": "Transfer Tipi / Transfer Type",
@@ -1052,7 +1052,7 @@ def build_context_from_manual_payload(
 
 
 def render_confirmation_html(context: ConfirmationContext) -> str:
-    """Render premium fume/white HTML confirmation form."""
+    """Render a premium A4 confirmation form with ornamental linework."""
     labels = copy_for(context.language)
     dir_attr = "rtl" if context.language == "ar" else "ltr"
     type_label = labels[context.form_type]
@@ -1068,15 +1068,14 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
             ),
         ],
     )
-    sections = [section for section in context.sections if section.items]
-    sections.append(confirmation_section)
-    section_html = "\n".join(_render_section(section) for section in sections if section.items)
-    intro = f"{labels['intro']}"
+    field_html = _render_form_fields(context, confirmation_section, labels)
+    footer_note_html = _render_footer_note(context)
     generated = _format_generated_at(context.generated_at)
     brand_parts = context.hotel_name.split()
     brand_primary = brand_parts[0] if brand_parts else context.hotel_name
     brand_place = " ".join(brand_parts[1:]) if len(brand_parts) > 1 else context.hotel_name
     motif_class = f"motif-{context.form_type}"
+    map_art = _render_map_linework()
     return f"""<!doctype html>
 <html lang="{escape(context.language)}" dir="{dir_attr}">
 <head>
@@ -1086,111 +1085,124 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
   <title>{escape(context.hotel_name)} · {escape(document["title"])}</title>
   <style>
     :root {{
-      --paper:#ffffff; --page:#f0f0ec; --ink:#111111; --near:#1b1b18;
-      --fume:#343431; --fume-soft:#ededeb; --muted:#686864; --line:#d8d8d2;
-      --hair:#20201d; --wash:#fafaf8;
+      --paper:#fbfbf8; --page:#ecece7; --ink:#191916; --near:#11110f;
+      --blue:#203486; --fume:#373733; --muted:#74746f; --line:#b9bab4;
+      --soft-line:#deded8; --hair:#242421; --wash:rgba(255,255,255,.68);
     }}
     * {{ box-sizing:border-box; }}
     body {{
       margin:0; background:var(--page); color:var(--ink);
-      font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      line-height:1.5;
+      font-family:"Avenir Next", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height:1.45;
     }}
-    .page {{ max-width:900px; margin:0 auto; padding:42px 20px; }}
+    .page {{ max-width:900px; margin:0 auto; padding:32px 18px; }}
     .sheet {{
-      position:relative; overflow:hidden; background:var(--paper); color:var(--ink);
-      width:min(100%, 794px); min-height:1123px; margin:0 auto;
-      border:1px solid var(--hair); box-shadow:0 24px 70px rgba(15,15,12,.10);
+      position:relative; overflow:hidden; isolation:isolate; background:var(--paper); color:var(--ink);
+      width:min(100%, 794px); min-height:1123px; margin:0 auto; padding:36px 44px 28px;
+      border:1px solid rgba(36,36,33,.72); box-shadow:0 26px 80px rgba(18,18,15,.12);
     }}
     .sheet::before {{
-      content:""; position:absolute; inset:18px; border:1px solid rgba(32,32,29,.18);
+      content:""; position:absolute; inset:7px; border:1px solid rgba(36,36,33,.5);
       pointer-events:none; z-index:0;
     }}
-    .linework {{ position:absolute; inset:0; pointer-events:none; z-index:0; opacity:.95; }}
-    .linework span {{ position:absolute; height:1px; background:repeating-linear-gradient(90deg, rgba(22,22,20,.78) 0 72px, transparent 72px 104px); }}
-    .linework .lw-a {{ top:132px; left:42px; width:48%; }}
-    .linework .lw-b {{ top:172px; right:56px; width:26%; background:linear-gradient(90deg, transparent, rgba(52,52,49,.72), transparent); }}
-    .linework .lw-c {{ top:348px; left:0; width:34%; opacity:.38; }}
-    .linework .lw-d {{ bottom:166px; right:42px; width:42%; opacity:.52; }}
-    .linework .lw-e {{ top:94px; right:88px; width:1px; height:118px; background:linear-gradient(180deg, rgba(17,17,17,.68), transparent); }}
-    .motif-restaurant .lw-a {{ width:36%; }}
-    .motif-restaurant .lw-b {{ top:214px; right:46px; width:34%; }}
-    .motif-restaurant .lw-d {{ bottom:142px; width:32%; }}
-    .motif-transfer .lw-c {{ top:386px; left:36px; width:46%; transform:rotate(-4deg); transform-origin:left center; opacity:.48; }}
-    .motif-transfer .lw-d {{ bottom:188px; width:52%; transform:rotate(3deg); transform-origin:right center; }}
-    .letterhead,.hero,.status-strip,.content,.footer {{ position:relative; z-index:1; }}
-    .letterhead {{
-      min-height:176px; padding:42px 46px 30px; border-bottom:1px solid var(--hair);
-      display:flex; justify-content:space-between; gap:28px; align-items:flex-start;
+    .sheet::after {{
+      content:""; position:absolute; inset:14px; border:1px solid rgba(36,36,33,.22);
+      pointer-events:none; z-index:0;
     }}
-    .brand-lockup {{ min-width:230px; }}
+    .corner {{ position:absolute; z-index:2; width:34px; height:34px; pointer-events:none; }}
+    .corner-tl {{ top:7px; left:7px; border-top:2px solid rgba(36,36,33,.56); border-left:2px solid rgba(36,36,33,.56); border-top-left-radius:24px; }}
+    .corner-tr {{ top:7px; right:7px; border-top:2px solid rgba(36,36,33,.56); border-right:2px solid rgba(36,36,33,.56); border-top-right-radius:24px; }}
+    .corner-bl {{ bottom:7px; left:7px; border-bottom:2px solid rgba(36,36,33,.56); border-left:2px solid rgba(36,36,33,.56); border-bottom-left-radius:24px; }}
+    .corner-br {{ bottom:7px; right:7px; border-bottom:2px solid rgba(36,36,33,.56); border-right:2px solid rgba(36,36,33,.56); border-bottom-right-radius:24px; }}
+    .linework,.map-art {{ position:absolute; inset:0; pointer-events:none; z-index:0; color:rgba(35,35,32,.42); }}
+    .linework .route-left {{ position:absolute; left:16px; top:640px; width:64px; height:215px; border-left:1px dashed rgba(36,36,33,.42); border-radius:50%; transform:rotate(5deg); }}
+    .linework .route-right {{ position:absolute; right:11px; top:515px; width:64px; height:250px; border-right:1px dashed rgba(36,36,33,.42); border-radius:50%; transform:rotate(-6deg); }}
+    .linework .pin {{ position:absolute; width:15px; height:15px; border:1px solid rgba(36,36,33,.62); border-radius:50%; }}
+    .linework .pin::after {{ content:""; position:absolute; inset:4px; border-radius:50%; background:rgba(36,36,33,.48); }}
+    .linework .pin-a {{ top:642px; left:25px; }}
+    .linework .pin-b {{ right:55px; top:118px; }}
+    .linework .arrow {{ position:absolute; width:0; height:0; border-top:7px solid transparent; border-bottom:7px solid transparent; border-left:9px solid rgba(36,36,33,.48); }}
+    .linework .arrow-right {{ right:36px; top:688px; transform:rotate(106deg); }}
+    .decor-map {{ position:absolute; opacity:.55; }}
+    .decor-map path,.decor-map circle,.decor-map line {{ fill:none; stroke:currentColor; stroke-width:1; }}
+    .decor-map .thin {{ opacity:.35; }}
+    .decor-map .dash {{ stroke-dasharray:6 7; opacity:.54; }}
+    .decor-map.top {{ top:-18px; right:-6px; width:375px; height:210px; }}
+    .decor-map.bottom {{ left:-28px; bottom:-4px; width:360px; height:235px; transform:rotate(-2deg); }}
+    .decor-dots {{ position:absolute; right:86px; bottom:96px; width:86px; height:86px; opacity:.33; background-image:radial-gradient(rgba(36,36,33,.45) 1.2px, transparent 1.2px); background-size:12px 12px; transform:rotate(-15deg); }}
+    .letterhead,.hero,.form-grid,.confirmation-note,.doc-footer {{ position:relative; z-index:1; }}
+    .letterhead {{
+      min-height:132px; display:flex; justify-content:space-between; gap:24px; align-items:flex-start;
+    }}
+    .brand-lockup {{ min-width:250px; color:var(--blue); }}
     .brand-name {{
-      font-family:Georgia, "Times New Roman", serif; font-size:42px; line-height:.86;
-      letter-spacing:.05em; text-transform:uppercase; color:var(--near);
+      font-family:Georgia, "Times New Roman", serif; font-size:45px; line-height:.78;
+      letter-spacing:0; text-transform:uppercase; color:var(--blue); font-weight:700;
     }}
     .brand-place {{
-      display:inline-block; margin-top:14px; padding-top:10px; border-top:1px solid var(--near);
-      font-size:12px; letter-spacing:.48em; text-transform:uppercase; color:var(--fume);
+      display:block; margin-top:16px; padding-left:92px;
+      font-size:14px; letter-spacing:0; text-transform:uppercase; color:var(--blue); font-weight:800;
     }}
-    .doc-meta {{ text-align:end; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.08em; }}
-    .doc-meta strong {{ display:block; color:var(--near); font-size:15px; letter-spacing:0; margin-top:8px; text-transform:none; }}
-    .hero {{ padding:44px 46px 30px; border-bottom:1px solid var(--line); }}
-    .eyebrow {{ color:var(--muted); font-size:11px; letter-spacing:.18em; text-transform:uppercase; font-weight:800; }}
+    .doc-meta {{ min-width:170px; text-align:end; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:0; }}
+    .doc-meta strong {{ display:block; color:var(--near); font-size:13px; letter-spacing:0; margin-top:8px; text-transform:none; }}
+    .divider {{ position:relative; height:1px; margin:2px 0 32px; background:rgba(36,36,33,.46); }}
+    .divider::after,.mini-divider::after {{ content:"✦"; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:var(--hair); background:var(--paper); padding:0 12px; font-size:15px; line-height:1; }}
+    .hero {{ text-align:center; margin-bottom:26px; }}
+    .eyebrow {{ color:var(--muted); font-size:10px; letter-spacing:0; text-transform:uppercase; font-weight:800; }}
     h1 {{
-      margin:16px 0 12px; max-width:660px; font-family:Georgia, "Times New Roman", serif;
-      font-size:42px; line-height:1.05; font-weight:500; letter-spacing:0; color:var(--near);
+      margin:0 auto 8px; max-width:704px; font-family:Georgia, "Times New Roman", serif;
+      font-size:31px; line-height:1.08; font-weight:500; letter-spacing:0; color:var(--near);
+      text-transform:uppercase; text-shadow:0 4px 10px rgba(17,17,14,.12);
     }}
-    .subtitle {{ margin:0; color:var(--near); font-size:13px; letter-spacing:.11em; text-transform:uppercase; font-weight:800; }}
-    .intro {{ max-width:670px; color:var(--fume); font-size:15px; margin:18px 0 0; }}
-    .status-strip {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-bottom:1px solid var(--hair); background:var(--wash); }}
-    .status-cell {{ min-height:84px; padding:18px 46px; border-inline-end:1px solid var(--line); }}
-    .status-cell:last-child {{ border-inline-end:none; }}
-    .status-cell span {{ display:block; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.14em; font-weight:800; }}
-    .status-cell strong {{ display:block; margin-top:8px; color:var(--near); font-size:15px; overflow-wrap:anywhere; }}
-    .content {{ padding:34px 46px 44px; }}
-    .section {{ padding:28px 0; border-bottom:1px solid var(--line); }}
-    .section:first-child {{ padding-top:0; }}
-    .section-title-row {{ display:flex; align-items:center; gap:18px; margin:0 0 18px; }}
-    .section-title-row h2 {{ margin:0; flex:0 0 auto; font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--fume); }}
-    .section-title-row i {{ flex:1 1 auto; height:1px; background:linear-gradient(90deg, rgba(32,32,29,.72) 0 62px, transparent 62px 88px, rgba(32,32,29,.28) 88px 100%); }}
-    .details {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); border-top:1px solid var(--hair); border-inline-start:1px solid var(--line); }}
-    .detail {{ min-height:88px; padding:18px 18px 16px; border-inline-end:1px solid var(--line); border-bottom:1px solid var(--line); background:rgba(255,255,255,.94); }}
-    .detail span {{ display:block; color:var(--muted); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; }}
-    .detail strong {{ display:block; margin-top:10px; color:var(--ink); font-size:16px; overflow-wrap:anywhere; }}
-    .detail.is-emphasis {{ background:var(--fume-soft); }}
-    .note {{ margin-top:30px; padding:24px 26px; border:1px solid var(--hair); background:#fbfbf9; box-shadow:inset 0 1px 0 rgba(255,255,255,.8); }}
-    .note h2 {{ margin:0 0 10px; font-family:Georgia, "Times New Roman", serif; font-size:24px; font-weight:500; }}
-    .note p {{ margin:0; color:var(--fume); }}
-    .footer {{
-      padding:20px 46px 34px; border-top:1px solid var(--hair);
-      display:flex; justify-content:space-between; gap:18px; color:var(--muted); font-size:12px;
+    .subtitle {{ margin:0; color:var(--fume); font-size:17px; letter-spacing:0; }}
+    .mini-divider {{ position:relative; width:350px; max-width:68%; height:1px; margin:22px auto 0; background:rgba(36,36,33,.46); }}
+    .form-grid {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; max-width:684px; margin:0 auto; }}
+    .form-field {{
+      min-height:61px; padding:10px 14px 9px; border:1px solid rgba(36,36,33,.34);
+      border-radius:8px; background:var(--wash); box-shadow:0 8px 22px rgba(20,20,18,.025);
     }}
+    .form-field.span-half {{ grid-column:span 3; }}
+    .form-field.span-third {{ grid-column:span 2; }}
+    .form-field.span-full {{ grid-column:span 6; }}
+    .form-field.is-notes {{ min-height:78px; }}
+    .form-field.is-emphasis {{ background:rgba(246,246,242,.82); border-color:rgba(36,36,33,.43); }}
+    .field-label {{ color:var(--near); font-size:14px; font-weight:600; letter-spacing:0; }}
+    .field-label em {{ color:#858580; font-size:11px; font-style:italic; font-weight:500; }}
+    .field-value {{ margin-top:8px; color:var(--near); font-size:15px; font-weight:650; overflow-wrap:anywhere; }}
+    .confirmation-note {{ max-width:600px; margin:20px auto 0; text-align:center; color:var(--fume); }}
+    .confirmation-note .note-line {{ position:relative; height:1px; width:378px; max-width:72%; margin:0 auto 18px; background:rgba(36,36,33,.48); }}
+    .confirmation-note .note-line::after,.confirmation-note .note-mark::after {{ content:"✦"; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:var(--paper); padding:0 12px; color:var(--hair); font-size:14px; }}
+    .confirmation-note p {{ margin:0 auto 12px; font-size:13px; line-height:1.5; max-width:540px; }}
+    .confirmation-note .note-secondary {{ color:#777772; font-size:12px; }}
+    .confirmation-note .note-mark {{ position:relative; width:82px; height:1px; margin:6px auto 0; background:rgba(36,36,33,.42); }}
+    .doc-footer {{ margin:18px auto 0; max-width:684px; display:flex; justify-content:space-between; gap:14px; color:#787872; font-size:10px; }}
     @page {{ size:A4; margin:0; }}
     @media(max-width:760px) {{
       .page {{ padding:16px; }}
-      .sheet {{ min-height:0; }}
-      .letterhead,.hero,.content,.footer {{ padding-left:22px; padding-right:22px; }}
+      .sheet {{ min-height:0; padding:36px 22px 30px; }}
       .letterhead,.footer {{ flex-direction:column; }}
       .doc-meta {{ text-align:start; }}
-      .brand-name {{ font-size:34px; }}
-      .brand-place {{ letter-spacing:.32em; }}
-      h1 {{ font-size:31px; }}
-      .status-strip,.details {{ grid-template-columns:1fr; }}
-      .status-cell {{ border-inline-end:none; border-bottom:1px solid var(--line); }}
-      .status-cell:last-child {{ border-bottom:none; }}
+      .brand-name {{ font-size:37px; }}
+      .brand-place {{ padding-left:52px; letter-spacing:0; }}
+      h1 {{ font-size:30px; }}
+      .form-grid {{ grid-template-columns:1fr; }}
+      .form-field.span-half,.form-field.span-third,.form-field.span-full {{ grid-column:span 1; }}
+      .doc-footer {{ flex-direction:column; }}
     }}
     @media print {{
       body {{ background:#fff; }}
       .page {{ padding:0; max-width:none; }}
-      .sheet {{ box-shadow:none; border:none; width:794px; min-height:1123px; }}
+      .sheet {{ box-shadow:none; width:794px; min-height:1123px; }}
     }}
   </style>
 </head>
 <body>
   <main class="page">
     <article class="sheet {motif_class}" aria-label="{escape(labels["document_title"])}">
+      <span class="corner corner-tl"></span><span class="corner corner-tr"></span><span class="corner corner-bl"></span><span class="corner corner-br"></span>
+      {map_art}
       <div class="linework" aria-hidden="true">
-        <span class="lw-a"></span><span class="lw-b"></span><span class="lw-c"></span><span class="lw-d"></span><span class="lw-e"></span>
+        <span class="route-left"></span><span class="route-right"></span><span class="pin pin-a"></span><span class="pin pin-b"></span><span class="arrow arrow-right"></span><span class="decor-dots"></span>
       </div>
       <header class="letterhead">
         <div class="brand-lockup">
@@ -1200,27 +1212,26 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
         <div class="doc-meta">
           <span>{escape(labels["confirmation_no"])}</span>
           <strong>{escape(context.confirmation_no)}</strong>
+          <span>{escape(labels["generated_on"])}</span>
+          <strong>{escape(generated)}</strong>
         </div>
       </header>
+      <div class="divider" aria-hidden="true"></div>
       <section class="hero">
         <div class="eyebrow">{escape(type_label)} · {escape(labels["confirmed_status"])}</div>
         <h1>{escape(document["title"])}</h1>
         <p class="subtitle">{escape(document["subtitle"])}</p>
-        <p class="intro">{escape(intro)}</p>
+        <div class="mini-divider" aria-hidden="true"></div>
       </section>
-      <section class="status-strip" aria-label="{escape(labels["confirmation_information"])}">
-        <div class="status-cell"><span>{escape(labels["status"])}</span><strong>{escape(labels["confirmed_status"])}</strong></div>
-        <div class="status-cell"><span>{escape(labels["guest"])}</span><strong>{escape(context.customer_name)}</strong></div>
-        <div class="status-cell"><span>{escape(labels["generated_on"])}</span><strong>{escape(generated)}</strong></div>
+      <section class="form-grid" aria-label="{escape(labels["confirmation_information"])}">
+        {field_html}
       </section>
-      <section class="content">
-        {section_html}
-        <section class="note">
-          <h2>{escape(labels["important_information"])}</h2>
-          <p>{escape(context.important_note)}</p>
-        </section>
+      <section class="confirmation-note">
+        <div class="note-line" aria-hidden="true"></div>
+        {footer_note_html}
+        <div class="note-mark" aria-hidden="true"></div>
       </section>
-      <footer class="footer">
+      <footer class="doc-footer">
         <span>{escape(context.hotel_name)}</span>
         <span>{escape(labels["secure_notice"])}</span>
       </footer>
@@ -1230,18 +1241,107 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
 </html>"""
 
 
-def _render_section(section: ConfirmationSection) -> str:
-    rows = "\n".join(
-        (
-            f'<div class="detail{" is-emphasis" if item.emphasis else ""}">'
-            f"<span>{escape(item.label)}</span><strong>{escape(item.value)}</strong></div>"
-        )
-        for item in section.items
+def _render_form_fields(
+    context: ConfirmationContext,
+    confirmation_section: ConfirmationSection,
+    labels: dict[str, str],
+) -> str:
+    fields: list[ConfirmationDetail] = []
+    for section in context.sections:
+        fields.extend(section.items)
+    fields.extend(confirmation_section.items)
+    fields = _filter_layout_fields(context.form_type, fields, labels)
+    return "\n".join(_render_form_field(context.form_type, item, labels) for item in fields)
+
+
+def _filter_layout_fields(
+    form_type: ConfirmationFormType,
+    fields: list[ConfirmationDetail],
+    labels: dict[str, str],
+) -> list[ConfirmationDetail]:
+    if form_type != "transfer":
+        return fields
+    has_pickup = any(_label_contains(field.label, "pickup", "alış") for field in fields)
+    has_dropoff = any(_label_contains(field.label, "drop", "bırak") for field in fields)
+    if not (has_pickup and has_dropoff):
+        return fields
+    return [field for field in fields if field.label != labels["route"]]
+
+
+def _render_form_field(form_type: ConfirmationFormType, item: ConfirmationDetail, labels: dict[str, str]) -> str:
+    span_class = _field_span_class(form_type, item.label, labels)
+    note_class = " is-notes" if _is_note_label(item.label, labels) else ""
+    emphasis_class = " is-emphasis" if item.emphasis else ""
+    main_label, hint_label = _split_field_label(item.label)
+    hint_html = f" <em>/ {escape(hint_label)}</em>" if hint_label else ""
+    return (
+        f'<div class="form-field {span_class}{note_class}{emphasis_class}">'
+        f'<div class="field-label"><span>{escape(main_label)}</span>{hint_html}</div>'
+        f'<div class="field-value">{escape(item.value)}</div>'
+        "</div>"
     )
-    return f"""<section class="section">
-          <div class="section-title-row"><h2>{escape(section.title)}</h2><i aria-hidden="true"></i></div>
-          <div class="details">{rows}</div>
-        </section>"""
+
+
+def _field_span_class(form_type: ConfirmationFormType, label: str, labels: dict[str, str]) -> str:
+    if _is_note_label(label, labels):
+        return "span-full"
+    if form_type == "transfer":
+        if _label_contains(label, "transfer type", "transfer tipi", labels["route"]):
+            return "span-full"
+        if _label_contains(label, "date", "time", "number of guests", "kişi sayısı", labels["date"], labels["time"], labels["pax"]):
+            return "span-third"
+        return "span-half"
+    if form_type == "restaurant":
+        if _label_contains(label, "date", "time", "number of guests", "kişi sayısı", labels["date"], labels["time"], labels["party_size"]):
+            return "span-third"
+        return "span-half"
+    if _label_contains(label, labels["guests"], labels["total"], labels["policy"]):
+        return "span-third"
+    return "span-half"
+
+
+def _is_note_label(label: str, labels: dict[str, str]) -> bool:
+    return _label_contains(label, labels["notes"], "special request", "special note", "özel talep", "özel not")
+
+
+def _label_contains(label: str, *needles: str) -> bool:
+    normalized = label.casefold()
+    return any(needle and needle.casefold() in normalized for needle in needles)
+
+
+def _split_field_label(label: str) -> tuple[str, str]:
+    main, separator, hint = label.partition(" / ")
+    if not separator:
+        return label, ""
+    return main.strip(), hint.strip()
+
+
+def _render_footer_note(context: ConfirmationContext) -> str:
+    primary = escape(context.important_note)
+    english_note = COPY["en"][f"{context.form_type}_note"]
+    if context.language == "en" or english_note == context.important_note:
+        return f"<p>{primary}</p>"
+    return f'<p>{primary}</p><p class="note-secondary">{escape(english_note)}</p>'
+
+
+def _render_map_linework() -> str:
+    return """
+      <svg class="decor-map top map-art" viewBox="0 0 360 220" aria-hidden="true">
+        <path class="thin" d="M88 12c24 22 66 23 88 45 25 25-7 53 24 73 35 23 93 10 126 47"/>
+        <path class="thin" d="M133 2c34 36 75 29 106 49 32 21 27 59 70 79"/>
+        <path class="thin" d="M196 2c24 14 45 17 74 18 34 1 56 25 80 45"/>
+        <path class="thin" d="M238 12c28 10 45 13 77 13 21 0 34 18 43 32"/>
+        <path class="dash" d="M64 6c28 49 102 69 150 93 45 22 75 53 112 93"/>
+        <circle cx="312" cy="127" r="10"/><circle cx="312" cy="127" r="3"/>
+        <path d="M312 99c12 0 21 9 21 20 0 19-21 36-21 36s-21-17-21-36c0-11 9-20 21-20z"/>
+      </svg>
+      <svg class="decor-map bottom map-art" viewBox="0 0 360 235" aria-hidden="true">
+        <path class="thin" d="M7 174c40-23 44-65 66-99 29-45 79-45 118-71"/>
+        <path class="thin" d="M2 200c47-25 54-75 80-112 32-46 83-47 123-73"/>
+        <path class="thin" d="M25 232c48-31 57-81 88-114 35-38 77-44 111-75"/>
+        <path class="dash" d="M12 128c28-18 56-24 82-18 41 10 44 63 92 78 32 10 75-7 115-24"/>
+        <circle cx="150" cy="171" r="8"/><circle cx="150" cy="171" r="3"/>
+      </svg>"""
 
 
 def render_whatsapp_message(context: ConfirmationContext, public_url: str) -> str:

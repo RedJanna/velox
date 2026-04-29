@@ -61,7 +61,8 @@ def test_restaurant_confirmation_preview_supports_active_language() -> None:
     preview = build_preview(context)
 
     assert "Reservierung bestätigt" in preview.html
-    assert "Restaurantdetails" in preview.html
+    assert "form-grid" in preview.html
+    assert "decor-map" in preview.html
     assert "R-HOLD-1" in preview.whatsapp_message
 
 
@@ -89,8 +90,10 @@ def test_restaurant_confirmation_uses_prompt_specific_fields() -> None:
     preview = build_preview(context)
 
     assert "RESTAURANT RESERVATION CONFIRMATION FORM" in preview.html
-    assert "Indoor / Outdoor Preference" in preview.html
-    assert "Table Type / Seating Preference" in preview.html
+    assert "Indoor" in preview.html
+    assert "Outdoor Preference" in preview.html
+    assert "Table Type" in preview.html
+    assert "Seating Preference" in preview.html
     assert "Occasion" in preview.html
     assert "Authorized Confirmation" in preview.html
 
@@ -121,8 +124,10 @@ def test_transfer_confirmation_uses_prompt_specific_fields() -> None:
 
     assert "TRANSFER REZERVASYON ONAY FORMU" in preview.html
     assert "Transfer reservation confirmation details" in preview.html
-    assert "Alış Noktası / Pick-up Location" in preview.html
-    assert "Bırakış Noktası / Drop-off Location" in preview.html
+    assert "Alış Noktası" in preview.html
+    assert "Pick-up Location" in preview.html
+    assert "Bırakış Noktası" in preview.html
+    assert "Drop-off Location" in preview.html
     assert "motif-transfer" in preview.html
 
 
