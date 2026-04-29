@@ -7,6 +7,7 @@ from velox.core.confirmation_forms import (
     build_context_from_manual_payload,
     build_preview,
     hash_public_token,
+    mark_confirmation_sent,
     token_is_valid,
 )
 
@@ -77,3 +78,27 @@ def test_supported_language_copy_is_complete() -> None:
 
     for language, labels in COPY.items():
         assert set(labels) == required_keys, language
+
+
+async def test_mark_confirmation_sent_uses_explicit_parameter_types() -> None:
+    class FakeConnection:
+        query = ""
+        args: tuple[object, ...] = ()
+
+        async def execute(self, query: str, *args: object) -> None:
+            self.query = query
+            self.args = args
+
+    conn = FakeConnection()
+
+    await mark_confirmation_sent(  # type: ignore[arg-type]
+        conn,
+        form_id="00000000-0000-0000-0000-000000000001",
+        whatsapp_message_id=None,
+        delivered=False,
+    )
+
+    assert "$2::varchar" in conn.query
+    assert "$3::varchar" in conn.query
+    assert "$4::bool" in conn.query
+    assert conn.args == ("00000000-0000-0000-0000-000000000001", "DELIVERY_FAILED", None, False)

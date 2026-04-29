@@ -1216,13 +1216,14 @@ async def mark_confirmation_sent(
     await conn.execute(
         """
         UPDATE reservation_confirmation_forms
-        SET status = $2,
-            sent_at = CASE WHEN $2 = 'SENT' THEN now() ELSE sent_at END,
-            whatsapp_message_id = COALESCE($3, whatsapp_message_id),
+        SET status = $2::varchar,
+            sent_at = CASE WHEN $4::bool THEN now() ELSE sent_at END,
+            whatsapp_message_id = COALESCE($3::varchar, whatsapp_message_id),
             updated_at = now()
         WHERE id = $1::uuid
         """,
         form_id,
         "SENT" if delivered else "DELIVERY_FAILED",
         whatsapp_message_id,
+        delivered,
     )
