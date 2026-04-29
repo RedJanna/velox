@@ -953,6 +953,21 @@ def render_admin_panel_html() -> str:
               <div class="whatsapp-guide-highlight"><b>3</b><span>Webhook Abone Et, Sağlık Kontrolü ve Meta'dan Senkronize Et adımlarını tamamlayın.</span></div>
               <div class="whatsapp-guide-highlight"><b>4</b><span>24 saatlik pencere dışındaki mesajlar için onaylı şablon hazırlayın.</span></div>
             </div>
+            <div class="whatsapp-meta-resource-shell" aria-label="Meta bilgi ve dokümantasyon bağlantıları">
+              <div class="whatsapp-meta-resource-head">
+                <div>
+                  <h4>Meta Bilgi Merkezi</h4>
+                  <p>Kurulum sırasına göre gruplanmış resmi Meta dokümantasyonları ve operasyon ekranları. Hızlı bağlantı seçimi ilgili kaynağı doğrudan yeni sekmede açar.</p>
+                </div>
+                <div class="whatsapp-meta-resource-select">
+                  <label for="whatsappMetaResourceSelect">Hızlı bağlantı</label>
+                  <select id="whatsappMetaResourceSelect" aria-label="Meta dokümantasyon veya bilgi bağlantısı seç">
+                    <option value="">Meta kaynağı seçin</option>
+                  </select>
+                </div>
+              </div>
+              <div id="whatsappMetaResourceToggles" class="whatsapp-meta-resource-toggles"></div>
+            </div>
           </article>
           <div id="whatsappStatusCards" class="whatsapp-status-grid"></div>
           <div class="whatsapp-layout">

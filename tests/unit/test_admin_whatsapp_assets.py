@@ -13,6 +13,8 @@ def test_admin_panel_contains_whatsapp_api_view() -> None:
     assert "whatsappGuideDialog" in html
     assert "WhatsApp Meta Cloud API Kurulum Rehberi" in html
     assert 'id="whatsappGuideButton" class="inline-button primary"' in html
+    assert "whatsappMetaResourceSelect" in html
+    assert "whatsappMetaResourceToggles" in html
 
 
 def test_whatsapp_asset_normalizes_dotless_hash_alias() -> None:
@@ -34,12 +36,32 @@ def test_whatsapp_guide_explains_beginner_error_prevention() -> None:
 
     assert "Başlamadan önce 5 dakikalık kontrol" in html
     assert "Hangi yolu seçmeliyim?" in html
-    assert "Phone Number ID, görünen telefon numarası değildir" in html
+    assert "Telefon Numarası Kimliği, görünen telefon numarası değildir" in html
     assert "whatsapp_business_management" in html
     assert "24 saatlik pencere" in html
-    assert "Webhook URL'yi HTTP veya localhost olarak ayarlamak" in html
-    assert "Access token, App Secret değildir" in html
+    assert "Webhook URL'sini HTTP veya localhost olarak ayarlamak" in html
+    assert "Erişim token'ı, uygulama gizli anahtarı" in html
     assert "WHATSAPP_VERIFY_TOKEN" in html
-    assert "Popup açılmıyor" in html
+    assert "Açılır pencere açılmıyor" in html
     assert "Bittiğini nasıl anlarım?" in html
     assert "openGuideDialog" in ADMIN_WHATSAPP_SCRIPT
+
+
+def test_whatsapp_meta_resource_hub_lists_required_meta_urls() -> None:
+    html = render_admin_panel_html()
+
+    assert "Meta Bilgi Merkezi" in html
+    assert "renderMetaResourceHub" in ADMIN_WHATSAPP_SCRIPT
+    assert "onMetaResourceSelect" in ADMIN_WHATSAPP_SCRIPT
+    assert "Başlangıç ve ürün kapsamı" in ADMIN_WHATSAPP_SCRIPT
+    assert "Yetki, token ve bağlantı" in ADMIN_WHATSAPP_SCRIPT
+    assert "WABA, telefon ve kimlikler" in ADMIN_WHATSAPP_SCRIPT
+    assert "Webhook ve mesaj gönderimi" in ADMIN_WHATSAPP_SCRIPT
+    assert "Şablon ve 24 saat penceresi" in ADMIN_WHATSAPP_SCRIPT
+    assert "https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started" in ADMIN_WHATSAPP_SCRIPT
+    assert "https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/overview" in ADMIN_WHATSAPP_SCRIPT
+    assert "https://developers.facebook.com/documentation/business-messaging/whatsapp/access-tokens" in ADMIN_WHATSAPP_SCRIPT
+    assert "https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/overview" in ADMIN_WHATSAPP_SCRIPT
+    assert "https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/overview" in ADMIN_WHATSAPP_SCRIPT
+    assert "https://business.facebook.com/wa/manage/message-templates/" in ADMIN_WHATSAPP_SCRIPT
+    assert "https://developers.facebook.com/tools/explorer/" in ADMIN_WHATSAPP_SCRIPT

@@ -35,6 +35,28 @@ ADMIN_WHATSAPP_STYLE = """\
 .whatsapp-guide-highlight{border:1px solid var(--line);border-radius:12px;background:var(--surface-2);padding:12px;display:flex;gap:10px;align-items:flex-start}
 .whatsapp-guide-highlight b{display:grid;place-items:center;width:28px;height:28px;border-radius:10px;background:rgba(15,118,110,.12);color:var(--accent);font-weight:900;flex:0 0 auto}
 .whatsapp-guide-highlight span{display:block;color:var(--muted);font-size:12px;line-height:1.35}
+.whatsapp-meta-resource-shell{border:1px solid var(--line);border-radius:16px;background:#fff;padding:14px;display:grid;gap:12px}
+.whatsapp-meta-resource-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,.42fr);gap:14px;align-items:end}
+.whatsapp-meta-resource-head h4{margin:0 0 6px;font-size:16px;color:var(--ink)}
+.whatsapp-meta-resource-head p{margin:0;color:var(--muted);line-height:1.5}
+.whatsapp-meta-resource-select{display:flex;flex-direction:column;gap:8px}
+.whatsapp-meta-resource-select label{font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:#364152}
+.whatsapp-meta-resource-select select{width:100%;border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:11px 12px;color:var(--ink)}
+.whatsapp-meta-resource-select select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(15,118,110,.12)}
+.whatsapp-meta-resource-toggles{display:grid;gap:10px}
+.whatsapp-meta-resource-group{border:1px solid var(--line);border-radius:14px;background:var(--surface-2);overflow:hidden}
+.whatsapp-meta-resource-group summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.whatsapp-meta-resource-group summary::-webkit-details-marker{display:none}
+.whatsapp-meta-resource-title{display:flex;flex-direction:column;gap:4px;min-width:0}
+.whatsapp-meta-resource-title strong{font-size:14px;color:var(--ink);overflow-wrap:anywhere}
+.whatsapp-meta-resource-title span{font-size:12px;color:var(--muted);line-height:1.4}
+.whatsapp-meta-resource-count{display:inline-flex;align-items:center;justify-content:center;min-width:70px;border-radius:999px;background:#fff;border:1px solid var(--line);padding:5px 9px;color:var(--accent);font-size:12px;font-weight:900;white-space:nowrap}
+.whatsapp-meta-link-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 12px 12px}
+.whatsapp-meta-link{display:flex;flex-direction:column;gap:6px;min-height:112px;border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px;text-decoration:none;color:var(--ink);transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.whatsapp-meta-link:hover{border-color:rgba(15,118,110,.42);box-shadow:0 10px 22px rgba(16,32,51,.08);transform:translateY(-1px)}
+.whatsapp-meta-link strong{font-size:14px;line-height:1.25;overflow-wrap:anywhere}
+.whatsapp-meta-link small{color:var(--muted);line-height:1.4}
+.whatsapp-meta-link span{margin-top:auto;color:var(--accent);font-size:12px;font-weight:900}
 .dialog.whatsapp-guide-dialog{max-width:1080px;width:min(96vw,1080px)}
 .whatsapp-guide-body{display:grid;gap:18px;max-height:min(74vh,760px);overflow:auto;padding-right:4px}
 .whatsapp-guide-intro{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.62fr);gap:16px;align-items:stretch}
@@ -80,7 +102,7 @@ ADMIN_WHATSAPP_STYLE = """\
 .whatsapp-trouble-card strong{display:block;margin-bottom:6px;color:var(--ink)}
 .whatsapp-trouble-card p{margin:0;color:var(--muted);line-height:1.45}
 @media (max-width:1100px){.whatsapp-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.whatsapp-layout{grid-template-columns:1fr}}
-@media (max-width:900px){.whatsapp-guide-highlights,.whatsapp-guide-intro,.whatsapp-field-grid,.whatsapp-guide-result,.whatsapp-guide-checklist,.whatsapp-guide-path-grid,.whatsapp-guide-troubleshoot{grid-template-columns:1fr}}
+@media (max-width:900px){.whatsapp-guide-highlights,.whatsapp-meta-resource-head,.whatsapp-meta-link-grid,.whatsapp-guide-intro,.whatsapp-field-grid,.whatsapp-guide-result,.whatsapp-guide-checklist,.whatsapp-guide-path-grid,.whatsapp-guide-troubleshoot{grid-template-columns:1fr}}
 @media (max-width:640px){.whatsapp-status-grid{grid-template-columns:1fr}.whatsapp-actions{flex-direction:column}.whatsapp-actions button{width:100%}.whatsapp-guide-step{grid-template-columns:1fr}.dialog.whatsapp-guide-dialog{width:96vw}.whatsapp-guide-body{max-height:78vh}.whatsapp-guide-badge{position:static;display:inline-flex;margin-bottom:8px}}
 """
 
@@ -96,6 +118,118 @@ ADMIN_WHATSAPP_SCRIPT = """\
 
   var refs = {};
   var pollTimer = null;
+  var META_RESOURCE_GROUPS = [
+    {
+      key: "setup",
+      title: "1. Başlangıç ve ürün kapsamı",
+      detail: "Meta uygulaması, işletme portföyü ve Cloud API başlangıç ekranları için ilk bakılacak kaynaklar.",
+      resources: [
+        {
+          title: "WhatsApp Cloud API Get Started",
+          detail: "Meta uygulaması, WABA, test numarası ve ilk mesaj akışını başlatır.",
+          url: "https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started"
+        },
+        {
+          title: "Meta Developer Apps",
+          detail: "Uygulama kimliği, ürün ekleme, OAuth ve App Secret kontrolleri için ana ekran.",
+          url: "https://developers.facebook.com/apps/"
+        },
+        {
+          title: "Meta Business Settings",
+          detail: "İşletme portföyü, kullanıcılar, varlık erişimi ve işletme doğrulama ayarları.",
+          url: "https://business.facebook.com/settings/"
+        }
+      ]
+    },
+    {
+      key: "authorization",
+      title: "2. Yetki, token ve bağlantı",
+      detail: "Meta ile Bağlan akışı, izin kapsamları ve token üretimi için kullanılan kaynaklar.",
+      resources: [
+        {
+          title: "Embedded Signup",
+          detail: "Velox içindeki Meta ile Bağlan popup akışının resmi onboarding referansı.",
+          url: "https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/overview"
+        },
+        {
+          title: "Permissions",
+          detail: "whatsapp_business_messaging, whatsapp_business_management ve business_management izinlerini açıklar.",
+          url: "https://developers.facebook.com/documentation/business-messaging/whatsapp/permissions"
+        },
+        {
+          title: "Access Tokens",
+          detail: "Sistem kullanıcısı ve Business Integration token tiplerini ayırmak için kullanılır.",
+          url: "https://developers.facebook.com/documentation/business-messaging/whatsapp/access-tokens"
+        },
+        {
+          title: "System Users",
+          detail: "Kalıcı token üretimi ve işletme varlık yetkisi ataması için Business Settings ekranı.",
+          url: "https://business.facebook.com/settings/system-users/"
+        }
+      ]
+    },
+    {
+      key: "assets",
+      title: "3. WABA, telefon ve kimlikler",
+      detail: "İşletme Kimliği, WABA Kimliği, Telefon Numarası Kimliği ve WhatsApp Manager doğrulaması.",
+      resources: [
+        {
+          title: "WhatsApp Accounts",
+          detail: "İşletmeye bağlı WABA erişimleri ve varlık paylaşım kontrolleri.",
+          url: "https://business.facebook.com/settings/whatsapp-business-accounts/"
+        },
+        {
+          title: "WhatsApp Manager",
+          detail: "Numara, kalite, limit, şablon ve WABA özetlerini operasyon ekranından kontrol edin.",
+          url: "https://business.facebook.com/wa/manage/"
+        },
+        {
+          title: "Business Phone Numbers",
+          detail: "Telefon uygunluğu, kayıt, görünen ad ve Phone Number ID ayrımını açıklar.",
+          url: "https://developers.facebook.com/documentation/business-messaging/whatsapp/business-phone-numbers/phone-numbers"
+        }
+      ]
+    },
+    {
+      key: "messaging",
+      title: "4. Webhook ve mesaj gönderimi",
+      detail: "Gelen mesaj teslimi, imza doğrulaması, mesaj gönderme ve Graph API testleri.",
+      resources: [
+        {
+          title: "Webhooks",
+          detail: "Callback URL, verify token, event alanları ve teslim başarısızlığı kontrolleri.",
+          url: "https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/overview"
+        },
+        {
+          title: "Sending Messages",
+          detail: "Serbest mesaj, müşteri hizmeti penceresi ve mesaj türleri için ana rehber.",
+          url: "https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages"
+        },
+        {
+          title: "Graph API Explorer",
+          detail: "Token ve endpoint davranışını kontrollü şekilde test etmek için Meta aracı.",
+          url: "https://developers.facebook.com/tools/explorer/"
+        }
+      ]
+    },
+    {
+      key: "templates",
+      title: "5. Şablon ve 24 saat penceresi",
+      detail: "Müşteri hizmeti penceresi kapalıyken gerekli onaylı şablonların tasarım ve yönetimi.",
+      resources: [
+        {
+          title: "Templates Documentation",
+          detail: "Kategori, bileşen, değişken, inceleme ve kalite kurallarını açıklar.",
+          url: "https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/overview"
+        },
+        {
+          title: "Message Templates Manager",
+          detail: "Meta tarafında şablon oluşturma, onay durumu izleme ve düzenleme ekranı.",
+          url: "https://business.facebook.com/wa/manage/message-templates/"
+        }
+      ]
+    }
+  ];
 
   function bindWhatsAppRefs() {
     [
@@ -103,7 +237,8 @@ ADMIN_WHATSAPP_SCRIPT = """\
       'whatsappTemplates','whatsappManualForm','whatsappTemplateForm','whatsappConnectButton',
       'whatsappHealthButton','whatsappWebhookSubscribeButton','whatsappTemplateSyncButton',
       'whatsappConnectDialog','whatsappConnectCancel','whatsappConnectLaunch','whatsappConnectStatus',
-      'whatsappOauthSteps','whatsappAssets','whatsappGuideButton','whatsappGuideDialog','whatsappGuideClose'
+      'whatsappOauthSteps','whatsappAssets','whatsappGuideButton','whatsappGuideDialog','whatsappGuideClose',
+      'whatsappMetaResourceSelect','whatsappMetaResourceToggles'
     ].forEach(function(id){ refs[id] = document.getElementById(id); });
   }
 
@@ -119,6 +254,7 @@ ADMIN_WHATSAPP_SCRIPT = """\
     refs.whatsappAssets?.addEventListener('click', onConnectAssetClick);
     refs.whatsappGuideButton?.addEventListener('click', openGuideDialog);
     refs.whatsappGuideClose?.addEventListener('click', closeGuideDialog);
+    refs.whatsappMetaResourceSelect?.addEventListener('change', onMetaResourceSelect);
     window.addEventListener('message', function(event) {
       if (event.origin !== window.location.origin) return;
       if (!event.data || event.data.type !== 'velox:whatsapp-oauth') return;
@@ -135,6 +271,61 @@ ADMIN_WHATSAPP_SCRIPT = """\
 
   function closeGuideDialog() {
     refs.whatsappGuideDialog?.close();
+  }
+
+  function renderMetaResourceHub() {
+    if (!refs.whatsappMetaResourceSelect || !refs.whatsappMetaResourceToggles) return;
+    refs.whatsappMetaResourceSelect.innerHTML = '<option value="">Meta kaynağı seçin</option>' + META_RESOURCE_GROUPS.map(function(group) {
+      return '<optgroup label="' + escapeHtml(group.title) + '">' + group.resources.map(function(resource) {
+        return '<option value="' + escapeHtml(resource.url) + '">' + escapeHtml(resource.title) + '</option>';
+      }).join('') + '</optgroup>';
+    }).join('');
+    refs.whatsappMetaResourceToggles.innerHTML = META_RESOURCE_GROUPS.map(function(group, index) {
+      return '<details class="whatsapp-meta-resource-group" data-meta-resource-group="' + escapeHtml(group.key) + '" ' + (index === 0 ? 'open' : '') + '>' +
+        '<summary><span class="whatsapp-meta-resource-title"><strong>' + escapeHtml(group.title) + '</strong><span>' + escapeHtml(group.detail) + '</span></span><span class="whatsapp-meta-resource-count">' + escapeHtml(String(group.resources.length)) + ' link</span></summary>' +
+        '<div class="whatsapp-meta-link-grid">' + group.resources.map(function(resource) {
+          return '<a class="whatsapp-meta-link" href="' + escapeHtml(resource.url) + '" target="_blank" rel="noopener noreferrer">' +
+            '<strong>' + escapeHtml(resource.title) + '</strong>' +
+            '<small>' + escapeHtml(resource.detail) + '</small>' +
+            '<span>Meta kaynağını aç</span>' +
+          '</a>';
+        }).join('') + '</div>' +
+      '</details>';
+    }).join('');
+  }
+
+  function findMetaResource(url) {
+    for (var groupIndex = 0; groupIndex < META_RESOURCE_GROUPS.length; groupIndex += 1) {
+      var group = META_RESOURCE_GROUPS[groupIndex];
+      for (var resourceIndex = 0; resourceIndex < group.resources.length; resourceIndex += 1) {
+        var resource = group.resources[resourceIndex];
+        if (resource.url === url) {
+          return {groupKey: group.key, resource: resource};
+        }
+      }
+    }
+    return null;
+  }
+
+  function openMetaResourceGroup(groupKey) {
+    if (!refs.whatsappMetaResourceToggles) return;
+    refs.whatsappMetaResourceToggles.querySelectorAll('.whatsapp-meta-resource-group').forEach(function(item) {
+      item.open = item.dataset.metaResourceGroup === groupKey;
+    });
+  }
+
+  function onMetaResourceSelect(event) {
+    var selected = findMetaResource(event.target.value);
+    if (!selected) return;
+    openMetaResourceGroup(selected.groupKey);
+    var popup = window.open(selected.resource.url, '_blank');
+    if (popup) {
+      popup.opener = null;
+    } else {
+      window.location.href = selected.resource.url;
+      return;
+    }
+    event.target.value = '';
   }
 
   function patchSetView() {
@@ -467,6 +658,7 @@ ADMIN_WHATSAPP_SCRIPT = """\
   document.addEventListener('DOMContentLoaded', function(){
     bindWhatsAppRefs();
     bindWhatsAppEvents();
+    renderMetaResourceHub();
     patchSetView();
   });
 })();
