@@ -333,35 +333,29 @@ class RestaurantCreateHoldTool(BaseTool):
         except Exception:
             logger.warning("restaurant_hold_notif_failed", hold_id=created.hold_id)
 
-        # Approval flow / auto-confirm mode
+        # Approval flow: AI creates the hold, but admin/chef approval is still required.
         approval_request_id: str | None = None
-        if settings.reservation_mode.value == "AI_RESTAURAN":
-            await self._restaurant_repository.update_hold_status(
-                hold_id=created.hold_id,
-                status=RestaurantReservationStatus.ONAYLANDI,
-                approved_by="AI_RESTAURAN",
+        try:
+            approval_result = await self._approval_tool.execute(
+                hotel_id=hotel_id,
+                approval_type="RESTAURANT",
+                reference_id=created.hold_id,
+                details_summary=(
+                    f"{created.date} {created.time}, {created.party_size} guests, "
+                    f"{created.guest_name or 'Guest'}"
+                ),
+                required_roles=["ADMIN", "CHEF"],
+                any_of=True,
             )
-            created.status = RestaurantReservationStatus.ONAYLANDI
-        else:
-            try:
-                approval_result = await self._approval_tool.execute(
-                    hotel_id=hotel_id,
-                    approval_type="RESTAURANT",
-                    reference_id=created.hold_id,
-                    details_summary=(
-                        f"{created.date} {created.time}, {created.party_size} guests, "
-                        f"{created.guest_name or 'Guest'}"
-                    ),
-                    required_roles=["ADMIN", "CHEF"],
-                    any_of=True,
-                )
-                approval_request_id = approval_result.get("approval_request_id")
-            except Exception:
-                logger.error(
-                    "restaurant_hold_approval_failed",
-                    hold_id=created.hold_id,
-                    hotel_id=hotel_id,
-                )
+            approval_request_id = approval_result.get("approval_request_id")
+            if approval_request_id:
+                created.status = "PENDING_APPROVAL"
+        except Exception:
+            logger.error(
+                "restaurant_hold_approval_failed",
+                hold_id=created.hold_id,
+                hotel_id=hotel_id,
+            )
 
         risk_flags: list[str] = []
         if _contains_allergy_notes(created.notes):

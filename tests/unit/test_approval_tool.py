@@ -13,6 +13,15 @@ class _DummyApprovalRepo:
         return {"approval_request_id": "APR_1", "status": "REQUESTED"}
 
 
+class _RecordingApprovalRepo:
+    def __init__(self) -> None:
+        self.create_called = False
+
+    async def create(self, **_kwargs: object) -> dict[str, object]:
+        self.create_called = True
+        return {"approval_request_id": "APR_1", "status": "REQUESTED"}
+
+
 class _DummyNotificationRepo:
     async def create(self, **_kwargs: object) -> dict[str, str]:
         return {"notification_id": "N_1", "status": "PENDING"}
@@ -74,3 +83,24 @@ async def test_approval_alert_reopens_chat_window_on_session_closed(monkeypatch:
     assert result["approval_request_id"] == "APR_1"
     assert fake_client.template_calls == 1
     assert fake_client.text_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_approval_request_rejects_restaurant_reference_without_hold_prefix() -> None:
+    """Restaurant approval must reference a persisted R_HOLD record."""
+    approval_repo = _RecordingApprovalRepo()
+    tool = ApprovalRequestTool(
+        approval_repository=approval_repo,
+        notification_repository=_DummyNotificationRepo(),
+        notification_phone_repository=_DummyPhoneRepo(),
+    )
+
+    with pytest.raises(ValueError, match="RESTAURANT approval requires"):
+        await tool.execute(
+            hotel_id=21966,
+            approval_type="RESTAURANT",
+            reference_id="REST-21966-20260526-1900",
+            details_summary="Restoran talebi",
+        )
+
+    assert approval_repo.create_called is False

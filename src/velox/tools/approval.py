@@ -24,6 +24,11 @@ DEFAULT_APPROVAL_RULES: dict[str, tuple[list[str], bool]] = {
     "RESTAURANT": (["ADMIN", "CHEF"], True),
     "TRANSFER": (["ADMIN"], False),
 }
+APPROVAL_REFERENCE_PREFIXES: dict[str, str] = {
+    "STAY": "S_HOLD_",
+    "RESTAURANT": "R_HOLD_",
+    "TRANSFER": "TR_HOLD_",
+}
 
 _WHATSAPP_SEND_TIMEOUT = 10.0
 _SESSION_REOPEN_TEMPLATE_NAME = "hello_world"
@@ -50,6 +55,17 @@ class ApprovalRequestTool(BaseTool):
         approval_type = str(kwargs["approval_type"]).upper()
         reference_id = str(kwargs["reference_id"])
         details_summary = str(kwargs["details_summary"])
+
+        expected_prefix = APPROVAL_REFERENCE_PREFIXES.get(approval_type)
+        if expected_prefix and not reference_id.startswith(expected_prefix):
+            logger.warning(
+                "approval_request_invalid_reference",
+                hotel_id=hotel_id,
+                approval_type=approval_type,
+                expected_prefix=expected_prefix,
+                reference_id_length=len(reference_id),
+            )
+            raise ValueError(f"{approval_type} approval requires an existing {expected_prefix} hold reference.")
 
         default_roles, default_any_of = DEFAULT_APPROVAL_RULES.get(approval_type, (["ADMIN"], False))
         required_roles = list(kwargs.get("required_roles") or default_roles)

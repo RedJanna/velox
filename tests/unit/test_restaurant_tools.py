@@ -99,6 +99,52 @@ class _OffSeasonCreateHoldRepository(_DummyRestaurantRepository):
         }
 
 
+class _SuccessfulCreateHoldRepository:
+    def __init__(self) -> None:
+        self.updated_statuses: list[tuple[str, object, str | None]] = []
+
+    async def get_slot_by_id(self, *, hotel_id: int, slot_id: int) -> dict[str, object] | None:
+        assert hotel_id == 21966
+        assert slot_id == 42
+        return {
+            "slot_id": 42,
+            "hotel_id": 21966,
+            "date": date(2026, 8, 10),
+            "time": time(20, 0),
+            "area": "outdoor",
+            "is_active": True,
+        }
+
+    async def get_available_slots(self, **_kwargs: object) -> list[object]:
+        return [SimpleNamespace(slot_id="42")]
+
+    async def create_hold(self, hold: object) -> object:
+        return SimpleNamespace(
+            hold_id="R_HOLD_001",
+            hotel_id=21966,
+            date=date(2026, 8, 10),
+            time=time(20, 0),
+            party_size=4,
+            guest_name=getattr(hold, "guest_name"),
+            phone=getattr(hold, "phone"),
+            area=getattr(hold, "area"),
+            notes=getattr(hold, "notes"),
+            status=getattr(hold, "status"),
+        )
+
+    async def update_hold_status(self, *, hold_id: str, status: object, approved_by: str | None = None) -> None:
+        self.updated_statuses.append((hold_id, status, approved_by))
+
+
+class _FakeApprovalTool:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def execute(self, **kwargs: object) -> dict[str, object]:
+        self.calls.append(kwargs)
+        return {"approval_request_id": "APR_R_001", "status": "REQUESTED"}
+
+
 @pytest.mark.asyncio
 async def test_restaurant_create_hold_daily_capacity_full_returns_handoff_context() -> None:
     """Daily reservation max should preserve collected guest details and request handoff."""
@@ -157,6 +203,53 @@ async def test_restaurant_availability_rejects_out_of_season_date(monkeypatch: p
     assert result["available"] is False
     assert result["reason"] == "OUT_OF_SEASON"
     assert result["season"] == {"open": "04-20", "close": "11-10"}
+
+
+@pytest.mark.asyncio
+async def test_restaurant_create_hold_ai_mode_requests_approval_without_auto_confirm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AI restaurant mode must create an approval request instead of auto-confirming the hold."""
+    repository = _SuccessfulCreateHoldRepository()
+    approval_tool = _FakeApprovalTool()
+    monkeypatch.setattr(
+        restaurant_tools,
+        "get_profile",
+        lambda _hotel_id: SimpleNamespace(
+            season={"open": "04-20", "close": "11-10"},
+            restaurant=SimpleNamespace(hours={"dinner": "19:00-23:00"}),
+        ),
+    )
+
+    async def _noop_send(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(restaurant_tools, "send_admin_whatsapp_alerts", _noop_send)
+    monkeypatch.setattr(restaurant_tools, "send_whatsapp_to_phone", _noop_send)
+
+    tool = RestaurantCreateHoldTool(
+        restaurant_repository=repository,
+        approval_repository=_DummyApprovalRepository(),
+        notification_repository=_DummyNotificationRepository(),
+    )
+    tool._settings_repository = _AvailableSettingsRepository()  # type: ignore[attr-defined]
+    tool._approval_tool = approval_tool  # type: ignore[attr-defined]
+
+    result = await tool.execute(
+        hotel_id=21966,
+        slot_id=42,
+        guest_name="Ali Veli",
+        phone="+905551112233",
+        party_size=4,
+        area="outdoor",
+        notes="Window side if possible",
+    )
+
+    assert result["restaurant_hold_id"] == "R_HOLD_001"
+    assert result["status"] == "PENDING_APPROVAL"
+    assert result["approval_request_id"] == "APR_R_001"
+    assert repository.updated_statuses == []
+    assert approval_tool.calls[0]["reference_id"] == "R_HOLD_001"
 
 
 @pytest.mark.asyncio

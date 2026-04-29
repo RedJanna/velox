@@ -1599,6 +1599,89 @@ async def test_run_message_pipeline_restaurant_auto_submit_sets_confirmed_when_h
 
 
 @pytest.mark.asyncio
+async def test_run_message_pipeline_restaurant_bare_approval_request_backfills_and_creates_hold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bare restaurant approval request must be repaired into real hold creation."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Rezervasyon talebiniz alinmistir.\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"restaurant_booking_create","state":"PENDING_APPROVAL","entities":'
+            '{"date":"2026-05-26","time":"19:00","phone":"+905551112233","party_size":3},'
+            '"required_questions":[],"tool_calls":[{"name":"approval_request","status":"called"}],'
+            '"notifications":[],"handoff":{"needed":false},"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},'
+            '"next_step":"WAITING_APPROVAL_RESPONSE"}',
+            [
+                {
+                    "name": "approval_request",
+                    "arguments": {
+                        "hotel_id": 21966,
+                        "approval_type": "RESTAURANT",
+                        "reference_id": "REST-21966-20260526-1900",
+                    },
+                    "result": {"error": "invalid reference"},
+                }
+            ],
+        )
+
+    class _Dispatcher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append((name, kwargs))
+            if name == "restaurant_availability":
+                return {
+                    "available": True,
+                    "options": [{"slot_id": "52", "time": "19:00:00", "area": "outdoor"}],
+                }
+            if name == "restaurant_create_hold":
+                assert kwargs["guest_name"] == "Deneme Deneme"
+                return {
+                    "restaurant_hold_id": "R_HOLD_9052",
+                    "status": "PENDING_APPROVAL",
+                    "approval_request_id": "APR_R_9052",
+                }
+            return {"error": "unexpected_tool"}
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    fake_profile = SimpleNamespace(
+        restaurant=SimpleNamespace(area_types=["outdoor"], hours={"dinner": "19:00-23:00"}),
+        season={"open": "04-20", "close": "10-31"},
+    )
+    dispatcher = _Dispatcher()
+    conversation = Conversation(id=uuid4(), hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: fake_profile)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text=(
+            "26 Mayis 3 kisi Saat: 19:00 Isim: Deneme Deneme "
+            "Tel no: +905551112233 Rezervasyon olusturur musunuz?"
+        ),
+        dispatcher=dispatcher,
+        expected_language="tr",
+    )
+
+    assert [item[0] for item in dispatcher.calls] == ["restaurant_availability", "restaurant_create_hold"]
+    assert result.internal_json.state == "PENDING_APPROVAL"
+    assert result.internal_json.next_step == "await_admin_approval"
+    assert result.internal_json.entities["guest_name"] == "Deneme Deneme"
+    assert [item["name"] for item in result.internal_json.tool_calls][-3:] == [
+        "restaurant_availability",
+        "restaurant_create_hold",
+        "approval_request",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_run_message_pipeline_transfer_auto_submit_injects_approval_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2033,10 +2116,31 @@ def test_select_tool_definitions_for_restaurant_turn_returns_restaurant_shortlis
     assert "faq_lookup" in tool_names
     assert "restaurant_availability" in tool_names
     assert "restaurant_create_hold" in tool_names
-    assert "approval_request" in tool_names
+    assert "approval_request" not in tool_names
     assert "booking_availability" not in tool_names
     assert "transfer_get_info" not in tool_names
     assert "room_service_create_order" not in tool_names
+
+
+def test_select_tool_definitions_for_labeled_restaurant_form_returns_restaurant_shortlist() -> None:
+    """Labeled restaurant intake messages should not fall back to stay tools."""
+    conversation = Conversation(
+        hotel_id=21966,
+        phone_hash="hash",
+        language="tr",
+    )
+
+    selected = whatsapp_webhook._select_tool_definitions_for_turn(
+        conversation,
+        "26 Mayis 3 kisi Saat: 19:00 Isim: Deneme Deneme Tel no: +905551112233 Rezervasyon olusturur musunuz?",
+        whatsapp_webhook.get_tool_definitions(),
+    )
+    tool_names = whatsapp_webhook._extract_tool_definition_names(selected)
+
+    assert "restaurant_availability" in tool_names
+    assert "restaurant_create_hold" in tool_names
+    assert "approval_request" not in tool_names
+    assert "booking_availability" not in tool_names
 
 
 @pytest.mark.asyncio

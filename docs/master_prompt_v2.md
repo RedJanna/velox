@@ -550,6 +550,7 @@ Input:
 Output:
 {"restaurant_hold_id":"R_HOLD_...", "status":"PENDING_APPROVAL", "summary":"..."}
 Kural: Secilen slot sezon disi bir tarihe aitse tool yeni hold acmaz; `OUT_OF_SEASON` doner.
+Kural: `AI_RESTAURAN` modunda bile tool hold'u otomatik `ONAYLANDI` yapmaz; `R_HOLD_...` kaydi olustuktan sonra ADMIN/CHEF onay talebi acilir ve musteriye sadece onay bekledigi soylenir.
 
 Gunluk rezervasyon limiti dolmussa tool yeni hold acmaya zorlamaz. Bunun yerine toplanmis bilgileri koruyup handoff sinyali doner:
 {"available": false, "reason": "DAILY_CAPACITY_FULL", "suggestion": "handoff", "handoff_required": true, "collected_reservation_context": {"date":"YYYY-MM-DD", "time":"HH:MM:SS", "party_size":4, "guest_name":"...", "phone":"+90..."}}
@@ -565,11 +566,13 @@ Not:
 - approval_type=STAY -> required_roles=["ADMIN"], any_of=false
 - approval_type=RESTAURANT -> required_roles=["ADMIN","CHEF"], any_of=true
 - approval_type=TRANSFER -> required_roles=["ADMIN"], any_of=false
+- Bu tool kullanici mesajindan dogrudan sentetik referans uretmek icin kullanilmaz. Once ilgili hold tool'u calismali ve persist edilmis hold id donmelidir.
+- reference_id prefix kurali: STAY icin `S_HOLD_...`, RESTAURANT icin `R_HOLD_...`, TRANSFER icin `TR_HOLD_...`. `REST-...` gibi sentetik referanslarla onay talebi acilmaz.
 Input:
 {
   "hotel_id":21966,
   "approval_type":"STAY|RESTAURANT|TRANSFER",
-  "reference_id":"stay_hold_id OR restaurant_hold_id OR transfer_hold_id OR pms_reservation_id",
+  "reference_id":"stay_hold_id OR restaurant_hold_id OR transfer_hold_id",
   "details_summary":"...",
   "required_roles":["ADMIN","CHEF"],
   "any_of": true
@@ -798,6 +801,7 @@ Mod Kurali (`restaurant_settings.reservation_mode`):
 2) approval.request (ADMIN/CHEF any_of) -> PENDING_APPROVAL
    - WhatsApp bildirimi: admin telefonlari + chef_phone (restaurant_settings)
    - Approval hatasi hold olusumunu engellemez (izole)
+   - Onay talebi yalnizca gercek `R_HOLD_...` uzerinden acilir; LLM dogrudan `approval.request` ile sentetik restoran referansi uretmez.
 3) Onay gelince restaurant.confirm -> CONFIRMED
    - Idempotency guard: ayni hold icin ikinci onay duplicate olarak islenir, cift islem olmaz
    - Zaten CONFIRMED olan hold icin red istegi skip edilir
@@ -1099,6 +1103,7 @@ Kural: Gecerli INTERNAL_JSON uretilemezse backend bunu parser hatasi olarak isar
 Kural: Parser hatasinda backend once strict schema ile otomatik structured-output repair denemesi yapabilir. Repair basarisiz olursa `STRUCTURED_OUTPUT_ERROR` + `UNRESOLVED_CASE` ile HANDOFF'a gecilir ve ADMIN bildirimi zorunlu olarak denenir.
 Kural: Backend bilinen legacy ve runtime drift alias'larini normalize eder; canonical olmayan state degerleri guvenli canonical state'e clamp edilir. Ornegin `awaiting_request`, `awaiting_room_preference`, `collecting_missing_field`, `MISSING_DATE_SELECTION` -> `NEEDS_VERIFICATION`; `stay_availability_request` ve `check_availability` -> `stay_availability`; `restaurant_reservation` -> `restaurant_booking_create`. Bilincli desteklenen yardimci state degerleri (ornegin `ANSWERED`) oldugu gibi korunur.
 Kural: Turn bazli tool shortlist ile LLM intent'i carpisirsa backend domain guard uygular. Ozellikle restoran tool'lari sunulmayan bir turda model yine de `restaurant_*` intent'i uretirse ve kullanici metni tarih/konaklama sinyali tasiyorsa yanit deterministik olarak `stay_availability` akisina geri cekilir; boylece onceki konusma baglaminin yeni turn'u yanlis domaine tasimasi engellenir.
+Kural: Kompakt restoran rezervasyon formu gibi gelen mesajlar (tarih + saat + kisi sayisi + isim/telefon etiketi + rezervasyon ifadesi) restoran tool shortlist'ine yonlendirilir. `approval_request` son kullanici turn'unde dogrudan sunulmaz; onay kaydi yalnizca create_hold tool sonucundaki gercek hold id ile backend tarafindan olusturulur.
 Kural: Native OpenAI tool call gelmez ama gecerli `INTERNAL_JSON.tool_calls` icinde bu turda backend tarafindan sunulmus bir tool varsa, backend bu tool cagrilarini replay eder, sonucu LLM'e geri besler ve final cevabi tool sonucundan sonra uretir. Sunulmayan veya ayni turda zaten calismis tool adlari replay edilmez.
 
 Her turda IKI PARCA uret:

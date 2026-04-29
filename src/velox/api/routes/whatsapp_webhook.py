@@ -1457,7 +1457,6 @@ _STAY_TOOL_SHORTLIST = {
     "booking_get_reservation",
     "booking_modify",
     "booking_cancel",
-    "approval_request",
     "payment_request_prepayment",
 }
 _RESTAURANT_TOOL_SHORTLIST = {
@@ -1466,7 +1465,6 @@ _RESTAURANT_TOOL_SHORTLIST = {
     "restaurant_confirm",
     "restaurant_modify",
     "restaurant_cancel",
-    "approval_request",
 }
 _TRANSFER_TOOL_SHORTLIST = {
     "transfer_get_info",
@@ -1474,7 +1472,6 @@ _TRANSFER_TOOL_SHORTLIST = {
     "transfer_confirm",
     "transfer_modify",
     "transfer_cancel",
-    "approval_request",
 }
 _ROOM_SERVICE_TOOL_SHORTLIST = {
     "room_service_create_order",
@@ -1519,6 +1516,22 @@ _ADULT_COUNT_PATTERN = re.compile(
     flags=re.IGNORECASE,
 )
 _TIME_OF_DAY_PATTERN = re.compile(r"\b(?:saat\s*)?(?:[01]?\d|2[0-3])[:.]([0-5]\d)\b", flags=re.IGNORECASE)
+_RESTAURANT_GUEST_NAME_LABEL_PATTERN = re.compile(
+    r"(?:isim|ad\s*soyad|name)\s*[:：-]\s*(?P<value>.+?)(?=\s+(?:tel|telefon|phone|saat|time|not)\b|$)",
+    flags=re.IGNORECASE,
+)
+_RESTAURANT_PHONE_LABEL_PATTERN = re.compile(
+    r"(?:tel(?:efon)?(?:\s*no)?|phone)\s*[:：-]?\s*(?P<value>\+?\d[\d\s().-]{6,}\d)",
+    flags=re.IGNORECASE,
+)
+_RESTAURANT_PARTY_SIZE_PATTERN = re.compile(
+    r"\b(?P<value>\d{1,2})\s*(?:kisi|kişi|person|guests?)\b",
+    flags=re.IGNORECASE,
+)
+_RESTAURANT_TIME_LABEL_PATTERN = re.compile(
+    r"\b(?:saat|time)\s*[:：-]?\s*(?P<value>(?:[01]?\d|2[0-3])[:.]([0-5]\d))\b",
+    flags=re.IGNORECASE,
+)
 _STAY_MONTH_LABELS = {
     "ocak": "Ocak",
     "subat": "Subat",
@@ -1611,6 +1624,32 @@ _STAY_MONTH_ALIASES = {
     "dece": "december",
     "december": "december",
 }
+_STAY_MONTH_NUMBERS = {
+    "ocak": 1,
+    "subat": 2,
+    "mart": 3,
+    "nisan": 4,
+    "mayis": 5,
+    "haziran": 6,
+    "temmuz": 7,
+    "agustos": 8,
+    "eylul": 9,
+    "ekim": 10,
+    "kasim": 11,
+    "aralik": 12,
+    "january": 1,
+    "february": 2,
+    "march": 3,
+    "april": 4,
+    "may": 5,
+    "june": 6,
+    "july": 7,
+    "august": 8,
+    "september": 9,
+    "october": 10,
+    "november": 11,
+    "december": 12,
+}
 
 
 def _resolve_tool_shortlist_names(conversation: Conversation, normalized_text: str) -> set[str]:
@@ -1621,7 +1660,7 @@ def _resolve_tool_shortlist_names(conversation: Conversation, normalized_text: s
     shortlist = set(_GENERAL_TOOL_SHORTLIST)
     if any(token in current_intent for token in ("restaurant", "menu")) or any(
         token in text for token in _RESTAURANT_TOOL_HINTS
-    ):
+    ) or _looks_like_restaurant_intake_form(text):
         shortlist.update(_RESTAURANT_TOOL_SHORTLIST)
     elif "transfer" in current_intent or any(token in text for token in _TRANSFER_TOOL_HINTS):
         shortlist.update(_TRANSFER_TOOL_SHORTLIST)
@@ -1630,6 +1669,16 @@ def _resolve_tool_shortlist_names(conversation: Conversation, normalized_text: s
     else:
         shortlist.update(_STAY_TOOL_SHORTLIST)
     return shortlist
+
+
+def _looks_like_restaurant_intake_form(text: str) -> bool:
+    """Detect compact restaurant reservation forms without explicit restaurant words."""
+    canonical = _canonical_text(text)
+    has_reservation = any(token in canonical for token in ("rezervasyon", "reservation"))
+    has_time = _TIME_OF_DAY_PATTERN.search(text) is not None or "saat" in canonical
+    has_party = _RESTAURANT_PARTY_SIZE_PATTERN.search(text) is not None
+    has_contact_label = any(token in canonical for token in ("isim", "adsoyad", "telefon", "telno"))
+    return has_reservation and has_time and has_party and has_contact_label
 
 
 def _select_tool_definitions_for_turn(
@@ -3447,6 +3496,65 @@ def _restaurant_missing_required_fields(entities: dict[str, Any]) -> list[str]:
     return missing
 
 
+def _backfill_restaurant_entities_from_user_text(entities: dict[str, Any], user_text: str) -> dict[str, Any]:
+    """Fill labeled restaurant intake fields the model may omit from INTERNAL_JSON."""
+    backfilled = dict(entities)
+    if not str(backfilled.get("date") or "").strip():
+        parsed_date = _extract_restaurant_date_from_user_text(user_text)
+        if parsed_date:
+            backfilled["date"] = parsed_date
+    if not str(backfilled.get("time") or "").strip():
+        match = _RESTAURANT_TIME_LABEL_PATTERN.search(user_text) or _TIME_OF_DAY_PATTERN.search(user_text)
+        if match:
+            raw_time = str(match.group("value") if "value" in match.groupdict() else match.group(0))
+            time_match = re.search(r"(?:[01]?\d|2[0-3])[:.]([0-5]\d)", raw_time)
+            if time_match:
+                backfilled["time"] = time_match.group(0).replace(".", ":")
+    if _to_int(backfilled.get("party_size"), 0) <= 0:
+        match = _RESTAURANT_PARTY_SIZE_PATTERN.search(user_text)
+        if match:
+            backfilled["party_size"] = _to_int(match.group("value"), 0)
+    if not str(backfilled.get("guest_name") or "").strip():
+        match = _RESTAURANT_GUEST_NAME_LABEL_PATTERN.search(user_text)
+        if match:
+            guest_name = re.sub(r"\s+", " ", match.group("value")).strip(" :;-")
+            if guest_name:
+                backfilled["guest_name"] = guest_name
+    if not str(backfilled.get("phone") or "").strip():
+        match = _RESTAURANT_PHONE_LABEL_PATTERN.search(user_text)
+        if match:
+            phone = _normalize_phone_for_collection(match.group("value"))
+            if phone:
+                backfilled["phone"] = phone
+    return backfilled
+
+
+def _extract_restaurant_date_from_user_text(user_text: str) -> str:
+    """Extract a YYYY-MM-DD restaurant date from labeled or compact day-month text."""
+    current_year = _current_reservation_year()
+    for match in _DAY_MONTH_PATTERN.finditer(user_text):
+        day = _to_int(match.group(1), 0)
+        month_key = _normalize_month_token(match.group(2))
+        month = _STAY_MONTH_NUMBERS.get(month_key)
+        if 1 <= day <= 31 and month:
+            try:
+                return date(current_year, month, day).isoformat()
+            except ValueError:
+                return ""
+
+    match = _NUMERIC_DATE_PATTERN.search(user_text)
+    if not match:
+        return ""
+    day = _to_int(match.group(1), 0)
+    month = _to_int(match.group(2), 0)
+    if not (1 <= day <= 31 and 1 <= month <= 12):
+        return ""
+    try:
+        return date(current_year, month, day).isoformat()
+    except ValueError:
+        return ""
+
+
 def _restaurant_tool_progress_message(language: str) -> str:
     """Guest-facing progress message once restaurant slot checking can begin."""
     if language == "en":
@@ -5180,6 +5288,8 @@ async def _run_message_pipeline(
         if not parser_error_reason:
             entities.pop("response_parser", None)
         entities = _sanitize_phone_entity(entities, current_whatsapp_phone=current_whatsapp_phone)
+        if str(parsed.internal_json.intent or "").lower() == "restaurant_booking_create":
+            entities = _backfill_restaurant_entities_from_user_text(entities, original_user_text)
         parsed.internal_json.entities = entities
         _apply_phone_collection_choice_override(
             parsed,
