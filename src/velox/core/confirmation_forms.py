@@ -1072,6 +1072,8 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
     footer_note_html = _render_footer_note(context)
     brand_primary, brand_place = _brand_lockup_names(context.hotel_name)
     motif_class = f"motif-{context.form_type}"
+    variant_class = _document_variant_class(context.form_type)
+    type_ornament = _render_type_ornament(context.form_type)
     map_art = _render_map_linework()
     return f"""<!doctype html>
 <html lang="{escape(context.language)}" dir="{dir_attr}">
@@ -1198,6 +1200,60 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
     .confirmation-note .note-secondary {{ color:#777772; font-size:11px; }}
     .confirmation-note .note-mark {{ position:relative; width:82px; height:1px; margin:6px auto 0; background:rgba(36,36,33,.42); }}
     .doc-footer {{ margin:12px auto 0; max-width:684px; display:flex; justify-content:space-between; gap:14px; color:#787872; font-size:9px; text-transform:uppercase; letter-spacing:0; }}
+    .type-ornament {{ position:absolute; pointer-events:none; z-index:0; color:rgba(36,36,33,.42); }}
+    .ornament-accommodation {{ left:62px; top:144px; width:168px; height:42px; border-top:1px solid rgba(36,36,33,.34); border-bottom:1px solid rgba(36,36,33,.24); opacity:.45; }}
+    .ornament-accommodation::before {{ content:""; position:absolute; left:0; right:0; top:16px; border-top:1px dotted rgba(36,36,33,.42); }}
+    .ornament-accommodation::after {{ content:"STAY"; position:absolute; right:0; top:18px; font-size:9px; letter-spacing:0; color:rgba(36,36,33,.48); }}
+    .ornament-restaurant {{ right:76px; top:162px; width:116px; height:116px; border:1px solid rgba(36,36,33,.28); border-radius:50%; opacity:.52; }}
+    .ornament-restaurant::before {{ content:""; position:absolute; inset:22px; border:1px solid rgba(36,36,33,.25); border-radius:50%; }}
+    .ornament-restaurant::after {{ content:""; position:absolute; left:-30px; top:30px; width:18px; height:58px; border-left:1px solid rgba(36,36,33,.42); border-right:1px solid rgba(36,36,33,.28); box-shadow:6px 0 0 rgba(36,36,33,.18); }}
+    .ornament-transfer {{ left:54px; right:54px; top:174px; height:58px; border-top:1px dashed rgba(36,36,33,.38); opacity:.5; transform:skewY(-3deg); }}
+    .ornament-transfer::before,.ornament-transfer::after {{ content:""; position:absolute; top:-6px; width:11px; height:11px; border:1px solid rgba(36,36,33,.54); border-radius:50%; background:var(--paper); }}
+    .ornament-transfer::before {{ left:0; }}
+    .ornament-transfer::after {{ right:0; }}
+    .template-accommodation-ledger .letterhead {{ min-height:116px; }}
+    .template-accommodation-ledger .brand-lockup {{ box-shadow:0 0 0 6px rgba(251,250,246,.42), inset 0 0 0 1px rgba(36,36,33,.16); }}
+    .template-accommodation-ledger .document-body {{ max-width:664px; }}
+    .template-accommodation-ledger .section-customer .document-fields {{ grid-template-columns:1fr; row-gap:8px; }}
+    .template-accommodation-ledger .section-status {{ padding-top:4px; }}
+    .template-accommodation-ledger .section-status .document-fields {{ grid-template-columns:repeat(3,minmax(0,1fr)); column-gap:22px; padding:12px 0 2px; border-top:1px solid rgba(36,36,33,.22); border-bottom:1px solid rgba(36,36,33,.22); }}
+    .sheet.template-restaurant-table {{ background:var(--paper); }}
+    .template-restaurant-table .letterhead {{ justify-content:flex-start; min-height:94px; padding-left:18px; }}
+    .template-restaurant-table .brand-lockup {{ min-width:246px; max-width:286px; padding:9px 20px 12px; border-left:0; border-right:0; background:rgba(251,250,246,.56); }}
+    .template-restaurant-table .brand-name {{ font-size:36px; }}
+    .template-restaurant-table .brand-place {{ font-size:10px; }}
+    .template-restaurant-table .divider {{ margin:8px 0 22px; }}
+    .template-restaurant-table .hero {{ text-align:left; margin:0 0 18px 34px; padding-left:24px; border-left:1px solid rgba(36,36,33,.38); }}
+    .template-restaurant-table h1 {{ margin-left:0; max-width:548px; font-size:25px; }}
+    .template-restaurant-table .subtitle {{ max-width:420px; }}
+    .template-restaurant-table .mini-divider {{ margin-left:0; width:172px; }}
+    .template-restaurant-table .document-body {{ max-width:642px; border:1px solid rgba(36,36,33,.3); padding:16px 18px 10px; background:rgba(255,255,255,.24); }}
+    .template-restaurant-table .document-section {{ margin-bottom:13px; }}
+    .template-restaurant-table .section-heading {{ gap:8px; }}
+    .template-restaurant-table .section-star {{ font-size:12px; }}
+    .template-restaurant-table .section-rule::after {{ width:44px; transform:none; }}
+    .template-restaurant-table .line-label {{ white-space:normal; }}
+    .template-restaurant-table .section-details .document-fields {{ grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:24px; }}
+    .template-restaurant-table .section-notes .notes-box {{ min-height:58px; border-left:0; border-right:0; }}
+    .template-restaurant-table .confirmation-note {{ margin-top:10px; }}
+    .template-transfer-route .letterhead {{ justify-content:flex-start; min-height:108px; padding-left:4px; }}
+    .template-transfer-route .brand-lockup {{ min-width:282px; max-width:324px; text-align:left; border:0; background:transparent; padding:8px 0 10px 22px; }}
+    .template-transfer-route .brand-place {{ margin-left:70px; }}
+    .template-transfer-route .divider {{ margin:8px 0 28px; }}
+    .template-transfer-route .hero {{ margin-bottom:20px; }}
+    .template-transfer-route h1 {{ font-size:29px; }}
+    .template-transfer-route .document-body {{ max-width:690px; }}
+    .template-transfer-route .section-details {{ position:relative; padding:12px 15px 12px; border-left:1px dashed rgba(36,36,33,.34); border-right:1px dashed rgba(36,36,33,.34); }}
+    .template-transfer-route .section-details::before {{ content:""; position:absolute; left:20px; right:20px; top:46%; border-top:1px dashed rgba(36,36,33,.16); z-index:-1; }}
+    .template-transfer-route .section-details .document-fields {{ grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:24px; row-gap:10px; }}
+    .template-transfer-route .section-details .line-field.is-wide {{ grid-column:1 / -1; }}
+    .template-transfer-route .section-status .document-fields {{ grid-template-columns:repeat(3,minmax(0,1fr)); }}
+    .motif-accommodation .decor-map.top {{ opacity:.2; }}
+    .motif-accommodation .decor-map.bottom {{ opacity:.34; }}
+    .motif-accommodation .linework .route-right,.motif-accommodation .linework .pin-b,.motif-accommodation .linework .arrow-right {{ display:none; }}
+    .motif-restaurant .decor-map.top,.motif-restaurant .decor-map.bottom,.motif-restaurant .linework .route-left,.motif-restaurant .linework .route-right,.motif-restaurant .linework .pin,.motif-restaurant .linework .arrow {{ display:none; }}
+    .motif-restaurant .decor-dots {{ right:78px; top:312px; bottom:auto; width:56px; height:56px; opacity:.18; }}
+    .motif-transfer .starburst {{ top:72px; right:72px; }}
     @page {{ size:A4; margin:0; }}
     @media(max-width:760px) {{
       .page {{ padding:16px; }}
@@ -1205,7 +1261,12 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
       .brand-lockup {{ min-width:0; width:78%; padding:9px 14px 12px; }}
       .brand-name {{ font-size:33px; }}
       h1 {{ font-size:23px; }}
+      .type-ornament {{ display:none; }}
+      .template-restaurant-table .letterhead,.template-transfer-route .letterhead {{ justify-content:center; padding-left:0; }}
+      .template-restaurant-table .hero {{ margin-left:0; padding-left:16px; }}
+      .template-restaurant-table .document-body {{ padding:14px 14px 8px; }}
       .document-fields,.section-status .document-fields {{ grid-template-columns:1fr; }}
+      .template-accommodation-ledger .section-status .document-fields,.template-restaurant-table .section-details .document-fields,.template-transfer-route .section-details .document-fields {{ grid-template-columns:1fr; }}
       .line-field.is-wide {{ grid-column:auto; }}
       .doc-footer {{ flex-direction:column; }}
     }}
@@ -1218,13 +1279,14 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
 </head>
 <body>
   <main class="page">
-    <article class="sheet {motif_class}" aria-label="{escape(labels["document_title"])}">
+    <article class="sheet {motif_class} {variant_class}" aria-label="{escape(labels["document_title"])}">
       <span class="corner corner-tl"></span><span class="corner corner-tr"></span><span class="corner corner-bl"></span><span class="corner corner-br"></span>
       {map_art}
       <div class="linework" aria-hidden="true">
         <span class="route-left"></span><span class="route-right"></span><span class="pin pin-a"></span><span class="pin pin-b"></span><span class="arrow arrow-right"></span><span class="decor-dots"></span>
       </div>
       <span class="starburst" aria-hidden="true"></span>
+      {type_ornament}
       <header class="letterhead">
         <div class="brand-lockup">
           <div class="brand-name">{escape(brand_primary)}</div>
@@ -1422,6 +1484,19 @@ def _brand_lockup_names(hotel_name: str) -> tuple[str, str]:
     primary = parts[0]
     place = " ".join(parts[1:]) or hotel_name
     return primary, place
+
+
+def _document_variant_class(form_type: ConfirmationFormType) -> str:
+    variants = {
+        "accommodation": "template-accommodation-ledger",
+        "restaurant": "template-restaurant-table",
+        "transfer": "template-transfer-route",
+    }
+    return variants[form_type]
+
+
+def _render_type_ornament(form_type: ConfirmationFormType) -> str:
+    return f'<div class="type-ornament ornament-{escape(form_type)}" aria-hidden="true"></div>'
 
 
 def _document_extra_label(language: str, key: str) -> str:

@@ -59,6 +59,27 @@ def test_manual_preview_renders_blank_line_template_without_required_fields() ->
     assert 'line-value">&nbsp;</span>' in preview.html
 
 
+def test_confirmation_templates_share_language_but_have_type_specific_designs() -> None:
+    html_by_type = {}
+    for form_type in ("accommodation", "restaurant", "transfer"):
+        context = build_context_from_manual_payload(
+            form_type=form_type,
+            hotel_id=21966,
+            language="tr",
+            payload={"customer": {}, "details": {}},
+            generated_at=datetime(2026, 4, 29, 10, 30, tzinfo=UTC),
+        )
+        html_by_type[form_type] = build_preview(context).html
+
+    assert "template-accommodation-ledger" in html_by_type["accommodation"]
+    assert "template-restaurant-table" in html_by_type["restaurant"]
+    assert "template-transfer-route" in html_by_type["transfer"]
+    assert "ornament-accommodation" in html_by_type["accommodation"]
+    assert "ornament-restaurant" in html_by_type["restaurant"]
+    assert "ornament-transfer" in html_by_type["transfer"]
+    assert all("brand-lockup" in html and "section-heading" in html for html in html_by_type.values())
+
+
 def test_restaurant_confirmation_preview_supports_active_language() -> None:
     context = build_context_from_manual_payload(
         form_type="restaurant",
