@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime as _dt
 from datetime import date
 from decimal import Decimal
+from time import perf_counter
 from typing import Annotated, Any
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, ValidationError
 
 from velox.adapters.elektraweb import endpoints as elektraweb
+from velox.adapters.whatsapp.client import WhatsAppSendBlockedError, get_whatsapp_client
 from velox.api.middleware.auth import (
     TokenData,
     check_permission,
@@ -26,6 +29,13 @@ from velox.config.constants import (
     RestaurantReservationStatus,
     Role,
     resolve_table_type,
+)
+from velox.config.settings import settings
+from velox.core.confirmation_forms import (
+    build_context_from_hold,
+    create_confirmation_form,
+    mark_confirmation_sent,
+    resolve_language_for_hold,
 )
 from velox.core.hotel_profile_loader import get_profile
 from velox.db.database import fetch, fetchrow, fetchval
@@ -78,6 +88,105 @@ def _safe_int(value: object) -> int:
     return 0
 
 
+def _mask_phone_for_log(phone: str) -> str:
+    """Mask phone values before writing operational logs."""
+    value = phone.strip()
+    if len(value) < 4:
+        return "***"
+    return f"{value[:3]}***{value[-2:]}"
+
+
+async def _send_restaurant_confirmation_to_customer(
+    *,
+    phone: str,
+    message: str,
+    hotel_id: int,
+) -> str | None:
+    """Send a restaurant confirmation link to the customer when AI mode allows."""
+    if not phone or "*" in phone:
+        logger.warning("restaurant_confirmation_send_skipped_no_phone", hotel_id=hotel_id)
+        return None
+    if settings.operation_mode != "ai":
+        logger.info(
+            "restaurant_confirmation_send_blocked_by_mode",
+            hotel_id=hotel_id,
+            phone=_mask_phone_for_log(phone),
+            operation_mode=settings.operation_mode,
+        )
+        return None
+    whatsapp = get_whatsapp_client()
+    started = perf_counter()
+    try:
+        result = await asyncio.wait_for(
+            whatsapp.send_text_message(to=phone, body=message),
+            timeout=10.0,
+        )
+    except WhatsAppSendBlockedError:
+        logger.info("restaurant_confirmation_send_blocked_by_client", hotel_id=hotel_id)
+        return None
+    except Exception:
+        logger.warning(
+            "restaurant_confirmation_send_failed",
+            hotel_id=hotel_id,
+            phone=_mask_phone_for_log(phone),
+            duration_ms=int((perf_counter() - started) * 1000),
+            exc_info=True,
+        )
+        return None
+    if isinstance(result, dict):
+        messages = result.get("messages")
+        if isinstance(messages, list) and messages and isinstance(messages[0], dict):
+            return str(messages[0].get("id") or "").strip() or None
+    return None
+
+
+async def _generate_restaurant_confirmation_after_status(
+    *,
+    request: Request,
+    hold_id: str,
+    user: TokenData,
+) -> dict[str, Any]:
+    """Generate and try to send the restaurant confirmation after admin approval."""
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        hold = await conn.fetchrow("SELECT * FROM restaurant_holds WHERE hold_id = $1", hold_id)
+        if hold is None:
+            raise HTTPException(status_code=404, detail="Rezervasyon bulunamadi")
+        ensure_hotel_access(user, int(hold["hotel_id"]))
+        language = await resolve_language_for_hold(conn, hold, None)
+        context = build_context_from_hold(
+            approval_type="RESTAURANT",
+            hold=hold,
+            hotel_id=int(hold["hotel_id"]),
+            language=language,
+        )
+        delivery = await create_confirmation_form(
+            conn,
+            context=context,
+            generated_by=user.display_name or user.username,
+        )
+
+    phone = str(hold["phone"] or "").strip()
+    whatsapp_message_id = await _send_restaurant_confirmation_to_customer(
+        phone=phone,
+        message=delivery.whatsapp_message,
+        hotel_id=int(hold["hotel_id"]),
+    )
+    async with db.acquire() as conn:
+        await mark_confirmation_sent(
+            conn,
+            form_id=delivery.form_id,
+            whatsapp_message_id=whatsapp_message_id,
+            delivered=bool(whatsapp_message_id),
+        )
+    return {
+        "form_id": delivery.form_id,
+        "public_url": delivery.public_url,
+        "language": language,
+        "delivery_status": "sent" if whatsapp_message_id else "not_sent",
+    }
+
+
 # ---------------------------------------------------------------------------
 # Stay holds
 # ---------------------------------------------------------------------------
@@ -98,12 +207,10 @@ async def list_stay_holds(
     effective = _effective_hotel(user, hotel_id)
     offset = (page - 1) * per_page
 
-    archived_clause = "sh.archived_at IS NOT NULL" if archived else "sh.archived_at IS NULL"
-
     # If searching by reservation_no, do a direct lookup.
     if reservation_no and reservation_no.strip():
         row = await fetchrow(
-            f"""
+            """
             SELECT sh.*, ar.decided_at AS approval_decided_at
             FROM stay_holds sh
             LEFT JOIN LATERAL (
@@ -112,9 +219,10 @@ async def list_stay_holds(
                 ORDER BY created_at DESC LIMIT 1
             ) ar ON true
             WHERE sh.reservation_no = $1
-              AND {archived_clause}
+              AND (($2::bool AND sh.archived_at IS NOT NULL) OR (NOT $2::bool AND sh.archived_at IS NULL))
             """,
             reservation_no.strip(),
+            archived,
         )
         if row is None:
             return {"items": [], "total": 0, "page": 1, "per_page": per_page}
@@ -123,7 +231,7 @@ async def list_stay_holds(
             return {"items": [], "total": 0, "page": 1, "per_page": per_page}
         return {"items": [item], "total": 1, "page": 1, "per_page": per_page}
 
-    items_query = f"""
+    items_query = """
         SELECT sh.*,
             ar.decided_at AS approval_decided_at,
             pr.created_at AS payment_requested_at
@@ -141,18 +249,18 @@ async def list_stay_holds(
         ) pr ON true
         WHERE ($1::int IS NULL OR sh.hotel_id = $1)
           AND ($2::text IS NULL OR sh.status = $2)
-          AND {archived_clause}
+          AND (($3::bool AND sh.archived_at IS NOT NULL) OR (NOT $3::bool AND sh.archived_at IS NULL))
         ORDER BY sh.created_at DESC
-        LIMIT $3 OFFSET $4
+        LIMIT $4 OFFSET $5
     """
-    count_query = f"""
+    count_query = """
         SELECT COUNT(*) FROM stay_holds sh
         WHERE ($1::int IS NULL OR hotel_id = $1)
           AND ($2::text IS NULL OR status = $2)
-          AND {archived_clause}
+          AND (($3::bool AND archived_at IS NOT NULL) OR (NOT $3::bool AND archived_at IS NULL))
     """
-    rows = await fetch(items_query, effective, status, per_page, offset)
-    total = _safe_int(await fetchval(count_query, effective, status))
+    rows = await fetch(items_query, effective, status, archived, per_page, offset)
+    total = _safe_int(await fetchval(count_query, effective, status, archived))
     return {
         "items": [_stay_row_to_dict(dict(r)) for r in rows],
         "total": total,
@@ -417,9 +525,7 @@ async def list_restaurant_holds(
     if date_from and date_to and date_to < date_from:
         raise HTTPException(status_code=400, detail="date_to must be >= date_from")
 
-    archived_clause = "archived_at IS NOT NULL" if archived else "archived_at IS NULL"
-
-    items_query = f"""
+    items_query = """
         SELECT hold_id, hotel_id, conversation_id, slot_id, date, time,
                party_size, guest_name, phone, area, notes, status,
                approved_by, approved_at, rejected_reason,
@@ -431,20 +537,20 @@ async def list_restaurant_holds(
           AND ($2::text IS NULL OR status = $2)
           AND ($3::date IS NULL OR date >= $3)
           AND ($4::date IS NULL OR date <= $4)
-          AND {archived_clause}
+          AND (($5::bool AND archived_at IS NOT NULL) OR (NOT $5::bool AND archived_at IS NULL))
         ORDER BY date ASC, time ASC, created_at DESC
-        LIMIT $5 OFFSET $6
+        LIMIT $6 OFFSET $7
     """
-    count_query = f"""
+    count_query = """
         SELECT COUNT(*) FROM restaurant_holds
         WHERE ($1::int IS NULL OR hotel_id = $1)
           AND ($2::text IS NULL OR status = $2)
           AND ($3::date IS NULL OR date >= $3)
           AND ($4::date IS NULL OR date <= $4)
-          AND {archived_clause}
+          AND (($5::bool AND archived_at IS NOT NULL) OR (NOT $5::bool AND archived_at IS NULL))
     """
-    rows = await fetch(items_query, effective, status, date_from, date_to, per_page, offset)
-    total = _safe_int(await fetchval(count_query, effective, status, date_from, date_to))
+    rows = await fetch(items_query, effective, status, date_from, date_to, archived, per_page, offset)
+    total = _safe_int(await fetchval(count_query, effective, status, date_from, date_to, archived))
     items = []
     for r in rows:
         d = dict(r)
@@ -572,9 +678,7 @@ async def list_transfer_holds(
     effective = _effective_hotel(user, hotel_id)
     offset = (page - 1) * per_page
 
-    archived_clause = "archived_at IS NOT NULL" if archived else "archived_at IS NULL"
-
-    items_query = f"""
+    items_query = """
         SELECT hold_id, hotel_id, conversation_id, route, date, time,
                pax_count, guest_name, phone, flight_no, vehicle_type,
                baby_seat, price_eur, notes, status,
@@ -583,18 +687,18 @@ async def list_transfer_holds(
         FROM transfer_holds
         WHERE ($1::int IS NULL OR hotel_id = $1)
           AND ($2::text IS NULL OR status = $2)
-          AND {archived_clause}
+          AND (($3::bool AND archived_at IS NOT NULL) OR (NOT $3::bool AND archived_at IS NULL))
         ORDER BY created_at DESC
-        LIMIT $3 OFFSET $4
+        LIMIT $4 OFFSET $5
     """
-    count_query = f"""
+    count_query = """
         SELECT COUNT(*) FROM transfer_holds
         WHERE ($1::int IS NULL OR hotel_id = $1)
           AND ($2::text IS NULL OR status = $2)
-          AND {archived_clause}
+          AND (($3::bool AND archived_at IS NOT NULL) OR (NOT $3::bool AND archived_at IS NULL))
     """
-    rows = await fetch(items_query, effective, status, per_page, offset)
-    total = _safe_int(await fetchval(count_query, effective, status))
+    rows = await fetch(items_query, effective, status, archived, per_page, offset)
+    total = _safe_int(await fetchval(count_query, effective, status, archived))
     items = []
     for r in rows:
         d = dict(r)
@@ -947,6 +1051,7 @@ async def update_restaurant_hold(
 async def change_restaurant_hold_status(
     hold_id: str,
     body: RestaurantHoldStatusChange,
+    request: Request,
     user: Annotated[TokenData, Depends(get_current_user)],
 ) -> dict[str, Any]:
     """Change reservation status with transition validation."""
@@ -962,6 +1067,23 @@ async def change_restaurant_hold_status(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if body.status == RestaurantReservationStatus.ONAYLANDI:
+        try:
+            result["confirmation_form"] = await _generate_restaurant_confirmation_after_status(
+                request=request,
+                hold_id=hold_id,
+                user=user,
+            )
+        except Exception as exc:
+            logger.warning(
+                "restaurant_confirmation_after_status_failed",
+                hold_id=hold_id,
+                error_type=type(exc).__name__,
+            )
+            result["confirmation_form"] = {
+                "delivery_status": "not_sent",
+                "error_type": type(exc).__name__,
+            }
     return result
 
 

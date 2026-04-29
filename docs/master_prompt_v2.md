@@ -576,6 +576,26 @@ Input:
 }
 Output: {"approval_request_id":"APR_...", "status":"REQUESTED"}
 
+#### SERVICE: reservation_confirmation.generate_html
+Amac: Admin onayi ile kesinlesen konaklama, restoran ve transfer rezervasyonlari icin musterinin dilinde profesyonel HTML onay formu uretir ve guvenli public URL olusturur.
+
+Kapsam:
+- Form tipleri: `accommodation`, `restaurant`, `transfer`
+- Dil kaynagi: admin manuel secimi > conversation.language > `DEFAULT_LANGUAGE`
+- Icerik kaynagi: yalnizca ilgili hold/PMS-readback/tool ciktisi + HOTEL_PROFILE. Eksik bilgi uydurulmaz.
+- Public URL: `PUBLIC_BASE_URL/confirmations/{unguessable_token}` formatindadir; local `127.0.0.1` linki musteriye gonderilmez.
+- Token DB'de plaintext tutulmaz; sadece HMAC hash + kisa prefix saklanir.
+- HTML snapshot 30 gun varsayilan sureyle aktif kalir; sure bitince veya revoke edilince public route 404 dondurur.
+- WhatsApp mesajinda HTML gonderilmez; tek kisa text mesaj icinde guvenli form linki paylasilir.
+
+Output:
+{
+  "form_id":"uuid",
+  "public_url":"https://.../confirmations/{token}",
+  "language":"tr|en|...",
+  "status":"ACTIVE|SENT|DELIVERY_FAILED"
+}
+
 #### TOOL: payment.request_prepayment (MANUEL LINK / MANUEL TAKIP)
 Not: Odeme linki sistem tarafindan uretilmez; odeme sureci simdilik yalnizca canli musteri temsilcisi (Sales/Admin) tarafindan manuel tamamlanir. LLM odeme bilgisi istemez.
 Input:
@@ -761,7 +781,8 @@ KONAKLAMA:
 4) Onay sonrasi:
    - NON_REFUNDABLE: payment.request_prepayment(NOW) -> PENDING_PAYMENT
    - FREE_CANCEL: payment.request_prepayment(SCHEDULED, checkin-7) + notify.send(to_role=SALES) -> PENDING_PAYMENT
-5) Odeme ve/veya operasyonel teyit sonrasi booking.get_reservation ile final durum sync edilir.
+5) PMS create + readback + payment request basarili olduktan sonra reservation_confirmation.generate_html -> guvenli public HTML form linki musteriye tek WhatsApp mesajiyla gonderilir.
+6) Odeme ve/veya operasyonel teyit sonrasi booking.get_reservation ile final durum sync edilir.
 - `booking.create_reservation` sonrasi ilk readback, sadece reservation/voucher varligi ile degil; efektif drafttaki `room_type_id` ve toplam tutar ile de dogrulanir. Uyumsuzlukta hold `MANUAL_REVIEW` olur ve odeme akisi baslatilmaz.
 - PMS create sirasinda canli olarak yenilenen rate/price grounding alanlari hold draftina geri yazilir; sonraki approval/payment/confirmation adimlari eski draft ile devam etmez.
 
@@ -777,13 +798,15 @@ Mod Kurali (`restaurant_settings.reservation_mode`):
 3) Onay gelince restaurant.confirm -> CONFIRMED
    - Idempotency guard: ayni hold icin ikinci onay duplicate olarak islenir, cift islem olmaz
    - Zaten CONFIRMED olan hold icin red istegi skip edilir
+4) Onay kesinlesince reservation_confirmation.generate_html -> restoran HTML onay formu public link olarak musteriye gonderilir.
 
 TRANSFER:
 1) transfer.get_info ile fiyat/rota bilgisi sun
 2) Kullanici teyidi -> transfer.create_hold
 3) approval.request (ADMIN) -> PENDING_APPROVAL
 4) Onay gelince transfer.confirm -> CONFIRMED
-5) Odeme: genelde reception'da nakit/kart (on odeme gerekmez, admin belirler)
+5) Onay kesinlesince reservation_confirmation.generate_html -> transfer HTML onay formu public link olarak musteriye gonderilir.
+6) Odeme: genelde reception'da nakit/kart (on odeme gerekmez, admin belirler)
 
 ### A9.5 Transfer Kurallari
 - Dalaman Havalimani <-> Otel: 75 EUR (tek yon, max 7 kisi, Vito arac)
@@ -1478,6 +1501,7 @@ Temel tablolar:
 - `transfer_holds` - Transfer hold kayitlari
 - `approval_requests` - Onay talepleri
 - `payment_requests` - Odeme talepleri
+- `reservation_confirmation_forms` - HTML onay formu snapshotlari, token hashleri, public link durumlari
 - `tickets` - Handoff ticketlari
 - `notifications` - Bildirim kayitlari
 - `crm_logs` - CRM kayitlari
@@ -1501,6 +1525,9 @@ GET  /api/v1/admin/conversations/{id}  # Konusma detay
 GET  /api/v1/admin/holds               # Hold listesi (stay+restaurant+transfer)
 POST /api/v1/admin/holds/{id}/approve  # Hold onaylama
 POST /api/v1/admin/holds/{id}/reject   # Hold reddetme
+GET  /api/v1/admin/confirmation-forms/languages # Aktif form dilleri
+POST /api/v1/admin/confirmation-forms/preview   # HTML onay formu onizleme
+POST /api/v1/admin/confirmation-forms/generate  # Guvenli public link uretme/gonderme
 GET  /api/v1/admin/tickets             # Ticket listesi
 PUT  /api/v1/admin/tickets/{id}        # Ticket guncelleme
 GET  /api/v1/admin/hotels/{id}/whatsapp/integration          # WhatsApp baglanti durumu
@@ -1515,6 +1542,9 @@ POST /api/v1/admin/hotels/{id}/whatsapp/templates/sync       # Meta template sna
 # Health
 GET  /api/v1/health                    # Health check
 GET  /api/v1/health/ready              # Readiness probe
+
+# Public Confirmation Form
+GET  /confirmations/{token}            # Guvenli HTML rezervasyon onay formu
 ```
 
 ## B8) DevOps

@@ -10,6 +10,14 @@ https://velox.nexlumeai.com/admin#whatsappapi
 
 Desteklenen `#whatsappapi`, `#whatsapp-api` ve `#whatsappapı` varyantlari panel tarafinda `whatsappapi` gorunumune normalize edilir. Meta OAuth callback backend rotasi `/api/v1/admin/whatsapp/oauth/callback` altindadir; bu path reverse proxy tarafindan API'ye ulasabilir kalmalidir.
 
+Rezervasyon onay formlari musterilere admin panel local adresiyle degil, public HTTPS route ile paylasilir:
+
+```text
+https://nexlumeai.com/confirmations/{unguessable_token}
+```
+
+Bu route auth istemez ama token tahmin edilemez olmalidir; token plaintext DB'de tutulmaz, yalnizca hash ile lookup yapilir. Reverse proxy `/confirmations/` path'ini FastAPI uygulamasina iletmeli, cache/CDN katmani bu sayfalari public olarak cachelememelidir.
+
 ## Yerel demo notu
 
 Canli domain'den bagimsiz yerel demo dogrulamasi icin ayri bir compose project kullanilir.
@@ -79,6 +87,8 @@ curl -fsS https://nexlumeai.com/api/v1/admin/bootstrap/status
 curl -I https://nexlumeai.com/
 curl -I https://nexlumeai.com/admin
 curl -I https://velox.nexlumeai.com/admin
+curl -I https://nexlumeai.com/confirmations/invalid-token-for-smoke-check
 ```
 
 Tarayici dogrulamasinda `https://velox.nexlumeai.com/admin#whatsappapi` adresi acilarak hash tabanli WhatsApp gorunumu kontrol edilir.
+`/confirmations/{token}` icin gecersiz token smoke check'i `404` dondurmelidir; gercek token ile kontrol yalnizca test verisi uzerinden yapilir.

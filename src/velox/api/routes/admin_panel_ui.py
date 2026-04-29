@@ -300,6 +300,34 @@ def render_admin_panel_html() -> str:
         </section>
 
         <section data-view="holds" class="section-grid" hidden>
+          <article class="module-card confirmation-form-panel">
+            <div class="module-header">
+              <div><h3>Onay Formları</h3><p>Konaklama, restoran ve transfer onay formlarını müşteri dilinde oluşturun.</p></div>
+              <div id="confirmationTypeButtons" class="confirmation-type-row" aria-label="Onay formu tipi">
+                <button class="action-button secondary is-active" type="button" data-confirmation-type="accommodation">Konaklama Formu</button>
+                <button class="action-button secondary" type="button" data-confirmation-type="restaurant">Restoran Formu</button>
+                <button class="action-button secondary" type="button" data-confirmation-type="transfer">Transfer Formu</button>
+              </div>
+            </div>
+            <div class="confirmation-workspace">
+              <div class="confirmation-editor">
+                <div id="confirmationLanguageButtons" class="filter-chips confirmation-language-row" aria-label="Form dili"></div>
+                <div class="confirmation-actions-row">
+                  <button class="inline-button secondary" type="button" data-confirmation-fill-selected>Seçili Kayıttan Doldur</button>
+                  <button class="inline-button primary" type="button" data-confirmation-preview>Önizleme</button>
+                  <button class="inline-button secondary" type="button" data-confirmation-generate>Güvenli Link Oluştur</button>
+                  <button class="inline-button primary" type="button" data-confirmation-send>Oluştur ve Gönder</button>
+                </div>
+                <div id="confirmationFields" class="field-grid confirmation-fields"></div>
+                <div id="confirmationPublicUrl" class="confirmation-public-url" hidden></div>
+                <textarea id="confirmationWhatsappMessage" class="confirmation-message-preview" readonly aria-label="WhatsApp onay mesajı"></textarea>
+              </div>
+              <div class="confirmation-preview-shell">
+                <iframe id="confirmationPreviewFrame" class="confirmation-preview-frame" title="Onay formu HTML önizlemesi"></iframe>
+              </div>
+            </div>
+          </article>
+
           <div class="holds-tabs">
             <button class="holds-tab is-active" data-holds-tab="stay">Konaklama</button>
             <button class="holds-tab" data-holds-tab="transfer">Transfer</button>

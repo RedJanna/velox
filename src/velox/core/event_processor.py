@@ -13,6 +13,12 @@ import structlog
 from velox.adapters.whatsapp.client import WhatsAppSendBlockedError, get_whatsapp_client
 from velox.config.constants import MAX_TOOL_RETRIES, TOOL_RETRY_BACKOFF_SECONDS, HoldStatus
 from velox.config.settings import settings
+from velox.core.confirmation_forms import (
+    build_context_from_hold,
+    create_confirmation_form,
+    mark_confirmation_sent,
+    resolve_language_for_hold,
+)
 from velox.core.hold_workflow import HoldWorkflowEvent, HoldWorkflowState, apply_hold_transition
 from velox.core.hotel_profile_loader import get_profile
 from velox.core.idempotency import (
@@ -185,6 +191,7 @@ class EventProcessor:
             conversation_id = hold["conversation_id"]
             phone = self._extract_phone(approval_type, hold)
             user_message = ""
+            confirmation_form_id: str | None = None
             tool_results: dict[str, Any] = {}
 
             if not event.approved:
@@ -558,6 +565,19 @@ class EventProcessor:
             else:
                 user_message = "Talebiniz guncellendi. Ekibimiz en kisa surede sizi bilgilendirecektir."
 
+            if event.approved and approval_type in {"STAY", "RESTAURANT", "TRANSFER"}:
+                confirmation_message = await self._try_create_confirmation_form_message(
+                    conn=conn,
+                    approval_type=approval_type,
+                    hold=hold,
+                    hotel_id=event.hotel_id,
+                    generated_by=event.approved_by_role,
+                    tool_results=tool_results,
+                )
+                if confirmation_message is not None:
+                    confirmation_form_id = confirmation_message["form_id"]
+                    user_message = confirmation_message["message"]
+
             await self.inject_system_event(
                 conversation_id,
                 {
@@ -573,12 +593,68 @@ class EventProcessor:
             assistant_message = await self._append_assistant_message(conversation_id, user_message)
             wa_message_id = await self._send_user_message(phone, user_message)
             await self._attach_whatsapp_message_id(assistant_message, wa_message_id)
+            if confirmation_form_id:
+                await mark_confirmation_sent(
+                    conn,
+                    form_id=confirmation_form_id,
+                    whatsapp_message_id=wa_message_id,
+                    delivered=bool(wa_message_id),
+                )
 
         return {
             "approval_request_id": event.approval_request_id,
             "status": "processed",
             "approved": event.approved,
         }
+
+    async def _try_create_confirmation_form_message(
+        self,
+        *,
+        conn: asyncpg.Connection,
+        approval_type: str,
+        hold: asyncpg.Record,
+        hotel_id: int,
+        generated_by: str,
+        tool_results: dict[str, Any],
+    ) -> dict[str, str] | None:
+        """Create a secure confirmation form and return the WhatsApp message."""
+        try:
+            reference_id = str(hold["hold_id"])
+            fresh_hold = await self._load_hold(conn, approval_type, reference_id, hotel_id)
+            if fresh_hold is None:
+                raise ValueError("confirmation_hold_reload_failed")
+            language = await resolve_language_for_hold(conn, fresh_hold, None)
+            context = build_context_from_hold(
+                approval_type=approval_type,
+                hold=fresh_hold,
+                hotel_id=hotel_id,
+                language=language,
+            )
+            delivery = await create_confirmation_form(
+                conn,
+                context=context,
+                generated_by=generated_by,
+            )
+            tool_results["confirmation_form"] = {
+                "success": True,
+                "form_id": delivery.form_id,
+                "public_url": delivery.public_url,
+                "token_prefix": delivery.token_prefix,
+                "language": language,
+            }
+            return {"form_id": delivery.form_id, "message": delivery.whatsapp_message}
+        except Exception as exc:
+            logger.warning(
+                "confirmation_form_generation_failed",
+                hotel_id=hotel_id,
+                approval_type=approval_type,
+                error_type=type(exc).__name__,
+            )
+            tool_results["confirmation_form"] = {
+                "success": False,
+                "error_type": type(exc).__name__,
+            }
+            return None
 
     async def process_payment_event(self, event: PaymentEvent) -> dict[str, Any]:
         """Process payment status webhook and update related hold/reservation state."""

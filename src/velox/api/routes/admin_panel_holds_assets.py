@@ -47,7 +47,18 @@ ADMIN_HOLDS_STYLE = """\
 .summary-total{margin-top:14px;padding:14px 18px;border-radius:var(--radius-sm);background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;display:flex;justify-content:space-between;align-items:center}
 .summary-total .total-label{font-size:14px;font-weight:700}
 .summary-total .total-value{font-family:var(--mono);font-size:22px;font-weight:900}
-@media(max-width:980px){.summary-grid{grid-template-columns:1fr}.room-card-grid{grid-template-columns:1fr}}
+.confirmation-form-panel{border-color:#2b2b27;background:#fff}
+.confirmation-type-row,.confirmation-actions-row{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.confirmation-workspace{display:grid;grid-template-columns:minmax(320px,.76fr) minmax(420px,1.24fr);gap:18px;align-items:start}
+.confirmation-editor{display:flex;flex-direction:column;gap:14px;min-width:0}
+.confirmation-language-row{padding:12px;border:1px solid var(--line);border-radius:16px;background:#f7f7f4}
+.confirmation-fields{padding:16px;border:1px solid var(--line);border-radius:18px;background:#fbfbf8}
+.confirmation-preview-shell{border:1px solid #2b2b27;background:#1f1f1d;padding:12px;min-height:620px}
+.confirmation-preview-frame{width:100%;height:620px;border:0;background:#f5f5f2;border-radius:2px}
+.confirmation-public-url{padding:12px 14px;border:1px solid #2b2b27;background:#f7f7f4;color:#111;font-family:var(--mono);font-size:12px;overflow-wrap:anywhere}
+.confirmation-public-url a{color:#111;font-weight:800}
+.confirmation-message-preview{min-height:120px!important;border:1px solid var(--line);border-radius:16px;background:#fff;color:var(--ink);font-family:var(--sans)!important;font-size:13px!important;line-height:1.55}
+@media(max-width:980px){.summary-grid{grid-template-columns:1fr}.room-card-grid{grid-template-columns:1fr}.confirmation-workspace{grid-template-columns:1fr}.confirmation-preview-shell{min-height:520px}.confirmation-preview-frame{height:520px}}
 """
 
 ADMIN_HOLDS_SCRIPT = """\
@@ -77,6 +88,12 @@ const STAY_STATUS_KEYS = ['', 'PENDING_APPROVAL', 'PMS_PENDING', 'PMS_CREATED', 
 const SIMPLE_STATUS_KEYS = ['', 'PENDING_APPROVAL', 'APPROVED', 'CONFIRMED'];
 const ARCHIVE_SCOPE_LABELS = {active: 'Aktif', archived: 'Arşiv'};
 const RESTAURANT_STATUS_KEYS = ['', 'BEKLEMEDE', 'ONAYLANDI', 'GELDI', 'GELMEDI', 'IPTAL', 'DEGISIKLIK_UYGULA'];
+const CONFIRMATION_LANGUAGE_FALLBACK = ['en', 'tr', 'ru', 'de', 'ar', 'es', 'fr', 'zh', 'hi', 'pt'];
+const CONFIRMATION_TYPE_LABELS = {
+  accommodation: 'Konaklama Formu',
+  restaurant: 'Restoran Formu',
+  transfer: 'Transfer Formu',
+};
 
 function holdStatusLabel(status) {
   return STATUS_LABELS_TR[String(status || '').toUpperCase()] || String(status || '-');
@@ -216,10 +233,243 @@ function formatHoldSummary(item) {
 }
 
 // ---------------------------------------------------------------------------
+// Confirmation Form Manual Generator
+// ---------------------------------------------------------------------------
+function confirmationFieldConfig(type) {
+  const common = [
+    {name: 'guest_name', label: 'Misafir Adı', required: true},
+    {name: 'phone', label: 'Telefon', required: true},
+    {name: 'confirmation_no', label: 'Onay No.', required: false},
+  ];
+  const details = {
+    accommodation: [
+      {name: 'checkin_date', label: 'Giriş Tarihi', type: 'date', required: true},
+      {name: 'checkout_date', label: 'Çıkış Tarihi', type: 'date', required: true},
+      {name: 'room', label: 'Oda', required: true},
+      {name: 'board', label: 'Pansiyon', required: false},
+      {name: 'guests', label: 'Kişi', required: true},
+      {name: 'total', label: 'Toplam', required: false},
+      {name: 'policy', label: 'Politika', required: false},
+      {name: 'notes', label: 'Notlar', multiline: true},
+    ],
+    restaurant: [
+      {name: 'date', label: 'Tarih', type: 'date', required: true},
+      {name: 'time', label: 'Saat', type: 'time', required: true},
+      {name: 'party_size', label: 'Kişi Sayısı', type: 'number', required: true},
+      {name: 'area', label: 'Alan', required: false},
+      {name: 'table', label: 'Masa', required: false},
+      {name: 'notes', label: 'Notlar', multiline: true},
+    ],
+    transfer: [
+      {name: 'route', label: 'Güzergâh', required: true},
+      {name: 'date', label: 'Tarih', type: 'date', required: true},
+      {name: 'time', label: 'Saat', type: 'time', required: false},
+      {name: 'pax', label: 'Yolcu', type: 'number', required: true},
+      {name: 'flight_no', label: 'Uçuş', required: false},
+      {name: 'vehicle', label: 'Araç', required: false},
+      {name: 'baby_seat', label: 'Bebek Koltuğu', required: false},
+      {name: 'price', label: 'Fiyat', required: false},
+      {name: 'notes', label: 'Notlar', multiline: true},
+    ],
+  };
+  return {common: common, details: details[type] || details.accommodation};
+}
+
+function confirmationFieldId(name) {
+  return 'cf-' + String(name || '').replace(/[^a-z0-9_-]/gi, '-');
+}
+
+function renderConfirmationControls() {
+  if (!refs.confirmationFields) return;
+  const type = state.confirmationFormType || 'accommodation';
+  document.querySelectorAll('[data-confirmation-type]').forEach(function(button) {
+    button.classList.toggle('is-active', button.dataset.confirmationType === type);
+  });
+  const languages = state.confirmationLanguages && state.confirmationLanguages.length
+    ? state.confirmationLanguages
+    : CONFIRMATION_LANGUAGE_FALLBACK;
+  if (!languages.includes(state.confirmationLanguage)) {
+    state.confirmationLanguage = languages.includes('tr') ? 'tr' : languages[0];
+  }
+  if (refs.confirmationLanguageButtons) {
+    refs.confirmationLanguageButtons.innerHTML = languages.map(function(language) {
+      return '<button type="button" class="filter-chip ' + (language === state.confirmationLanguage ? 'is-active' : '') + '" data-confirmation-language="' + escapeHtml(language) + '" aria-label="' + escapeHtml(language.toUpperCase() + ' form dili') + '">' + escapeHtml(language.toUpperCase()) + '</button>';
+    }).join('');
+  }
+  const config = confirmationFieldConfig(type);
+  const fields = config.common.concat(config.details);
+  refs.confirmationFields.innerHTML = fields.map(function(field) {
+    const id = confirmationFieldId(field.name);
+    const requiredText = field.required ? ' *' : '';
+    if (field.multiline) {
+      return '<div class="field full"><label for="' + escapeHtml(id) + '">' + escapeHtml(field.label + requiredText) + '</label><textarea id="' + escapeHtml(id) + '" data-confirmation-field="' + escapeHtml(field.name) + '"></textarea></div>';
+    }
+    return '<div class="field"><label for="' + escapeHtml(id) + '">' + escapeHtml(field.label + requiredText) + '</label><input id="' + escapeHtml(id) + '" data-confirmation-field="' + escapeHtml(field.name) + '" type="' + escapeHtml(field.type || 'text') + '"></div>';
+  }).join('');
+}
+
+async function loadConfirmationLanguages() {
+  if (state.confirmationLanguages && state.confirmationLanguages.length) {
+    renderConfirmationControls();
+    return;
+  }
+  try {
+    const response = await apiFetch('/confirmation-forms/languages');
+    state.confirmationLanguages = response.items || CONFIRMATION_LANGUAGE_FALLBACK;
+  } catch (error) {
+    state.confirmationLanguages = CONFIRMATION_LANGUAGE_FALLBACK;
+  }
+  renderConfirmationControls();
+}
+
+function setConfirmationFieldValues(values) {
+  Object.keys(values || {}).forEach(function(key) {
+    const el = document.getElementById(confirmationFieldId(key));
+    if (el) el.value = values[key] || '';
+  });
+}
+
+function fillConfirmationFromSelectedHold() {
+  const type = state.confirmationFormType || 'accommodation';
+  renderConfirmationControls();
+  if (type === 'accommodation') {
+    const item = state.selectedStayHold;
+    if (!item) { notify('Seçili konaklama kaydı yok.', 'warn'); return; }
+    const draft = item.draft_json && typeof item.draft_json === 'object' ? item.draft_json : {};
+    const children = Array.isArray(draft.chd_ages) ? draft.chd_ages.length : 0;
+    setConfirmationFieldValues({
+      guest_name: draft.guest_name || '',
+      phone: draft.phone || '',
+      confirmation_no: item.reservation_no || item.voucher_no || item.hold_id || '',
+      checkin_date: draft.checkin_date || '',
+      checkout_date: draft.checkout_date || '',
+      room: draft.room_type_name || draft.room_type_id || '',
+      board: draft.board_type_name || draft.board_type || '',
+      guests: String(draft.adults || 0) + ' yetişkin' + (children ? ' + ' + children + ' çocuk' : ''),
+      total: draft.total_price_eur ? String(draft.total_price_eur) + ' EUR' : '',
+      policy: draft.cancel_policy_type || '',
+      notes: draft.notes || '',
+    });
+    return;
+  }
+  if (type === 'restaurant') {
+    const item = state.selectedRestaurantHold;
+    if (!item) { notify('Seçili restoran kaydı yok.', 'warn'); return; }
+    setConfirmationFieldValues({
+      guest_name: item.guest_name || '',
+      phone: item.phone || '',
+      confirmation_no: item.hold_id || '',
+      date: item.date || '',
+      time: item.time || '',
+      party_size: item.party_size || '',
+      area: item.area || '',
+      table: item.table_id || '',
+      notes: item.notes || '',
+    });
+    return;
+  }
+  const item = state.selectedTransferHold;
+  if (!item) { notify('Seçili transfer kaydı yok.', 'warn'); return; }
+  setConfirmationFieldValues({
+    guest_name: item.guest_name || '',
+    phone: item.phone || '',
+    confirmation_no: item.hold_id || '',
+    route: item.route || '',
+    date: item.date || '',
+    time: item.time || '',
+    pax: item.pax_count || '',
+    flight_no: item.flight_no || '',
+    vehicle: item.vehicle_type || '',
+    baby_seat: item.baby_seat ? 'Evet' : 'Hayır',
+    price: item.price_eur ? String(item.price_eur) + ' EUR' : '',
+    notes: item.notes || '',
+  });
+}
+
+function collectConfirmationPayload() {
+  const type = state.confirmationFormType || 'accommodation';
+  const config = confirmationFieldConfig(type);
+  const values = {};
+  document.querySelectorAll('[data-confirmation-field]').forEach(function(input) {
+    values[input.dataset.confirmationField] = input.value.trim();
+  });
+  if (!values.guest_name) { notify('Misafir adı zorunlu.', 'warn'); return null; }
+  if (!values.phone) { notify('Telefon zorunlu.', 'warn'); return null; }
+  for (const field of config.details) {
+    if (field.required && !values[field.name]) {
+      notify(field.label + ' zorunlu.', 'warn');
+      return null;
+    }
+  }
+  const details = {};
+  config.details.forEach(function(field) {
+    details[field.name] = values[field.name] || '';
+  });
+  return {
+    confirmation_no: values.confirmation_no || '',
+    customer: {
+      guest_name: values.guest_name,
+      phone: values.phone,
+    },
+    details: details,
+  };
+}
+
+async function previewConfirmationForm() {
+  const payload = collectConfirmationPayload();
+  if (!payload) return;
+  try {
+    const data = await apiFetch('/confirmation-forms/preview', {
+      method: 'POST',
+      body: {
+        hotel_id: Number(state.selectedHotelId),
+        form_type: state.confirmationFormType || 'accommodation',
+        language: state.confirmationLanguage || 'tr',
+        payload: payload,
+      },
+    });
+    if (refs.confirmationPreviewFrame) refs.confirmationPreviewFrame.srcdoc = data.html || '';
+    if (refs.confirmationWhatsappMessage) refs.confirmationWhatsappMessage.value = data.whatsapp_message || '';
+    notify('HTML önizleme oluşturuldu.', 'success');
+  } catch (error) {
+    notify(error.message || 'Önizleme oluşturulamadı.', 'error');
+  }
+}
+
+async function generateConfirmationForm(sendToCustomer) {
+  const payload = collectConfirmationPayload();
+  if (!payload) return;
+  try {
+    const data = await apiFetch('/confirmation-forms/generate', {
+      method: 'POST',
+      body: {
+        hotel_id: Number(state.selectedHotelId),
+        form_type: state.confirmationFormType || 'accommodation',
+        language: state.confirmationLanguage || 'tr',
+        payload: payload,
+        send_to_customer: Boolean(sendToCustomer),
+      },
+    });
+    state.confirmationGeneratedUrl = data.public_url || '';
+    if (refs.confirmationPublicUrl) {
+      refs.confirmationPublicUrl.hidden = !state.confirmationGeneratedUrl;
+      refs.confirmationPublicUrl.innerHTML = state.confirmationGeneratedUrl
+        ? '<a href="' + escapeHtml(state.confirmationGeneratedUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(state.confirmationGeneratedUrl) + '</a>'
+        : '';
+    }
+    if (refs.confirmationWhatsappMessage) refs.confirmationWhatsappMessage.value = data.whatsapp_message || '';
+    notify(sendToCustomer ? 'Form oluşturuldu; gönderim denendi.' : 'Güvenli link oluşturuldu.', 'success');
+  } catch (error) {
+    notify(error.message || 'Form oluşturulamadı.', 'error');
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Tab Management
 // ---------------------------------------------------------------------------
 function switchHoldsTab(tab) {
   state.activeHoldsTab = tab === 'restaurant' ? 'stay' : tab;
+  loadConfirmationLanguages();
   document.querySelectorAll('[data-holds-tab]').forEach(function(btn) {
     btn.classList.toggle('is-active', btn.dataset.holdsTab === state.activeHoldsTab);
   });
@@ -1043,6 +1293,39 @@ function handleHoldsModuleClick(target) {
   // Tab switching
   if (target.dataset.holdsTab) {
     switchHoldsTab(target.dataset.holdsTab);
+    return true;
+  }
+  if (target.dataset.confirmationType) {
+    state.confirmationFormType = target.dataset.confirmationType;
+    state.confirmationGeneratedUrl = '';
+    if (refs.confirmationPublicUrl) {
+      refs.confirmationPublicUrl.hidden = true;
+      refs.confirmationPublicUrl.innerHTML = '';
+    }
+    if (refs.confirmationWhatsappMessage) refs.confirmationWhatsappMessage.value = '';
+    if (refs.confirmationPreviewFrame) refs.confirmationPreviewFrame.srcdoc = '';
+    renderConfirmationControls();
+    return true;
+  }
+  if (target.dataset.confirmationLanguage) {
+    state.confirmationLanguage = target.dataset.confirmationLanguage;
+    renderConfirmationControls();
+    return true;
+  }
+  if (target.hasAttribute('data-confirmation-fill-selected')) {
+    fillConfirmationFromSelectedHold();
+    return true;
+  }
+  if (target.hasAttribute('data-confirmation-preview')) {
+    previewConfirmationForm();
+    return true;
+  }
+  if (target.hasAttribute('data-confirmation-generate')) {
+    generateConfirmationForm(false);
+    return true;
+  }
+  if (target.hasAttribute('data-confirmation-send')) {
+    generateConfirmationForm(true);
     return true;
   }
   // Stay create toggle

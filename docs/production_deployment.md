@@ -31,6 +31,7 @@ Use the affected hash route when possible, for example:
 
 ```text
 http://127.0.0.1:8011/admin#accesscontrol
+http://127.0.0.1:8011/admin#holds
 ```
 
 Minimum checks:
@@ -63,12 +64,15 @@ If you need to force a manual catch-up before or after a rollout, use the same o
 docker compose --env-file .env.production -f docker-compose.prod.yml exec app python -m velox.db.migrate
 ```
 
+Migration `031_reservation_confirmation_forms.sql` creates the secure HTML confirmation form table. It must be applied before admin approval flows are considered ready, because post-approval delivery depends on `reservation_confirmation_forms`.
+
 ## 5. Verify Health and Readiness
 ```bash
 curl -fsS http://127.0.0.1:8001/api/v1/health
 curl -fsS http://127.0.0.1:8001/api/v1/health/ready
 curl -fsS http://127.0.0.1:8001/metrics | head
 curl -fsS http://127.0.0.1:8001/api/v1/admin/bootstrap/status
+curl -I http://127.0.0.1:8001/confirmations/invalid-token-for-smoke-check
 docker compose --env-file .env.production -f docker-compose.prod.yml exec app python -c "import importlib.util; assert importlib.util.find_spec('playwright.async_api') is not None; print('playwright-python-ok')"
 docker compose --env-file .env.production -f docker-compose.prod.yml exec app sh -lc "test -d /ms-playwright && ls /ms-playwright | grep chromium"
 ```
@@ -76,6 +80,7 @@ docker compose --env-file .env.production -f docker-compose.prod.yml exec app sh
 `/api/v1/health/ready` returns HTTP `200` when all checks are green, otherwise HTTP `503`.
 The readiness payload now includes a `migrations` check so pending SQL drift is visible immediately.
 The readiness payload also includes `elektraweb_generic_sync`.
+The invalid confirmation-form smoke check should return HTTP `404`, proving the public route is mounted without exposing data for bad tokens.
 If only `ELEKTRA_GENERIC_LOGIN_TOKEN` is configured and the permanent Generic API credentials are missing,
 readiness stays `503` with `elektraweb_generic_override_only` because reservation-card `Voucher No` and
 visible `Notlar` sync cannot self-recover after token expiry.
@@ -118,6 +123,8 @@ GitHub Actions workflow: `.github/workflows/ci.yml`
 - [ ] All env vars set in `.env.production`
 - [ ] Admin panel/frontend/UI text changes previewed on `http://127.0.0.1:8011/admin#` before production deployment
 - [ ] DB migration ran successfully
+- [ ] `/admin#holds` confirmation form panel previewed locally
+- [ ] `/confirmations/{token}` public route returns no-store headers and invalid tokens return 404
 - [ ] Hotel profile YAML loaded
 - [ ] WhatsApp webhook URL configured in Meta Business Manager
 - [ ] WhatsApp admin integration env vars configured when `/admin#whatsappapi` will be used

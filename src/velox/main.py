@@ -25,8 +25,9 @@ from velox.api.routes import (
     admin_panel_ui,
     admin_portal,
     admin_session,
-    admin_whatsapp,
     admin_webhook,
+    admin_whatsapp,
+    confirmation_forms,
     health,
     test_chat,
     whatsapp_webhook,
@@ -38,8 +39,8 @@ from velox.config.constants import (
     STARTUP_RETRY_BACKOFF_SECONDS,
 )
 from velox.config.settings import settings
-from velox.core.event_processor import EventProcessor
 from velox.core.admin_debug_runner import run_admin_debug_loop
+from velox.core.event_processor import EventProcessor
 from velox.core.hotel_profile_loader import load_all_profiles
 from velox.core.pipeline import post_process_escalation
 from velox.core.template_engine import load_templates
@@ -236,9 +237,11 @@ app.include_router(admin_holds.router, prefix="/api/v1")
 app.include_router(admin_portal.router, prefix="/api/v1")
 app.include_router(admin_session.router, prefix="/api/v1")
 app.include_router(admin_whatsapp.router, prefix="/api/v1")
+app.include_router(confirmation_forms.admin_router, prefix="/api/v1")
 app.include_router(whatsapp_webhook.router, prefix="/api/v1")
 app.include_router(admin_webhook.router, prefix="/api/v1")
 app.include_router(admin_panel_ui.router)
+app.include_router(confirmation_forms.public_router)
 app.include_router(test_chat.router, prefix="/api/v1")
 app.include_router(test_chat.ui_router)
 
