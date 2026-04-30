@@ -87,7 +87,7 @@ const STATUS_LABELS_TR = {
 const STAY_STATUS_KEYS = ['', 'PENDING_APPROVAL', 'PMS_PENDING', 'PMS_CREATED', 'PAYMENT_PENDING', 'PAYMENT_EXPIRED', 'MANUAL_REVIEW', 'PMS_FAILED', 'APPROVED', 'CONFIRMED'];
 const SIMPLE_STATUS_KEYS = ['', 'PENDING_APPROVAL', 'APPROVED', 'CONFIRMED'];
 const ARCHIVE_SCOPE_LABELS = {active: 'Aktif', archived: 'Arşiv'};
-const RESTAURANT_STATUS_KEYS = ['', 'BEKLEMEDE', 'ONAYLANDI', 'GELDI', 'GELMEDI', 'IPTAL', 'DEGISIKLIK_UYGULA'];
+const RESTAURANT_STATUS_KEYS = ['', 'PENDING_APPROVAL', 'ONAYLANDI', 'GELDI', 'GELMEDI', 'IPTAL', 'DEGISIKLIK_UYGULA'];
 const CONFIRMATION_LANGUAGE_FALLBACK = ['en', 'tr', 'ru', 'de', 'ar', 'es', 'fr', 'zh', 'hi', 'pt'];
 const CONFIRMATION_TYPE_LABELS = {
   accommodation: 'Konaklama Formu',
@@ -1047,9 +1047,14 @@ function renderRestaurantHoldRows(items) {
     var hasSpecialRequest = hasMeaningfulSpecialRequest(item.notes);
     var requestTags = detectSpecialRequestTags(item.notes);
     var requestTagHtml = requestTags.length ? '<div class="inline-flex-center" style="flex-wrap:wrap">' + requestTags.map(function(tag){ return '<span class="pill info">' + escapeHtml(tag) + '</span>'; }).join('') + '</div>' : '';
+    var approvalId = String(item.approval_request_id || '').trim();
+    var approvalStatus = String(item.approval_status || '').trim();
+    var approvalHtml = approvalId
+      ? '<strong>' + escapeHtml(approvalId) + '</strong><span class="muted">Hold ' + escapeHtml(item.hold_id) + '</span>' + (approvalStatus ? '<span class="pill warn">' + escapeHtml(holdStatusLabel(approvalStatus)) + '</span>' : '')
+      : '<strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Onay kaydı yok</span>';
     return '<tr class="' + (isSelected ? 'is-selected ' : '') + (hasSpecialRequest ? 'has-special-request' : '') + '" data-open-hold="' + escapeHtml(item.hold_id) + '">'
       + '<td><button class="inline-button hold-detail-button" data-open-hold="' + escapeHtml(item.hold_id) + '" aria-label="' + escapeHtml(item.hold_id + ' detayını aç') + '">Detay</button></td>'
-      + '<td><div class="stack"><strong>' + escapeHtml(item.hold_id) + '</strong><span class="muted">Otel ' + escapeHtml(String(item.hotel_id)) + '</span>' + (hasSpecialRequest ? '<span class="pill warn">Özel İstek Var</span>' : '') + requestTagHtml + '</div></td>'
+      + '<td><div class="stack">' + approvalHtml + '<span class="muted">Otel ' + escapeHtml(String(item.hotel_id)) + '</span>' + (hasSpecialRequest ? '<span class="pill warn">Özel İstek Var</span>' : '') + requestTagHtml + '</div></td>'
       + '<td><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span></td>'
       + '<td>' + escapeHtml(item.guest_name || '-') + '</td>'
       + '<td><span class="muted">' + escapeHtml(item.date || '-') + ' ' + escapeHtml(item.time || '') + '</span>'

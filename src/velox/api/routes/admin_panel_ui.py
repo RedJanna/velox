@@ -808,6 +808,7 @@ def render_admin_panel_html() -> str:
               </div>
               <div class="dialog-body">
                 <div class="field"><label>Durum</label><select id="tdStatus" name="status" aria-label="Rezervasyon durumu">
+                  <option value="PENDING_APPROVAL">Onay Bekliyor</option>
                   <option value="BEKLEMEDE">Beklemede</option>
                   <option value="ONAYLANDI">Onaylandı</option>
                   <option value="GELDI">Geldi</option>

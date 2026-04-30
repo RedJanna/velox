@@ -547,17 +547,39 @@ async def list_restaurant_holds(
             LIMIT 1
         ) AS approval_meta ON true
         WHERE ($1::int IS NULL OR rh.hotel_id = $1)
-          AND ($2::text IS NULL OR rh.status = $2)
+          AND (
+            $2::text IS NULL
+            OR (
+                $2::text = 'PENDING_APPROVAL'
+                AND rh.status IN ('PENDING_APPROVAL', 'BEKLEMEDE')
+            )
+            OR rh.status = $2
+          )
           AND ($3::date IS NULL OR rh.date >= $3)
           AND ($4::date IS NULL OR rh.date <= $4)
           AND (($5::bool AND rh.archived_at IS NOT NULL) OR (NOT $5::bool AND rh.archived_at IS NULL))
-        ORDER BY rh.date ASC, rh.time ASC, rh.created_at DESC
+        ORDER BY
+          CASE
+            WHEN rh.status IN ('PENDING_APPROVAL', 'BEKLEMEDE') THEN 0
+            WHEN rh.status = 'DEGISIKLIK_UYGULA' THEN 1
+            ELSE 2
+          END,
+          rh.created_at DESC,
+          rh.date ASC,
+          rh.time ASC
         LIMIT $6 OFFSET $7
     """
     count_query = """
         SELECT COUNT(*) FROM restaurant_holds
         WHERE ($1::int IS NULL OR hotel_id = $1)
-          AND ($2::text IS NULL OR status = $2)
+          AND (
+            $2::text IS NULL
+            OR (
+                $2::text = 'PENDING_APPROVAL'
+                AND status IN ('PENDING_APPROVAL', 'BEKLEMEDE')
+            )
+            OR status = $2
+          )
           AND ($3::date IS NULL OR date >= $3)
           AND ($4::date IS NULL OR date <= $4)
           AND (($5::bool AND archived_at IS NOT NULL) OR (NOT $5::bool AND archived_at IS NULL))

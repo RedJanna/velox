@@ -12,6 +12,7 @@ import pytest
 
 from velox.api.middleware.auth import TokenData
 from velox.api.routes import admin
+from velox.api.routes import admin_holds
 from velox.config.constants import Role
 
 
@@ -165,3 +166,67 @@ async def test_list_holds_legacy_fallback_uses_jsonb_union_compatible_query() ->
     )
 
     assert result["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_list_restaurant_holds_exposes_pending_approval_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    async def fake_fetch(query: str, *args: Any) -> list[dict[str, Any]]:
+        captured["query"] = query
+        captured["args"] = args
+        return [
+            {
+                "hold_id": "R_HOLD_010",
+                "hotel_id": 21966,
+                "conversation_id": None,
+                "slot_id": "10491",
+                "date": "2026-05-26",
+                "time": "19:00:00",
+                "party_size": 3,
+                "guest_name": "Test User",
+                "phone": None,
+                "area": None,
+                "notes": None,
+                "status": "PENDING_APPROVAL",
+                "approved_by": None,
+                "approved_at": None,
+                "rejected_reason": None,
+                "table_id": None,
+                "table_type": None,
+                "arrived_at": None,
+                "no_show_at": None,
+                "extended_minutes": 0,
+                "approval_request_id": "APR_019",
+                "approval_status": "REQUESTED",
+                "approval_decided_at": None,
+                "created_at": datetime.now(UTC),
+                "archived_at": None,
+                "archived_by": None,
+                "archived_reason": None,
+            }
+        ]
+
+    async def fake_fetchval(query: str, *args: Any) -> int:
+        captured["count_query"] = query
+        captured["count_args"] = args
+        return 1
+
+    monkeypatch.setattr(admin_holds, "fetch", fake_fetch)
+    monkeypatch.setattr(admin_holds, "fetchval", fake_fetchval)
+
+    result = await admin_holds.list_restaurant_holds(
+        user=_build_user(),
+        hotel_id=21966,
+        status="PENDING_APPROVAL",
+        page=1,
+        per_page=30,
+    )
+
+    assert result["total"] == 1
+    assert result["items"][0]["approval_request_id"] == "APR_019"
+    assert "status IN ('PENDING_APPROVAL', 'BEKLEMEDE')" in captured["query"]
+    assert "CASE" in captured["query"]
+    assert captured["args"][1] == "PENDING_APPROVAL"
