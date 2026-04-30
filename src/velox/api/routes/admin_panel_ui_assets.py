@@ -258,6 +258,10 @@ tbody tr:hover{background:#fffcf7}
 .response-preview-safety span.info{background:#e8f3f1;color:#115e59;border-color:rgba(15,118,110,.18)}
 .response-preview-reply{min-height:220px;padding:16px;border:1px solid var(--line);border-radius:10px;background:#fff;white-space:pre-wrap;line-height:1.55}
 .response-preview-reply.empty-state{display:flex;align-items:center;justify-content:center;color:var(--muted);background:#f8fafc}
+.response-preview-output-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.response-preview-translate{background:#fff7ed;color:#92400e;border:1px solid rgba(180,83,9,.26);box-shadow:0 10px 22px rgba(180,83,9,.1)}
+.response-preview-translate:hover{background:#ffedd5;border-color:rgba(180,83,9,.42);box-shadow:0 12px 24px rgba(180,83,9,.14)}
+.response-preview-translate:disabled{background:#f3f4f6;color:#94a3b8;border-color:#d1d5db;box-shadow:none;cursor:not-allowed}
 .response-preview-copy{background:linear-gradient(135deg,#102033,#1f3554);color:#fff;border:1px solid rgba(16,32,51,.88);box-shadow:0 10px 22px rgba(16,32,51,.16)}
 .response-preview-copy:hover{background:linear-gradient(135deg,#0f766e,#1d8f86);border-color:#0f766e;box-shadow:0 12px 24px rgba(15,118,110,.2)}
 .response-preview-copy:disabled{background:#e5e7eb;color:#94a3b8;border-color:#d1d5db;box-shadow:none;cursor:not-allowed}
@@ -266,6 +270,14 @@ tbody tr:hover{background:#fffcf7}
 .response-preview-tool-list{display:flex;flex-wrap:wrap;gap:8px;min-height:38px}
 .response-preview-tool-list .pill{max-width:100%;overflow-wrap:anywhere}
 .response-preview-diagnostics pre{max-height:280px;overflow:auto;margin:0;padding:12px;border:1px solid var(--line);border-radius:10px;background:#0f172a;color:#e2e8f0;font-size:12px;line-height:1.45}
+.response-translation-dialog{max-width:760px;width:min(94vw,760px)}
+.response-translation-card{display:grid;gap:16px}
+.response-translation-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.response-translation-body{display:grid;gap:14px}
+.response-translation-block{display:grid;gap:8px}
+.response-translation-block strong{font-size:13px;color:var(--ink)}
+.response-translation-block pre{margin:0;max-height:260px;overflow:auto;white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);border-radius:12px;background:#f8fafc;color:var(--ink);padding:14px;font-family:var(--sans);font-size:14px;line-height:1.55}
+.response-translation-block.target pre{background:#fff7ed;border-color:rgba(180,83,9,.22)}
 .debug-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .debug-layout{display:grid;grid-template-columns:minmax(260px,.9fr) minmax(320px,1.1fr) minmax(320px,1fr);gap:18px}
 .debug-column{min-height:460px}
@@ -542,8 +554,9 @@ function bindRefs() {
     'debugArtifactPreviewLink','debugArtifactPreviewCloseButton',
     'responsePreviewForm','responsePreviewQuestion','responsePreviewSampleList','responsePreviewLanguage',
     'responsePreviewStyle','responsePreviewGenerate','responsePreviewClear',
-    'responsePreviewSafety','responsePreviewReply','responsePreviewMeta','responsePreviewCopy',
-    'responsePreviewToolList','responsePreviewInternalJson',
+    'responsePreviewSafety','responsePreviewReply','responsePreviewMeta','responsePreviewTranslate','responsePreviewCopy',
+    'responsePreviewToolList','responsePreviewInternalJson','responsePreviewTranslationDialog',
+    'responsePreviewTranslationTitle','responsePreviewTranslationMeta','responsePreviewTranslationBody','responsePreviewTranslationClose',
     'logoutButton','reloadButton','decisionDialog','decisionForm','decisionTitle','decisionLead','decisionReason',
     'decisionHoldId','decisionMode'
   ].forEach(id => refs[id] = document.getElementById(id));
@@ -585,6 +598,8 @@ function bindEvents() {
   refs.responsePreviewForm?.addEventListener('submit', onResponsePreviewSubmit);
   refs.responsePreviewSampleList?.addEventListener('click', onResponsePreviewSampleClick);
   refs.responsePreviewClear?.addEventListener('click', clearResponsePreview);
+  refs.responsePreviewTranslate?.addEventListener('click', openResponsePreviewTranslation);
+  refs.responsePreviewTranslationClose?.addEventListener('click', closeResponsePreviewTranslation);
   refs.responsePreviewCopy?.addEventListener('click', copyResponsePreviewReply);
   refs.reloadButton?.addEventListener('click', reloadConfig);
   refs.logoutButton?.addEventListener('click', logout);
@@ -2185,12 +2200,63 @@ async function copyResponsePreviewReply() {
   }
 }
 
+function getResponsePreviewTranslation(result = state.responsePreviewResult) {
+  const translation = result?.translation || null;
+  const translatedReply = String(translation?.translated_reply || '').trim();
+  const sourceLanguage = normalizeResponsePreviewLanguage(translation?.source_language || result?.internal_json?.language || result?.requested_language || 'auto');
+  if (!translation?.available || !translatedReply || sourceLanguage === 'tr') return null;
+  return {...translation, source_language: sourceLanguage, translated_reply: translatedReply};
+}
+
+function openResponsePreviewTranslation() {
+  const translation = getResponsePreviewTranslation();
+  const result = state.responsePreviewResult || {};
+  if (!translation || !refs.responsePreviewTranslationDialog) {
+    notify('Çeviri hazır değil.', 'warn');
+    return;
+  }
+  if (refs.responsePreviewTranslationTitle) refs.responsePreviewTranslationTitle.textContent = 'Çeviri';
+  if (refs.responsePreviewTranslationMeta) {
+    const modelLabel = translation.model ? ` · Model: ${translation.model}` : '';
+    refs.responsePreviewTranslationMeta.textContent = `${formatResponsePreviewLanguage(translation.source_language)} → Türkçe${modelLabel}`;
+  }
+  if (refs.responsePreviewTranslationBody) {
+    refs.responsePreviewTranslationBody.innerHTML = `
+      <section class="response-translation-block">
+        <strong>Orijinal yanıt (${escapeHtml(formatResponsePreviewLanguage(translation.source_language))})</strong>
+        <pre>${escapeHtml(result.reply || '-')}</pre>
+      </section>
+      <section class="response-translation-block target">
+        <strong>Türkçe çeviri</strong>
+        <pre>${escapeHtml(translation.translated_reply)}</pre>
+      </section>
+    `;
+  }
+  if (!refs.responsePreviewTranslationDialog.open) refs.responsePreviewTranslationDialog.showModal();
+}
+
+function closeResponsePreviewTranslation() {
+  if (refs.responsePreviewTranslationDialog?.open) refs.responsePreviewTranslationDialog.close();
+}
+
+function resetResponsePreviewTranslationDialog() {
+  if (refs.responsePreviewTranslationMeta) refs.responsePreviewTranslationMeta.textContent = 'Yanıt çevirisi henüz hazır değil.';
+  if (refs.responsePreviewTranslationBody) {
+    refs.responsePreviewTranslationBody.innerHTML = '<div class="empty-state"><p>Çeviri burada görüntülenir.</p></div>';
+  }
+}
+
 function setResponsePreviewLoading(isLoading) {
   state.responsePreviewLoading = isLoading;
   const hasReply = Boolean(state.responsePreviewResult?.reply);
+  const hasTranslation = Boolean(getResponsePreviewTranslation(state.responsePreviewResult));
   if (refs.responsePreviewGenerate) {
     refs.responsePreviewGenerate.disabled = isLoading;
     refs.responsePreviewGenerate.textContent = isLoading ? 'Üretiliyor...' : (hasReply ? 'Tekrar Üret' : 'Yanıt Üret');
+  }
+  if (refs.responsePreviewTranslate) {
+    refs.responsePreviewTranslate.hidden = isLoading || !hasTranslation;
+    refs.responsePreviewTranslate.disabled = isLoading || !hasTranslation;
   }
   if (refs.responsePreviewCopy) {
     refs.responsePreviewCopy.disabled = isLoading || !hasReply;
@@ -2207,6 +2273,8 @@ function renderResponsePreview() {
     if (refs.responsePreviewMeta) refs.responsePreviewMeta.textContent = 'Henüz yanıt oluşturulmadı.';
     if (refs.responsePreviewToolList) refs.responsePreviewToolList.innerHTML = '<span class="muted">Henüz araç çağrısı yok.</span>';
     if (refs.responsePreviewInternalJson) refs.responsePreviewInternalJson.textContent = '{}';
+    closeResponsePreviewTranslation();
+    resetResponsePreviewTranslationDialog();
     renderResponsePreviewSafety(null);
     setResponsePreviewLoading(Boolean(state.responsePreviewLoading));
     return;
@@ -2266,6 +2334,7 @@ function buildResponsePreviewSafetyBadges(result) {
     {label: result.persisted ? 'DB yazımı var' : 'DB yazımı yok', cls: result.persisted ? 'warn' : 'success'},
     {label: toolCalls.length ? `${toolCalls.length} read-only araç` : 'Araçsız yanıt', cls: 'info'},
     blockedCount ? {label: `${blockedCount} araç engellendi`, cls: 'warn'} : null,
+    getResponsePreviewTranslation(result) ? {label: 'Türkçe çeviri hazır', cls: 'info'} : null,
     {label: `Dil ${formatResponsePreviewLanguage(result.requested_language || 'auto')}`, cls: 'info'},
     {label: `Ton ${formatResponsePreviewStyle(result.response_style || 'professional')}`, cls: 'info'},
   ].filter(Boolean);
@@ -2279,8 +2348,13 @@ function getResponsePreviewStyle() {
   return String(refs.responsePreviewStyle?.value || 'professional').trim() || 'professional';
 }
 
+function normalizeResponsePreviewLanguage(value) {
+  const normalized = String(value || 'auto').trim().toLowerCase();
+  return ['auto','tr','en','de','ru','ar','es','fr','zh','hi','pt'].includes(normalized) ? normalized : 'auto';
+}
+
 function formatResponsePreviewLanguage(value) {
-  const labels = {auto: 'Otomatik', tr: 'Türkçe', en: 'English', de: 'Deutsch', ru: 'Русский', ar: 'العربية', es: 'Español', fr: 'Français', zh: '中文', hi: 'हिन्दी', pt: 'Português'};
+  const labels = {auto: 'Otomatik', tr: 'Türkçe', en: 'İngilizce (Britanya)', de: 'Deutsch', ru: 'Русский', ar: 'العربية', es: 'Español', fr: 'Français', zh: '中文', hi: 'हिन्दी', pt: 'Português'};
   return labels[String(value || 'auto').toLowerCase()] || 'Otomatik';
 }
 

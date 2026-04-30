@@ -1118,6 +1118,8 @@ Kural: Native OpenAI tool call gelmez ama gecerli `INTERNAL_JSON.tool_calls` ici
 - LLM mesaj listesi yalnizca: kompakt HOTEL_CONTEXT system prompt'u, response-preview hard rule prompt'u, tek user question ve cikti kontratini icerir.
 - Admin panel dil ve yanit tonu secimi yalnizca system-level response-preview yonlendirmesi olarak eklenir; tek user question metnine onceki konusma, test notu veya UI baglami eklenmez.
 - Desteklenen yanit tonu secimleri: `professional`, `warm`, `concise`. Secim yanitin uslubunu ve uzunlugunu etkiler; otel verisi, tool kurali, kaynak hiyerarsisi veya no-history/no-persistence kisitlarini gevsetmez.
+- Ingilizce yanit uretiliyorsa dil kural olarak British English kabul edilir; yazim, ifade ve misafir agirlamasi tonu buna gore kurulur.
+- Yanit dili Turkce degilse backend admin panel overlay'i icin yalnizca uretilen tek yanit metninden Turkce `translation` metadata'si uretebilir. Bu ceviri admin-only'dir, WhatsApp'a gonderilmez, conversation/message/session/CRM/ticket/notification kaydi olusturmaz ve sonraki yanitlar icin context sayilmaz.
 - Model yalnizca read-only tool alt kumesini gorebilir: `booking_availability`, `booking_quote`, `restaurant_availability`, `transfer_get_info`, `faq_lookup`, `hotel_info_lookup`.
 - Write/side-effect tool'lari (`stay_create_hold`, `restaurant_create_hold`, `transfer_create_hold`, `handoff_create_ticket`, `notify_send`, `crm_log`, payment/approval/confirm/cancel/modify tool'lari) bu modda sunulmaz ve cagrilsa bile backend tarafindan engellenir.
 - Handoff gerekiyorsa sadece INTERNAL_JSON icinde `handoff.needed=true` olarak isaretlenir; gercek ticket veya bildirim uretilmez ve USER_MESSAGE icinde islem olusturulmus gibi davranilmaz.

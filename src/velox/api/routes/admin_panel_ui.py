@@ -1207,7 +1207,7 @@ def render_admin_panel_html() -> str:
                     <select id="responsePreviewLanguage" name="language" aria-label="Yanıt dili">
                       <option value="auto">Otomatik</option>
                       <option value="tr">Türkçe</option>
-                      <option value="en">English</option>
+                      <option value="en">İngilizce (Britanya)</option>
                       <option value="de">Deutsch</option>
                       <option value="ru">Русский</option>
                     </select>
@@ -1239,7 +1239,10 @@ def render_admin_panel_html() -> str:
                   <h3>Üretilen Yanıt</h3>
                   <p id="responsePreviewMeta">Henüz yanıt oluşturulmadı.</p>
                 </div>
-                <button id="responsePreviewCopy" class="inline-button response-preview-copy" type="button" disabled>Kopyala</button>
+                <div class="response-preview-output-actions">
+                  <button id="responsePreviewTranslate" class="inline-button response-preview-translate" type="button" hidden disabled>Çeviriyi Aç</button>
+                  <button id="responsePreviewCopy" class="inline-button response-preview-copy" type="button" disabled>Kopyala</button>
+                </div>
               </div>
               <div id="responsePreviewReply" class="response-preview-reply empty-state">
                 <p>Yanıt burada görüntülenir.</p>
@@ -1266,6 +1269,23 @@ def render_admin_panel_html() -> str:
       </section>
     </main>
   </div>
+
+  <dialog id="responsePreviewTranslationDialog" class="dialog response-translation-dialog" aria-labelledby="responsePreviewTranslationTitle">
+    <div class="dialog-card response-translation-card">
+      <div class="dialog-head response-translation-head">
+        <div>
+          <h3 id="responsePreviewTranslationTitle">Çeviri</h3>
+          <p id="responsePreviewTranslationMeta">Yanıt çevirisi henüz hazır değil.</p>
+        </div>
+        <button id="responsePreviewTranslationClose" class="inline-button secondary" type="button" aria-label="Çeviri penceresini kapat">Kapat</button>
+      </div>
+      <div id="responsePreviewTranslationBody" class="response-translation-body">
+        <div class="empty-state">
+          <p>Çeviri burada görüntülenir.</p>
+        </div>
+      </div>
+    </div>
+  </dialog>
 
   <dialog id="serviceModeDialog" class="service-mode-dialog" aria-label="Servis Modu">
     <div class="service-mode-shell service-mode-v2">

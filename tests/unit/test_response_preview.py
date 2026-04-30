@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from typing import Any
 
@@ -33,9 +34,21 @@ class DummyLLMClient:
 
     primary_model = "gpt-test"
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        raw_content: str | None = None,
+        translation_payload: dict[str, str] | None = None,
+    ) -> None:
         self.messages: list[dict[str, Any]] = []
+        self.translation_messages: list[dict[str, Any]] = []
         self.tools: list[dict[str, Any]] = []
+        self.raw_content = raw_content
+        self.translation_payload = translation_payload or {
+            "source_language": "en",
+            "target_language": "tr",
+            "translated_reply": "Kassandra Oludeniz için otel verilerindeki bilgileri paylaşabilirim.",
+        }
 
     async def run_tool_call_loop(
         self,
@@ -48,6 +61,8 @@ class DummyLLMClient:
         _ = (tool_executor, max_iterations, trace_context)
         self.messages = messages
         self.tools = tools
+        if self.raw_content is not None:
+            return self.raw_content, []
         return (
             'USER_MESSAGE: Kassandra Oludeniz için müsait otel bilgilerini paylaşabilirim.\n'
             'INTERNAL_JSON: {"language":"tr","intent":"faq_info","state":"INTENT_DETECTED",'
@@ -56,6 +71,19 @@ class DummyLLMClient:
             '"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"answer_sent"}',
             [],
         )
+
+    async def chat_completion(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        model: str | None = None,
+        response_format: dict[str, Any] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        parallel_tool_calls: bool | None = None,
+    ) -> dict[str, Any]:
+        _ = (tools, model, response_format, tool_choice, parallel_tool_calls)
+        self.translation_messages = messages
+        return {"choices": [{"message": {"content": json.dumps(self.translation_payload)}}]}
 
     async def repair_structured_output(self, **kwargs: Any) -> dict[str, Any] | None:
         _ = kwargs
@@ -94,6 +122,7 @@ def test_build_response_preview_messages_contains_only_single_question() -> None
     assert "not chat lab" in joined
     assert "response_language_request: en" in joined
     assert "response_style_request: concise" in joined
+    assert "british english" in joined
     assert "conversation_id" not in joined
 
 
@@ -149,6 +178,52 @@ async def test_generate_response_preview_does_not_persist_or_create_history() ->
     assert result.internal_json.entities["response_preview"]["history_used"] is False
     assert result.internal_json.entities["response_preview"]["history_created"] is False
     assert [message["role"] for message in llm_client.messages] == ["system", "system", "user", "system"]
+
+
+@pytest.mark.asyncio
+async def test_non_turkish_preview_returns_admin_translation_without_history() -> None:
+    llm_client = DummyLLMClient(
+        raw_content=(
+            "USER_MESSAGE: Breakfast is served in the restaurant area according to the hotel data.\n"
+            'INTERNAL_JSON: {"language":"en","intent":"faq_info","state":"INTENT_DETECTED",'
+            '"entities":{},"required_questions":[],"tool_calls":[],"notifications":[],'
+            '"handoff":{"needed":false},"risk_flags":[],'
+            '"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"answer_sent"}'
+        ),
+        translation_payload={
+            "source_language": "en",
+            "target_language": "tr",
+            "translated_reply": "Otel verilerine göre kahvaltı restoran alanında servis edilir.",
+        },
+    )
+
+    result = await generate_response_preview(
+        hotel_id=1,
+        question="What time is breakfast?",
+        language="en",
+        response_style="professional",
+        dispatcher=None,
+        llm_client=llm_client,  # type: ignore[arg-type]
+        prompt_builder=DummyPromptBuilder(),  # type: ignore[arg-type]
+    )
+
+    assert result.translation.available is True
+    assert result.translation.source_language == "en"
+    assert result.translation.target_language == "tr"
+    assert "kahvaltı" in result.translation.translated_reply.lower()
+    assert result.history_created is False
+    assert result.internal_json.entities["response_preview"]["admin_translation"] == {
+        "available": True,
+        "source_language": "en",
+        "target_language": "tr",
+        "history_used": False,
+        "history_created": False,
+        "persisted": False,
+    }
+    translation_prompt = _message_text(llm_client.translation_messages).lower()
+    assert "conversation history" in translation_prompt
+    assert "british english" in translation_prompt
+    assert "what time is breakfast" not in translation_prompt
 
 
 @pytest.mark.asyncio

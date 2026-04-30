@@ -649,6 +649,26 @@ def test_admin_panel_shell_uses_turkish_labels() -> None:
     assert "Masa Ayrıntıları" in html
 
 
+def test_response_window_translation_overlay_markup_is_present() -> None:
+    html = render_admin_panel_html()
+
+    assert 'data-view="responsewindow"' in html
+    assert 'id="responsePreviewTranslate"' in html
+    assert "Çeviriyi Aç" in html
+    assert 'id="responsePreviewTranslationDialog"' in html
+    assert 'id="responsePreviewTranslationBody"' in html
+    assert "Türkçe çeviri" in ADMIN_PANEL_SCRIPT
+    assert "İngilizce (Britanya)" in html
+
+
+def test_response_window_translation_script_is_history_free() -> None:
+    assert "getResponsePreviewTranslation" in ADMIN_PANEL_SCRIPT
+    assert "openResponsePreviewTranslation" in ADMIN_PANEL_SCRIPT
+    assert "refs.responsePreviewTranslate?.addEventListener('click', openResponsePreviewTranslation)" in ADMIN_PANEL_SCRIPT
+    assert "translation?.available" in ADMIN_PANEL_SCRIPT
+    assert "sourceLanguage === 'tr'" in ADMIN_PANEL_SCRIPT
+
+
 def test_admin_panel_contains_access_control_view() -> None:
     html = render_admin_panel_html()
 

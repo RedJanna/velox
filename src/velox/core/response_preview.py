@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.core.response_validator import validate_guest_response
-from velox.llm.client import LLMClient, get_llm_client
+from velox.llm.client import LLMClient, LLMUnavailableError, get_llm_client
 from velox.llm.function_registry import get_tool_definitions
 from velox.llm.prompt_builder import PromptBuilder, get_prompt_builder
 from velox.llm.response_parser import ResponseParser
@@ -68,6 +68,7 @@ RESPONSE_PREVIEW_MODE (STRICT)
 - Do not ask for card numbers, CVV, OTP, bank passwords, or unnecessary PII.
 - Keep the guest-facing answer professional, natural, clear, and WhatsApp-friendly.
 - Detect the reply language from the single question unless the admin explicitly requested another language.
+- When the reply language is English, use British English spelling, phrasing, and hospitality tone.
 """.strip()
 
 _PREVIEW_STYLE_GUIDANCE = {
@@ -94,6 +95,24 @@ INTERNAL_JSON rules:
 - do not add commentary after the JSON object
 """.strip()
 
+_PREVIEW_TRANSLATION_FORMAT: dict[str, Any] = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "velox_response_preview_translation",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "source_language": {"type": "string"},
+                "target_language": {"type": "string"},
+                "translated_reply": {"type": "string"},
+            },
+            "required": ["source_language", "target_language", "translated_reply"],
+        },
+    },
+}
+
 
 class ResponsePreviewToolCall(BaseModel):
     """Tool-call metadata safe to expose in the admin preview UI."""
@@ -103,6 +122,16 @@ class ResponsePreviewToolCall(BaseModel):
     blocked: bool = False
     reason: str | None = None
     arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class ResponsePreviewTranslation(BaseModel):
+    """Admin-only translation metadata for non-Turkish preview replies."""
+
+    available: bool = False
+    source_language: str = "auto"
+    target_language: str = "tr"
+    translated_reply: str = ""
+    model: str | None = None
 
 
 class ResponsePreviewResult(BaseModel):
@@ -122,6 +151,7 @@ class ResponsePreviewResult(BaseModel):
     created_records: list[str] = Field(default_factory=list)
     tool_calls: list[ResponsePreviewToolCall] = Field(default_factory=list)
     safety_notes: list[str] = Field(default_factory=list)
+    translation: ResponsePreviewTranslation = Field(default_factory=ResponsePreviewTranslation)
 
 
 class PreviewToolExecutor:
@@ -256,6 +286,14 @@ async def generate_response_preview(
     parsed = validate_guest_response(parsed, default_language=_default_language(requested_language))
     parsed.user_message = WhatsAppFormatter.truncate(parsed.user_message)
     parsed = _normalize_preview_internal_json(parsed, preview_executor.tool_calls)
+    response_language = _response_language(parsed, requested_language)
+    translation = await _build_admin_translation(
+        llm_client=selected_llm,
+        reply=parsed.user_message,
+        source_language=response_language,
+        hotel_id=hotel_id,
+    )
+    parsed = _attach_translation_metadata(parsed, translation)
 
     duration_ms = int((perf_counter() - started) * 1000)
     logger.info(
@@ -268,6 +306,9 @@ async def generate_response_preview(
         model=selected_llm.primary_model,
         requested_language=requested_language,
         response_style=selected_style,
+        translation_available=translation.available,
+        translation_source_language=translation.source_language,
+        translation_target_language=translation.target_language,
         history_used=False,
         history_created=False,
     )
@@ -288,6 +329,7 @@ async def generate_response_preview(
             "side_effect_tools_blocked",
             f"response_style_{selected_style}",
         ],
+        translation=translation,
     )
 
 
@@ -301,6 +343,83 @@ def filter_preview_tool_definitions(tools: list[dict[str, Any]]) -> list[dict[st
         if str(function_block.get("name") or "") in READ_ONLY_PREVIEW_TOOLS:
             filtered.append(tool)
     return filtered
+
+
+async def _build_admin_translation(
+    *,
+    llm_client: LLMClient,
+    reply: str,
+    source_language: str,
+    hotel_id: int,
+) -> ResponsePreviewTranslation:
+    """Translate non-Turkish preview replies for the admin overlay without history."""
+    normalized_source = _normalize_language(source_language)
+    if normalized_source in {"auto", "tr"} or not str(reply or "").strip():
+        return ResponsePreviewTranslation(source_language=normalized_source, target_language="tr")
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You translate Velox admin response-preview replies. "
+                "Use only the single reply text provided in this request; do not use previous messages, "
+                "conversation history, customer profiles, session memory, tools, or external knowledge. "
+                "Do not add, remove, soften, or strengthen hotel facts, dates, prices, policy caveats, or operational promises. "
+                "Return JSON only. If translating into English, use British English spelling and phrasing."
+            ),
+        },
+        {
+            "role": "user",
+            "content": _to_json_string(
+                {
+                    "source_language": normalized_source,
+                    "target_language": "tr",
+                    "reply": str(reply or "").strip(),
+                }
+            ),
+        },
+    ]
+    try:
+        response = await llm_client.chat_completion(
+            messages=messages,
+            response_format=_PREVIEW_TRANSLATION_FORMAT,
+        )
+    except LLMUnavailableError as exc:  # pragma: no cover - concrete client failures are integration-level.
+        logger.warning(
+            "admin_response_preview_translation_unavailable",
+            hotel_id=hotel_id,
+            source_language=normalized_source,
+            target_language="tr",
+            error_type=type(exc).__name__,
+        )
+        return ResponsePreviewTranslation(source_language=normalized_source, target_language="tr")
+
+    content = _extract_chat_message_content(response).strip()
+    try:
+        payload = orjson.loads(content)
+    except orjson.JSONDecodeError:
+        logger.warning(
+            "admin_response_preview_translation_invalid_json",
+            hotel_id=hotel_id,
+            source_language=normalized_source,
+            target_language="tr",
+            content_chars=len(content),
+        )
+        return ResponsePreviewTranslation(source_language=normalized_source, target_language="tr")
+    if not isinstance(payload, dict):
+        return ResponsePreviewTranslation(source_language=normalized_source, target_language="tr")
+
+    translated_reply = str(payload.get("translated_reply") or "").strip()
+    if not translated_reply:
+        return ResponsePreviewTranslation(source_language=normalized_source, target_language="tr")
+    payload_source = _normalize_language(str(payload.get("source_language") or normalized_source))
+    return ResponsePreviewTranslation(
+        available=True,
+        source_language=payload_source if payload_source != "auto" else normalized_source,
+        target_language="tr",
+        translated_reply=WhatsAppFormatter.truncate(translated_reply),
+        model=llm_client.primary_model,
+    )
 
 
 async def _parse_or_repair_preview_output(
@@ -367,6 +486,28 @@ def _normalize_preview_internal_json(
     return response
 
 
+def _attach_translation_metadata(
+    response: LLMResponse,
+    translation: ResponsePreviewTranslation,
+) -> LLMResponse:
+    """Expose admin translation state in preview metadata only."""
+    entities = response.internal_json.entities if isinstance(response.internal_json.entities, dict) else {}
+    response.internal_json.entities = entities
+    preview_meta = entities.get("response_preview")
+    if not isinstance(preview_meta, dict):
+        preview_meta = {}
+    preview_meta["admin_translation"] = {
+        "available": translation.available,
+        "source_language": translation.source_language,
+        "target_language": translation.target_language,
+        "history_used": False,
+        "history_created": False,
+        "persisted": False,
+    }
+    entities["response_preview"] = preview_meta
+    return response
+
+
 def _enforce_no_preview_side_effect_claims(response: LLMResponse) -> LLMResponse:
     if not _SIDE_EFFECT_COMMITMENT_PATTERN.search(response.user_message or ""):
         return response
@@ -409,6 +550,16 @@ def _normalize_language(language: str) -> str:
     return "auto"
 
 
+def _response_language(response: LLMResponse, requested_language: str) -> str:
+    detected = _normalize_language(str(response.internal_json.language or "auto"))
+    if detected != "auto":
+        return detected
+    requested = _normalize_language(requested_language)
+    if requested != "auto":
+        return requested
+    return "tr"
+
+
 def _normalize_response_style(response_style: str) -> str:
     value = str(response_style or "professional").strip().lower()
     if value in PREVIEW_RESPONSE_STYLES:
@@ -447,3 +598,17 @@ def _to_json_string(value: Any) -> str:
         return orjson.dumps(value).decode()
     except TypeError:
         return orjson.dumps({"error": "tool_result_not_serializable"}).decode()
+
+
+def _extract_chat_message_content(response: dict[str, Any]) -> str:
+    choices = response.get("choices", [])
+    if not choices:
+        return ""
+    message = choices[0].get("message", {}) if isinstance(choices[0], dict) else {}
+    content = message.get("content") if isinstance(message, dict) else ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = [str(item.get("text") or "") for item in content if isinstance(item, dict)]
+        return "".join(parts)
+    return ""
