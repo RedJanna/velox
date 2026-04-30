@@ -1116,6 +1116,8 @@ Kural: Native OpenAI tool call gelmez ama gecerli `INTERNAL_JSON.tool_calls` ici
 - Bu mod tek bir admin sorusundan tek bir musteri yaniti uretir; onceki mesajlar, conversation summary, Redis session veya DB mesaj gecmisi okunmaz.
 - Bu mod hicbir `conversation`, `message`, `crm_log`, `ticket`, `hold`, `notification`, payment request veya WhatsApp gonderimi olusturmaz.
 - LLM mesaj listesi yalnizca: kompakt HOTEL_CONTEXT system prompt'u, response-preview hard rule prompt'u, tek user question ve cikti kontratini icerir.
+- Admin panel dil ve yanit tonu secimi yalnizca system-level response-preview yonlendirmesi olarak eklenir; tek user question metnine onceki konusma, test notu veya UI baglami eklenmez.
+- Desteklenen yanit tonu secimleri: `professional`, `warm`, `concise`. Secim yanitin uslubunu ve uzunlugunu etkiler; otel verisi, tool kurali, kaynak hiyerarsisi veya no-history/no-persistence kisitlarini gevsetmez.
 - Model yalnizca read-only tool alt kumesini gorebilir: `booking_availability`, `booking_quote`, `restaurant_availability`, `transfer_get_info`, `faq_lookup`, `hotel_info_lookup`.
 - Write/side-effect tool'lari (`stay_create_hold`, `restaurant_create_hold`, `transfer_create_hold`, `handoff_create_ticket`, `notify_send`, `crm_log`, payment/approval/confirm/cancel/modify tool'lari) bu modda sunulmaz ve cagrilsa bile backend tarafindan engellenir.
 - Handoff gerekiyorsa sadece INTERNAL_JSON icinde `handoff.needed=true` olarak isaretlenir; gercek ticket veya bildirim uretilmez ve USER_MESSAGE icinde islem olusturulmus gibi davranilmaz.

@@ -1195,6 +1195,32 @@ def render_admin_panel_html() -> str:
                   <label for="responsePreviewQuestion">Müşteri sorusu</label>
                   <textarea id="responsePreviewQuestion" name="question" rows="9" maxlength="4000" placeholder="Örn. Havalimanı transfer ücretiniz nedir?"></textarea>
                 </div>
+                <div class="response-preview-samples" id="responsePreviewSampleList" aria-label="Hızlı test soruları">
+                  <button type="button" data-response-sample="Havalimanı transfer ücretiniz nedir?">Transfer</button>
+                  <button type="button" data-response-sample="Kahvaltı dahil mi ve saat kaçta başlıyor?">Kahvaltı</button>
+                  <button type="button" data-response-sample="Check-in ve check-out saatleriniz nedir?">Check-in</button>
+                  <button type="button" data-response-sample="Evcil hayvan kabul ediyor musunuz?">Evcil Hayvan</button>
+                </div>
+                <div class="field-grid response-preview-options">
+                  <div class="field">
+                    <label for="responsePreviewLanguage">Yanıt dili</label>
+                    <select id="responsePreviewLanguage" name="language" aria-label="Yanıt dili">
+                      <option value="auto">Otomatik</option>
+                      <option value="tr">Türkçe</option>
+                      <option value="en">English</option>
+                      <option value="de">Deutsch</option>
+                      <option value="ru">Русский</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="responsePreviewStyle">Yanıt tonu</label>
+                    <select id="responsePreviewStyle" name="response_style" aria-label="Yanıt tonu">
+                      <option value="professional">Profesyonel</option>
+                      <option value="warm">Sıcak</option>
+                      <option value="concise">Kısa</option>
+                    </select>
+                  </div>
+                </div>
                 <div class="response-preview-actions">
                   <button id="responsePreviewGenerate" class="action-button primary" type="submit">Yanıt Üret</button>
                   <button id="responsePreviewClear" class="action-button secondary" type="button">Temizle</button>
@@ -1213,7 +1239,7 @@ def render_admin_panel_html() -> str:
                   <h3>Üretilen Yanıt</h3>
                   <p id="responsePreviewMeta">Henüz yanıt oluşturulmadı.</p>
                 </div>
-                <button id="responsePreviewCopy" class="inline-button response-preview-copy" type="button">Kopyala</button>
+                <button id="responsePreviewCopy" class="inline-button response-preview-copy" type="button" disabled>Kopyala</button>
               </div>
               <div id="responsePreviewReply" class="response-preview-reply empty-state">
                 <p>Yanıt burada görüntülenir.</p>

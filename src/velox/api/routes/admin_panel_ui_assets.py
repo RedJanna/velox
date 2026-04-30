@@ -246,13 +246,21 @@ tbody tr:hover{background:#fffcf7}
 .response-preview-layout{display:grid;grid-template-columns:minmax(320px,.9fr) minmax(360px,1.1fr);gap:18px;align-items:start}
 .response-preview-form{display:grid;gap:16px}
 .response-preview-form textarea{min-height:230px;resize:vertical;line-height:1.45}
+.response-preview-samples{display:flex;gap:8px;flex-wrap:wrap;margin-top:-4px}
+.response-preview-samples button{border:1px solid var(--line);background:var(--surface-2);color:var(--ink);border-radius:999px;padding:8px 11px;font-size:12px;font-weight:800;cursor:pointer;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.response-preview-samples button:hover{border-color:rgba(15,118,110,.36);box-shadow:0 8px 18px rgba(15,118,110,.08);transform:translateY(-1px)}
+.response-preview-options{gap:12px}
 .response-preview-actions{display:flex;gap:10px;flex-wrap:wrap}
 .response-preview-safety{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 .response-preview-safety span{border:1px solid var(--line);background:#f8fafc;color:var(--muted);border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700}
+.response-preview-safety span.success{background:#ecfdf5;color:var(--ok);border-color:rgba(22,101,52,.18)}
+.response-preview-safety span.warn{background:#fff7ed;color:var(--warn);border-color:rgba(180,83,9,.18)}
+.response-preview-safety span.info{background:#e8f3f1;color:#115e59;border-color:rgba(15,118,110,.18)}
 .response-preview-reply{min-height:220px;padding:16px;border:1px solid var(--line);border-radius:10px;background:#fff;white-space:pre-wrap;line-height:1.55}
 .response-preview-reply.empty-state{display:flex;align-items:center;justify-content:center;color:var(--muted);background:#f8fafc}
 .response-preview-copy{background:linear-gradient(135deg,#102033,#1f3554);color:#fff;border:1px solid rgba(16,32,51,.88);box-shadow:0 10px 22px rgba(16,32,51,.16)}
 .response-preview-copy:hover{background:linear-gradient(135deg,#0f766e,#1d8f86);border-color:#0f766e;box-shadow:0 12px 24px rgba(15,118,110,.2)}
+.response-preview-copy:disabled{background:#e5e7eb;color:#94a3b8;border-color:#d1d5db;box-shadow:none;cursor:not-allowed}
 .response-preview-diagnostics{display:grid;grid-template-columns:minmax(180px,.7fr) minmax(260px,1fr);gap:14px;margin-top:16px}
 .response-preview-diagnostics h4{margin:0 0 8px;font-size:13px}
 .response-preview-tool-list{display:flex;flex-wrap:wrap;gap:8px;min-height:38px}
@@ -532,7 +540,8 @@ function bindRefs() {
     'debugIncludeModals','debugRunCancelButton','debugArtifactPreviewDialog','debugArtifactPreviewTitle',
     'debugArtifactPreviewMeta','debugArtifactPreviewImage','debugArtifactPreviewEmpty','debugArtifactPreviewPath',
     'debugArtifactPreviewLink','debugArtifactPreviewCloseButton',
-    'responsePreviewForm','responsePreviewQuestion','responsePreviewGenerate','responsePreviewClear',
+    'responsePreviewForm','responsePreviewQuestion','responsePreviewSampleList','responsePreviewLanguage',
+    'responsePreviewStyle','responsePreviewGenerate','responsePreviewClear',
     'responsePreviewSafety','responsePreviewReply','responsePreviewMeta','responsePreviewCopy',
     'responsePreviewToolList','responsePreviewInternalJson',
     'logoutButton','reloadButton','decisionDialog','decisionForm','decisionTitle','decisionLead','decisionReason',
@@ -574,6 +583,7 @@ function bindEvents() {
     state.activeDebugArtifactId = '';
   });
   refs.responsePreviewForm?.addEventListener('submit', onResponsePreviewSubmit);
+  refs.responsePreviewSampleList?.addEventListener('click', onResponsePreviewSampleClick);
   refs.responsePreviewClear?.addEventListener('click', clearResponsePreview);
   refs.responsePreviewCopy?.addEventListener('click', copyResponsePreviewReply);
   refs.reloadButton?.addEventListener('click', reloadConfig);
@@ -2112,6 +2122,17 @@ function loadResponsePreview() {
   renderResponsePreview();
 }
 
+function onResponsePreviewSampleClick(event) {
+  const target = event.target.closest('[data-response-sample]');
+  if (!target || !refs.responsePreviewSampleList?.contains(target)) return;
+  if (refs.responsePreviewQuestion) {
+    refs.responsePreviewQuestion.value = target.dataset.responseSample || '';
+    refs.responsePreviewQuestion.focus();
+  }
+  state.responsePreviewResult = null;
+  renderResponsePreview();
+}
+
 async function onResponsePreviewSubmit(event) {
   event.preventDefault();
   const question = String(refs.responsePreviewQuestion?.value || '').trim();
@@ -2131,7 +2152,8 @@ async function onResponsePreviewSubmit(event) {
       body: {
         hotel_id: Number(state.selectedHotelId),
         question,
-        language: 'auto',
+        language: getResponsePreviewLanguage(),
+        response_style: getResponsePreviewStyle(),
       },
     });
     renderResponsePreview();
@@ -2165,9 +2187,14 @@ async function copyResponsePreviewReply() {
 
 function setResponsePreviewLoading(isLoading) {
   state.responsePreviewLoading = isLoading;
-  if (!refs.responsePreviewGenerate) return;
-  refs.responsePreviewGenerate.disabled = isLoading;
-  refs.responsePreviewGenerate.textContent = isLoading ? 'Üretiliyor...' : 'Yanıt Üret';
+  const hasReply = Boolean(state.responsePreviewResult?.reply);
+  if (refs.responsePreviewGenerate) {
+    refs.responsePreviewGenerate.disabled = isLoading;
+    refs.responsePreviewGenerate.textContent = isLoading ? 'Üretiliyor...' : (hasReply ? 'Tekrar Üret' : 'Yanıt Üret');
+  }
+  if (refs.responsePreviewCopy) {
+    refs.responsePreviewCopy.disabled = isLoading || !hasReply;
+  }
 }
 
 function renderResponsePreview() {
@@ -2180,6 +2207,8 @@ function renderResponsePreview() {
     if (refs.responsePreviewMeta) refs.responsePreviewMeta.textContent = 'Henüz yanıt oluşturulmadı.';
     if (refs.responsePreviewToolList) refs.responsePreviewToolList.innerHTML = '<span class="muted">Henüz araç çağrısı yok.</span>';
     if (refs.responsePreviewInternalJson) refs.responsePreviewInternalJson.textContent = '{}';
+    renderResponsePreviewSafety(null);
+    setResponsePreviewLoading(Boolean(state.responsePreviewLoading));
     return;
   }
 
@@ -2194,10 +2223,14 @@ function renderResponsePreview() {
       `${result.duration_ms || 0} ms`,
       `${toolCount} araç`,
       result.history_created ? 'kayıt var' : 'kayıt yok',
+      `Dil: ${formatResponsePreviewLanguage(result.requested_language || 'auto')}`,
+      `Ton: ${formatResponsePreviewStyle(result.response_style || 'professional')}`,
     ].join(' · ');
   }
   if (refs.responsePreviewToolList) refs.responsePreviewToolList.innerHTML = renderResponsePreviewTools(result.tool_calls || []);
   if (refs.responsePreviewInternalJson) refs.responsePreviewInternalJson.textContent = JSON.stringify(result.internal_json || {}, null, 2);
+  renderResponsePreviewSafety(result);
+  setResponsePreviewLoading(Boolean(state.responsePreviewLoading));
 }
 
 function renderResponsePreviewTools(items) {
@@ -2210,6 +2243,50 @@ function renderResponsePreviewTools(items) {
     const reason = item.reason ? ` · ${item.reason}` : '';
     return `<span class="pill ${badgeClass}">${escapeHtml(item.name || 'tool')} · ${escapeHtml(status)}${escapeHtml(reason)}</span>`;
   }).join('');
+}
+
+function renderResponsePreviewSafety(result) {
+  if (!refs.responsePreviewSafety) return;
+  const badges = result ? buildResponsePreviewSafetyBadges(result) : [
+    {label: 'Geçmiş kullanılmaz', cls: 'info'},
+    {label: 'Kayıt oluşturulmaz', cls: 'info'},
+    {label: 'Yanıt gönderilmez', cls: 'info'},
+  ];
+  refs.responsePreviewSafety.innerHTML = badges.map(item => {
+    return `<span class="${escapeHtml(item.cls)}">${escapeHtml(item.label)}</span>`;
+  }).join('');
+}
+
+function buildResponsePreviewSafetyBadges(result) {
+  const toolCalls = result.tool_calls || [];
+  const blockedCount = toolCalls.filter(item => item.blocked).length;
+  return [
+    {label: 'Geçmişsiz', cls: 'success'},
+    {label: result.history_created ? 'Kayıt var' : 'Kayıt yok', cls: result.history_created ? 'warn' : 'success'},
+    {label: result.persisted ? 'DB yazımı var' : 'DB yazımı yok', cls: result.persisted ? 'warn' : 'success'},
+    {label: toolCalls.length ? `${toolCalls.length} read-only araç` : 'Araçsız yanıt', cls: 'info'},
+    blockedCount ? {label: `${blockedCount} araç engellendi`, cls: 'warn'} : null,
+    {label: `Dil ${formatResponsePreviewLanguage(result.requested_language || 'auto')}`, cls: 'info'},
+    {label: `Ton ${formatResponsePreviewStyle(result.response_style || 'professional')}`, cls: 'info'},
+  ].filter(Boolean);
+}
+
+function getResponsePreviewLanguage() {
+  return String(refs.responsePreviewLanguage?.value || 'auto').trim() || 'auto';
+}
+
+function getResponsePreviewStyle() {
+  return String(refs.responsePreviewStyle?.value || 'professional').trim() || 'professional';
+}
+
+function formatResponsePreviewLanguage(value) {
+  const labels = {auto: 'Otomatik', tr: 'Türkçe', en: 'English', de: 'Deutsch', ru: 'Русский', ar: 'العربية', es: 'Español', fr: 'Français', zh: '中文', hi: 'हिन्दी', pt: 'Português'};
+  return labels[String(value || 'auto').toLowerCase()] || 'Otomatik';
+}
+
+function formatResponsePreviewStyle(value) {
+  const labels = {professional: 'Profesyonel', warm: 'Sıcak', concise: 'Kısa'};
+  return labels[String(value || 'professional').toLowerCase()] || 'Profesyonel';
 }
 
 async function loadChatLab() {

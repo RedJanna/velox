@@ -25,6 +25,7 @@ logger = structlog.get_logger(__name__)
 MAX_PREVIEW_QUESTION_CHARS = 4000
 PREVIEW_TOOL_LOOP_ITERATIONS = 4
 PREVIEW_PERMISSION = "conversations:read"
+PREVIEW_RESPONSE_STYLES = frozenset({"professional", "warm", "concise"})
 READ_ONLY_PREVIEW_TOOLS = frozenset(
     {
         "booking_availability",
@@ -69,6 +70,12 @@ RESPONSE_PREVIEW_MODE (STRICT)
 - Detect the reply language from the single question unless the admin explicitly requested another language.
 """.strip()
 
+_PREVIEW_STYLE_GUIDANCE = {
+    "professional": "Use a polished, professional hotel-reception tone with clear customer-facing wording.",
+    "warm": "Use a warmer hospitality tone while staying concise, accurate, and professional.",
+    "concise": "Use the shortest clear answer that still covers the customer's question and required caveats.",
+}
+
 _PREVIEW_OUTPUT_CONTRACT = """
 Your response must contain exactly two parts.
 Part 1 must start with USER_MESSAGE: followed by one guest-facing reply.
@@ -107,6 +114,8 @@ class ResponsePreviewResult(BaseModel):
     internal_json: InternalJSON
     model: str
     duration_ms: int
+    requested_language: str = "auto"
+    response_style: str = "professional"
     history_used: bool = False
     history_created: bool = False
     persisted: bool = False
@@ -176,6 +185,7 @@ def build_response_preview_messages(
     hotel_id: int,
     question: str,
     language: str = "auto",
+    response_style: str = "professional",
     prompt_builder: PromptBuilder | None = None,
     current_date: str | None = None,
 ) -> list[dict[str, Any]]:
@@ -184,6 +194,7 @@ def build_response_preview_messages(
     cleaned_question = _clean_question(question)
     date_value = current_date or datetime.now(UTC).date().isoformat()
     requested_language = _normalize_language(language)
+    selected_style = _normalize_response_style(response_style)
     return [
         {"role": "system", "content": builder.build_system_prompt(hotel_id)},
         {
@@ -191,7 +202,9 @@ def build_response_preview_messages(
             "content": (
                 f"{_PREVIEW_MODE_PROMPT}\n\n"
                 f"CURRENT_DATE: {date_value}\n"
-                f"RESPONSE_LANGUAGE_REQUEST: {requested_language}"
+                f"RESPONSE_LANGUAGE_REQUEST: {requested_language}\n"
+                f"RESPONSE_STYLE_REQUEST: {selected_style}\n"
+                f"RESPONSE_STYLE_GUIDANCE: {_PREVIEW_STYLE_GUIDANCE[selected_style]}"
             ),
         },
         {"role": "user", "content": cleaned_question},
@@ -204,6 +217,7 @@ async def generate_response_preview(
     hotel_id: int,
     question: str,
     language: str = "auto",
+    response_style: str = "professional",
     dispatcher: ToolDispatcher | None = None,
     llm_client: LLMClient | None = None,
     prompt_builder: PromptBuilder | None = None,
@@ -211,12 +225,15 @@ async def generate_response_preview(
     """Generate a customer-facing reply without reading or writing message history."""
     started = perf_counter()
     cleaned_question = _clean_question(question)
+    requested_language = _normalize_language(language)
+    selected_style = _normalize_response_style(response_style)
     selected_llm = llm_client or get_llm_client()
     preview_executor = PreviewToolExecutor(dispatcher=dispatcher, hotel_id=hotel_id)
     messages = build_response_preview_messages(
         hotel_id=hotel_id,
         question=cleaned_question,
-        language=language,
+        language=requested_language,
+        response_style=selected_style,
         prompt_builder=prompt_builder,
     )
     tools = filter_preview_tool_definitions(get_tool_definitions())
@@ -232,11 +249,11 @@ async def generate_response_preview(
         llm_client=selected_llm,
         raw_content=raw_content,
         executed_calls=executed_calls,
-        language=language,
+        language=requested_language,
     )
     parsed = _normalize_preview_internal_json(parsed, preview_executor.tool_calls)
     parsed = _enforce_no_preview_side_effect_claims(parsed)
-    parsed = validate_guest_response(parsed, default_language=_default_language(language))
+    parsed = validate_guest_response(parsed, default_language=_default_language(requested_language))
     parsed.user_message = WhatsAppFormatter.truncate(parsed.user_message)
     parsed = _normalize_preview_internal_json(parsed, preview_executor.tool_calls)
 
@@ -249,6 +266,8 @@ async def generate_response_preview(
         tool_names=[item.name for item in preview_executor.tool_calls],
         duration_ms=duration_ms,
         model=selected_llm.primary_model,
+        requested_language=requested_language,
+        response_style=selected_style,
         history_used=False,
         history_created=False,
     )
@@ -259,12 +278,15 @@ async def generate_response_preview(
         internal_json=parsed.internal_json,
         model=selected_llm.primary_model,
         duration_ms=duration_ms,
+        requested_language=requested_language,
+        response_style=selected_style,
         tool_calls=preview_executor.tool_calls,
         safety_notes=[
             "single_question_only",
             "conversation_history_not_loaded",
             "message_history_not_created",
             "side_effect_tools_blocked",
+            f"response_style_{selected_style}",
         ],
     )
 
@@ -385,6 +407,13 @@ def _normalize_language(language: str) -> str:
     if value in {"tr", "en", "ru", "de", "ar", "es", "fr", "zh", "hi", "pt"}:
         return value
     return "auto"
+
+
+def _normalize_response_style(response_style: str) -> str:
+    value = str(response_style or "professional").strip().lower()
+    if value in PREVIEW_RESPONSE_STYLES:
+        return value
+    return "professional"
 
 
 def _default_language(language: str) -> str:

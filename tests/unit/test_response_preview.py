@@ -81,6 +81,8 @@ def test_build_response_preview_messages_contains_only_single_question() -> None
     messages = build_response_preview_messages(
         hotel_id=1,
         question="  Do you have airport transfer?  ",
+        language="en",
+        response_style="concise",
         prompt_builder=DummyPromptBuilder(),  # type: ignore[arg-type]
         current_date="2026-04-30",
     )
@@ -90,6 +92,8 @@ def test_build_response_preview_messages_contains_only_single_question() -> None
     joined = _message_text(messages).lower()
     assert "previous messages" in joined
     assert "not chat lab" in joined
+    assert "response_language_request: en" in joined
+    assert "response_style_request: concise" in joined
     assert "conversation_id" not in joined
 
 
@@ -128,11 +132,15 @@ async def test_generate_response_preview_does_not_persist_or_create_history() ->
     result = await generate_response_preview(
         hotel_id=1,
         question="Is breakfast included?",
+        language="en",
+        response_style="warm",
         dispatcher=None,
         llm_client=llm_client,  # type: ignore[arg-type]
         prompt_builder=DummyPromptBuilder(),  # type: ignore[arg-type]
     )
 
+    assert result.requested_language == "en"
+    assert result.response_style == "warm"
     assert result.history_used is False
     assert result.history_created is False
     assert result.persisted is False
@@ -168,6 +176,8 @@ async def test_admin_response_preview_route_delegates_without_session_dependenci
     payload = admin_response_preview.ResponsePreviewGenerateRequest(
         hotel_id=21966,
         question="Pool hours?",
+        language="en",
+        response_style="concise",
     )
     user = TokenData(
         user_id=1,
@@ -187,4 +197,18 @@ async def test_admin_response_preview_route_delegates_without_session_dependenci
     assert result.history_created is False
     assert captured["hotel_id"] == 21966
     assert captured["question"] == "Pool hours?"
+    assert captured["language"] == "en"
+    assert captured["response_style"] == "concise"
     assert captured["dispatcher"] == "dispatcher"
+
+
+def test_response_preview_request_normalizes_invalid_controls() -> None:
+    payload = admin_response_preview.ResponsePreviewGenerateRequest(
+        hotel_id=21966,
+        question="Breakfast?",
+        language="pirate",
+        response_style="extra-long",
+    )
+
+    assert payload.language == "auto"
+    assert payload.response_style == "professional"
