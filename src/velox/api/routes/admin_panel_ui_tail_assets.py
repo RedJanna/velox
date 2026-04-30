@@ -4892,6 +4892,8 @@ function clearClientSession() {
   state.hotelFactsApiUnavailable = false;
   state.sessionPreferences = null;
   state.stayProfileRoomTypes = [];
+  state.responsePreviewResult = null;
+  state.responsePreviewLoading = false;
   stopAuthKeepAlive();
 }
 

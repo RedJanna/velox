@@ -1111,6 +1111,16 @@ Kural: Turn bazli tool shortlist ile LLM intent'i carpisirsa backend domain guar
 Kural: Kompakt restoran rezervasyon formu gibi gelen mesajlar (tarih + saat + kisi sayisi + isim/telefon etiketi + rezervasyon ifadesi) restoran tool shortlist'ine yonlendirilir. `approval_request` son kullanici turn'unde dogrudan sunulmaz; onay kaydi yalnizca create_hold tool sonucundaki gercek hold id ile backend tarafindan olusturulur.
 Kural: Native OpenAI tool call gelmez ama gecerli `INTERNAL_JSON.tool_calls` icinde bu turda backend tarafindan sunulmus bir tool varsa, backend bu tool cagrilarini replay eder, sonucu LLM'e geri besler ve final cevabi tool sonucundan sonra uretir. Sunulmayan veya ayni turda zaten calismis tool adlari replay edilmez.
 
+### A13.1 Admin Response Preview Mode (History-Free)
+- Admin paneldeki `#responsewindow` ekrani Chat Lab veya canli WhatsApp konusma akisi degildir.
+- Bu mod tek bir admin sorusundan tek bir musteri yaniti uretir; onceki mesajlar, conversation summary, Redis session veya DB mesaj gecmisi okunmaz.
+- Bu mod hicbir `conversation`, `message`, `crm_log`, `ticket`, `hold`, `notification`, payment request veya WhatsApp gonderimi olusturmaz.
+- LLM mesaj listesi yalnizca: kompakt HOTEL_CONTEXT system prompt'u, response-preview hard rule prompt'u, tek user question ve cikti kontratini icerir.
+- Model yalnizca read-only tool alt kumesini gorebilir: `booking_availability`, `booking_quote`, `restaurant_availability`, `transfer_get_info`, `faq_lookup`, `hotel_info_lookup`.
+- Write/side-effect tool'lari (`stay_create_hold`, `restaurant_create_hold`, `transfer_create_hold`, `handoff_create_ticket`, `notify_send`, `crm_log`, payment/approval/confirm/cancel/modify tool'lari) bu modda sunulmaz ve cagrilsa bile backend tarafindan engellenir.
+- Handoff gerekiyorsa sadece INTERNAL_JSON icinde `handoff.needed=true` olarak isaretlenir; gercek ticket veya bildirim uretilmez ve USER_MESSAGE icinde islem olusturulmus gibi davranilmaz.
+- Response validator bu modda teknik sizinti, bos mesaj ve operasyonel aksiyon vaadini engeller; preview metadata alanlari `history_used=false`, `history_created=false`, `persisted=false` olarak doner.
+
 Her turda IKI PARCA uret:
 
 (1) USER_MESSAGE:
@@ -1541,6 +1551,7 @@ POST /api/v1/admin/holds/{id}/reject   # Hold reddetme
 GET  /api/v1/admin/confirmation-forms/languages # Aktif form dilleri
 POST /api/v1/admin/confirmation-forms/preview   # HTML onay formu onizleme
 POST /api/v1/admin/confirmation-forms/generate  # Guvenli public link uretme/gonderme
+POST /api/v1/admin/response-preview/generate    # Tek soru, gecmissiz AI yanit onizleme
 GET  /api/v1/admin/tickets             # Ticket listesi
 PUT  /api/v1/admin/tickets/{id}        # Ticket guncelleme
 GET  /api/v1/admin/hotels/{id}/whatsapp/integration          # WhatsApp baglanti durumu

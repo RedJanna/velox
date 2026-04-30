@@ -68,8 +68,9 @@ def render_admin_panel_html() -> str:
         <button data-nav="accesscontrol"><span class="nav-label"><strong>Rol ve Yetkiler</strong><span>Kullanıcı, rol ve izin yönetimi</span></span><span>09</span></button>
         <button data-nav="whatsappapi"><span class="nav-label"><strong>WhatsApp Bağlantısı</strong><span>Meta bağlantısı ve şablonlar</span></span><span>10</span></button>
         <button data-nav="system"><span class="nav-label"><strong>Sistem Durumu</strong><span>Sunucu ve bağlantı kontrolleri</span></span><span>11</span></button>
-        <button data-nav="chatlab"><span class="nav-label"><strong>Test Paneli</strong><span>Canlı test ve değerlendirme</span></span><span>12</span></button>
-        <button data-nav="debug"><span class="nav-label"><strong>Hata Raporları</strong><span>Canlı tarama bulguları</span></span><span>13</span></button>
+        <button data-nav="responsewindow"><span class="nav-label"><strong>Yanıt Penceresi</strong><span>Tek soru yanıt önizleme</span></span><span>12</span></button>
+        <button data-nav="chatlab"><span class="nav-label"><strong>Test Paneli</strong><span>Canlı test ve değerlendirme</span></span><span>13</span></button>
+        <button data-nav="debug"><span class="nav-label"><strong>Hata Raporları</strong><span>Canlı tarama bulguları</span></span><span>14</span></button>
       </nav>
 
       <section class="sidebar-card">
@@ -1173,6 +1174,60 @@ def render_admin_panel_html() -> str:
                 <div class="empty-state">
                   <h4>Seçim bekleniyor</h4>
                   <p>Detay görmek için soldan bir tarama veya ortadan bir bulgu seçin.</p>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section data-view="responsewindow" class="section-grid" hidden>
+          <div class="response-preview-layout">
+            <article class="module-card response-preview-input">
+              <div class="module-header">
+                <div>
+                  <h3>Yanıt Penceresi</h3>
+                  <p>Tek müşteri sorusu için bağımsız AI yanıtı üretin.</p>
+                </div>
+                <span class="pill info">Geçmişsiz</span>
+              </div>
+              <form id="responsePreviewForm" class="response-preview-form">
+                <div class="field">
+                  <label for="responsePreviewQuestion">Müşteri sorusu</label>
+                  <textarea id="responsePreviewQuestion" name="question" rows="9" maxlength="4000" placeholder="Örn. Havalimanı transfer ücretiniz nedir?"></textarea>
+                </div>
+                <div class="response-preview-actions">
+                  <button id="responsePreviewGenerate" class="action-button primary" type="submit">Yanıt Üret</button>
+                  <button id="responsePreviewClear" class="action-button secondary" type="button">Temizle</button>
+                </div>
+              </form>
+              <div id="responsePreviewSafety" class="response-preview-safety">
+                <span>Geçmiş kullanılmaz</span>
+                <span>Kayıt oluşturulmaz</span>
+                <span>Yanıt gönderilmez</span>
+              </div>
+            </article>
+
+            <article class="module-card response-preview-output">
+              <div class="module-header">
+                <div>
+                  <h3>Üretilen Yanıt</h3>
+                  <p id="responsePreviewMeta">Henüz yanıt oluşturulmadı.</p>
+                </div>
+                <button id="responsePreviewCopy" class="inline-button secondary" type="button">Kopyala</button>
+              </div>
+              <div id="responsePreviewReply" class="response-preview-reply empty-state">
+                <p>Yanıt burada görüntülenir.</p>
+              </div>
+              <div class="response-preview-diagnostics">
+                <div>
+                  <h4>Araç İzleri</h4>
+                  <div id="responsePreviewToolList" class="response-preview-tool-list">
+                    <span class="muted">Henüz araç çağrısı yok.</span>
+                  </div>
+                </div>
+                <div>
+                  <h4>INTERNAL_JSON</h4>
+                  <pre id="responsePreviewInternalJson">{{}}</pre>
                 </div>
               </div>
             </article>

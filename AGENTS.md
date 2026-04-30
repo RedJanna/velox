@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v6.0 | **Son güncelleme:** 2026-04-29 14:13:11
-> **Değişiklik özeti:** Admin onayı sonrası güvenli HTML rezervasyon onay formu akışı mimariye eklendi.
+> **Sürüm:** v6.1 | **Son güncelleme:** 2026-04-30 18:55:16
+> **Değişiklik özeti:** Geçmişsiz admin yanıt penceresi akışı eklendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -521,7 +521,7 @@ Dosyanın en üstündeki sürüm bloğu, her güncelleme sonrası şu formatta g
 src/velox/
 ├── main.py                    # FastAPI entry point
 ├── config/                    # Settings, constants
-├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses, confirmation form rendering, admin debug runner/scan registry, structured-output replay helpers, admin access-control catalog/helpers
+├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses, confirmation form rendering, stateless response preview, admin debug runner/scan registry, structured-output replay helpers, admin access-control catalog/helpers
 ├── llm/                       # OpenAI client, prompt builder, response parser
 ├── tools/                     # Tool implementations (booking, restaurant, etc.)
 ├── adapters/                  # External service clients (Elektraweb, WhatsApp)
@@ -529,6 +529,6 @@ src/velox/
 ├── policies/                  # Business rules (approval, payment, cancellation)
 ├── models/                    # Pydantic data models
 ├── db/                        # Database connection, repositories, migrations, confirmation form snapshots, admin access-control persistence helpers
-├── api/                       # FastAPI routes, middleware, public confirmation form route, embedded admin/chat-lab UI modules, admin debug/report-only, access-control, and WhatsApp integration surfaces
+├── api/                       # FastAPI routes, middleware, public confirmation form route, embedded admin/chat-lab/response-preview UI modules, admin debug/report-only, access-control, and WhatsApp integration surfaces
 └── utils/                     # Logging, i18n, validators, admin/debug auth helpers, secret encryption, lightweight Prometheus metrics helpers
 ```

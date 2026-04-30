@@ -243,6 +243,19 @@ tbody tr:hover{background:#fffcf7}
 .checkbox-field{width:20px;height:20px}
 .card-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .chatlab-frame{width:100%;height:clamp(560px,calc(100vh - 120px),1000px);min-height:0;border:none;border-radius:12px}
+.response-preview-layout{display:grid;grid-template-columns:minmax(320px,.9fr) minmax(360px,1.1fr);gap:18px;align-items:start}
+.response-preview-form{display:grid;gap:16px}
+.response-preview-form textarea{min-height:230px;resize:vertical;line-height:1.45}
+.response-preview-actions{display:flex;gap:10px;flex-wrap:wrap}
+.response-preview-safety{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.response-preview-safety span{border:1px solid var(--line);background:#f8fafc;color:var(--muted);border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700}
+.response-preview-reply{min-height:220px;padding:16px;border:1px solid var(--line);border-radius:10px;background:#fff;white-space:pre-wrap;line-height:1.55}
+.response-preview-reply.empty-state{display:flex;align-items:center;justify-content:center;color:var(--muted);background:#f8fafc}
+.response-preview-diagnostics{display:grid;grid-template-columns:minmax(180px,.7fr) minmax(260px,1fr);gap:14px;margin-top:16px}
+.response-preview-diagnostics h4{margin:0 0 8px;font-size:13px}
+.response-preview-tool-list{display:flex;flex-wrap:wrap;gap:8px;min-height:38px}
+.response-preview-tool-list .pill{max-width:100%;overflow-wrap:anywhere}
+.response-preview-diagnostics pre{max-height:280px;overflow:auto;margin:0;padding:12px;border:1px solid var(--line);border-radius:10px;background:#0f172a;color:#e2e8f0;font-size:12px;line-height:1.45}
 .debug-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .debug-layout{display:grid;grid-template-columns:minmax(260px,.9fr) minmax(320px,1.1fr) minmax(320px,1fr);gap:18px}
 .debug-column{min-height:460px}
@@ -353,7 +366,7 @@ tbody tr:hover{background:#fffcf7}
   .topbar-aside{justify-content:flex-start}
   .table-shell{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
   .table-shell table{min-width:640px}
-  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid,.debug-summary-grid,.debug-layout,.access-toggle-grid,.access-user-controls{grid-template-columns:1fr}
+  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid,.debug-summary-grid,.debug-layout,.response-preview-layout,.response-preview-diagnostics,.access-toggle-grid,.access-user-controls{grid-template-columns:1fr}
   .topbar{padding:18px 20px;border-radius:24px;flex-direction:column}
   .card-grid{grid-template-columns:1fr}
   .status-strip{grid-template-columns:1fr}
@@ -371,6 +384,7 @@ const CSRF_COOKIE = 'velox_admin_csrf';
 const LIVE_REFRESH_INTERVAL_MS = 3000;
 const VIEW_PERMISSIONS = {
   accesscontrol: 'access_control:read',
+  responsewindow: 'conversations:read',
 };
 
 const state = {
@@ -464,6 +478,8 @@ const state = {
   debugBrowserScanMessage: '',
   debugBrowserScanMode: '',
   debugBrowserScanTarget: '',
+  responsePreviewResult: null,
+  responsePreviewLoading: false,
   refreshPromise: null,
   liveRefreshHandle: null,
   _authKeepAliveTimer: null,
@@ -514,6 +530,9 @@ function bindRefs() {
     'debugIncludeModals','debugRunCancelButton','debugArtifactPreviewDialog','debugArtifactPreviewTitle',
     'debugArtifactPreviewMeta','debugArtifactPreviewImage','debugArtifactPreviewEmpty','debugArtifactPreviewPath',
     'debugArtifactPreviewLink','debugArtifactPreviewCloseButton',
+    'responsePreviewForm','responsePreviewQuestion','responsePreviewGenerate','responsePreviewClear',
+    'responsePreviewSafety','responsePreviewReply','responsePreviewMeta','responsePreviewCopy',
+    'responsePreviewToolList','responsePreviewInternalJson',
     'logoutButton','reloadButton','decisionDialog','decisionForm','decisionTitle','decisionLead','decisionReason',
     'decisionHoldId','decisionMode'
   ].forEach(id => refs[id] = document.getElementById(id));
@@ -552,6 +571,9 @@ function bindEvents() {
   refs.debugArtifactPreviewDialog?.addEventListener('close', () => {
     state.activeDebugArtifactId = '';
   });
+  refs.responsePreviewForm?.addEventListener('submit', onResponsePreviewSubmit);
+  refs.responsePreviewClear?.addEventListener('click', clearResponsePreview);
+  refs.responsePreviewCopy?.addEventListener('click', copyResponsePreviewReply);
   refs.reloadButton?.addEventListener('click', reloadConfig);
   refs.logoutButton?.addEventListener('click', logout);
   refs.conversationFilters?.addEventListener('submit', event => {
@@ -1177,6 +1199,7 @@ function setView(view) {
     notifications: ['Bildirim Ayarları', 'Rezervasyon onayları için WhatsApp bildirim numaralarını yönetin.'],
     accesscontrol: ['Rol ve Yetkiler', 'Kullanıcı, rol, departman ve pencere bazlı işlem izinlerini aynı ekranda yönetin.'],
     system: ['Sistem Durumu', 'Sunucu sağlığı, alan adı ve güvenlik ayarlarını kontrol edin.'],
+    responsewindow: ['Yanıt Penceresi', 'Tek müşteri sorusuna otel verisiyle geçmişsiz yanıt üretin.'],
     chatlab: ['Test Paneli', 'Yapay zekâyı canlı test edin, puanlayın ve raporlayın.'],
     debug: ['Hata Raporları', 'Canlı panelde başlatılan yalnızca raporlama amaçlı taramaların bulgularını inceleyin.'],
   }[view] || ['Yönetim Paneli', 'Yönetim merkezi'];
@@ -1198,6 +1221,7 @@ function setView(view) {
   if (view === 'notifications') loadNotifPhones();
   if (view === 'accesscontrol') loadAccessControl();
   if (view === 'system') loadSystemOverview();
+  if (view === 'responsewindow') loadResponsePreview();
   if (view === 'chatlab') loadChatLab();
   if (view === 'debug') loadDebugRunsSafely({preserveSelection: true}, {notifyOnError: true});
   scheduleLiveRefresh();
@@ -2080,6 +2104,110 @@ function renderDebugArtifacts() {
       `).join('')}
     </div>
   `;
+}
+
+function loadResponsePreview() {
+  renderResponsePreview();
+}
+
+async function onResponsePreviewSubmit(event) {
+  event.preventDefault();
+  const question = String(refs.responsePreviewQuestion?.value || '').trim();
+  if (!question) {
+    notify('Müşteri sorusu zorunludur.', 'warn');
+    return;
+  }
+  if (!state.selectedHotelId) {
+    notify('Lütfen bir otel seçin.', 'warn');
+    return;
+  }
+
+  setResponsePreviewLoading(true);
+  try {
+    state.responsePreviewResult = await apiFetch('/response-preview/generate', {
+      method: 'POST',
+      body: {
+        hotel_id: Number(state.selectedHotelId),
+        question,
+        language: 'auto',
+      },
+    });
+    renderResponsePreview();
+    notify('Yanıt üretildi.', 'success');
+  } catch (error) {
+    notify(error.message, 'error');
+  } finally {
+    setResponsePreviewLoading(false);
+  }
+}
+
+function clearResponsePreview() {
+  if (refs.responsePreviewQuestion) refs.responsePreviewQuestion.value = '';
+  state.responsePreviewResult = null;
+  renderResponsePreview();
+}
+
+async function copyResponsePreviewReply() {
+  const reply = String(state.responsePreviewResult?.reply || '').trim();
+  if (!reply) {
+    notify('Kopyalanacak yanıt yok.', 'warn');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(reply);
+    notify('Yanıt kopyalandı.', 'success');
+  } catch (_error) {
+    notify('Tarayıcı kopyalama izni vermedi.', 'warn');
+  }
+}
+
+function setResponsePreviewLoading(isLoading) {
+  state.responsePreviewLoading = isLoading;
+  if (!refs.responsePreviewGenerate) return;
+  refs.responsePreviewGenerate.disabled = isLoading;
+  refs.responsePreviewGenerate.textContent = isLoading ? 'Üretiliyor...' : 'Yanıt Üret';
+}
+
+function renderResponsePreview() {
+  const result = state.responsePreviewResult;
+  if (!result) {
+    if (refs.responsePreviewReply) {
+      refs.responsePreviewReply.className = 'response-preview-reply empty-state';
+      refs.responsePreviewReply.innerHTML = '<p>Yanıt burada görüntülenir.</p>';
+    }
+    if (refs.responsePreviewMeta) refs.responsePreviewMeta.textContent = 'Henüz yanıt oluşturulmadı.';
+    if (refs.responsePreviewToolList) refs.responsePreviewToolList.innerHTML = '<span class="muted">Henüz araç çağrısı yok.</span>';
+    if (refs.responsePreviewInternalJson) refs.responsePreviewInternalJson.textContent = '{}';
+    return;
+  }
+
+  if (refs.responsePreviewReply) {
+    refs.responsePreviewReply.className = 'response-preview-reply';
+    refs.responsePreviewReply.textContent = result.reply || '-';
+  }
+  const toolCount = (result.tool_calls || []).length;
+  if (refs.responsePreviewMeta) {
+    refs.responsePreviewMeta.textContent = [
+      `Model: ${result.model || '-'}`,
+      `${result.duration_ms || 0} ms`,
+      `${toolCount} araç`,
+      result.history_created ? 'kayıt var' : 'kayıt yok',
+    ].join(' · ');
+  }
+  if (refs.responsePreviewToolList) refs.responsePreviewToolList.innerHTML = renderResponsePreviewTools(result.tool_calls || []);
+  if (refs.responsePreviewInternalJson) refs.responsePreviewInternalJson.textContent = JSON.stringify(result.internal_json || {}, null, 2);
+}
+
+function renderResponsePreviewTools(items) {
+  if (!items.length) {
+    return '<span class="muted">Araç çağrısı yapılmadı.</span>';
+  }
+  return items.map(item => {
+    const status = item.blocked ? 'blocked' : (item.status || 'ok');
+    const badgeClass = item.blocked ? 'warn' : (status === 'ok' ? 'success' : 'closed');
+    const reason = item.reason ? ` · ${item.reason}` : '';
+    return `<span class="pill ${badgeClass}">${escapeHtml(item.name || 'tool')} · ${escapeHtml(status)}${escapeHtml(reason)}</span>`;
+  }).join('');
 }
 
 async function loadChatLab() {
