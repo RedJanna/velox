@@ -994,7 +994,11 @@ async def test_run_message_pipeline_auto_submits_hold_when_next_step_requires_it
         expected_language="tr",
     )
 
-    assert [item[0] for item in dispatcher.calls] == ["booking_quote", "stay_create_hold"]
+    assert [item[0] for item in dispatcher.calls] == [
+        "booking_quote",
+        "stay_create_hold",
+        "booking_availability",
+    ]
     assert result.internal_json.state == "PENDING_APPROVAL"
     assert result.internal_json.next_step == "await_admin_approval"
     assert "Rezervasyon talebinizi aldik" in result.user_message
@@ -1101,7 +1105,11 @@ async def test_run_message_pipeline_auto_submit_uses_previous_entities_when_llm_
         expected_language="tr",
     )
 
-    assert [item[0] for item in dispatcher.calls] == ["booking_quote", "stay_create_hold"]
+    assert [item[0] for item in dispatcher.calls] == [
+        "booking_quote",
+        "stay_create_hold",
+        "booking_availability",
+    ]
     assert result.internal_json.state == "PENDING_APPROVAL"
     assert result.internal_json.next_step == "await_admin_approval"
 
@@ -1186,7 +1194,11 @@ async def test_run_message_pipeline_auto_submits_hold_when_pending_approval_admi
         expected_language="tr",
     )
 
-    assert [item[0] for item in dispatcher.calls] == ["booking_quote", "stay_create_hold"]
+    assert [item[0] for item in dispatcher.calls] == [
+        "booking_quote",
+        "stay_create_hold",
+        "booking_availability",
+    ]
     assert result.internal_json.state == "PENDING_APPROVAL"
     assert result.internal_json.next_step == "await_admin_approval"
 
@@ -1278,7 +1290,11 @@ async def test_run_message_pipeline_auto_submits_hold_when_embedded_tool_calls_o
         expected_language="tr",
     )
 
-    assert [item[0] for item in dispatcher.calls] == ["booking_quote", "stay_create_hold"]
+    assert [item[0] for item in dispatcher.calls] == [
+        "booking_quote",
+        "stay_create_hold",
+        "booking_availability",
+    ]
     assert dispatcher.calls[1][1]["conversation_id"] == str(conversation.id)
     assert result.internal_json.state == "PENDING_APPROVAL"
     assert result.internal_json.next_step == "await_admin_approval"
@@ -1369,7 +1385,11 @@ async def test_run_message_pipeline_auto_submits_hold_from_recoverable_rate_iden
         expected_language="tr",
     )
 
-    assert [item[0] for item in dispatcher.calls] == ["booking_quote", "stay_create_hold"]
+    assert [item[0] for item in dispatcher.calls] == [
+        "booking_quote",
+        "stay_create_hold",
+        "booking_availability",
+    ]
     assert result.internal_json.state == "PENDING_APPROVAL"
     assert result.internal_json.next_step == "await_admin_approval"
 
@@ -1458,7 +1478,11 @@ async def test_run_message_pipeline_auto_submits_hold_from_room_type_mapping_han
         expected_language="tr",
     )
 
-    assert [item[0] for item in dispatcher.calls] == ["booking_quote", "stay_create_hold"]
+    assert [item[0] for item in dispatcher.calls] == [
+        "booking_quote",
+        "stay_create_hold",
+        "booking_availability",
+    ]
     assert result.internal_json.state == "PENDING_APPROVAL"
     assert result.internal_json.next_step == "await_admin_approval"
 
@@ -1533,6 +1557,159 @@ async def test_run_message_pipeline_restaurant_single_area_prompt_is_suppressed_
         "restaurant_create_hold",
         "approval_request",
     ]
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_restaurant_direct_hold_mirrors_approval_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Direct restaurant hold tool results should still expose the materialized approval request."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Restoran rezervasyon talebinizi aldik.\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"restaurant_booking_create","state":"PENDING_APPROVAL","entities":'
+            '{"date":"2026-05-26","time":"19:00","party_size":3,"guest_name":"Test Misafir","phone":"+905551112233"},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},'
+            '"next_step":"await_admin_approval"}',
+            [
+                {
+                    "name": "restaurant_availability",
+                    "arguments": {
+                        "hotel_id": 21966,
+                        "date": "2026-05-26",
+                        "time": "19:00",
+                        "party_size": 3,
+                    },
+                    "result": {
+                        "available": True,
+                        "options": [{"slot_id": "10491", "time": "19:00:00"}],
+                    },
+                },
+                {
+                    "name": "restaurant_create_hold",
+                    "arguments": {
+                        "hotel_id": 21966,
+                        "slot_id": "10491",
+                        "guest_name": "Test Misafir",
+                        "phone": "+905551112233",
+                        "party_size": 3,
+                    },
+                    "result": {
+                        "restaurant_hold_id": "R_HOLD_010",
+                        "status": "PENDING_APPROVAL",
+                        "approval_request_id": "APR_019",
+                        "approval_status": "REQUESTED",
+                    },
+                },
+            ],
+        )
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    conversation = Conversation(id=uuid4(), hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="26 Mayis 19:00 3 kisilik restoran rezervasyonu",
+        dispatcher=None,
+        expected_language="tr",
+    )
+
+    assert result.internal_json.state == "PENDING_APPROVAL"
+    assert [item["name"] for item in result.internal_json.tool_calls] == [
+        "restaurant_availability",
+        "restaurant_create_hold",
+        "approval_request",
+    ]
+    approval_call = result.internal_json.tool_calls[-1]
+    assert approval_call["arguments"]["reference_id"] == "R_HOLD_010"
+    assert approval_call["result"]["approval_request_id"] == "APR_019"
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_stay_direct_hold_backfills_booking_availability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stay hold approvals should include booking_availability in the persisted tool audit."""
+
+    draft = {
+        "checkin_date": "2026-07-10",
+        "checkout_date": "2026-07-12",
+        "adults": 2,
+        "chd_ages": [],
+        "currency_display": "EUR",
+        "guest_name": "Test Misafir",
+        "phone": "+905551112233",
+    }
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Rezervasyon talebinizi aldik.\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"stay_booking_create","state":"PENDING_APPROVAL","entities":'
+            '{"checkin_date":"2026-07-10","checkout_date":"2026-07-12","adults":2,'
+            '"guest_name":"Test Misafir","phone":"+905551112233"},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},'
+            '"next_step":"await_admin_approval"}',
+            [
+                {
+                    "name": "stay_create_hold",
+                    "arguments": {"hotel_id": 21966, "draft": draft},
+                    "result": {
+                        "stay_hold_id": "S_HOLD_9001",
+                        "status": "PENDING_APPROVAL",
+                        "approval_request_id": "APR_9001",
+                        "approval_status": "REQUESTED",
+                    },
+                }
+            ],
+        )
+
+    class _Dispatcher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append((name, kwargs))
+            if name == "booking_availability":
+                return {
+                    "available": True,
+                    "rows": [{"room_type_id": 66, "room_to_sell": 2}],
+                    "derived": {"eligible_room_type_ids": [66]},
+                }
+            return {"error": "unexpected_tool"}
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    dispatcher = _Dispatcher()
+    conversation = Conversation(id=uuid4(), hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="10-12 Temmuz 2 kisi rezervasyon",
+        dispatcher=dispatcher,
+        expected_language="tr",
+    )
+
+    assert [item[0] for item in dispatcher.calls] == ["booking_availability"]
+    assert [item["name"] for item in result.internal_json.tool_calls] == [
+        "booking_availability",
+        "stay_create_hold",
+        "approval_request",
+    ]
+    assert result.internal_json.tool_calls[0]["arguments"]["checkin_date"] == "2026-07-10"
 
 
 @pytest.mark.asyncio
@@ -4339,10 +4516,15 @@ async def test_run_message_pipeline_recovers_stay_hold_when_llm_claims_created_w
         expected_language="tr",
     )
 
-    assert [item[0] for item in dispatcher.calls] == ["booking_quote", "stay_create_hold"]
+    assert [item[0] for item in dispatcher.calls] == [
+        "booking_quote",
+        "stay_create_hold",
+        "booking_availability",
+    ]
     assert result.internal_json.state == "PENDING_APPROVAL"
     assert result.internal_json.next_step == "await_admin_approval"
     assert [item["name"] for item in result.internal_json.tool_calls] == [
+        "booking_availability",
         "booking_quote",
         "stay_create_hold",
         "approval_request",

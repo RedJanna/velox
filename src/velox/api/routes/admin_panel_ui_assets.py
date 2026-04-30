@@ -678,7 +678,7 @@ function bindDelegatedEvents() {
     // Holds module events (tabs, wizards, filters, create toggles, hold selection)
     if (typeof handleHoldsModuleClick === 'function' && handleHoldsModuleClick(event.target)) return;
 
-    const target = event.target.closest('[data-bulk-action],[data-open-conversation],[data-deactivate-conversation],[data-approve-hold],[data-reject-hold],[data-save-ticket],[data-facts-version-detail],[data-facts-version-rollback],[data-facts-conflict-restore-draft],[data-facts-conflict-dismiss]');
+    const target = event.target.closest('[data-bulk-action],[data-open-conversation],[data-deactivate-conversation],[data-approve-hold],[data-reject-hold],[data-restaurant-next-status],[data-restaurant-extend],[data-save-ticket],[data-facts-version-detail],[data-facts-version-rollback],[data-facts-conflict-restore-draft],[data-facts-conflict-dismiss]');
     if (!target) return;
 
     if (target.dataset.bulkAction) {
@@ -743,9 +743,9 @@ function bindDelegatedEvents() {
       return;
     }
 
-    if (target.dataset.restaurantStatus) {
+    if (target.dataset.restaurantNextStatus) {
       const holdId = target.dataset.restaurantHold || '';
-      const nextStatus = target.dataset.restaurantStatus || '';
+      const nextStatus = target.dataset.restaurantNextStatus || '';
       if (!holdId || !nextStatus) return;
       try {
         await apiFetch(`/holds/restaurant/${encodeURIComponent(holdId)}/status`, {method: 'PUT', body: {status: nextStatus}});
@@ -2465,7 +2465,12 @@ async function onDecisionSubmit(event) {
       return;
     }
     if (String(holdId || '').startsWith('R_HOLD_')) {
-      await apiFetch(`/holds/restaurant/${encodeURIComponent(holdId)}/status`, {method: 'PUT', body: {status: 'IPTAL', reason: reason || null}});
+      const restaurantHold = (state.restaurantHolds || []).find(item => String(item.hold_id) === String(holdId));
+      if (String(restaurantHold?.status || '').toUpperCase() === 'PENDING_APPROVAL') {
+        await apiFetch(`/holds/${encodeURIComponent(holdId)}/reject`, {method: 'POST', body: {reason: reason || 'Admin reddi'}});
+      } else {
+        await apiFetch(`/holds/restaurant/${encodeURIComponent(holdId)}/status`, {method: 'PUT', body: {status: 'IPTAL', reason: reason || null}});
+      }
     } else {
       await apiFetch(`/holds/${holdId}/reject`, {method: 'POST', body: {reason}});
     }

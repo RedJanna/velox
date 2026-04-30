@@ -1072,16 +1072,20 @@ function renderRestaurantHoldDetail(item) {
     return;
   }
   var status = String(item.status || '').toUpperCase();
-  var canApprove = status === 'BEKLEMEDE' || status === 'DEGISIKLIK_UYGULA';
+  var isApprovalFlow = status === 'PENDING_APPROVAL';
+  var canApproveDirectly = status === 'BEKLEMEDE' || status === 'DEGISIKLIK_UYGULA';
   var canMarkArrived = status === 'ONAYLANDI';
   var canMarkNoShow = status === 'ONAYLANDI';
   var canExtend = status === 'ONAYLANDI';
   var hasSpecialRequest = hasMeaningfulSpecialRequest(item.notes);
   var requestTags = detectSpecialRequestTags(item.notes);
   var requestTagHtml = requestTags.length ? '<div class="inline-flex-center" style="flex-wrap:wrap;justify-content:flex-end">' + requestTags.map(function(tag){ return '<span class="pill info">' + escapeHtml(tag) + '</span>'; }).join('') + '</div>' : '';
+  var approvalButton = isApprovalFlow
+    ? '<button class="action-button primary" data-approve-hold="' + escapeHtml(item.hold_id) + '">Onayla</button>'
+    : '<button class="action-button primary" data-restaurant-hold="' + escapeHtml(item.hold_id) + '" data-restaurant-next-status="ONAYLANDI" ' + (canApproveDirectly ? '' : 'disabled') + '>Onayla</button>';
   refs.restaurantHoldDetail.innerHTML = '<div class="module-header"><div>'
     + '<h3>' + escapeHtml(String(item.hold_id || 'Hold')) + '</h3>'
-    + '<p class="muted">RESTORAN · Otel ' + escapeHtml(String(item.hotel_id || '-')) + '</p>'
+    + '<p class="muted">RESTORAN · Otel ' + escapeHtml(String(item.hotel_id || '-')) + (item.approval_request_id ? ' · Onay ' + escapeHtml(item.approval_request_id) : '') + '</p>'
     + '</div><div class="stack" style="align-items:flex-end"><span class="pill ' + holdStatusClass(item.status) + '">' + escapeHtml(holdStatusLabel(item.status)) + '</span>' + (String(item.approved_by || '').toUpperCase() === 'AI_RESTAURAN' ? '<span class="pill info">Yapay Zekâ Restoran</span>' : '') + (hasSpecialRequest ? '<span class="pill warn">Özel İstek</span>' : '') + requestTagHtml + '</div></div>'
     + '<div class="hold-summary-grid mb-md">'
     + formatHoldSummaryDetailCell('Misafir', item.guest_name || '-')
@@ -1089,13 +1093,14 @@ function renderRestaurantHoldDetail(item) {
     + formatHoldSummaryDetailCell('Kişi Sayısı', String(item.party_size || '-'))
     + formatHoldSummaryDetailCell('Alan', item.area || '-')
     + formatHoldSummaryDetailCell('Telefon', item.phone || '-')
+    + formatHoldSummaryDetailCell('Onay Kaydı', item.approval_request_id ? (item.approval_request_id + ' · ' + (item.approval_status || '-')) : '-')
     + formatHoldSummaryDetailCell('Notlar', hasSpecialRequest ? (item.notes || '-') : '-')
     + '</div>'
     + '<div class="dialog-actions hold-detail-actions mt-lg">'
-    + '<button class="action-button primary" data-restaurant-hold="' + escapeHtml(item.hold_id) + '" data-restaurant-status="ONAYLANDI" ' + (canApprove ? '' : 'disabled') + '>Onayla</button>'
+    + approvalButton
     + '<button class="action-button danger" data-reject-hold="' + escapeHtml(item.hold_id) + '">Reddet</button>'
-    + '<button class="action-button primary" data-restaurant-hold="' + escapeHtml(item.hold_id) + '" data-restaurant-status="GELDI" ' + (canMarkArrived ? '' : 'disabled') + '>Geldi</button>'
-    + '<button class="action-button warn" data-restaurant-hold="' + escapeHtml(item.hold_id) + '" data-restaurant-status="GELMEDI" ' + (canMarkNoShow ? '' : 'disabled') + '>Gelmedi</button>'
+    + '<button class="action-button primary" data-restaurant-hold="' + escapeHtml(item.hold_id) + '" data-restaurant-next-status="GELDI" ' + (canMarkArrived ? '' : 'disabled') + '>Geldi</button>'
+    + '<button class="action-button warn" data-restaurant-hold="' + escapeHtml(item.hold_id) + '" data-restaurant-next-status="GELMEDI" ' + (canMarkNoShow ? '' : 'disabled') + '>Gelmedi</button>'
     + '<button class="action-button secondary" data-restaurant-extend="' + escapeHtml(item.hold_id) + '" ' + (canExtend ? '' : 'disabled') + '>+15 Dakika</button>'
     + '</div>';
 }

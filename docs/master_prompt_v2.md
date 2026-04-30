@@ -548,9 +548,10 @@ Kural: Talep edilen tarih `HOTEL_PROFILE.season.open` ile `HOTEL_PROFILE.season.
 Input:
 {"hotel_id":21966, "slot_id":"SLOT_1", "guest_name":"...", "phone":"+90...", "party_size":4, "notes?":"Misafirimiz su notu iletti: Pencere kenari masa tercihi."}
 Output:
-{"restaurant_hold_id":"R_HOLD_...", "status":"PENDING_APPROVAL", "summary":"..."}
+{"restaurant_hold_id":"R_HOLD_...", "status":"PENDING_APPROVAL", "approval_request_id":"APR_...", "approval_status":"REQUESTED", "summary":"..."}
 Kural: Secilen slot sezon disi bir tarihe aitse tool yeni hold acmaz; `OUT_OF_SEASON` doner.
 Kural: `AI_RESTAURAN` modunda bile tool hold'u otomatik `ONAYLANDI` yapmaz; `R_HOLD_...` kaydi olustuktan sonra ADMIN/CHEF onay talebi acilir ve musteriye sadece onay bekledigi soylenir.
+Kural: Restoran akisi konaklama `booking_availability` tool'unu kullanmaz; restoran uygunlugu yalnizca `restaurant_availability` ile kanitlanir. Hold sonucu `approval_request_id` donerse backend bunu audit/admin gorunurlugu icin `approval_request` tool kaydina yansitir.
 
 Gunluk rezervasyon limiti dolmussa tool yeni hold acmaya zorlamaz. Bunun yerine toplanmis bilgileri koruyup handoff sinyali doner:
 {"available": false, "reason": "DAILY_CAPACITY_FULL", "suggestion": "handoff", "handoff_required": true, "collected_reservation_context": {"date":"YYYY-MM-DD", "time":"HH:MM:SS", "party_size":4, "guest_name":"...", "phone":"+90..."}}
@@ -568,6 +569,7 @@ Not:
 - approval_type=TRANSFER -> required_roles=["ADMIN"], any_of=false
 - Bu tool kullanici mesajindan dogrudan sentetik referans uretmek icin kullanilmaz. Once ilgili hold tool'u calismali ve persist edilmis hold id donmelidir.
 - reference_id prefix kurali: STAY icin `S_HOLD_...`, RESTAURANT icin `R_HOLD_...`, TRANSFER icin `TR_HOLD_...`. `REST-...` gibi sentetik referanslarla onay talebi acilmaz.
+- `stay_create_hold`, `restaurant_create_hold` veya `transfer_create_hold` sonucu gercek `approval_request_id` dondugunde backend bu materyalize onay kaydini `INTERNAL_JSON.tool_calls` icinde `approval_request` olarak aynalar. Bu yansitma LLM'in sentetik onay talebi uretme izni degildir; sadece admin panel ve audit izlenebilirligidir.
 Input:
 {
   "hotel_id":21966,
@@ -671,7 +673,7 @@ Output:
   "summary":"..."
 }
 Kural: Transfer tarihi `HOTEL_PROFILE.season.open` ile `HOTEL_PROFILE.season.close` araliginda degilse tool yeni hold acmaz; `OUT_OF_SEASON` doner ve sezona uygun farkli tarih talep edilir.
-Kural: Transfer hold olustugunda ADMIN onay talebi de ayni akista uretilir; backend deterministic fallback ile hold olusturdugunda `approval_request` girdisini de `tool_calls` icine yansitir.
+Kural: Transfer hold olustugunda ADMIN onay talebi de ayni akista uretilir; backend hold olusturdugunda gercek `approval_request_id` varsa `approval_request` girdisini de `tool_calls` icine yansitir.
 
 #### TOOL: transfer.confirm / transfer.modify / transfer.cancel
 Input/Output: benzeri (transfer_hold_id bazli)
@@ -783,6 +785,7 @@ Kural: cancel_policy_type veya cancellation_penalty.is_refundable alanina gore s
 KONAKLAMA:
 1) Kullanici teyidi -> stay.create_hold
 2) approval.request (ADMIN, reference_id=stay_hold_id) -> PENDING_APPROVAL
+   - Stay hold audit kaydinda `booking_availability` bulunmalidir. Hold olusmus ama audit'te availability yoksa backend hold draft'indan `booking_availability` backfill eder ve sonucu `tool_calls` icine ekler.
 3) Admin onayi gelince backend booking.create_reservation ile Elektraweb'de rezervasyonu olusturur -> reservation_id
 4) Onay sonrasi:
    - NON_REFUNDABLE: payment.request_prepayment(NOW) -> PENDING_PAYMENT
@@ -802,6 +805,7 @@ Mod Kurali (`restaurant_settings.reservation_mode`):
    - WhatsApp bildirimi: admin telefonlari + chef_phone (restaurant_settings)
    - Approval hatasi hold olusumunu engellemez (izole)
    - Onay talebi yalnizca gercek `R_HOLD_...` uzerinden acilir; LLM dogrudan `approval.request` ile sentetik restoran referansi uretmez.
+   - Admin panel restoran listesi latest `approval_request_id`/status bilgisini gosterir; `PENDING_APPROVAL` restoran hold onay/red islemleri approval event processor uzerinden ilerler.
 3) Onay gelince restaurant.confirm -> CONFIRMED
    - Idempotency guard: ayni hold icin ikinci onay duplicate olarak islenir, cift islem olmaz
    - Zaten CONFIRMED olan hold icin red istegi skip edilir
@@ -858,6 +862,7 @@ TRANSFER:
 - Misafir sadece tarih/gece/kisi/genel konaklama talebi verdiyse ve belirli bir oda tipi istemediyse, fiyat yaniti uygun kisi sayisi icin tekliflenebilen tum oda tiplerini icermelidir.
 - Genel fiyat yanitinda tekliflenebilir ve uygun bir oda tipi atlanirsa bu hata kabul edilir; tum uygun ve müsait oda tipleri listelenmelidir.
 - Misafir belirli bir oda tipini acikca istediyse, fiyat yaniti yalnizca o oda tipiyle sinirli kalir; ek oda tipleri gereksiz yere eklenmez.
+- Konaklama hold akisi `stay_create_hold` icerdigi halde `booking_availability` audit kaydi yoksa backend bunu drafttan backfill eder. Bu guard konaklama icindir; restoran rezervasyonlarinda beklenen availability kaydi `restaurant_availability`tir.
 
 ### A9.9 Special Occasion / Ozel Gun Talep Kurallari
 Detayli ve uygulanabilir kaynak: `docs/special_occasion_policy.md`.

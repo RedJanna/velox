@@ -1433,6 +1433,98 @@ def _canonicalize_tool_calls(
     return normalized
 
 
+_APPROVAL_REQUEST_TOOL_SPECS: dict[str, dict[str, Any]] = {
+    "stay_create_hold": {
+        "approval_type": "STAY",
+        "reference_key": "stay_hold_id",
+        "required_roles": ["ADMIN"],
+        "any_of": False,
+    },
+    "restaurant_create_hold": {
+        "approval_type": "RESTAURANT",
+        "reference_key": "restaurant_hold_id",
+        "required_roles": ["ADMIN", "CHEF"],
+        "any_of": True,
+    },
+    "transfer_create_hold": {
+        "approval_type": "TRANSFER",
+        "reference_key": "transfer_hold_id",
+        "required_roles": ["ADMIN"],
+        "any_of": False,
+    },
+}
+
+
+def _append_materialized_approval_request_calls(
+    raw_tool_calls: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]] | None:
+    """Mirror approval requests created inside hold tools into the audit trail."""
+    if not raw_tool_calls:
+        return raw_tool_calls
+
+    enriched: list[dict[str, Any]] = []
+    seen_approval_ids: set[str] = set()
+    seen_references: set[str] = set()
+
+    for item in raw_tool_calls:
+        if not isinstance(item, dict):
+            continue
+        enriched.append(item)
+        if str(item.get("name") or item.get("tool") or "").strip() != "approval_request":
+            continue
+        result = _loads_tool_payload(item.get("result"))
+        args = _loads_tool_payload(item.get("arguments") or item.get("args"))
+        approval_request_id = str(result.get("approval_request_id") or "").strip()
+        reference_id = str(args.get("reference_id") or result.get("reference_id") or "").strip()
+        if approval_request_id:
+            seen_approval_ids.add(approval_request_id)
+        if reference_id:
+            seen_references.add(reference_id)
+
+    for item in raw_tool_calls:
+        if not isinstance(item, dict):
+            continue
+        tool_name = str(item.get("name") or item.get("tool") or "").strip()
+        spec = _APPROVAL_REQUEST_TOOL_SPECS.get(tool_name)
+        if not spec:
+            continue
+
+        result = _loads_tool_payload(item.get("result"))
+        approval_request_id = str(result.get("approval_request_id") or "").strip()
+        reference_id = str(result.get(str(spec["reference_key"])) or result.get("hold_id") or "").strip()
+        if not approval_request_id or not reference_id:
+            continue
+        if approval_request_id in seen_approval_ids or reference_id in seen_references:
+            continue
+
+        arguments: dict[str, Any] = {
+            "approval_type": spec["approval_type"],
+            "reference_id": reference_id,
+            "required_roles": list(spec["required_roles"]),
+        }
+        source_args = _loads_tool_payload(item.get("arguments") or item.get("args"))
+        if source_args.get("hotel_id"):
+            arguments["hotel_id"] = source_args["hotel_id"]
+        if bool(spec["any_of"]):
+            arguments["any_of"] = True
+
+        enriched.append(
+            {
+                "name": "approval_request",
+                "status": "executed",
+                "arguments": arguments,
+                "result": {
+                    "approval_request_id": approval_request_id,
+                    "status": result.get("approval_status") or "REQUESTED",
+                },
+            }
+        )
+        seen_approval_ids.add(approval_request_id)
+        seen_references.add(reference_id)
+
+    return enriched
+
+
 def _extract_tool_definition_names(tools: list[dict[str, Any]] | None) -> list[str]:
     """Return normalized tool names from OpenAI tool definition payloads."""
     names: list[str] = []
@@ -1702,7 +1794,8 @@ def _sync_response_tool_calls(
     executed_calls: list[dict[str, Any]] | None,
 ) -> None:
     """Prefer real executed tool calls; otherwise normalize parsed tool intents."""
-    canonical_executed = _canonicalize_tool_calls(executed_calls, default_status="executed")
+    enriched_executed_calls = _append_materialized_approval_request_calls(executed_calls)
+    canonical_executed = _canonicalize_tool_calls(enriched_executed_calls, default_status="executed")
     if canonical_executed:
         response.internal_json.tool_calls = canonical_executed
         return
@@ -1962,6 +2055,73 @@ async def _backfill_availability_for_quote(
             "result": result,
         }
     )
+
+
+def _latest_stay_create_hold_draft(executed_calls: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return the latest stay_create_hold draft payload."""
+    for call in reversed(executed_calls):
+        if str(call.get("name") or "") != "stay_create_hold":
+            continue
+        args = _loads_tool_payload(call.get("arguments"))
+        draft = args.get("draft")
+        if isinstance(draft, dict):
+            return draft
+    return {}
+
+
+async def _backfill_availability_for_stay_hold_submission(
+    *,
+    conversation: Conversation,
+    dispatcher: Any | None,
+    executed_calls: list[dict[str, Any]],
+) -> None:
+    """Ensure stay hold audit trails include booking_availability when a hold is created."""
+    if dispatcher is None or _has_booking_availability_call(executed_calls):
+        return
+
+    draft = _latest_stay_create_hold_draft(executed_calls)
+    if not draft:
+        return
+
+    checkin_date = str(draft.get("checkin_date") or "").strip()
+    checkout_date = str(draft.get("checkout_date") or "").strip()
+    adults = _to_int(draft.get("adults"), 0)
+    if not checkin_date or not checkout_date or adults <= 0:
+        return
+
+    chd_ages = draft.get("chd_ages") if isinstance(draft.get("chd_ages"), list) else []
+    availability_args: dict[str, Any] = {
+        "hotel_id": conversation.hotel_id,
+        "checkin_date": checkin_date,
+        "checkout_date": checkout_date,
+        "adults": adults,
+        "chd_count": len(chd_ages),
+        "chd_ages": chd_ages,
+        "currency": str(draft.get("currency_display") or draft.get("currency") or "EUR").upper(),
+    }
+    try:
+        result = await dispatcher.dispatch("booking_availability", **availability_args)
+    except Exception as exc:
+        logger.warning(
+            "stay_hold_availability_backfill_failed",
+            hotel_id=conversation.hotel_id,
+            error_type=type(exc).__name__,
+        )
+        return
+    if not isinstance(result, dict):
+        return
+
+    backfilled_call = {
+        "name": "booking_availability",
+        "arguments": availability_args,
+        "result": result,
+    }
+    insert_at = len(executed_calls)
+    for index, call in enumerate(executed_calls):
+        if str(call.get("name") or "") in {"booking_quote", "stay_create_hold"}:
+            insert_at = index
+            break
+    executed_calls.insert(insert_at, backfilled_call)
 
 
 def _filter_quote_payloads_by_available_room_types(
@@ -5622,6 +5782,12 @@ async def _run_message_pipeline(
             )
         if intent == "stay_quote":
             await _backfill_availability_for_quote(
+                conversation=conversation,
+                dispatcher=dispatcher,
+                executed_calls=executed_calls,
+            )
+        if any(str(call.get("name") or "") == "stay_create_hold" for call in executed_calls):
+            await _backfill_availability_for_stay_hold_submission(
                 conversation=conversation,
                 dispatcher=dispatcher,
                 executed_calls=executed_calls,

@@ -526,19 +526,32 @@ async def list_restaurant_holds(
         raise HTTPException(status_code=400, detail="date_to must be >= date_from")
 
     items_query = """
-        SELECT hold_id, hotel_id, conversation_id, slot_id, date, time,
-               party_size, guest_name, phone, area, notes, status,
-               approved_by, approved_at, rejected_reason,
-               table_id, table_type,
-               arrived_at, no_show_at, extended_minutes,
-               created_at, archived_at, archived_by, archived_reason
-        FROM restaurant_holds
-        WHERE ($1::int IS NULL OR hotel_id = $1)
-          AND ($2::text IS NULL OR status = $2)
-          AND ($3::date IS NULL OR date >= $3)
-          AND ($4::date IS NULL OR date <= $4)
-          AND (($5::bool AND archived_at IS NOT NULL) OR (NOT $5::bool AND archived_at IS NULL))
-        ORDER BY date ASC, time ASC, created_at DESC
+        SELECT rh.hold_id, rh.hotel_id, rh.conversation_id, rh.slot_id, rh.date, rh.time,
+               rh.party_size, rh.guest_name, rh.phone, rh.area, rh.notes, rh.status,
+               rh.approved_by, rh.approved_at, rh.rejected_reason,
+               rh.table_id, rh.table_type,
+               rh.arrived_at, rh.no_show_at, rh.extended_minutes,
+               approval_meta.approval_request_id, approval_meta.approval_status,
+               approval_meta.approval_decided_at,
+               rh.created_at, rh.archived_at, rh.archived_by, rh.archived_reason
+        FROM restaurant_holds rh
+        LEFT JOIN LATERAL (
+            SELECT ar.request_id AS approval_request_id,
+                   ar.status AS approval_status,
+                   ar.decided_at AS approval_decided_at
+            FROM approval_requests ar
+            WHERE ar.hotel_id = rh.hotel_id
+              AND ar.reference_id = rh.hold_id
+              AND ar.approval_type = 'RESTAURANT'
+            ORDER BY ar.created_at DESC
+            LIMIT 1
+        ) AS approval_meta ON true
+        WHERE ($1::int IS NULL OR rh.hotel_id = $1)
+          AND ($2::text IS NULL OR rh.status = $2)
+          AND ($3::date IS NULL OR rh.date >= $3)
+          AND ($4::date IS NULL OR rh.date <= $4)
+          AND (($5::bool AND rh.archived_at IS NOT NULL) OR (NOT $5::bool AND rh.archived_at IS NULL))
+        ORDER BY rh.date ASC, rh.time ASC, rh.created_at DESC
         LIMIT $6 OFFSET $7
     """
     count_query = """
