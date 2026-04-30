@@ -1213,7 +1213,7 @@ def render_admin_panel_html() -> str:
                   <h3>Üretilen Yanıt</h3>
                   <p id="responsePreviewMeta">Henüz yanıt oluşturulmadı.</p>
                 </div>
-                <button id="responsePreviewCopy" class="inline-button secondary" type="button">Kopyala</button>
+                <button id="responsePreviewCopy" class="inline-button response-preview-copy" type="button">Kopyala</button>
               </div>
               <div id="responsePreviewReply" class="response-preview-reply empty-state">
                 <p>Yanıt burada görüntülenir.</p>

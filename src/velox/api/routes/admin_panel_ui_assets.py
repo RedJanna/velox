@@ -251,6 +251,8 @@ tbody tr:hover{background:#fffcf7}
 .response-preview-safety span{border:1px solid var(--line);background:#f8fafc;color:var(--muted);border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700}
 .response-preview-reply{min-height:220px;padding:16px;border:1px solid var(--line);border-radius:10px;background:#fff;white-space:pre-wrap;line-height:1.55}
 .response-preview-reply.empty-state{display:flex;align-items:center;justify-content:center;color:var(--muted);background:#f8fafc}
+.response-preview-copy{background:linear-gradient(135deg,#102033,#1f3554);color:#fff;border:1px solid rgba(16,32,51,.88);box-shadow:0 10px 22px rgba(16,32,51,.16)}
+.response-preview-copy:hover{background:linear-gradient(135deg,#0f766e,#1d8f86);border-color:#0f766e;box-shadow:0 12px 24px rgba(15,118,110,.2)}
 .response-preview-diagnostics{display:grid;grid-template-columns:minmax(180px,.7fr) minmax(260px,1fr);gap:14px;margin-top:16px}
 .response-preview-diagnostics h4{margin:0 0 8px;font-size:13px}
 .response-preview-tool-list{display:flex;flex-wrap:wrap;gap:8px;min-height:38px}
