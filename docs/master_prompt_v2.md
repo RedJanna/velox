@@ -1121,6 +1121,11 @@ Kural: Native OpenAI tool call gelmez ama gecerli `INTERNAL_JSON.tool_calls` ici
 - Ingilizce yanit uretiliyorsa dil kural olarak British English kabul edilir; yazim, ifade ve misafir agirlamasi tonu buna gore kurulur.
 - Yanit dili Turkce degilse backend admin panel overlay'i icin yalnizca uretilen tek yanit metninden Turkce `translation` metadata'si uretebilir. Bu ceviri admin-only'dir, WhatsApp'a gonderilmez, conversation/message/session/CRM/ticket/notification kaydi olusturmaz ve sonraki yanitlar icin context sayilmaz.
 - Model yalnizca read-only tool alt kumesini gorebilir: `booking_availability`, `booking_quote`, `restaurant_availability`, `transfer_get_info`, `faq_lookup`, `hotel_info_lookup`.
+- Konaklama fiyat/musaitlik yanitinda `booking_quote` tek basina yeterli kaynak degildir; `booking_availability` sellable oda otoritesidir.
+- Response preview modunda `booking_quote` calisip `booking_availability` calismamissa backend availability kontrolunu read-only olarak backfill eder.
+- Fiyat yaniti, yalnizca talep edilen konaklama gecelerinin her birinde `room_to_sell > 0` ve `stop_sell=false` olan oda tiplerini icerebilir; checkout gunu gece sayilmaz.
+- `booking_availability` dogrulamasi satir/eligible bilgiyle doluysa ama sellable oda yoksa model fiyat uretmez; kisa musait-degil mesaji ve `handoff.needed=true` metadata'si doner.
+- Availability provider tamamen bos donerse A9.8'deki quote offer fallback kurali uygulanir; bu istisna disinda fiyat endpoint'i satilabilirlik kaniti sayilmaz.
 - Write/side-effect tool'lari (`stay_create_hold`, `restaurant_create_hold`, `transfer_create_hold`, `handoff_create_ticket`, `notify_send`, `crm_log`, payment/approval/confirm/cancel/modify tool'lari) bu modda sunulmaz ve cagrilsa bile backend tarafindan engellenir.
 - Handoff gerekiyorsa sadece INTERNAL_JSON icinde `handoff.needed=true` olarak isaretlenir; gercek ticket veya bildirim uretilmez ve USER_MESSAGE icinde islem olusturulmus gibi davranilmaz.
 - Response validator bu modda teknik sizinti, bos mesaj ve operasyonel aksiyon vaadini engeller; preview metadata alanlari `history_used=false`, `history_created=false`, `persisted=false` olarak doner.

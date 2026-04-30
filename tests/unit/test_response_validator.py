@@ -91,3 +91,35 @@ def test_response_validator_routes_unverified_menu_claim_to_handoff() -> None:
     assert validated.internal_json.state == "HANDOFF"
     assert validated.internal_json.handoff["needed"] is True
     assert "MENU_HALLUCINATION_RISK" in validated.internal_json.risk_flags
+
+
+def test_response_validator_blocks_toolless_stay_price_claim() -> None:
+    response = LLMResponse(
+        user_message="23-27 Mayis icin Deluxe oda 1081 EUR olarak musaittir.",
+        internal_json=InternalJSON(language="tr", intent="stay_quote", tool_calls=[]),
+    )
+
+    validated = validate_guest_response(response, default_language="tr")
+
+    assert "1081" not in validated.user_message
+    assert validated.internal_json.state == "HANDOFF"
+    assert validated.internal_json.handoff["needed"] is True
+    assert "UNRESOLVED_CASE" in validated.internal_json.risk_flags
+    assert "ungrounded_stay_live_claim_blocked" in validated.internal_json.entities["response_validator"]["rules"]
+
+
+def test_response_validator_allows_missing_stay_slot_question_without_tools() -> None:
+    response = LLMResponse(
+        user_message="Hangi tarihler icin musaitlik kontrolu yapmamı istersiniz?",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="stay_availability",
+            required_questions=["checkin_date"],
+            tool_calls=[],
+        ),
+    )
+
+    validated = validate_guest_response(response, default_language="tr")
+
+    assert validated.internal_json.state != "HANDOFF"
+    assert validated.user_message.startswith("Hangi tarihler")

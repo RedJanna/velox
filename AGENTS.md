@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v6.1 | **Son güncelleme:** 2026-04-30 18:55:16
-> **Değişiklik özeti:** Geçmişsiz admin yanıt penceresi akışı eklendi.
+> **Sürüm:** v6.2 | **Son güncelleme:** 2026-04-30 22:29:05
+> **Değişiklik özeti:** Konaklama fiyat/müsaitlik guard modülü eklendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -521,7 +521,7 @@ Dosyanın en üstündeki sürüm bloğu, her güncelleme sonrası şu formatta g
 src/velox/
 ├── main.py                    # FastAPI entry point
 ├── config/                    # Settings, constants
-├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses, confirmation form rendering, stateless response preview, admin debug runner/scan registry, structured-output replay helpers, admin access-control catalog/helpers
+├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses, confirmation form rendering, stateless response preview, stay quote availability guard, admin debug runner/scan registry, structured-output replay helpers, admin access-control catalog/helpers
 ├── llm/                       # OpenAI client, prompt builder, response parser
 ├── tools/                     # Tool implementations (booking, restaurant, etc.)
 ├── adapters/                  # External service clients (Elektraweb, WhatsApp)

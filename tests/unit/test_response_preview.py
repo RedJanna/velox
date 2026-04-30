@@ -101,6 +101,78 @@ class RecordingDispatcher:
         return {"ok": True, "hotel_id": kwargs.get("hotel_id")}
 
 
+class QuoteAvailabilityDispatcher:
+    """Dispatcher fake with a quote/availability drift: Deluxe is priced but not sellable."""
+
+    async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+        if name == "booking_quote":
+            return {
+                "offers": [
+                    {
+                        "room_type_id": 396094,
+                        "room_type": "DELUXE",
+                        "discounted_price": "1081.05",
+                        "currency_code": "EUR",
+                        "rate_type": "Iptal Edilemez",
+                        "cancel_possible": False,
+                    },
+                    {
+                        "room_type_id": 396097,
+                        "room_type": "SUPERIOR",
+                        "discounted_price": "1110.81",
+                        "currency_code": "EUR",
+                        "rate_type": "Iptal Edilemez",
+                        "cancel_possible": False,
+                    },
+                ]
+            }
+        if name == "booking_availability":
+            return {
+                "rows": [
+                    {"date": "2026-05-23", "room_type_id": 396094, "room_to_sell": 3, "stop_sell": False},
+                    {"date": "2026-05-24", "room_type_id": 396094, "room_to_sell": 3, "stop_sell": False},
+                    {"date": "2026-05-25", "room_type_id": 396094, "room_to_sell": 0, "stop_sell": True},
+                    {"date": "2026-05-26", "room_type_id": 396094, "room_to_sell": 1, "stop_sell": False},
+                    {"date": "2026-05-23", "room_type_id": 396097, "room_to_sell": 2, "stop_sell": False},
+                    {"date": "2026-05-24", "room_type_id": 396097, "room_to_sell": 2, "stop_sell": False},
+                    {"date": "2026-05-25", "room_type_id": 396097, "room_to_sell": 2, "stop_sell": False},
+                    {"date": "2026-05-26", "room_type_id": 396097, "room_to_sell": 2, "stop_sell": False},
+                ]
+            }
+        return {"ok": True, "hotel_id": kwargs.get("hotel_id")}
+
+
+class QuoteOnlyLLMClient(DummyLLMClient):
+    """LLM fake that quotes from PMS but composes an unsafe Deluxe answer."""
+
+    async def run_tool_call_loop(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        tool_executor: Any,
+        max_iterations: int,
+        trace_context: dict[str, Any] | None = None,
+    ) -> tuple[str, list[dict[str, Any]]]:
+        _ = (tools, max_iterations, trace_context)
+        self.messages = messages
+        quote_args = {
+            "hotel_id": 21966,
+            "checkin_date": "2026-05-23",
+            "checkout_date": "2026-05-27",
+            "adults": 3,
+            "currency": "EUR",
+            "language": "TR",
+        }
+        quote_result = await tool_executor("booking_quote", quote_args)
+        return (
+            "USER_MESSAGE: 23-27 Mayıs için Deluxe Oda 1081 EUR, Superior Oda 1110 EUR.\n"
+            'INTERNAL_JSON: {"language":"tr","intent":"stay_quote","state":"NEEDS_VERIFICATION",'
+            '"entities":{},"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"answer_sent"}',
+            [{"name": "booking_quote", "arguments": quote_args, "result": quote_result}],
+        )
+
+
 def _message_text(messages: list[dict[str, Any]]) -> str:
     return "\n".join(str(message.get("content") or "") for message in messages)
 
@@ -227,7 +299,31 @@ async def test_non_turkish_preview_returns_admin_translation_without_history() -
 
 
 @pytest.mark.asyncio
-async def test_admin_response_preview_route_delegates_without_session_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_response_preview_filters_quote_with_live_availability() -> None:
+    llm_client = QuoteOnlyLLMClient()
+
+    result = await generate_response_preview(
+        hotel_id=21966,
+        question="23 Mayıs ile 27 Mayıs arası 3 yetişkin için fiyat alabilir miyim?",
+        language="tr",
+        response_style="professional",
+        dispatcher=QuoteAvailabilityDispatcher(),  # type: ignore[arg-type]
+        llm_client=llm_client,  # type: ignore[arg-type]
+        prompt_builder=DummyPromptBuilder(),  # type: ignore[arg-type]
+    )
+
+    assert "Deluxe" not in result.reply
+    assert "Superior" in result.reply
+    assert [item.name for item in result.tool_calls] == ["booking_quote", "booking_availability"]
+    guard_meta = result.internal_json.entities["response_preview"]["stay_quote_availability_guard"]
+    assert guard_meta["applied"] is True
+    assert guard_meta["available_room_type_ids"] == [396097]
+
+
+@pytest.mark.asyncio
+async def test_admin_response_preview_route_delegates_without_session_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     captured: dict[str, Any] = {}
 
     async def fake_generate_response_preview(**kwargs: Any) -> ResponsePreviewResult:

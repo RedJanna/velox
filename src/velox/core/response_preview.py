@@ -13,6 +13,11 @@ from pydantic import BaseModel, Field
 
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.core.response_validator import validate_guest_response
+from velox.core.stay_quote_availability_guard import (
+    backfill_availability_for_quote,
+    build_guarded_stay_quote,
+    executed_booking_tool_names,
+)
 from velox.llm.client import LLMClient, LLMUnavailableError, get_llm_client
 from velox.llm.function_registry import get_tool_definitions
 from velox.llm.prompt_builder import PromptBuilder, get_prompt_builder
@@ -62,9 +67,15 @@ RESPONSE_PREVIEW_MODE (STRICT)
 - Treat the next user message as the only guest question.
 - Do not use, infer, summarize, or request previous messages, customer history, session memory, or chat context.
 - Use only HOTEL_CONTEXT and executed read-only tool results for hotel facts.
-- Read-only tools may be used for hotel information, FAQ, transfer information, room availability/quote, and restaurant availability.
-- Never create, claim, or imply a reservation, hold, payment request, ticket, CRM log, notification, handoff task, or message record.
-- If the guest request would require an operational action or human follow-up, explain that the hotel team must confirm it; mark handoff in INTERNAL_JSON only.
+- Read-only tools may be used for hotel information, FAQ, transfer information,
+  room availability/quote, and restaurant availability.
+- For stay price or room availability, booking_quote alone is not enough:
+  use booking_availability as the sellable-room authority and remove any quote offer
+  whose room type is not sellable for every requested stay night.
+- Never create, claim, or imply a reservation, hold, payment request, ticket,
+  CRM log, notification, handoff task, or message record.
+- If the guest request would require an operational action or human follow-up,
+  explain that the hotel team must confirm it; mark handoff in INTERNAL_JSON only.
 - Do not ask for card numbers, CVV, OTP, bank passwords, or unnecessary PII.
 - Keep the guest-facing answer professional, natural, clear, and WhatsApp-friendly.
 - Detect the reply language from the single question unless the admin explicitly requested another language.
@@ -281,6 +292,18 @@ async def generate_response_preview(
         executed_calls=executed_calls,
         language=requested_language,
     )
+    if _requires_stay_quote_guard(parsed, executed_calls):
+        await backfill_availability_for_quote(
+            hotel_id=hotel_id,
+            executed_calls=executed_calls,
+            tool_executor=preview_executor,
+        )
+        parsed = _apply_guarded_stay_quote_preview(
+            parsed,
+            hotel_id=hotel_id,
+            executed_calls=executed_calls,
+            requested_language=requested_language,
+        )
     parsed = _normalize_preview_internal_json(parsed, preview_executor.tool_calls)
     parsed = _enforce_no_preview_side_effect_claims(parsed)
     parsed = validate_guest_response(parsed, default_language=_default_language(requested_language))
@@ -364,7 +387,8 @@ async def _build_admin_translation(
                 "You translate Velox admin response-preview replies. "
                 "Use only the single reply text provided in this request; do not use previous messages, "
                 "conversation history, customer profiles, session memory, tools, or external knowledge. "
-                "Do not add, remove, soften, or strengthen hotel facts, dates, prices, policy caveats, or operational promises. "
+                "Do not add, remove, soften, or strengthen hotel facts, dates, prices, "
+                "policy caveats, or operational promises. "
                 "Return JSON only. If translating into English, use British English spelling and phrasing."
             ),
         },
@@ -483,6 +507,57 @@ def _normalize_preview_internal_json(
     if any(item.blocked for item in tool_calls):
         preview_meta["blocked_tool_names"] = [item.name for item in tool_calls if item.blocked]
     entities["response_preview"] = preview_meta
+    return response
+
+
+def _requires_stay_quote_guard(response: LLMResponse, executed_calls: list[dict[str, Any]]) -> bool:
+    """Return True when a preview stay-price answer needs availability grounding."""
+    intent = str(response.internal_json.intent or "").strip().lower()
+    if intent == "stay_quote":
+        return True
+    return "booking_quote" in executed_booking_tool_names(executed_calls)
+
+
+def _apply_guarded_stay_quote_preview(
+    response: LLMResponse,
+    *,
+    hotel_id: int,
+    executed_calls: list[dict[str, Any]],
+    requested_language: str,
+) -> LLMResponse:
+    """Replace model-composed stay quote text with availability-filtered deterministic text."""
+    language = _response_language(response, requested_language)
+    guarded = build_guarded_stay_quote(
+        hotel_id=hotel_id,
+        executed_calls=executed_calls,
+        language=language,
+    )
+    if guarded is None or not guarded.messages:
+        return response
+
+    response.user_message = guarded.messages[0]
+    entities = response.internal_json.entities if isinstance(response.internal_json.entities, dict) else {}
+    preview_meta = entities.get("response_preview")
+    if not isinstance(preview_meta, dict):
+        preview_meta = {}
+    preview_meta["stay_quote_availability_guard"] = {
+        "applied": True,
+        "available_room_type_ids": guarded.available_room_type_ids,
+        "handoff_reason": guarded.handoff_reason,
+    }
+    entities["response_preview"] = preview_meta
+    if len(guarded.messages) > 1:
+        entities["user_message_parts"] = guarded.messages
+    response.internal_json.entities = entities
+
+    if guarded.handoff_reason is not None:
+        response.internal_json.state = "HANDOFF"
+        response.internal_json.handoff = {"needed": True, "reason": guarded.handoff_reason}
+        response.internal_json.next_step = "handoff_to_live_price_team"
+        risk_flags = list(response.internal_json.risk_flags or [])
+        if "UNRESOLVED_CASE" not in risk_flags:
+            risk_flags.append("UNRESOLVED_CASE")
+        response.internal_json.risk_flags = risk_flags
     return response
 
 

@@ -53,6 +53,15 @@ _MENU_ITEM_PATTERN = re.compile(
     r"starter|main\s*course|appetizer)",
     re.IGNORECASE,
 )
+_STAY_LIVE_CLAIM_PATTERN = re.compile(
+    r"("
+    r"\b\d+(?:[.,]\d{1,2})?\s*(?:eur|€|usd|\$|gbp|£|try|tl|₺)\b|"
+    r"fiyat|ücret|ucret|müsait|musait|available|availability|"
+    r"room\s+(?:is\s+)?available|oda\s+(?:müsait|musait)"
+    r")",
+    re.IGNORECASE,
+)
+_STAY_LIVE_TOOL_NAMES = {"booking_availability", "booking_quote"}
 
 
 def validate_guest_response(
@@ -90,6 +99,19 @@ def validate_guest_response(
 
     # Guard: Detect operational commitments without any tool call backing
     tool_calls = response.internal_json.tool_calls or []
+    if _is_ungrounded_stay_live_claim(response, text, tool_calls):
+        text = unresolved_handoff_fallback(language)
+        _mark_mandatory_handoff(
+            response,
+            reason="ungrounded_stay_price_or_availability",
+            risk_flag="UNRESOLVED_CASE",
+            route_to_role="SALES",
+            level="L2",
+            sla_hint="high",
+            next_step="handoff_to_live_price_team",
+        )
+        rules_applied.append("ungrounded_stay_live_claim_blocked")
+
     if not tool_calls and _OPERATIONAL_COMMITMENT_PATTERN.search(text):
         text = _replace_commitment_with_handoff(text, language)
         _mark_mandatory_handoff(
@@ -178,6 +200,27 @@ def _mark_mandatory_handoff(
     )
     response.internal_json.escalation = escalation
     response.internal_json.next_step = next_step
+
+
+def _is_ungrounded_stay_live_claim(
+    response: LLMResponse,
+    text: str,
+    tool_calls: list[Any],
+) -> bool:
+    """Return True when stay price/availability is claimed without live booking tools."""
+    intent = str(response.internal_json.intent or "").strip().lower()
+    if intent not in {"stay_quote", "stay_availability"}:
+        return False
+    if response.internal_json.required_questions:
+        return False
+    executed_tool_names = {
+        str(item.get("tool") or item.get("name") or "").strip()
+        for item in tool_calls
+        if isinstance(item, dict)
+    }
+    if executed_tool_names.intersection(_STAY_LIVE_TOOL_NAMES):
+        return False
+    return _STAY_LIVE_CLAIM_PATTERN.search(text) is not None
 
 
 def _clean_text(text: str) -> str:
