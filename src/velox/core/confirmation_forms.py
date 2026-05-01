@@ -599,7 +599,7 @@ DOCUMENT_PROFILE_COPY: dict[str, dict[ConfirmationFormType, dict[str, str]]] = {
         },
         "transfer": {
             "title": "TRANSFER REZERVASYON ONAY FORMU",
-            "subtitle": "Transfer reservation confirmation details",
+            "subtitle": "Transfer rezervasyon onay detayları",
         },
     },
 }
@@ -681,14 +681,9 @@ def public_url_for_token(token: str) -> str:
     return f"{settings.public_base_url.rstrip('/')}/confirmations/{token}"
 
 
-def mask_phone(phone: object) -> str:
-    """Mask phone number for public confirmation display."""
-    value = re.sub(r"\s+", "", str(phone or "").strip())
-    if not value:
-        return "-"
-    if len(value) <= 6:
-        return "***"
-    return f"{value[:3]} *** *** {value[-4:]}"
+def _contact_phone_display(phone: object) -> str:
+    """Return the customer-provided phone value for the confirmation document."""
+    return _clean(phone)
 
 
 def _clean(value: object, fallback: str = "-") -> str:
@@ -847,7 +842,7 @@ def build_context_from_hold(
                 labels["customer_information"],
                 [
                     ConfirmationDetail(_prompt_label(normalized_language, "guest_name", labels["guest"]), customer_name, True),
-                    ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), mask_phone(draft.get("phone"))),
+                    ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), _contact_phone_display(draft.get("phone"))),
                     ConfirmationDetail(_prompt_label(normalized_language, "email", labels["email"]), _clean(draft.get("email"), "")),
                 ],
             ),
@@ -875,7 +870,7 @@ def build_context_from_hold(
             hotel_name=hotel_name,
             language=normalized_language,
             customer_name=customer_name,
-            phone_display=mask_phone(draft.get("phone")),
+            phone_display=_contact_phone_display(draft.get("phone")),
             reference_id=reference_id,
             confirmation_no=confirmation_no,
             sections=sections,
@@ -890,7 +885,7 @@ def build_context_from_hold(
                 labels["customer_information"],
                 [
                     ConfirmationDetail(_prompt_label(normalized_language, "guest_name", labels["guest"]), customer_name, True),
-                    ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), mask_phone(row.get("phone"))),
+                    ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), _contact_phone_display(row.get("phone"))),
                     ConfirmationDetail(_prompt_label(normalized_language, "email", labels["email"]), _clean(row.get("email"), "")),
                 ],
             ),
@@ -913,7 +908,7 @@ def build_context_from_hold(
             hotel_name=hotel_name,
             language=normalized_language,
             customer_name=customer_name,
-            phone_display=mask_phone(row.get("phone")),
+            phone_display=_contact_phone_display(row.get("phone")),
             reference_id=reference_id,
             confirmation_no=reference_id,
             sections=sections,
@@ -928,7 +923,7 @@ def build_context_from_hold(
             labels["customer_information"],
             [
                 ConfirmationDetail(_prompt_label(normalized_language, "guest_name", labels["guest"]), customer_name, True),
-                ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), mask_phone(row.get("phone"))),
+                ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), _contact_phone_display(row.get("phone"))),
                 ConfirmationDetail(_prompt_label(normalized_language, "email", labels["email"]), _clean(row.get("email"), "")),
             ],
         ),
@@ -956,7 +951,7 @@ def build_context_from_hold(
         hotel_name=hotel_name,
         language=normalized_language,
         customer_name=customer_name,
-        phone_display=mask_phone(row.get("phone")),
+        phone_display=_contact_phone_display(row.get("phone")),
         reference_id=reference_id,
         confirmation_no=reference_id,
         sections=sections,
@@ -991,7 +986,7 @@ def build_context_from_manual_payload(
         labels["customer_information"],
         [
             ConfirmationDetail(_prompt_label(normalized_language, "guest_name", labels["guest"]), customer_name, True),
-            ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), mask_phone(phone)),
+            ConfirmationDetail(_prompt_label(normalized_language, "phone_number", labels["phone"]), _contact_phone_display(phone)),
             ConfirmationDetail(_prompt_label(normalized_language, "email", labels["email"]), _clean(email, "")),
         ],
     )
@@ -1054,7 +1049,7 @@ def build_context_from_manual_payload(
         hotel_name=hotel_name,
         language=normalized_language,
         customer_name=customer_name,
-        phone_display=mask_phone(phone),
+        phone_display=_contact_phone_display(phone),
         reference_id=reference_id,
         confirmation_no=confirmation_no,
         sections=(customer_section, section),
@@ -1071,6 +1066,7 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
     document_sections = _render_document_sections(context, labels)
     footer_note_html = _render_footer_note(context)
     brand_primary, brand_place = _brand_lockup_names(context.hotel_name)
+    brand_place_html = f'<div class="brand-place">{escape(brand_place)}</div>' if brand_place else ""
     motif_class = f"motif-{context.form_type}"
     variant_class = _document_variant_class(context.form_type)
     type_ornament = _render_type_ornament(context.form_type)
@@ -1084,150 +1080,155 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
   <title>{escape(context.hotel_name)} · {escape(document["title"])}</title>
   <style>
     :root {{
-      --page:#ecebe5; --paper:#fbfaf6; --ink:#1c1c19; --near:#0f0f0d;
-      --fume:#3a3a35; --muted:#72706a; --line:#9f9c94; --soft-line:#dad7ce;
-      --hair:#242421; --wash:rgba(255,255,255,.52);
+      --page:#eef2fb; --paper:#ffffff; --ink:#172036; --near:#10172a;
+      --primary:#192f9a; --primary-deep:#10206f; --primary-soft:#e8edff;
+      --accent:#c79a2d; --accent-soft:#fbf3df; --teal:#0f7f8c;
+      --fume:#38415f; --muted:#6c7288; --line:#8f9bd2; --soft-line:#dbe2ff;
+      --hair:var(--primary); --wash:rgba(232,237,255,.56); --type-accent:var(--primary);
+      --sans:"Aviano Sans", "Avenir Next", Montserrat, "Century Gothic", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+      --display:"Aviano Sans", "Avenir Next", Montserrat, "Century Gothic", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
     }}
     * {{ box-sizing:border-box; }}
     body {{
       margin:0; background:var(--page); color:var(--ink);
-      font-family:"Avenir Next", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family:var(--sans);
       line-height:1.45;
     }}
     .page {{ max-width:900px; margin:0 auto; padding:24px 18px; }}
     .sheet {{
       position:relative; overflow:hidden; isolation:isolate; color:var(--ink);
       width:min(100%, 794px); min-height:1123px; margin:0 auto; padding:36px 48px 30px;
-      border:1px solid rgba(36,36,33,.74); box-shadow:0 26px 80px rgba(18,18,15,.13);
+      border:1px solid rgba(25,47,154,.34); box-shadow:0 26px 80px rgba(16,32,111,.14);
       background:
-        linear-gradient(90deg, rgba(36,36,33,.03) 1px, transparent 1px),
-        linear-gradient(0deg, rgba(36,36,33,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(25,47,154,.035) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(25,47,154,.028) 1px, transparent 1px),
         var(--paper);
       background-size:38px 38px, 38px 38px, auto;
     }}
     .sheet::before {{
-      content:""; position:absolute; inset:9px; border:1px solid rgba(36,36,33,.46);
+      content:""; position:absolute; inset:9px; border:1px solid rgba(25,47,154,.3);
       pointer-events:none; z-index:0;
     }}
     .sheet::after {{
-      content:""; position:absolute; inset:17px; border:1px solid rgba(36,36,33,.18);
+      content:""; position:absolute; inset:17px; border:1px solid rgba(199,154,45,.22);
       pointer-events:none; z-index:0;
     }}
     .corner {{ position:absolute; z-index:2; width:34px; height:34px; pointer-events:none; }}
-    .corner-tl {{ top:7px; left:7px; border-top:2px solid rgba(36,36,33,.56); border-left:2px solid rgba(36,36,33,.56); border-top-left-radius:24px; }}
-    .corner-tr {{ top:7px; right:7px; border-top:2px solid rgba(36,36,33,.56); border-right:2px solid rgba(36,36,33,.56); border-top-right-radius:24px; }}
-    .corner-bl {{ bottom:7px; left:7px; border-bottom:2px solid rgba(36,36,33,.56); border-left:2px solid rgba(36,36,33,.56); border-bottom-left-radius:24px; }}
-    .corner-br {{ bottom:7px; right:7px; border-bottom:2px solid rgba(36,36,33,.56); border-right:2px solid rgba(36,36,33,.56); border-bottom-right-radius:24px; }}
-    .linework,.map-art {{ position:absolute; inset:0; pointer-events:none; z-index:0; color:rgba(35,35,32,.34); }}
-    .linework .route-left {{ position:absolute; left:18px; top:18px; width:128px; height:128px; border-top:1px dashed rgba(36,36,33,.32); border-left:1px dashed rgba(36,36,33,.28); border-radius:50%; }}
-    .linework .route-right {{ position:absolute; right:20px; top:500px; width:64px; height:250px; border-right:1px dashed rgba(36,36,33,.36); border-radius:50%; transform:rotate(-6deg); }}
-    .linework .pin {{ position:absolute; width:15px; height:15px; border:1px solid rgba(36,36,33,.62); border-radius:50%; }}
-    .linework .pin::after {{ content:""; position:absolute; inset:4px; border-radius:50%; background:rgba(36,36,33,.48); }}
+    .corner-tl {{ top:7px; left:7px; border-top:2px solid rgba(25,47,154,.56); border-left:2px solid rgba(25,47,154,.56); border-top-left-radius:24px; }}
+    .corner-tr {{ top:7px; right:7px; border-top:2px solid rgba(25,47,154,.56); border-right:2px solid rgba(25,47,154,.56); border-top-right-radius:24px; }}
+    .corner-bl {{ bottom:7px; left:7px; border-bottom:2px solid rgba(25,47,154,.56); border-left:2px solid rgba(25,47,154,.56); border-bottom-left-radius:24px; }}
+    .corner-br {{ bottom:7px; right:7px; border-bottom:2px solid rgba(25,47,154,.56); border-right:2px solid rgba(25,47,154,.56); border-bottom-right-radius:24px; }}
+    .linework,.map-art {{ position:absolute; inset:0; pointer-events:none; z-index:0; color:rgba(25,47,154,.3); }}
+    .linework .route-left {{ position:absolute; left:18px; top:18px; width:128px; height:128px; border-top:1px dashed rgba(25,47,154,.28); border-left:1px dashed rgba(25,47,154,.24); border-radius:50%; }}
+    .linework .route-right {{ position:absolute; right:20px; top:500px; width:64px; height:250px; border-right:1px dashed rgba(25,47,154,.32); border-radius:50%; transform:rotate(-6deg); }}
+    .linework .pin {{ position:absolute; width:15px; height:15px; border:1px solid rgba(25,47,154,.62); border-radius:50%; }}
+    .linework .pin::after {{ content:""; position:absolute; inset:4px; border-radius:50%; background:rgba(25,47,154,.48); }}
     .linework .pin-a {{ top:640px; left:24px; }}
     .linework .pin-b {{ right:54px; top:116px; }}
-    .linework .arrow {{ position:absolute; width:0; height:0; border-top:7px solid transparent; border-bottom:7px solid transparent; border-left:9px solid rgba(36,36,33,.48); }}
+    .linework .arrow {{ position:absolute; width:0; height:0; border-top:7px solid transparent; border-bottom:7px solid transparent; border-left:9px solid rgba(25,47,154,.48); }}
     .linework .arrow-right {{ right:35px; top:680px; transform:rotate(106deg); }}
     .starburst {{ position:absolute; top:62px; right:78px; width:56px; height:56px; z-index:1; opacity:.55; }}
     .starburst::before {{
       content:""; position:absolute; inset:0; border-radius:50%;
-      background:repeating-conic-gradient(from 0deg, rgba(36,36,33,.56) 0deg 4deg, transparent 4deg 12deg);
+      background:repeating-conic-gradient(from 0deg, rgba(199,154,45,.72) 0deg 4deg, transparent 4deg 12deg);
       -webkit-mask:radial-gradient(circle, transparent 0 7px, #000 8px 29px, transparent 30px);
       mask:radial-gradient(circle, transparent 0 7px, #000 8px 29px, transparent 30px);
     }}
-    .starburst::after {{ content:""; position:absolute; inset:22px; border:1px solid rgba(36,36,33,.65); border-radius:50%; background:var(--paper); }}
+    .starburst::after {{ content:""; position:absolute; inset:22px; border:1px solid rgba(25,47,154,.58); border-radius:50%; background:var(--paper); }}
     .decor-map {{ position:absolute; opacity:.55; }}
     .decor-map path,.decor-map circle,.decor-map line {{ fill:none; stroke:currentColor; stroke-width:1; }}
     .decor-map .thin {{ opacity:.35; }}
     .decor-map .dash {{ stroke-dasharray:6 7; opacity:.54; }}
     .decor-map.top {{ top:-18px; right:-6px; width:375px; height:210px; }}
     .decor-map.bottom {{ left:-28px; bottom:-4px; width:360px; height:235px; transform:rotate(-2deg); }}
-    .decor-dots {{ position:absolute; right:86px; bottom:96px; width:86px; height:86px; opacity:.24; background-image:radial-gradient(rgba(36,36,33,.42) 1.2px, transparent 1.2px); background-size:12px 12px; transform:rotate(-15deg); }}
+    .decor-dots {{ position:absolute; right:86px; bottom:96px; width:86px; height:86px; opacity:.24; background-image:radial-gradient(rgba(25,47,154,.36) 1.2px, transparent 1.2px); background-size:12px 12px; transform:rotate(-15deg); }}
     .letterhead,.hero,.document-body,.confirmation-note,.doc-footer {{ position:relative; z-index:1; }}
     .letterhead {{ display:flex; justify-content:center; align-items:center; min-height:112px; padding-top:2px; }}
     .brand-lockup {{
       min-width:300px; max-width:360px; padding:10px 24px 13px; text-align:center;
-      border:1px solid rgba(36,36,33,.58); background:rgba(251,250,246,.72);
+      border:1px solid rgba(25,47,154,.42); background:rgba(255,255,255,.84);
     }}
     .brand-name {{
-      font-family:Georgia, "Times New Roman", serif; font-size:43px; line-height:.9;
-      letter-spacing:0; text-transform:uppercase; color:var(--near); font-weight:700;
+      font-family:var(--display); font-size:30px; line-height:1.04;
+      letter-spacing:0; color:var(--primary); font-weight:800;
     }}
     .brand-place {{
       display:block; margin-top:5px; font-size:12px; letter-spacing:0;
-      text-transform:uppercase; color:var(--fume); font-weight:700;
+      text-transform:uppercase; color:var(--muted); font-weight:700;
     }}
-    .divider {{ position:relative; height:1px; margin:14px 0 30px; background:rgba(36,36,33,.46); }}
+    .divider {{ position:relative; height:1px; margin:14px 0 30px; background:rgba(25,47,154,.34); }}
     .divider::after,.mini-divider::after,.footer-seal::before {{ content:"✦"; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:var(--hair); background:var(--paper); padding:0 12px; font-size:15px; line-height:1; }}
     .hero {{ text-align:center; margin-bottom:22px; }}
     h1 {{
-      margin:0 auto 5px; max-width:704px; font-family:Georgia, "Times New Roman", serif;
-      font-size:27px; line-height:1.13; font-weight:500; letter-spacing:0; color:var(--near);
+      margin:0 auto 5px; max-width:704px; font-family:var(--display);
+      font-size:27px; line-height:1.13; font-weight:800; letter-spacing:0; color:var(--primary-deep);
       text-transform:uppercase;
     }}
-    .subtitle {{ margin:0; color:var(--fume); font-size:14px; font-style:italic; letter-spacing:0; }}
-    .mini-divider {{ position:relative; width:206px; max-width:58%; height:1px; margin:18px auto 0; background:rgba(36,36,33,.46); }}
+    .subtitle {{ margin:0; color:var(--fume); font-size:14px; letter-spacing:0; }}
+    .mini-divider {{ position:relative; width:206px; max-width:58%; height:1px; margin:18px auto 0; background:rgba(25,47,154,.34); }}
     .document-body {{ max-width:670px; margin:0 auto; }}
     .document-section {{ margin:0 0 16px; }}
-    .section-heading {{ display:flex; align-items:center; gap:10px; margin:0 0 9px; color:var(--near); }}
-    .section-star {{ font-size:14px; line-height:1; }}
-    .section-number {{ font-size:10px; font-weight:700; min-width:15px; }}
+    .section-heading {{ display:flex; align-items:center; gap:10px; margin:0 0 9px; color:var(--primary-deep); }}
+    .section-star {{ font-size:14px; line-height:1; color:var(--accent); }}
+    .section-number {{ font-size:10px; font-weight:800; min-width:15px; color:var(--primary); }}
     .section-title {{ margin:0; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0; white-space:nowrap; }}
-    .section-rule {{ flex:1; height:1px; border-top:1px dotted rgba(36,36,33,.42); position:relative; }}
-    .section-rule::after {{ content:""; position:absolute; right:0; top:-2px; width:28px; border-top:1px solid rgba(36,36,33,.68); transform:skewX(-28deg); }}
+    .section-rule {{ flex:1; height:1px; border-top:1px dotted rgba(25,47,154,.34); position:relative; }}
+    .section-rule::after {{ content:""; position:absolute; right:0; top:-2px; width:28px; border-top:1px solid rgba(25,47,154,.58); transform:skewX(-28deg); }}
     .document-fields {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:28px; row-gap:9px; }}
     .section-status .document-fields {{ grid-template-columns:repeat(3,minmax(0,1fr)); column-gap:22px; }}
     .line-field {{ display:grid; grid-template-columns:minmax(92px,auto) 12px minmax(70px,1fr); align-items:end; min-height:23px; break-inside:avoid; }}
-    .line-label {{ color:var(--fume); font-size:11px; font-family:Georgia, "Times New Roman", serif; font-style:italic; white-space:nowrap; }}
-    .line-label em {{ color:#84817a; font-size:10px; font-style:italic; }}
+    .line-label {{ color:var(--fume); font-size:11px; font-family:var(--sans); font-weight:700; white-space:nowrap; }}
+    .line-label em {{ color:var(--muted); font-size:10px; font-style:normal; font-weight:600; }}
     .line-colon {{ color:var(--fume); font-size:11px; text-align:center; }}
-    .line-value {{ min-height:18px; border-bottom:1px solid var(--soft-line); color:var(--near); font-size:12px; font-weight:600; overflow-wrap:anywhere; padding:0 4px 2px; }}
+    .line-value {{ min-height:18px; border-bottom:1px solid var(--soft-line); color:var(--near); font-size:12px; font-weight:650; overflow-wrap:anywhere; padding:0 4px 2px; }}
     .line-field.is-wide {{ grid-column:1 / -1; }}
     .line-field.is-emphasis .line-value {{ border-bottom-color:var(--line); }}
-    .notes-box {{ position:relative; min-height:68px; border:1px solid rgba(36,36,33,.44); background:var(--wash); padding:10px 16px 10px; }}
-    .notes-box::before,.notes-box::after {{ content:""; position:absolute; width:15px; height:15px; border-color:rgba(36,36,33,.55); }}
+    .notes-box {{ position:relative; min-height:68px; border:1px solid rgba(25,47,154,.26); background:var(--wash); padding:10px 16px 10px; }}
+    .notes-box::before,.notes-box::after {{ content:""; position:absolute; width:15px; height:15px; border-color:rgba(25,47,154,.48); }}
     .notes-box::before {{ top:-1px; left:-1px; border-top:1px solid; border-left:1px solid; }}
     .notes-box::after {{ right:-1px; bottom:-1px; border-right:1px solid; border-bottom:1px solid; }}
-    .notes-label {{ display:block; color:var(--fume); font-size:11px; font-family:Georgia, "Times New Roman", serif; font-style:italic; margin-bottom:8px; }}
-    .notes-label em {{ color:#84817a; font-size:10px; }}
+    .notes-label {{ display:block; color:var(--fume); font-size:11px; font-family:var(--sans); font-weight:700; margin-bottom:8px; }}
+    .notes-label em {{ color:var(--muted); font-size:10px; font-style:normal; }}
     .notes-text {{ margin:0; min-height:44px; color:var(--near); font-size:12px; font-weight:600; white-space:pre-wrap; overflow-wrap:anywhere; }}
     .note-lines {{ height:40px; background:repeating-linear-gradient(to bottom, transparent 0 15px, var(--soft-line) 15px 16px); }}
-    .footer-seal {{ width:70px; height:70px; margin:6px auto 0; border:1px solid rgba(36,36,33,.52); display:flex; align-items:center; justify-content:center; position:relative; color:var(--near); font-family:Georgia, "Times New Roman", serif; font-size:38px; background:rgba(251,250,246,.84); }}
+    .footer-seal {{ width:70px; height:70px; margin:6px auto 0; border:1px solid rgba(25,47,154,.36); display:flex; align-items:center; justify-content:center; position:relative; color:var(--primary); font-family:var(--display); font-size:38px; font-weight:800; background:rgba(255,255,255,.9); }}
     .footer-seal::before {{ top:0; background:transparent; font-size:13px; }}
     .confirmation-note {{ max-width:600px; margin:8px auto 0; text-align:center; color:var(--fume); }}
-    .confirmation-note .note-line {{ position:relative; height:1px; width:378px; max-width:72%; margin:0 auto 12px; background:rgba(36,36,33,.48); }}
+    .confirmation-note .note-line {{ position:relative; height:1px; width:378px; max-width:72%; margin:0 auto 12px; background:rgba(25,47,154,.34); }}
     .confirmation-note .note-line::after,.confirmation-note .note-mark::after {{ content:"✦"; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:var(--paper); padding:0 12px; color:var(--hair); font-size:14px; }}
     .confirmation-note p {{ margin:0 auto 7px; font-size:11px; line-height:1.45; max-width:540px; }}
-    .confirmation-note .note-secondary {{ color:#777772; font-size:11px; }}
-    .confirmation-note .note-mark {{ position:relative; width:82px; height:1px; margin:6px auto 0; background:rgba(36,36,33,.42); }}
-    .doc-footer {{ margin:12px auto 0; max-width:684px; display:flex; justify-content:space-between; gap:14px; color:#787872; font-size:9px; text-transform:uppercase; letter-spacing:0; }}
-    .type-ornament {{ position:absolute; pointer-events:none; z-index:0; color:rgba(36,36,33,.42); }}
-    .ornament-accommodation {{ left:62px; top:144px; width:168px; height:42px; border-top:1px solid rgba(36,36,33,.34); border-bottom:1px solid rgba(36,36,33,.24); opacity:.45; }}
-    .ornament-accommodation::before {{ content:""; position:absolute; left:0; right:0; top:16px; border-top:1px dotted rgba(36,36,33,.42); }}
-    .ornament-accommodation::after {{ content:"STAY"; position:absolute; right:0; top:18px; font-size:9px; letter-spacing:0; color:rgba(36,36,33,.48); }}
-    .ornament-restaurant {{ right:76px; top:162px; width:116px; height:116px; border:1px solid rgba(36,36,33,.28); border-radius:50%; opacity:.52; }}
-    .ornament-restaurant::before {{ content:""; position:absolute; inset:22px; border:1px solid rgba(36,36,33,.25); border-radius:50%; }}
-    .ornament-restaurant::after {{ content:""; position:absolute; left:-30px; top:30px; width:18px; height:58px; border-left:1px solid rgba(36,36,33,.42); border-right:1px solid rgba(36,36,33,.28); box-shadow:6px 0 0 rgba(36,36,33,.18); }}
-    .ornament-transfer {{ left:54px; right:54px; top:174px; height:58px; border-top:1px dashed rgba(36,36,33,.38); opacity:.5; transform:skewY(-3deg); }}
-    .ornament-transfer::before,.ornament-transfer::after {{ content:""; position:absolute; top:-6px; width:11px; height:11px; border:1px solid rgba(36,36,33,.54); border-radius:50%; background:var(--paper); }}
+    .confirmation-note .note-secondary {{ color:var(--muted); font-size:11px; }}
+    .confirmation-note .note-mark {{ position:relative; width:82px; height:1px; margin:6px auto 0; background:rgba(25,47,154,.3); }}
+    .doc-footer {{ margin:12px auto 0; max-width:684px; display:flex; justify-content:space-between; gap:14px; color:var(--muted); font-size:9px; letter-spacing:0; }}
+    .type-ornament {{ position:absolute; pointer-events:none; z-index:0; color:var(--type-accent); opacity:.42; }}
+    .ornament-accommodation {{ left:62px; top:144px; width:168px; height:42px; border-top:1px solid currentColor; border-bottom:1px solid currentColor; opacity:.36; }}
+    .ornament-accommodation::before {{ content:""; position:absolute; left:0; right:0; top:16px; border-top:1px dotted currentColor; }}
+    .ornament-accommodation::after {{ content:"STAY"; position:absolute; right:0; top:18px; font-size:9px; letter-spacing:0; color:currentColor; }}
+    .ornament-restaurant {{ right:76px; top:162px; width:116px; height:116px; border:1px solid currentColor; border-radius:50%; opacity:.34; }}
+    .ornament-restaurant::before {{ content:""; position:absolute; inset:22px; border:1px solid currentColor; border-radius:50%; }}
+    .ornament-restaurant::after {{ content:""; position:absolute; left:-30px; top:30px; width:18px; height:58px; border-left:1px solid currentColor; border-right:1px solid currentColor; box-shadow:6px 0 0 rgba(15,127,140,.16); }}
+    .ornament-transfer {{ left:54px; right:54px; top:174px; height:58px; border-top:1px dashed currentColor; opacity:.38; transform:skewY(-3deg); }}
+    .ornament-transfer::before,.ornament-transfer::after {{ content:""; position:absolute; top:-6px; width:11px; height:11px; border:1px solid currentColor; border-radius:50%; background:var(--paper); }}
     .ornament-transfer::before {{ left:0; }}
     .ornament-transfer::after {{ right:0; }}
     .template-accommodation-ledger .letterhead {{ min-height:116px; }}
-    .template-accommodation-ledger .brand-lockup {{ box-shadow:0 0 0 6px rgba(251,250,246,.42), inset 0 0 0 1px rgba(36,36,33,.16); }}
+    .template-accommodation-ledger {{ --type-accent:var(--primary); }}
+    .template-accommodation-ledger .brand-lockup {{ box-shadow:0 0 0 6px rgba(232,237,255,.64), inset 0 0 0 1px rgba(25,47,154,.12); }}
     .template-accommodation-ledger .document-body {{ max-width:664px; }}
     .template-accommodation-ledger .section-customer .document-fields {{ grid-template-columns:1fr; row-gap:8px; }}
     .template-accommodation-ledger .section-status {{ padding-top:4px; }}
-    .template-accommodation-ledger .section-status .document-fields {{ grid-template-columns:repeat(3,minmax(0,1fr)); column-gap:22px; padding:12px 0 2px; border-top:1px solid rgba(36,36,33,.22); border-bottom:1px solid rgba(36,36,33,.22); }}
-    .sheet.template-restaurant-table {{ background:var(--paper); }}
+    .template-accommodation-ledger .section-status .document-fields {{ grid-template-columns:repeat(3,minmax(0,1fr)); column-gap:22px; padding:12px 0 2px; border-top:1px solid rgba(25,47,154,.18); border-bottom:1px solid rgba(25,47,154,.18); }}
+    .sheet.template-restaurant-table {{ --type-accent:var(--teal); background:var(--paper); }}
     .template-restaurant-table .letterhead {{ justify-content:flex-start; min-height:94px; padding-left:18px; }}
-    .template-restaurant-table .brand-lockup {{ min-width:246px; max-width:286px; padding:9px 20px 12px; border-left:0; border-right:0; background:rgba(251,250,246,.56); }}
-    .template-restaurant-table .brand-name {{ font-size:36px; }}
+    .template-restaurant-table .brand-lockup {{ min-width:292px; max-width:382px; padding:9px 20px 12px; border-left:0; border-right:0; background:rgba(255,255,255,.8); }}
+    .template-restaurant-table .brand-name {{ font-size:26px; }}
     .template-restaurant-table .brand-place {{ font-size:10px; }}
     .template-restaurant-table .divider {{ margin:8px 0 22px; }}
-    .template-restaurant-table .hero {{ text-align:left; margin:0 0 18px 34px; padding-left:24px; border-left:1px solid rgba(36,36,33,.38); }}
+    .template-restaurant-table .hero {{ text-align:left; margin:0 0 18px 34px; padding-left:24px; border-left:2px solid rgba(15,127,140,.48); }}
     .template-restaurant-table h1 {{ margin-left:0; max-width:548px; font-size:25px; }}
     .template-restaurant-table .subtitle {{ max-width:420px; }}
     .template-restaurant-table .mini-divider {{ margin-left:0; width:172px; }}
-    .template-restaurant-table .document-body {{ max-width:642px; border:1px solid rgba(36,36,33,.3); padding:16px 18px 10px; background:rgba(255,255,255,.24); }}
+    .template-restaurant-table .document-body {{ max-width:642px; border:1px solid rgba(15,127,140,.22); padding:16px 18px 10px; background:rgba(255,255,255,.72); }}
     .template-restaurant-table .document-section {{ margin-bottom:13px; }}
     .template-restaurant-table .section-heading {{ gap:8px; }}
     .template-restaurant-table .section-star {{ font-size:12px; }}
@@ -1237,14 +1238,15 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
     .template-restaurant-table .section-notes .notes-box {{ min-height:58px; border-left:0; border-right:0; }}
     .template-restaurant-table .confirmation-note {{ margin-top:10px; }}
     .template-transfer-route .letterhead {{ justify-content:flex-start; min-height:108px; padding-left:4px; }}
-    .template-transfer-route .brand-lockup {{ min-width:282px; max-width:324px; text-align:left; border:0; background:transparent; padding:8px 0 10px 22px; }}
+    .template-transfer-route {{ --type-accent:var(--accent); }}
+    .template-transfer-route .brand-lockup {{ min-width:318px; max-width:404px; text-align:left; border:0; background:transparent; padding:8px 0 10px 22px; }}
     .template-transfer-route .brand-place {{ margin-left:70px; }}
     .template-transfer-route .divider {{ margin:8px 0 28px; }}
     .template-transfer-route .hero {{ margin-bottom:20px; }}
     .template-transfer-route h1 {{ font-size:29px; }}
     .template-transfer-route .document-body {{ max-width:690px; }}
-    .template-transfer-route .section-details {{ position:relative; padding:12px 15px 12px; border-left:1px dashed rgba(36,36,33,.34); border-right:1px dashed rgba(36,36,33,.34); }}
-    .template-transfer-route .section-details::before {{ content:""; position:absolute; left:20px; right:20px; top:46%; border-top:1px dashed rgba(36,36,33,.16); z-index:-1; }}
+    .template-transfer-route .section-details {{ position:relative; padding:12px 15px 12px; border-left:1px dashed rgba(199,154,45,.46); border-right:1px dashed rgba(199,154,45,.46); }}
+    .template-transfer-route .section-details::before {{ content:""; position:absolute; left:20px; right:20px; top:46%; border-top:1px dashed rgba(199,154,45,.22); z-index:-1; }}
     .template-transfer-route .section-details .document-fields {{ grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:24px; row-gap:10px; }}
     .template-transfer-route .section-details .line-field.is-wide {{ grid-column:1 / -1; }}
     .template-transfer-route .section-status .document-fields {{ grid-template-columns:repeat(3,minmax(0,1fr)); }}
@@ -1259,7 +1261,7 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
       .page {{ padding:16px; }}
       .sheet {{ min-height:0; padding:34px 24px 30px; }}
       .brand-lockup {{ min-width:0; width:78%; padding:9px 14px 12px; }}
-      .brand-name {{ font-size:33px; }}
+      .brand-name {{ font-size:24px; }}
       h1 {{ font-size:23px; }}
       .type-ornament {{ display:none; }}
       .template-restaurant-table .letterhead,.template-transfer-route .letterhead {{ justify-content:center; padding-left:0; }}
@@ -1290,7 +1292,7 @@ def render_confirmation_html(context: ConfirmationContext) -> str:
       <header class="letterhead">
         <div class="brand-lockup">
           <div class="brand-name">{escape(brand_primary)}</div>
-          <div class="brand-place">{escape(brand_place)}</div>
+          {brand_place_html}
         </div>
       </header>
       <div class="divider" aria-hidden="true"></div>
@@ -1442,7 +1444,18 @@ def _display_value(value: str) -> str:
 
 
 def _is_wide_line_field(label: str, labels: dict[str, str]) -> bool:
-    return _label_contains(label, labels["route"], "transfer type", "transfer tipi", "pickup", "drop-off")
+    return _label_contains(
+        label,
+        labels["route"],
+        "transfer type",
+        "transfer tipi",
+        "pickup",
+        "drop-off",
+        "reservation number",
+        "rezervasyon numarası",
+        "authorized confirmation",
+        "yetkili onayı",
+    )
 
 
 def _field_value(items: tuple[ConfirmationDetail, ...], *needles: str) -> str:
@@ -1478,12 +1491,8 @@ def _parse_display_date(value: str) -> datetime | None:
 
 
 def _brand_lockup_names(hotel_name: str) -> tuple[str, str]:
-    parts = hotel_name.split()
-    if not parts:
-        return hotel_name, hotel_name
-    primary = parts[0]
-    place = " ".join(parts[1:]) or hotel_name
-    return primary, place
+    brand = _clean(hotel_name, "")
+    return brand, ""
 
 
 def _document_variant_class(form_type: ConfirmationFormType) -> str:

@@ -1276,8 +1276,8 @@ highlights:
 - pool_jacuzzi
 - family_friendly
 hotel_name:
-  en: Kassandra Oludeniz
-  tr: Kassandra Oludeniz
+  en: Kassandra Ölüdeniz
+  tr: Kassandra Ölüdeniz
 hotel_type: boutique
 restaurant:
   menu: {}
@@ -1452,7 +1452,7 @@ transfer_routes:
   baby_seat: true
   price_eur: 75
   route_code: DALAMAN_AIRPORT_TO_HOTEL
-  to_location: Kassandra Oludeniz
+  to_location: Kassandra Ölüdeniz
   duration_min: 75
   vehicle_type: Vito
   from_location: Dalaman Havalimani
@@ -1467,7 +1467,7 @@ transfer_routes:
   to_location: Dalaman Havalimani
   duration_min: 75
   vehicle_type: Vito
-  from_location: Kassandra Oludeniz
+  from_location: Kassandra Ölüdeniz
   oversize_vehicle:
     type: Sprinter
     min_pax: 14
@@ -1476,7 +1476,7 @@ transfer_routes:
   baby_seat: true
   price_eur: 220
   route_code: ANTALYA_AIRPORT_TO_HOTEL
-  to_location: Kassandra Oludeniz
+  to_location: Kassandra Ölüdeniz
   duration_min: 240
   vehicle_type: Vito
   from_location: Antalya Havalimani
@@ -1488,7 +1488,7 @@ transfer_routes:
   to_location: Antalya Havalimani
   duration_min: 240
   vehicle_type: Vito
-  from_location: Kassandra Oludeniz
+  from_location: Kassandra Ölüdeniz
   oversize_vehicle: null
 whatsapp_number: '+905332503277'
 facility_policies:

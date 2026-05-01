@@ -2,6 +2,8 @@
 
 from datetime import UTC, datetime
 
+import pytest
+
 from velox.core.confirmation_forms import (
     COPY,
     build_context_from_manual_payload,
@@ -10,9 +12,16 @@ from velox.core.confirmation_forms import (
     mark_confirmation_sent,
     token_is_valid,
 )
+from velox.core.hotel_profile_loader import load_all_profiles
 
 
-def test_accommodation_confirmation_preview_uses_customer_language_and_masks_phone() -> None:
+@pytest.fixture(autouse=True)
+def loaded_hotel_profiles() -> None:
+    """Mirror app startup so confirmation previews use profile-backed branding."""
+    load_all_profiles()
+
+
+def test_accommodation_confirmation_preview_uses_customer_language_and_displays_contact_details() -> None:
     context = build_context_from_manual_payload(
         form_type="accommodation",
         hotel_id=21966,
@@ -35,7 +44,10 @@ def test_accommodation_confirmation_preview_uses_customer_language_and_masks_pho
 
     assert "KONAKLAMA REZERVASYON ONAY FORMU" in preview.html
     assert "linework" in preview.html
-    assert "+90 *** *** 4567" in preview.html
+    assert "Kassandra Ölüdeniz" in preview.html
+    assert "Kassandra Oludeniz" not in preview.html
+    assert "+905301234567" in preview.html
+    assert "+90 *** *** 4567" not in preview.html
     assert "VLX-2026-0418" in preview.html
     assert "Güvenli onay formunuzu buradan görüntüleyebilirsiniz" in preview.whatsapp_message
 
@@ -78,6 +90,8 @@ def test_confirmation_templates_share_language_but_have_type_specific_designs() 
     assert "ornament-restaurant" in html_by_type["restaurant"]
     assert "ornament-transfer" in html_by_type["transfer"]
     assert all("brand-lockup" in html and "section-heading" in html for html in html_by_type.values())
+    assert all("Kassandra Ölüdeniz" in html for html in html_by_type.values())
+    assert all("#192f9a" in html and "Aviano Sans" in html for html in html_by_type.values())
 
 
 def test_restaurant_confirmation_preview_supports_active_language() -> None:
@@ -163,7 +177,7 @@ def test_transfer_confirmation_uses_prompt_specific_fields() -> None:
     preview = build_preview(context)
 
     assert "TRANSFER REZERVASYON ONAY FORMU" in preview.html
-    assert "Transfer reservation confirmation details" in preview.html
+    assert "Transfer rezervasyon onay detayları" in preview.html
     assert "Alış Noktası" in preview.html
     assert "Pick-up Location" in preview.html
     assert "Bırakış Noktası" in preview.html
