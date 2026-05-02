@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v6.4 | **Son güncelleme:** 2026-05-02 12:08:36
-> **Değişiklik özeti:** AI telesekreter Voice Lab planı eklendi.
+> **Sürüm:** v6.5 | **Son güncelleme:** 2026-05-02 13:24:46
+> **Değişiklik özeti:** AI telesekreter Voice Lab mock runner modülü eklendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -527,6 +527,7 @@ src/velox/
 ├── llm/                       # OpenAI client, prompt builder, response parser
 ├── tools/                     # Tool implementations (booking, restaurant, etc.)
 ├── adapters/                  # External service clients (Elektraweb, WhatsApp)
+├── voice_lab/                 # AI telesekreter pre-live scenario matrix and deterministic mock runner
 ├── escalation/                # Risk detection, escalation matrix
 ├── policies/                  # Business rules (approval, payment, cancellation)
 ├── models/                    # Pydantic data models
