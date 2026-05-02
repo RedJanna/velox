@@ -1314,6 +1314,17 @@ def render_admin_panel_html() -> str:
                   <button id="voiceLabRunMatrixButton" class="action-button secondary" type="button">Tüm Matrisi Çalıştır</button>
                   <button id="voiceLabClearButton" class="action-button secondary" type="button">Temizle</button>
                 </div>
+                <div class="voice-lab-audio-preview">
+                  <div class="voice-lab-audio-copy">
+                    <strong>Ses Önizleme</strong>
+                    <span id="voiceLabVoiceStatus" aria-live="polite">Karşılama veya son yanıt sesini dinleyebilirsiniz.</span>
+                  </div>
+                  <div class="voice-lab-voice-actions">
+                    <button id="voiceLabSpeakGreetingButton" class="action-button secondary" type="button" aria-label="Karşılama metnini seslendir">Karşılamayı Dinle</button>
+                    <button id="voiceLabSpeakReplyButton" class="action-button secondary" type="button" aria-label="Son Voice Lab yanıtını seslendir" disabled>Yanıtı Dinle</button>
+                    <button id="voiceLabStopVoiceButton" class="action-button secondary" type="button" aria-label="Sesli oynatmayı durdur">Durdur</button>
+                  </div>
+                </div>
               </form>
               <div id="voiceLabSafety" class="voice-lab-safety">
                 <span>Canlı arama yok</span>

@@ -284,6 +284,14 @@ tbody tr:hover{background:#fffcf7}
 .voice-lab-sample-list button:hover{border-color:rgba(15,118,110,.36);box-shadow:0 8px 18px rgba(15,118,110,.08);transform:translateY(-1px)}
 .voice-lab-options{gap:12px}
 .voice-lab-actions{display:flex;gap:10px;flex-wrap:wrap}
+.voice-lab-audio-preview{display:grid;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:18px;background:var(--surface-2)}
+.voice-lab-audio-copy{display:grid;gap:4px}
+.voice-lab-audio-copy strong{font-size:13px;color:var(--ink)}
+.voice-lab-audio-copy span{font-size:13px;color:var(--muted);line-height:1.45}
+.voice-lab-audio-copy span[data-tone="success"]{color:var(--ok)}
+.voice-lab-audio-copy span[data-tone="warn"]{color:var(--warn)}
+.voice-lab-audio-copy span[data-tone="error"]{color:var(--danger)}
+.voice-lab-voice-actions{display:flex;gap:8px;flex-wrap:wrap}
 .voice-lab-safety{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 .voice-lab-safety span{border:1px solid var(--line);background:#f8fafc;color:var(--muted);border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700}
 .voice-lab-safety span.success{background:#ecfdf5;color:var(--ok);border-color:rgba(22,101,52,.18)}
@@ -437,6 +445,12 @@ const API_ROOT = '/api/v1/admin';
 const HOTEL_KEY = 'velox.admin.hotel';
 const CSRF_COOKIE = 'velox_admin_csrf';
 const LIVE_REFRESH_INTERVAL_MS = 3000;
+const VOICE_LAB_GREETING_TEXT = {
+  tr: "Merhaba, Kassandra Ölüdeniz'e hoş geldiniz. Hizmet kalitesi ve talebinizi karşılayabilmemiz için görüşmemiz kayıt altına alınabilir. Size nasıl yardımcı olabilirim?",
+  en: "Hello, welcome to Kassandra Oludeniz. For service quality and to assist with your request, this call may be recorded. How may I help you?",
+  ru: "Здравствуйте, добро пожаловать в Kassandra Oludeniz. В целях качества обслуживания и помощи с вашим запросом разговор может записываться. Чем могу помочь?",
+};
+const VOICE_LAB_SPEECH_LANG = {tr: 'tr-TR', en: 'en-US', ru: 'ru-RU'};
 const VIEW_PERMISSIONS = {
   accesscontrol: 'access_control:read',
   responsewindow: 'conversations:read',
@@ -604,6 +618,7 @@ function bindRefs() {
     'voiceLabSummaryCards','voiceLabTotalCount','voiceLabPassedCount','voiceLabFailedCount','voiceLabBlockedCount',
     'voiceLabForm','voiceLabTranscript','voiceLabSampleList','voiceLabScenario','voiceLabLanguage',
     'voiceLabRunButton','voiceLabRunMatrixButton','voiceLabClearButton','voiceLabSafety','voiceLabResultMeta',
+    'voiceLabSpeakGreetingButton','voiceLabSpeakReplyButton','voiceLabStopVoiceButton','voiceLabVoiceStatus',
     'voiceLabResultBadge','voiceLabResultPanel','voiceLabMatrixBadge','voiceLabMatrixBody',
     'logoutButton','reloadButton','decisionDialog','decisionForm','decisionTitle','decisionLead','decisionReason',
     'decisionHoldId','decisionMode'
@@ -654,6 +669,11 @@ function bindEvents() {
   refs.voiceLabScenario?.addEventListener('change', onVoiceLabScenarioChange);
   refs.voiceLabRunMatrixButton?.addEventListener('click', runVoiceLabMatrix);
   refs.voiceLabClearButton?.addEventListener('click', clearVoiceLab);
+  refs.voiceLabSpeakGreetingButton?.addEventListener('click', speakVoiceLabGreeting);
+  refs.voiceLabSpeakReplyButton?.addEventListener('click', speakVoiceLabReply);
+  refs.voiceLabStopVoiceButton?.addEventListener('click', stopVoiceLabSpeech);
+  refs.voiceLabLanguage?.addEventListener('change', syncVoiceLabSpeechControls);
+  bindVoiceLabSpeechEvents();
   refs.reloadButton?.addEventListener('click', reloadConfig);
   refs.logoutButton?.addEventListener('click', logout);
   refs.conversationFilters?.addEventListener('submit', event => {
@@ -2203,6 +2223,7 @@ async function loadVoiceLab() {
   renderVoiceLabSummary();
   renderVoiceLabResult();
   renderVoiceLabMatrix();
+  syncVoiceLabSpeechControls();
   if (state.voiceLabScenarios.length) {
     renderVoiceLabScenarioOptions();
     return;
@@ -2243,6 +2264,8 @@ function onVoiceLabScenarioChange() {
     refs.voiceLabTranscript.value = scenario.sample_input || '';
     refs.voiceLabTranscript.focus();
   }
+  stopVoiceLabSpeech({silent: true});
+  syncVoiceLabSpeechControls();
 }
 
 function onVoiceLabSampleClick(event) {
@@ -2258,12 +2281,14 @@ function onVoiceLabSampleClick(event) {
     refs.voiceLabTranscript.value = scenario.sample_input || '';
     refs.voiceLabTranscript.focus();
   }
+  stopVoiceLabSpeech({silent: true});
   state.voiceLabResult = null;
   renderVoiceLabResult();
 }
 
 async function onVoiceLabSubmit(event) {
   event.preventDefault();
+  stopVoiceLabSpeech({silent: true});
   const transcript = String(refs.voiceLabTranscript?.value || '').trim();
   if (!transcript) {
     notify('Arama transkripti zorunludur.', 'warn');
@@ -2296,6 +2321,7 @@ async function onVoiceLabSubmit(event) {
 }
 
 async function runVoiceLabMatrix() {
+  stopVoiceLabSpeech({silent: true});
   if (!state.selectedHotelId) {
     notify('Lütfen bir otel seçin.', 'warn');
     return;
@@ -2324,6 +2350,7 @@ async function runVoiceLabMatrix() {
 }
 
 function clearVoiceLab() {
+  stopVoiceLabSpeech({silent: true});
   if (refs.voiceLabTranscript) refs.voiceLabTranscript.value = '';
   if (refs.voiceLabScenario) refs.voiceLabScenario.value = '';
   state.voiceLabResult = null;
@@ -2332,6 +2359,11 @@ function clearVoiceLab() {
   renderVoiceLabSummary();
   renderVoiceLabResult();
   renderVoiceLabMatrix();
+  if (voiceLabSpeechSupported()) {
+    setVoiceLabVoiceStatus('Karşılama veya son yanıt sesini dinleyebilirsiniz.');
+  } else {
+    syncVoiceLabSpeechControls();
+  }
 }
 
 function setVoiceLabLoading(isLoading) {
@@ -2349,6 +2381,117 @@ function setVoiceLabLoading(isLoading) {
 function getVoiceLabLanguage() {
   const normalized = String(refs.voiceLabLanguage?.value || 'tr').trim().toLowerCase();
   return ['tr','en','ru'].includes(normalized) ? normalized : 'tr';
+}
+
+function voiceLabSpeechSupported() {
+  return (
+    typeof window !== 'undefined' &&
+    Boolean(window.speechSynthesis) &&
+    typeof window.SpeechSynthesisUtterance === 'function'
+  );
+}
+
+function bindVoiceLabSpeechEvents() {
+  if (!voiceLabSpeechSupported()) {
+    syncVoiceLabSpeechControls();
+    return;
+  }
+  const synth = window.speechSynthesis;
+  if (synth.__veloxVoiceLabBound) {
+    syncVoiceLabSpeechControls();
+    return;
+  }
+  synth.__veloxVoiceLabBound = true;
+  if (typeof synth.addEventListener === 'function') {
+    synth.addEventListener('voiceschanged', syncVoiceLabSpeechControls);
+  } else if ('onvoiceschanged' in synth) {
+    synth.onvoiceschanged = syncVoiceLabSpeechControls;
+  }
+  syncVoiceLabSpeechControls();
+}
+
+function resolveVoiceLabSpeechLang(language) {
+  return VOICE_LAB_SPEECH_LANG[language] || VOICE_LAB_SPEECH_LANG.tr;
+}
+
+function findVoiceLabSpeechVoice(language) {
+  if (!voiceLabSpeechSupported()) return null;
+  const voices = typeof window.speechSynthesis.getVoices === 'function' ? window.speechSynthesis.getVoices() : [];
+  const speechLang = resolveVoiceLabSpeechLang(language).toLowerCase();
+  const languagePrefix = String(language || 'tr').toLowerCase();
+  return (
+    voices.find(voice => String(voice.lang || '').toLowerCase() === speechLang) ||
+    voices.find(voice => String(voice.lang || '').toLowerCase().startsWith(languagePrefix)) ||
+    voices.find(voice => String(voice.lang || '').toLowerCase().startsWith('tr')) ||
+    voices[0] ||
+    null
+  );
+}
+
+function setVoiceLabVoiceStatus(message, tone = 'info') {
+  if (!refs.voiceLabVoiceStatus) return;
+  refs.voiceLabVoiceStatus.textContent = message;
+  refs.voiceLabVoiceStatus.dataset.tone = tone;
+}
+
+function getVoiceLabReplySpeechText() {
+  return String(state.voiceLabResult?.response_text || '').trim();
+}
+
+function syncVoiceLabSpeechControls() {
+  const supported = voiceLabSpeechSupported();
+  const hasReply = Boolean(getVoiceLabReplySpeechText());
+  if (refs.voiceLabSpeakGreetingButton) refs.voiceLabSpeakGreetingButton.disabled = !supported;
+  if (refs.voiceLabSpeakReplyButton) refs.voiceLabSpeakReplyButton.disabled = !supported || !hasReply;
+  if (refs.voiceLabStopVoiceButton) refs.voiceLabStopVoiceButton.disabled = !supported;
+  if (!supported) {
+    setVoiceLabVoiceStatus('Bu tarayıcı sesli oynatma desteklemiyor.', 'warn');
+  }
+}
+
+function speakVoiceLabText(text, label) {
+  const speechText = String(text || '').trim();
+  if (!speechText) {
+    notify('Seslendirilecek metin bulunamadı.', 'warn');
+    return;
+  }
+  if (!voiceLabSpeechSupported()) {
+    setVoiceLabVoiceStatus('Bu tarayıcı sesli oynatma desteklemiyor.', 'warn');
+    notify('Bu tarayıcı sesli oynatma desteklemiyor.', 'warn');
+    return;
+  }
+  const language = getVoiceLabLanguage();
+  const utterance = new window.SpeechSynthesisUtterance(speechText);
+  utterance.lang = resolveVoiceLabSpeechLang(language);
+  utterance.voice = findVoiceLabSpeechVoice(language);
+  utterance.rate = language === 'ru' ? 0.9 : 0.92;
+  utterance.pitch = 1;
+  utterance.volume = 1;
+  utterance.onstart = () => setVoiceLabVoiceStatus(`${label} sesi oynatılıyor.`, 'success');
+  utterance.onend = () => setVoiceLabVoiceStatus('Ses önizleme tamamlandı.', 'info');
+  utterance.onerror = () => setVoiceLabVoiceStatus('Ses oynatma başlatılamadı.', 'error');
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utterance);
+}
+
+function speakVoiceLabGreeting() {
+  const language = getVoiceLabLanguage();
+  speakVoiceLabText(VOICE_LAB_GREETING_TEXT[language] || VOICE_LAB_GREETING_TEXT.tr, 'Karşılama');
+}
+
+function speakVoiceLabReply() {
+  const speechText = getVoiceLabReplySpeechText();
+  if (!speechText) {
+    notify('Önce bir Voice Lab senaryosu çalıştırın.', 'warn');
+    return;
+  }
+  speakVoiceLabText(speechText, 'Yanıt');
+}
+
+function stopVoiceLabSpeech(options = {}) {
+  if (!voiceLabSpeechSupported()) return;
+  window.speechSynthesis.cancel();
+  if (!options.silent) setVoiceLabVoiceStatus('Ses oynatma durduruldu.', 'info');
 }
 
 function renderVoiceLabSummary() {
@@ -2389,6 +2532,7 @@ function renderVoiceLabResult() {
     }
     renderVoiceLabSafety(null);
     setVoiceLabLoading(Boolean(state.voiceLabLoading));
+    syncVoiceLabSpeechControls();
     return;
   }
 
@@ -2423,6 +2567,7 @@ function renderVoiceLabResult() {
   }
   renderVoiceLabSafety(result);
   setVoiceLabLoading(Boolean(state.voiceLabLoading));
+  syncVoiceLabSpeechControls();
 }
 
 function renderVoiceLabViolations(violations) {
