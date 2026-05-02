@@ -36,6 +36,7 @@ VOICE_LAB_PERMISSION = "conversations:read"
 MAX_VOICE_LAB_TRANSCRIPT_CHARS = 4000
 MAX_REALTIME_SDP_CHARS = 200_000
 OPENAI_REALTIME_CALLS_URL = "https://api.openai.com/v1/realtime/calls"
+OPENAI_REALTIME_CLIENT_SECRETS_URL = "https://api.openai.com/v1/realtime/client_secrets"
 OPENAI_REALTIME_TIMEOUT_SECONDS = 12.0
 VOICE_LAB_REALTIME_LANGUAGES = {"tr", "en", "ru"}
 VOICE_LAB_REALTIME_VOICES = {
@@ -124,6 +125,14 @@ class VoiceLabMatrixRunResponse(BaseModel):
     items: list[VoiceLabRunResult]
 
 
+class VoiceLabRealtimeClientSecretResponse(BaseModel):
+    """Short-lived OpenAI Realtime credential for browser WebRTC setup."""
+
+    value: str
+    expires_at: int
+    realtime_calls_url: str = OPENAI_REALTIME_CALLS_URL
+
+
 @router.get("/scenarios", response_model=VoiceLabScenarioListResponse)
 async def list_voice_lab_scenarios(
     current_user: Annotated[TokenData, Depends(get_current_user)],
@@ -195,6 +204,28 @@ async def create_voice_lab_realtime_session(
         hotel_id=scoped_hotel_id,
     )
     return PlainTextResponse(answer_sdp, media_type="application/sdp")
+
+
+@router.post("/realtime/client-secret", response_model=VoiceLabRealtimeClientSecretResponse)
+async def create_voice_lab_realtime_client_secret(
+    current_user: Annotated[TokenData, Depends(get_current_user)],
+    hotel_id: Annotated[int | None, Query(ge=1)] = None,
+    language: Annotated[str, Query(max_length=8)] = "tr",
+    voice: Annotated[str | None, Query(max_length=32)] = None,
+) -> VoiceLabRealtimeClientSecretResponse:
+    """Create a short-lived OpenAI Realtime secret for browser-side SDP exchange."""
+    check_permission(current_user, VOICE_LAB_PERMISSION)
+    scoped_hotel_id = resolve_hotel_scope(current_user, hotel_id)
+    profile = _profile_for_hotel(scoped_hotel_id)
+    session_config = build_voice_lab_realtime_session_config(
+        profile=profile,
+        language=normalize_voice_lab_realtime_language(language),
+        voice=normalize_voice_lab_realtime_voice(voice),
+    )
+    return await request_openai_realtime_client_secret(
+        session_config=session_config,
+        hotel_id=scoped_hotel_id,
+    )
 
 
 def _runner_for_hotel(hotel_id: int) -> VoiceLabRunner:
@@ -329,6 +360,75 @@ def _localized_text(value: object, language: str) -> str:
     return str(value or "").strip()
 
 
+async def request_openai_realtime_client_secret(
+    *,
+    session_config: dict[str, object],
+    hotel_id: int,
+) -> VoiceLabRealtimeClientSecretResponse:
+    """Create an ephemeral OpenAI Realtime credential for direct browser WebRTC calls."""
+    if not settings.openai_api_key.strip():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenAI Realtime için OPENAI_API_KEY yapılandırılmalı.",
+        )
+    try:
+        async with httpx.AsyncClient(timeout=OPENAI_REALTIME_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                OPENAI_REALTIME_CLIENT_SECRETS_URL,
+                headers={
+                    "Authorization": f"Bearer {settings.openai_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={"session": session_config},
+            )
+            response.raise_for_status()
+    except httpx.TimeoutException as exc:
+        logger.warning("voice_lab_realtime_client_secret_timeout", hotel_id=hotel_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenAI Realtime client secret isteği zaman aşımına uğradı.",
+        ) from exc
+    except httpx.HTTPStatusError as exc:
+        error_summary = extract_openai_error_summary(exc.response)
+        logger.warning(
+            "voice_lab_realtime_client_secret_http_error",
+            hotel_id=hotel_id,
+            status_code=exc.response.status_code,
+            openai_error_type=error_summary.get("type"),
+            openai_error_code=error_summary.get("code"),
+            openai_error_message=error_summary.get("message"),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenAI Realtime client secret oluşturulamadı.",
+        ) from exc
+    except httpx.HTTPError as exc:
+        logger.warning("voice_lab_realtime_client_secret_transport_error", hotel_id=hotel_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenAI Realtime servisine ulaşılamadı.",
+        ) from exc
+
+    payload = response.json()
+    value = str(payload.get("value") or "").strip()
+    expires_at = payload.get("expires_at")
+    if not value or not isinstance(expires_at, int):
+        logger.warning(
+            "voice_lab_realtime_client_secret_invalid_payload",
+            hotel_id=hotel_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenAI Realtime client secret yanıtı geçersiz.",
+        )
+    logger.info(
+        "voice_lab_realtime_client_secret_created",
+        hotel_id=hotel_id,
+        model=session_config.get("model"),
+    )
+    return VoiceLabRealtimeClientSecretResponse(value=value, expires_at=expires_at)
+
+
 async def request_openai_realtime_sdp_answer(
     *,
     offer_sdp: str,
@@ -360,10 +460,14 @@ async def request_openai_realtime_sdp_answer(
             detail="OpenAI Realtime bağlantısı zaman aşımına uğradı.",
         ) from exc
     except httpx.HTTPStatusError as exc:
+        error_summary = extract_openai_error_summary(exc.response)
         logger.warning(
             "voice_lab_realtime_http_error",
             hotel_id=hotel_id,
             status_code=exc.response.status_code,
+            openai_error_type=error_summary.get("type"),
+            openai_error_code=error_summary.get("code"),
+            openai_error_message=error_summary.get("message"),
         )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -396,3 +500,31 @@ async def request_openai_realtime_sdp_answer(
         voice=voice,
     )
     return answer_sdp
+
+
+def extract_openai_error_summary(response: httpx.Response) -> dict[str, str | None]:
+    """Return a safe, truncated OpenAI error summary for logs."""
+    summary: dict[str, str | None] = {"type": None, "code": None, "message": None}
+    try:
+        payload = response.json()
+    except ValueError:
+        text = response.text.strip()
+        summary["message"] = text[:300] if text else None
+        return summary
+
+    if not isinstance(payload, dict):
+        summary["message"] = str(payload)[:300]
+        return summary
+
+    error = payload.get("error")
+    if isinstance(error, dict):
+        for key in ("type", "code", "message"):
+            value = error.get(key)
+            if value is not None:
+                summary[key] = str(value)[:300]
+        return summary
+
+    message = payload.get("message")
+    if message is not None:
+        summary["message"] = str(message)[:300]
+    return summary

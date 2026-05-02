@@ -2433,41 +2433,6 @@ function getVoiceLabLanguage() {
   return ['tr','en','ru'].includes(normalized) ? normalized : 'tr';
 }
 
-async function apiFetchSdp(path, body, {allowRefresh = true, logoutOn401 = true} = {}) {
-  const headers = {'Content-Type': 'application/sdp'};
-  const csrfToken = readCookie(CSRF_COOKIE);
-  if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-  let response;
-  try {
-    response = await fetch(`${API_ROOT}${path}`, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers,
-      body,
-    });
-  } catch (_error) {
-    throw new Error('Bağlantı sorunu. Lütfen tekrar deneyin.');
-  }
-  const text = await response.text();
-  if (!response.ok) {
-    if (response.status === 401 && allowRefresh) {
-      const refreshed = await refreshAccessSession({silent: true});
-      if (refreshed) return apiFetchSdp(path, body, {allowRefresh: false, logoutOn401});
-    }
-    if (response.status === 401 && logoutOn401) {
-      clearClientSession();
-      await loadSessionStatus();
-      showAuth();
-    }
-    let payload = {};
-    try { payload = JSON.parse(text); } catch (_error) { payload = {}; }
-    const error = new Error(extractErrorDetail(payload, text));
-    error.status = response.status;
-    throw error;
-  }
-  return text;
-}
-
 function getVoiceLabStoredValue(key) {
   try {
     return window.localStorage.getItem(key);
@@ -2614,13 +2579,13 @@ function syncVoiceLabRealtimeControls() {
   }
 }
 
-function buildVoiceLabRealtimePath() {
+function buildVoiceLabRealtimeClientSecretPath() {
   const query = new URLSearchParams({
     hotel_id: String(Number(state.selectedHotelId)),
     language: getVoiceLabLanguage(),
     voice: getVoiceLabRealtimeVoice(),
   });
-  return `/voice-lab/realtime/session?${query.toString()}`;
+  return `/voice-lab/realtime/client-secret?${query.toString()}`;
 }
 
 function getVoiceLabRealtimeGreetingInstruction() {
@@ -2688,7 +2653,7 @@ async function startVoiceLabRealtime() {
 
     const offer = await peer.createOffer();
     await peer.setLocalDescription(offer);
-    const answerSdp = await apiFetchSdp(buildVoiceLabRealtimePath(), offer.sdp);
+    const answerSdp = await requestVoiceLabRealtimeAnswerSdp(offer.sdp);
     await peer.setRemoteDescription({type: 'answer', sdp: answerSdp});
 
     state.voiceLabRealtimePeer = peer;
@@ -2704,6 +2669,45 @@ async function startVoiceLabRealtime() {
     state.voiceLabRealtimeConnecting = false;
     syncVoiceLabRealtimeControls();
   }
+}
+
+async function requestVoiceLabRealtimeAnswerSdp(offerSdp) {
+  const secretPayload = await apiFetch(buildVoiceLabRealtimeClientSecretPath(), {
+    method: 'POST',
+    body: {},
+  });
+  const clientSecret = String(secretPayload?.value || '').trim();
+  const callsUrl = String(secretPayload?.realtime_calls_url || 'https://api.openai.com/v1/realtime/calls').trim();
+  if (!clientSecret) {
+    throw new Error('OpenAI Realtime client secret alınamadı.');
+  }
+  let response;
+  try {
+    response = await fetch(callsUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${clientSecret}`,
+        'Content-Type': 'application/sdp',
+      },
+      body: offerSdp,
+    });
+  } catch (_error) {
+    throw new Error('OpenAI Realtime bağlantısına ulaşılamadı.');
+  }
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error('OpenAI Realtime bağlantısı başlatılamadı.');
+  }
+  const answerSdp = normalizeVoiceLabRealtimeAnswerSdp(text);
+  if (!answerSdp.startsWith('v=0')) {
+    throw new Error('OpenAI Realtime geçerli SDP cevabı döndürmedi.');
+  }
+  return answerSdp;
+}
+
+function normalizeVoiceLabRealtimeAnswerSdp(value) {
+  const sdp = String(value || '').replace(/^\\s+/, '').replace(/\\r?\\n/g, '\\r\\n');
+  return sdp.endsWith('\\r\\n') ? sdp : `${sdp}\\r\\n`;
 }
 
 function sendVoiceLabRealtimeGreeting(dataChannel) {

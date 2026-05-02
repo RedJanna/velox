@@ -15,7 +15,7 @@ Mevcut demo durumu:
 - `Voice Lab` ekraninda karsilama metni ve son deterministik yanit, tarayicinin yerel `SpeechSynthesis` motoru ile seslendirilebilir.
 - Ses onizlemede tarayicinin sundugu sesler arasindan secim yapilabilir; konusma hizi ve ton ayari tester tarafindan degistirilebilir.
 - Bu adim gercek TTS saglayici entegrasyonu degildir; ses dosyasi uretmez, kayit tutmaz ve panel disina audio verisi gondermez.
-- Profesyonel ses pilotu icin OpenAI Realtime `gpt-realtime-1.5` secildi. Voice Lab icinde WebRTC mikrofon oturumu baslatilabilir; OpenAI API anahtari sadece backend'de kalir ve panel SDP teklifini backend'e gonderir.
+- Profesyonel ses pilotu icin OpenAI Realtime `gpt-realtime-1.5` secildi. Voice Lab icinde WebRTC mikrofon oturumu baslatilabilir; backend sadece kisa omurlu OpenAI Realtime client secret uretir, tarayici SDP teklifini bu ephemeral secret ile OpenAI `/v1/realtime/calls` endpoint'ine `application/sdp` olarak gonderir. Standart `OPENAI_API_KEY` tarayiciya verilmez.
 - Realtime ses seciminde `marin` varsayilan kalir; `marin` ve `cedar` kalite oncelikli adaylardir. Panelde `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`, `marin` ve `cedar` secenekleri test edilebilir.
 - Realtime modunda mikrofon sesi OpenAI Realtime'a aktarilir; Voice Lab tarafinda yerel ses kaydi, DB yazimi, PMS yazimi veya WhatsApp gonderimi yapilmaz.
 - Gercek chained STT/TTS zinciri icin sonraki adim mikrofon veya dosya girdisini kontrollu sekilde metne baglamak ve metin runner raporlamasiyla birlestirmektir.
@@ -109,7 +109,7 @@ Resmi OpenAI dokumanlarinda voice agent icin iki ana mimari anlatilir:
 - Speech-to-speech realtime
 - STT -> LLM -> TTS zincir mimarisi
 
-Realtime API tarafinda WebRTC, WebSocket ve SIP baglanti yollari bulunur. Demo panelde tarayici istemcisi WebRTC kullanir; backend OpenAI API anahtarini saklar ve `/v1/realtime/calls` SDP oturumunu olusturur. Bu, Turkcell tarafinda SIP/Trunk imkani netlesirse canli telefon entegrasyonu icin onemli olabilir.
+Realtime API tarafinda WebRTC, WebSocket ve SIP baglanti yollari bulunur. Demo panelde tarayici istemcisi WebRTC kullanir; backend OpenAI API anahtarini saklar ve `/v1/realtime/client_secrets` ile kisa omurlu client secret uretir. Tarayici bu ephemeral credential ile `/v1/realtime/calls` SDP oturumunu baslatir. Bu, Turkcell tarafinda SIP/Trunk imkani netlesirse canli telefon entegrasyonu icin onemli olabilir.
 
 Resmi kaynaklar:
 - OpenAI Voice Agents: https://platform.openai.com/docs/guides/voice-agents
@@ -153,7 +153,7 @@ Ses kaydi:
 
 - Voice Lab ilk fazda test amacli kayit tutabilir.
 - OpenAI Realtime pilotunda mikrofon sesi OpenAI'a aktarilir; Velox tarafinda yerel ses dosyasi veya gorusme kaydi tutulmaz.
-- Realtime SDP oturumu backend tarafindan kurulur; `OPENAI_API_KEY` tarayiciya verilmez ve loglanmaz.
+- Realtime SDP oturumu tarayici tarafindan kisa omurlu OpenAI client secret ile kurulur; `OPENAI_API_KEY` tarayiciya verilmez ve loglanmaz. Client secret sadece WebRTC oturum baslatma icindir ve standart server API key yerine gecmez.
 - Canliya cikmadan once saklama suresi, kimlerin erisecegi ve silme akisi netlesmelidir.
 - Gercek misafir kaydi kullanilacaksa onceden riza ve anonimlestirme gerekir.
 
@@ -318,7 +318,8 @@ Ilk mock runner tamamlandi:
 - Demo/admin ekranı: `Voice Lab` navigasyon sekmesi
 - Senaryo matrisi: `src/velox/voice_lab/scenarios.py`
 - Deterministik kosucu: `src/velox/voice_lab/runner.py`
-- OpenAI Realtime WebRTC proxy: `POST /api/v1/admin/voice-lab/realtime/session`
+- OpenAI Realtime WebRTC client secret endpoint'i: `POST /api/v1/admin/voice-lab/realtime/client-secret`
+- Geriye donuk OpenAI Realtime WebRTC proxy endpoint'i: `POST /api/v1/admin/voice-lab/realtime/session`
 - Birim testleri: `tests/unit/test_voice_lab_runner.py`
 
 Mevcut runner ve panel ekranı, V001-V018 testlerini canli Turkcell veya PMS baglantisi olmadan calistirir. Fiyat, musaitlik ve rezervasyon kontrolu sorularinda tool zorunlulugunu isaretler; taksit, kur ve indirim sorularinda insan devri bekler; otopark, plaj ve konsept gibi cevaplari `HOTEL_PROFILE` kaynagindan uretir. OpenAI Realtime pilotu ise ses kalitesini ve mikrofonlu konusma hissini test eder; bu pilot deterministik runner raporlarini henuz DB'ye kaydetmez.

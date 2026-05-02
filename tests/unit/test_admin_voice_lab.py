@@ -1,14 +1,18 @@
 """Unit tests for admin Voice Lab API helpers."""
 
+import httpx
 import pytest
 from fastapi import HTTPException
 
 from velox.api.middleware.auth import TokenData
 from velox.api.routes.admin_voice_lab import (
+    OPENAI_REALTIME_CLIENT_SECRETS_URL,
     VoiceLabMatrixRunRequest,
     VoiceLabRunAdminRequest,
     build_voice_lab_realtime_session_config,
+    extract_openai_error_summary,
     normalize_voice_lab_realtime_voice,
+    request_openai_realtime_client_secret,
     request_openai_realtime_sdp_answer,
     run_voice_lab_matrix,
     run_voice_lab_transcript,
@@ -85,6 +89,82 @@ async def test_admin_voice_lab_realtime_requires_openai_api_key(
         )
 
     assert exc_info.value.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_admin_voice_lab_realtime_client_secret_requires_openai_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Realtime client-secret minting must fail closed when the server key is missing."""
+    monkeypatch.setattr("velox.api.routes.admin_voice_lab.settings.openai_api_key", "")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await request_openai_realtime_client_secret(
+            session_config={"type": "realtime"},
+            hotel_id=1,
+        )
+
+    assert exc_info.value.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_admin_voice_lab_realtime_client_secret_uses_server_key_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The backend should mint only an ephemeral browser secret, never expose the server key."""
+    captured: dict[str, object] = {}
+
+    class _FakeAsyncClient:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            _ = (args, kwargs)
+
+        async def __aenter__(self) -> "_FakeAsyncClient":
+            return self
+
+        async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
+            _ = (exc_type, exc, tb)
+
+        async def post(self, url: str, **kwargs: object) -> httpx.Response:
+            captured["url"] = url
+            captured["headers"] = kwargs.get("headers")
+            captured["json"] = kwargs.get("json")
+            return httpx.Response(
+                200,
+                json={"value": "ek_test_ephemeral", "expires_at": 1777753268},
+                request=httpx.Request("POST", url),
+            )
+
+    monkeypatch.setattr("velox.api.routes.admin_voice_lab.settings.openai_api_key", "test-server-key")
+    monkeypatch.setattr("velox.api.routes.admin_voice_lab.httpx.AsyncClient", _FakeAsyncClient)
+
+    response = await request_openai_realtime_client_secret(
+        session_config={"type": "realtime", "model": "gpt-realtime-1.5"},
+        hotel_id=1,
+    )
+
+    assert captured["url"] == OPENAI_REALTIME_CLIENT_SECRETS_URL
+    assert captured["headers"] == {
+        "Authorization": "Bearer test-server-key",
+        "Content-Type": "application/json",
+    }
+    assert captured["json"] == {"session": {"type": "realtime", "model": "gpt-realtime-1.5"}}
+    assert response.value == "ek_test_ephemeral"
+    assert response.expires_at == 1777753268
+    assert "test-server-key" not in response.model_dump_json()
+
+
+def test_extract_openai_error_summary_handles_json_error() -> None:
+    """OpenAI error logging should keep only a short safe summary."""
+    response = httpx.Response(
+        400,
+        json={"error": {"type": "invalid_request_error", "code": "bad_sdp", "message": "Invalid SDP"}},
+    )
+
+    assert extract_openai_error_summary(response) == {
+        "type": "invalid_request_error",
+        "code": "bad_sdp",
+        "message": "Invalid SDP",
+    }
 
 
 @pytest.mark.asyncio
