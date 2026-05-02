@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v6.7 | **Son güncelleme:** 2026-05-02 16:16:18
-> **Değişiklik özeti:** Yerel demo admin paneli icin localhost-only auth bypass kurali eklendi.
+> **Sürüm:** v6.8 | **Son güncelleme:** 2026-05-02 21:40:58
+> **Değişiklik özeti:** AI telesekreter Voice Lab icin OpenAI Realtime model ve ses ENV ayarlari eklendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -390,6 +390,8 @@ All secrets, API keys, and configuration must be in environment variables. Never
 | Değişken | Açıklama | Varsayılan |
 |----------|----------|-----------|
 | `APP_LOG_LEVEL` | Log seviyesi | `INFO` |
+| `OPENAI_REALTIME_MODEL` | AI telesekreter/Voice Lab Realtime ses modeli | `gpt-realtime-1.5` |
+| `OPENAI_REALTIME_VOICE` | AI telesekreter/Voice Lab Realtime varsayılan sesi | `marin` |
 | `QC_TIMEOUT_MS` | QC gate tek check timeout (ms) | `500` |
 | `CIRCUIT_BREAKER_THRESHOLD` | Circuit breaker hata eşiği | `5` |
 | `CIRCUIT_BREAKER_RECOVERY_S` | Circuit breaker recovery süresi (saniye) | `30` |

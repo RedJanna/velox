@@ -1279,7 +1279,7 @@ def render_admin_panel_html() -> str:
                   <h3>Telefon Senaryosu</h3>
                   <p>Canlı hatta çıkmadan önce metin transkriptiyle kaynak, aksiyon ve güvenlik davranışını ölçün.</p>
                 </div>
-                <span class="pill info">Mock</span>
+                <span class="pill info">Mock + Realtime</span>
               </div>
               <form id="voiceLabForm" class="voice-lab-form">
                 <div class="field full">
@@ -1341,10 +1341,30 @@ def render_admin_panel_html() -> str:
                     <button id="voiceLabStopVoiceButton" class="action-button secondary" type="button" aria-label="Sesli oynatmayı durdur">Durdur</button>
                   </div>
                 </div>
+                <div class="voice-lab-realtime-preview">
+                  <div class="voice-lab-audio-copy">
+                    <strong>OpenAI Realtime</strong>
+                    <span id="voiceLabRealtimeStatus" aria-live="polite">Mikrofon bağlantısı bekliyor.</span>
+                  </div>
+                  <div class="voice-lab-realtime-grid">
+                    <div class="field">
+                      <label for="voiceLabRealtimeVoice">Realtime ses</label>
+                      <select id="voiceLabRealtimeVoice" name="realtime_voice">
+                        <option value="marin">Marin</option>
+                        <option value="cedar">Cedar</option>
+                      </select>
+                    </div>
+                    <div class="voice-lab-realtime-actions">
+                      <button id="voiceLabRealtimeStartButton" class="action-button primary" type="button">OpenAI Realtime ile Konuş</button>
+                      <button id="voiceLabRealtimeStopButton" class="action-button secondary" type="button" disabled>Realtime Durdur</button>
+                    </div>
+                  </div>
+                </div>
               </form>
               <div id="voiceLabSafety" class="voice-lab-safety">
                 <span>Canlı arama yok</span>
-                <span>Ses kaydı yok</span>
+                <span>Yerel ses kaydı yok</span>
+                <span>Realtime açıkken mikrofon OpenAI'a gider</span>
                 <span>DB yazımı yok</span>
                 <span>PMS yazımı yok</span>
               </div>

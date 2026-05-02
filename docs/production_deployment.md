@@ -140,6 +140,7 @@ GitHub Actions workflow: `.github/workflows/ci.yml`
 - [ ] Elektraweb API credentials validated
 - [ ] Elektra Generic API credentials validated for reservation-card voucher/note sync
 - [ ] OpenAI API key active with sufficient quota
+- [ ] OpenAI Realtime env vars set when Voice Lab / AI telesekreter audio is enabled: `OPENAI_REALTIME_MODEL=gpt-realtime-1.5`, `OPENAI_REALTIME_VOICE=marin` or approved alternative
 - [ ] Redis running and accessible
 - [ ] Health check returns 200
 - [ ] Readiness check returns all green

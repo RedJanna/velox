@@ -7,6 +7,9 @@ from velox.api.middleware.auth import TokenData
 from velox.api.routes.admin_voice_lab import (
     VoiceLabMatrixRunRequest,
     VoiceLabRunAdminRequest,
+    build_voice_lab_realtime_session_config,
+    normalize_voice_lab_realtime_voice,
+    request_openai_realtime_sdp_answer,
     run_voice_lab_matrix,
     run_voice_lab_transcript,
 )
@@ -23,6 +26,50 @@ def _admin_user(hotel_id: int) -> TokenData:
         role=Role.ADMIN,
         permissions={"conversations:read"},
     )
+
+
+def test_admin_voice_lab_realtime_config_uses_openai_model_and_voice(
+    hotel_profile: HotelProfile,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Realtime Voice Lab sessions should be grounded and audio-only."""
+    monkeypatch.setattr("velox.api.routes.admin_voice_lab.settings.openai_realtime_model", "gpt-realtime-1.5")
+
+    config = build_voice_lab_realtime_session_config(
+        profile=hotel_profile,
+        language="tr",
+        voice="marin",
+    )
+
+    assert config["type"] == "realtime"
+    assert config["model"] == "gpt-realtime-1.5"
+    assert config["output_modalities"] == ["audio"]
+    assert config["audio"]["output"]["voice"] == "marin"
+    assert "Do not ask for or process card numbers" in str(config["instructions"])
+    assert "never invent" in str(config["instructions"])
+
+
+def test_admin_voice_lab_realtime_voice_falls_back_to_marin() -> None:
+    """Unsupported Realtime voices should never pass through to OpenAI."""
+    assert normalize_voice_lab_realtime_voice("unknown_voice") == "marin"
+    assert normalize_voice_lab_realtime_voice("cedar") == "cedar"
+
+
+@pytest.mark.asyncio
+async def test_admin_voice_lab_realtime_requires_openai_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Realtime SDP proxy must fail closed when the server key is missing."""
+    monkeypatch.setattr("velox.api.routes.admin_voice_lab.settings.openai_api_key", "")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await request_openai_realtime_sdp_answer(
+            offer_sdp="v=0\r\n",
+            session_config={"type": "realtime"},
+            hotel_id=1,
+        )
+
+    assert exc_info.value.status_code == 503
 
 
 @pytest.mark.asyncio

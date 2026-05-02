@@ -1,7 +1,7 @@
 # AI Telesekreter Voice Lab Plan
 
 > Son guncelleme: 2026-05-02
-> Durum: Birinci hafta teknik plan, test matrisi, ilk mock runner, demo panel ekranı ve ayarlanabilir tarayıcı ses önizlemesi
+> Durum: Birinci hafta teknik plan, test matrisi, ilk mock runner, demo panel ekranı, ayarlanabilir tarayıcı ses önizlemesi ve OpenAI Realtime WebRTC pilotu
 
 Bu dosya, Turkcell santrale canli baglanti yapmadan once Velox icinde kurulacak sesli test laboratuvarinin planidir. Amac, telefon AI'ini canli hatta almadan once guvenilirlik, cevap kaynagi, insan devri, ses kalitesi ve KVKK/GDPR davranisini kontrollu bicimde test etmektir.
 
@@ -15,7 +15,9 @@ Mevcut demo durumu:
 - `Voice Lab` ekraninda karsilama metni ve son deterministik yanit, tarayicinin yerel `SpeechSynthesis` motoru ile seslendirilebilir.
 - Ses onizlemede tarayicinin sundugu sesler arasindan secim yapilabilir; konusma hizi ve ton ayari tester tarafindan degistirilebilir.
 - Bu adim gercek TTS saglayici entegrasyonu degildir; ses dosyasi uretmez, kayit tutmaz ve panel disina audio verisi gondermez.
-- Gercek STT/TTS zinciri icin sonraki adim mikrofon veya dosya girdisini kontrollu sekilde metne baglamak, ardindan resmi TTS saglayici secimini yapmaktir.
+- Profesyonel ses pilotu icin OpenAI Realtime `gpt-realtime-1.5` secildi. Voice Lab icinde WebRTC mikrofon oturumu baslatilabilir; OpenAI API anahtari sadece backend'de kalir ve panel SDP teklifini backend'e gonderir.
+- Realtime modunda mikrofon sesi OpenAI Realtime'a aktarilir; Voice Lab tarafinda yerel ses kaydi, DB yazimi, PMS yazimi veya WhatsApp gonderimi yapilmaz.
+- Gercek chained STT/TTS zinciri icin sonraki adim mikrofon veya dosya girdisini kontrollu sekilde metne baglamak ve metin runner raporlamasiyla birlestirmektir.
 
 ## 1. Voice Lab Hedefi
 
@@ -87,9 +89,9 @@ Bu yolun nedeni:
 - HOTEL_PROFILE ve tool disi bilgi uydurma daha kolay yakalanir.
 - Turkcell entegrasyonu gelmeden once hizli test yapilir.
 
-Ikinci faz icin aday mimari: `speech-to-speech realtime`.
+Paralel pilot mimari: `speech-to-speech realtime`.
 
-Bu daha dogal ve dusuk gecikmeli olabilir. Ancak canli santral oncesinde once chained pipeline ile guvenlik, kaynak ve handoff davranisini sabitlemek daha dogrudur.
+OpenAI Realtime `gpt-realtime-1.5`, demo Voice Lab'de WebRTC ile denenir. Bu pilot ses kalitesi ve gecikme icindir; canli santral veya PMS islemi gibi yan etkiler olusturmaz. Chained pipeline guvenlik, kaynak ve handoff davranisini olcmeye devam eder.
 
 ## 4. Model ve Saglayici Notlari
 
@@ -99,18 +101,21 @@ Plan seviyesinde karar:
 
 - STT: Turkce, Ingilizce ve Rusca icin transkripsiyon kalitesi olculecek.
 - LLM: Mevcut Velox tool calling, HOTEL_PROFILE ve QC kurallariyla calisacak.
-- TTS: Kassandra markasina uygun, sakin, net, profesyonel bir ses secilecek.
-- Realtime aday: SIP/WebRTC/WebSocket tasima destegi olan speech-to-speech model, ikinci fazda degerlendirilecek.
+- TTS / Realtime pilot: OpenAI Realtime `gpt-realtime-1.5`; varsayilan ses `marin`, alternatif `cedar`.
+- Realtime tasima: Demo/admin panelde WebRTC; canli telefon icin Turkcell SIP/Trunk netlesirse SIP tasima yeniden degerlendirilecek.
 
 Resmi OpenAI dokumanlarinda voice agent icin iki ana mimari anlatilir:
 - Speech-to-speech realtime
 - STT -> LLM -> TTS zincir mimarisi
 
-Realtime API tarafinda WebRTC, WebSocket ve SIP baglanti yollari bulunur. Bu, Turkcell tarafinda SIP/Trunk imkani netlesirse canli telefon entegrasyonu icin onemli olabilir.
+Realtime API tarafinda WebRTC, WebSocket ve SIP baglanti yollari bulunur. Demo panelde tarayici istemcisi WebRTC kullanir; backend OpenAI API anahtarini saklar ve `/v1/realtime/calls` SDP oturumunu olusturur. Bu, Turkcell tarafinda SIP/Trunk imkani netlesirse canli telefon entegrasyonu icin onemli olabilir.
 
 Resmi kaynaklar:
 - OpenAI Voice Agents: https://platform.openai.com/docs/guides/voice-agents
 - OpenAI Realtime API overview: https://platform.openai.com/docs/guides/realtime/overview
+- OpenAI Realtime API with WebRTC: https://platform.openai.com/docs/guides/realtime-webrtc
+- OpenAI Realtime API reference: https://platform.openai.com/docs/api-reference/realtime
+- OpenAI gpt-realtime-1.5 model card: https://developers.openai.com/api/docs/models/gpt-realtime-1.5
 - OpenAI Realtime models prompting: https://platform.openai.com/docs/guides/realtime-models-prompting
 - OpenAI Speech to Text: https://platform.openai.com/docs/guides/speech-to-text
 
@@ -146,6 +151,8 @@ Kaydedilmeyecek veya maskelenecek alanlar:
 Ses kaydi:
 
 - Voice Lab ilk fazda test amacli kayit tutabilir.
+- OpenAI Realtime pilotunda mikrofon sesi OpenAI'a aktarilir; Velox tarafinda yerel ses dosyasi veya gorusme kaydi tutulmaz.
+- Realtime SDP oturumu backend tarafindan kurulur; `OPENAI_API_KEY` tarayiciya verilmez ve loglanmaz.
 - Canliya cikmadan once saklama suresi, kimlerin erisecegi ve silme akisi netlesmelidir.
 - Gercek misafir kaydi kullanilacaksa onceden riza ve anonimlestirme gerekir.
 
@@ -310,15 +317,17 @@ Ilk mock runner tamamlandi:
 - Demo/admin ekranı: `Voice Lab` navigasyon sekmesi
 - Senaryo matrisi: `src/velox/voice_lab/scenarios.py`
 - Deterministik kosucu: `src/velox/voice_lab/runner.py`
+- OpenAI Realtime WebRTC proxy: `POST /api/v1/admin/voice-lab/realtime/session`
 - Birim testleri: `tests/unit/test_voice_lab_runner.py`
 
-Mevcut runner ve panel ekranı, V001-V018 testlerini canli Turkcell, gercek STT/TTS veya PMS baglantisi olmadan calistirir. Fiyat, musaitlik ve rezervasyon kontrolu sorularinda tool zorunlulugunu isaretler; taksit, kur ve indirim sorularinda insan devri bekler; otopark, plaj ve konsept gibi cevaplari `HOTEL_PROFILE` kaynagindan uretir.
+Mevcut runner ve panel ekranı, V001-V018 testlerini canli Turkcell veya PMS baglantisi olmadan calistirir. Fiyat, musaitlik ve rezervasyon kontrolu sorularinda tool zorunlulugunu isaretler; taksit, kur ve indirim sorularinda insan devri bekler; otopark, plaj ve konsept gibi cevaplari `HOTEL_PROFILE` kaynagindan uretir. OpenAI Realtime pilotu ise ses kalitesini ve mikrofonlu konusma hissini test eder; bu pilot deterministik runner raporlarini henuz DB'ye kaydetmez.
 
 Sonraki teknik uygulama:
 
-1. Ses dosyasi yukleme veya mikrofon girdisi secimi.
-2. STT -> Velox text pipeline -> TTS mock akisinin metin runner'a baglanmasi.
-3. Turkce disinda Ingilizce ve Rusca smoke senaryolarinin eklenmesi.
-4. Voice Lab sonuc kayitlari icin saklama/erisim/silme politikasinin netlestirilmesi.
+1. OpenAI Realtime sesini `marin` ve `cedar` ile dinleyerek otel markasina uygun sesi secmek.
+2. Ses dosyasi yukleme veya mikrofon girdisini deterministik metin runner raporlarina baglamak.
+3. STT -> Velox text pipeline -> TTS mock akisinin metin runner'a baglanmasi.
+4. Turkce disinda Ingilizce ve Rusca smoke senaryolarinin eklenmesi.
+5. Voice Lab sonuc kayitlari icin saklama/erisim/silme politikasinin netlestirilmesi.
 
 Canli Turkcell santral entegrasyonu, Voice Lab temel testleri gecmeden baslamamalidir.

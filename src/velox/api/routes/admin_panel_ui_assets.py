@@ -285,6 +285,7 @@ tbody tr:hover{background:#fffcf7}
 .voice-lab-options{gap:12px}
 .voice-lab-actions{display:flex;gap:10px;flex-wrap:wrap}
 .voice-lab-audio-preview{display:grid;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:18px;background:var(--surface-2)}
+.voice-lab-realtime-preview{display:grid;gap:12px;padding:14px 16px;border:1px solid rgba(15,118,110,.22);border-radius:18px;background:#f1fbf9}
 .voice-lab-audio-copy{display:grid;gap:4px}
 .voice-lab-audio-copy strong{font-size:13px;color:var(--ink)}
 .voice-lab-audio-copy span{font-size:13px;color:var(--muted);line-height:1.45}
@@ -292,6 +293,8 @@ tbody tr:hover{background:#fffcf7}
 .voice-lab-audio-copy span[data-tone="warn"]{color:var(--warn)}
 .voice-lab-audio-copy span[data-tone="error"]{color:var(--danger)}
 .voice-lab-tuning-grid{display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(140px,.8fr) minmax(140px,.8fr);gap:12px;align-items:end}
+.voice-lab-realtime-grid{display:grid;grid-template-columns:minmax(160px,.75fr) minmax(260px,1fr);gap:12px;align-items:end}
+.voice-lab-realtime-actions{display:flex;gap:8px;flex-wrap:wrap}
 .voice-lab-slider-field label{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .voice-lab-slider-field label span{font-size:12px;color:var(--muted);font-weight:800}
 .voice-lab-slider-field input[type="range"]{width:100%;min-height:34px;accent-color:var(--accent)}
@@ -434,7 +437,7 @@ tbody tr:hover{background:#fffcf7}
   .topbar-aside{justify-content:flex-start}
   .table-shell{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
   .table-shell table{min-width:640px}
-  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid,.debug-summary-grid,.debug-layout,.response-preview-layout,.response-preview-diagnostics,.voice-lab-summary-grid,.voice-lab-layout,.voice-lab-tuning-grid,.voice-lab-result-grid,.access-toggle-grid,.access-user-controls{grid-template-columns:1fr}
+  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid,.debug-summary-grid,.debug-layout,.response-preview-layout,.response-preview-diagnostics,.voice-lab-summary-grid,.voice-lab-layout,.voice-lab-tuning-grid,.voice-lab-realtime-grid,.voice-lab-result-grid,.access-toggle-grid,.access-user-controls{grid-template-columns:1fr}
   .topbar{padding:18px 20px;border-radius:24px;flex-direction:column}
   .card-grid{grid-template-columns:1fr}
   .status-strip{grid-template-columns:1fr}
@@ -466,6 +469,11 @@ const VOICE_LAB_PITCH_MAX = 1.06;
 const VOICE_LAB_DEFAULT_RATE = 0.88;
 const VOICE_LAB_DEFAULT_PITCH = 0.96;
 const VOICE_LAB_NATURAL_VOICE_HINTS = ['natural','neural','online','premium','enhanced','microsoft','google'];
+const VOICE_LAB_REALTIME_VOICE_KEY = 'velox.voice_lab.realtime_voice';
+const VOICE_LAB_REALTIME_VOICES = [
+  {value: 'marin', label: 'Marin'},
+  {value: 'cedar', label: 'Cedar'},
+];
 const VIEW_PERMISSIONS = {
   accesscontrol: 'access_control:read',
   responsewindow: 'conversations:read',
@@ -575,6 +583,12 @@ const state = {
   voiceLabMatrixResults: [],
   voiceLabMatrixSummary: null,
   voiceLabLoading: false,
+  voiceLabRealtimeActive: false,
+  voiceLabRealtimeConnecting: false,
+  voiceLabRealtimePeer: null,
+  voiceLabRealtimeDataChannel: null,
+  voiceLabRealtimeLocalStream: null,
+  voiceLabRealtimeAudioElement: null,
   refreshPromise: null,
   liveRefreshHandle: null,
   _authKeepAliveTimer: null,
@@ -635,6 +649,7 @@ function bindRefs() {
     'voiceLabRunButton','voiceLabRunMatrixButton','voiceLabClearButton','voiceLabSafety','voiceLabResultMeta',
     'voiceLabVoiceSelect','voiceLabRate','voiceLabRateValue','voiceLabPitch','voiceLabPitchValue',
     'voiceLabSpeakGreetingButton','voiceLabSpeakReplyButton','voiceLabStopVoiceButton','voiceLabVoiceStatus',
+    'voiceLabRealtimeVoice','voiceLabRealtimeStartButton','voiceLabRealtimeStopButton','voiceLabRealtimeStatus',
     'voiceLabResultBadge','voiceLabResultPanel','voiceLabMatrixBadge','voiceLabMatrixBody',
     'logoutButton','reloadButton','decisionDialog','decisionForm','decisionTitle','decisionLead','decisionReason',
     'decisionHoldId','decisionMode'
@@ -691,8 +706,12 @@ function bindEvents() {
   refs.voiceLabSpeakGreetingButton?.addEventListener('click', speakVoiceLabGreeting);
   refs.voiceLabSpeakReplyButton?.addEventListener('click', speakVoiceLabReply);
   refs.voiceLabStopVoiceButton?.addEventListener('click', stopVoiceLabSpeech);
+  refs.voiceLabRealtimeVoice?.addEventListener('change', onVoiceLabRealtimeVoiceChange);
+  refs.voiceLabRealtimeStartButton?.addEventListener('click', startVoiceLabRealtime);
+  refs.voiceLabRealtimeStopButton?.addEventListener('click', stopVoiceLabRealtime);
   refs.voiceLabLanguage?.addEventListener('change', onVoiceLabLanguageChange);
   initializeVoiceLabTuningControls();
+  initializeVoiceLabRealtimeControls();
   bindVoiceLabSpeechEvents();
   refs.reloadButton?.addEventListener('click', reloadConfig);
   refs.logoutButton?.addEventListener('click', logout);
@@ -2244,6 +2263,7 @@ async function loadVoiceLab() {
   renderVoiceLabResult();
   renderVoiceLabMatrix();
   syncVoiceLabSpeechControls();
+  syncVoiceLabRealtimeControls();
   if (state.voiceLabScenarios.length) {
     renderVoiceLabScenarioOptions();
     return;
@@ -2371,6 +2391,7 @@ async function runVoiceLabMatrix() {
 
 function clearVoiceLab() {
   stopVoiceLabSpeech({silent: true});
+  stopVoiceLabRealtime({silent: true});
   if (refs.voiceLabTranscript) refs.voiceLabTranscript.value = '';
   if (refs.voiceLabScenario) refs.voiceLabScenario.value = '';
   state.voiceLabResult = null;
@@ -2396,11 +2417,47 @@ function setVoiceLabLoading(isLoading) {
     refs.voiceLabRunMatrixButton.disabled = isLoading;
     refs.voiceLabRunMatrixButton.textContent = isLoading ? 'Matris Çalışıyor...' : 'Tüm Matrisi Çalıştır';
   }
+  syncVoiceLabRealtimeControls();
 }
 
 function getVoiceLabLanguage() {
   const normalized = String(refs.voiceLabLanguage?.value || 'tr').trim().toLowerCase();
   return ['tr','en','ru'].includes(normalized) ? normalized : 'tr';
+}
+
+async function apiFetchSdp(path, body, {allowRefresh = true, logoutOn401 = true} = {}) {
+  const headers = {'Content-Type': 'application/sdp'};
+  const csrfToken = readCookie(CSRF_COOKIE);
+  if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+  let response;
+  try {
+    response = await fetch(`${API_ROOT}${path}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers,
+      body,
+    });
+  } catch (_error) {
+    throw new Error('Bağlantı sorunu. Lütfen tekrar deneyin.');
+  }
+  const text = await response.text();
+  if (!response.ok) {
+    if (response.status === 401 && allowRefresh) {
+      const refreshed = await refreshAccessSession({silent: true});
+      if (refreshed) return apiFetchSdp(path, body, {allowRefresh: false, logoutOn401});
+    }
+    if (response.status === 401 && logoutOn401) {
+      clearClientSession();
+      await loadSessionStatus();
+      showAuth();
+    }
+    let payload = {};
+    try { payload = JSON.parse(text); } catch (_error) { payload = {}; }
+    const error = new Error(extractErrorDetail(payload, text));
+    error.status = response.status;
+    throw error;
+  }
+  return text;
 }
 
 function getVoiceLabStoredValue(key) {
@@ -2482,6 +2539,212 @@ function initializeVoiceLabTuningControls() {
     ).toFixed(2);
   }
   updateVoiceLabTuningLabels();
+}
+
+function initializeVoiceLabRealtimeControls() {
+  populateVoiceLabRealtimeVoiceOptions();
+  const savedVoice = getVoiceLabStoredValue(VOICE_LAB_REALTIME_VOICE_KEY) || 'marin';
+  if (refs.voiceLabRealtimeVoice && VOICE_LAB_REALTIME_VOICES.some(item => item.value === savedVoice)) {
+    refs.voiceLabRealtimeVoice.value = savedVoice;
+  }
+  syncVoiceLabRealtimeControls();
+}
+
+function populateVoiceLabRealtimeVoiceOptions() {
+  if (!refs.voiceLabRealtimeVoice) return;
+  const currentValue = refs.voiceLabRealtimeVoice.value || getVoiceLabStoredValue(VOICE_LAB_REALTIME_VOICE_KEY) || 'marin';
+  refs.voiceLabRealtimeVoice.innerHTML = VOICE_LAB_REALTIME_VOICES.map(item => (
+    `<option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>`
+  )).join('');
+  refs.voiceLabRealtimeVoice.value = VOICE_LAB_REALTIME_VOICES.some(item => item.value === currentValue)
+    ? currentValue
+    : 'marin';
+}
+
+function getVoiceLabRealtimeVoice() {
+  const selected = String(refs.voiceLabRealtimeVoice?.value || '').trim().toLowerCase();
+  return VOICE_LAB_REALTIME_VOICES.some(item => item.value === selected) ? selected : 'marin';
+}
+
+function onVoiceLabRealtimeVoiceChange() {
+  setVoiceLabStoredValue(VOICE_LAB_REALTIME_VOICE_KEY, getVoiceLabRealtimeVoice());
+  setVoiceLabRealtimeStatus('Realtime ses seçimi güncellendi.', 'info');
+}
+
+function voiceLabRealtimeSupported() {
+  const nav = typeof navigator !== 'undefined' ? navigator : null;
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.RTCPeerConnection === 'function' &&
+    Boolean(nav?.mediaDevices) &&
+    typeof nav.mediaDevices.getUserMedia === 'function'
+  );
+}
+
+function setVoiceLabRealtimeStatus(message, tone = 'info') {
+  if (!refs.voiceLabRealtimeStatus) return;
+  refs.voiceLabRealtimeStatus.textContent = message;
+  refs.voiceLabRealtimeStatus.dataset.tone = tone;
+}
+
+function syncVoiceLabRealtimeControls() {
+  const supported = voiceLabRealtimeSupported();
+  const busy = Boolean(state.voiceLabLoading || state.voiceLabRealtimeConnecting);
+  const active = Boolean(state.voiceLabRealtimeActive);
+  if (refs.voiceLabRealtimeVoice) refs.voiceLabRealtimeVoice.disabled = !supported || busy || active;
+  if (refs.voiceLabRealtimeStartButton) {
+    refs.voiceLabRealtimeStartButton.disabled = !supported || busy || active;
+    refs.voiceLabRealtimeStartButton.textContent = state.voiceLabRealtimeConnecting
+      ? 'Bağlanıyor...'
+      : 'OpenAI Realtime ile Konuş';
+  }
+  if (refs.voiceLabRealtimeStopButton) refs.voiceLabRealtimeStopButton.disabled = !supported || (!busy && !active);
+  if (!supported) {
+    setVoiceLabRealtimeStatus('Bu tarayıcı WebRTC mikrofon bağlantısını desteklemiyor.', 'warn');
+  } else if (!active && !state.voiceLabRealtimeConnecting) {
+    setVoiceLabRealtimeStatus('Mikrofon bağlantısı bekliyor.', 'info');
+  }
+}
+
+function buildVoiceLabRealtimePath() {
+  const query = new URLSearchParams({
+    hotel_id: String(Number(state.selectedHotelId)),
+    language: getVoiceLabLanguage(),
+    voice: getVoiceLabRealtimeVoice(),
+  });
+  return `/voice-lab/realtime/session?${query.toString()}`;
+}
+
+function getVoiceLabRealtimeGreetingInstruction() {
+  const language = getVoiceLabLanguage();
+  const greeting = VOICE_LAB_GREETING_TEXT[language] || VOICE_LAB_GREETING_TEXT.tr;
+  return `Say this greeting naturally and then wait for the caller: ${greeting}`;
+}
+
+async function startVoiceLabRealtime() {
+  if (!state.selectedHotelId) {
+    notify('Lütfen bir otel seçin.', 'warn');
+    return;
+  }
+  if (!voiceLabRealtimeSupported()) {
+    setVoiceLabRealtimeStatus('Bu tarayıcı WebRTC mikrofon bağlantısını desteklemiyor.', 'warn');
+    notify('Bu tarayıcı WebRTC mikrofon bağlantısını desteklemiyor.', 'warn');
+    return;
+  }
+  stopVoiceLabSpeech({silent: true});
+  stopVoiceLabRealtime({silent: true});
+  state.voiceLabRealtimeConnecting = true;
+  setVoiceLabRealtimeStatus('Mikrofon izni bekleniyor.', 'info');
+  syncVoiceLabRealtimeControls();
+
+  let peer = null;
+  let dataChannel = null;
+  let localStream = null;
+  let audioElement = null;
+  try {
+    peer = new window.RTCPeerConnection();
+    audioElement = document.createElement('audio');
+    audioElement.autoplay = true;
+    audioElement.hidden = true;
+    document.body?.appendChild(audioElement);
+    peer.ontrack = event => {
+      if (event.streams && event.streams[0]) audioElement.srcObject = event.streams[0];
+    };
+    peer.onconnectionstatechange = () => {
+      if (peer.connectionState === 'connected') {
+        state.voiceLabRealtimeActive = true;
+        setVoiceLabRealtimeStatus('Realtime bağlı. AI sekreter konuşmaya hazır.', 'success');
+      }
+      if (['failed','disconnected','closed'].includes(peer.connectionState)) {
+        stopVoiceLabRealtime({silent: peer.connectionState === 'closed'});
+      }
+      syncVoiceLabRealtimeControls();
+    };
+
+    localStream = await navigator.mediaDevices.getUserMedia({
+      audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true},
+    });
+    localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+    dataChannel = peer.createDataChannel('oai-events');
+    dataChannel.addEventListener('open', () => {
+      state.voiceLabRealtimeActive = true;
+      sendVoiceLabRealtimeGreeting(dataChannel);
+      setVoiceLabRealtimeStatus('Realtime bağlı. AI sekreter konuşmaya hazır.', 'success');
+      syncVoiceLabRealtimeControls();
+    });
+    dataChannel.addEventListener('message', onVoiceLabRealtimeEvent);
+    dataChannel.addEventListener('close', () => {
+      if (state.voiceLabRealtimeActive) setVoiceLabRealtimeStatus('Realtime veri kanalı kapandı.', 'warn');
+      syncVoiceLabRealtimeControls();
+    });
+
+    const offer = await peer.createOffer();
+    await peer.setLocalDescription(offer);
+    const answerSdp = await apiFetchSdp(buildVoiceLabRealtimePath(), offer.sdp);
+    await peer.setRemoteDescription({type: 'answer', sdp: answerSdp});
+
+    state.voiceLabRealtimePeer = peer;
+    state.voiceLabRealtimeDataChannel = dataChannel;
+    state.voiceLabRealtimeLocalStream = localStream;
+    state.voiceLabRealtimeAudioElement = audioElement;
+    setVoiceLabRealtimeStatus('Realtime bağlantısı kuruluyor.', 'info');
+  } catch (error) {
+    cleanupVoiceLabRealtimeResources({peer, dataChannel, localStream, audioElement});
+    setVoiceLabRealtimeStatus(error.message || 'Realtime bağlantısı başlatılamadı.', 'error');
+    notify(error.message || 'Realtime bağlantısı başlatılamadı.', 'error');
+  } finally {
+    state.voiceLabRealtimeConnecting = false;
+    syncVoiceLabRealtimeControls();
+  }
+}
+
+function sendVoiceLabRealtimeGreeting(dataChannel) {
+  if (!dataChannel || dataChannel.readyState !== 'open') return;
+  dataChannel.send(JSON.stringify({
+    type: 'response.create',
+    response: {
+      output_modalities: ['audio'],
+      instructions: getVoiceLabRealtimeGreetingInstruction(),
+    },
+  }));
+}
+
+function onVoiceLabRealtimeEvent(event) {
+  let payload = null;
+  try { payload = JSON.parse(event.data); } catch (_error) { return; }
+  if (payload.type === 'output_audio_buffer.started') {
+    setVoiceLabRealtimeStatus('AI sekreter konuşuyor.', 'success');
+  } else if (payload.type === 'output_audio_buffer.stopped' || payload.type === 'response.done') {
+    setVoiceLabRealtimeStatus('AI sekreter dinliyor.', 'info');
+  } else if (payload.type === 'error') {
+    setVoiceLabRealtimeStatus('Realtime oturumunda hata oluştu.', 'error');
+  }
+}
+
+function cleanupVoiceLabRealtimeResources(resources = {}) {
+  const dataChannel = resources.dataChannel || state.voiceLabRealtimeDataChannel;
+  const localStream = resources.localStream || state.voiceLabRealtimeLocalStream;
+  const peer = resources.peer || state.voiceLabRealtimePeer;
+  const audioElement = resources.audioElement || state.voiceLabRealtimeAudioElement;
+  try { dataChannel?.close(); } catch (_error) {}
+  try { localStream?.getTracks().forEach(track => track.stop()); } catch (_error) {}
+  try { peer?.close(); } catch (_error) {}
+  if (audioElement) {
+    try { audioElement.srcObject = null; } catch (_error) {}
+    if (typeof audioElement.remove === 'function') audioElement.remove();
+  }
+}
+
+function stopVoiceLabRealtime(options = {}) {
+  cleanupVoiceLabRealtimeResources();
+  state.voiceLabRealtimeActive = false;
+  state.voiceLabRealtimeConnecting = false;
+  state.voiceLabRealtimePeer = null;
+  state.voiceLabRealtimeDataChannel = null;
+  state.voiceLabRealtimeLocalStream = null;
+  state.voiceLabRealtimeAudioElement = null;
+  if (!options.silent) setVoiceLabRealtimeStatus('Realtime oturumu kapatıldı.', 'info');
+  syncVoiceLabRealtimeControls();
 }
 
 function voiceLabSpeechSupported() {
@@ -2613,6 +2876,7 @@ function findVoiceLabSpeechVoice(language) {
 function onVoiceLabLanguageChange() {
   populateVoiceLabVoiceOptions();
   syncVoiceLabSpeechControls();
+  syncVoiceLabRealtimeControls();
 }
 
 function onVoiceLabVoiceTuningChange(event) {
@@ -2832,10 +3096,13 @@ function renderVoiceLabSafety(result) {
     {label: result.tool_called ? 'Tool çağrıldı' : (result.tool_required ? 'Tool gerekli' : 'Tool gerekmedi'), cls: result.tool_called ? 'success' : (result.tool_required ? 'warn' : 'info')},
     {label: result.handoff_required ? 'İnsan devri' : 'İnsan devri yok', cls: result.handoff_required ? 'warn' : 'success'},
     {label: 'DB yazımı yok', cls: 'success'},
+    {label: 'Yerel ses kaydı yok', cls: 'success'},
+    {label: 'Realtime açıkken mikrofon OpenAI’a gider', cls: 'warn'},
     {label: result.result === 'BLOCKED' ? 'Güvenlik blokladı' : 'Güvenlik kontrolü', cls: result.result === 'BLOCKED' ? 'warn' : 'info'},
   ] : [
     {label: 'Canlı arama yok', cls: 'info'},
-    {label: 'Ses kaydı yok', cls: 'info'},
+    {label: 'Yerel ses kaydı yok', cls: 'success'},
+    {label: 'Realtime açıkken mikrofon OpenAI’a gider', cls: 'warn'},
     {label: 'DB yazımı yok', cls: 'info'},
     {label: 'PMS yazımı yok', cls: 'info'},
   ];

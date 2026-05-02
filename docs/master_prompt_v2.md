@@ -1130,6 +1130,14 @@ Kural: Native OpenAI tool call gelmez ama gecerli `INTERNAL_JSON.tool_calls` ici
 - Handoff gerekiyorsa sadece INTERNAL_JSON icinde `handoff.needed=true` olarak isaretlenir; gercek ticket veya bildirim uretilmez ve USER_MESSAGE icinde islem olusturulmus gibi davranilmaz.
 - Response validator bu modda teknik sizinti, bos mesaj ve operasyonel aksiyon vaadini engeller; preview metadata alanlari `history_used=false`, `history_created=false`, `persisted=false` olarak doner.
 
+### A13.2 Admin Voice Lab Realtime Mode
+- Admin paneldeki `#voicelab` Realtime modu canli WhatsApp veya canli santral akisi degildir; ses kalitesi ve dusuk gecikmeli telefon hissini test etmek icin kullanilir.
+- Realtime model varsayilani `OPENAI_REALTIME_MODEL=gpt-realtime-1.5`, ses varsayilani `OPENAI_REALTIME_VOICE=marin` olarak ayarlanir; `cedar` onayli alternatif sestir.
+- Tarayici WebRTC SDP teklifini Velox backend'e gonderir; backend OpenAI `/v1/realtime/calls` oturumunu server-side `OPENAI_API_KEY` ile kurar. Ana OpenAI API anahtari tarayiciya verilmez.
+- Realtime Voice Lab oturumu DB, PMS, WhatsApp, ticket, CRM veya rezervasyon yazimi olusturmaz.
+- Realtime talimatlari odeme/kart/CVV/OTP yasagini, fiyat/musaitlik/rezervasyon icin tool/human handoff zorunlulugunu ve AI oldugunu gizlememe kuralini korur.
+- Realtime testinde mikrofon sesi OpenAI'a aktarilir; Velox tarafinda yerel ses dosyasi veya gorusme kaydi tutulmaz.
+
 Her turda IKI PARCA uret:
 
 (1) USER_MESSAGE:

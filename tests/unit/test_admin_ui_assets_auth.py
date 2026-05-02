@@ -696,12 +696,20 @@ def test_admin_panel_exposes_voice_lab_view() -> None:
     assert 'id="voiceLabVoiceSelect"' in html
     assert 'id="voiceLabRate"' in html
     assert 'id="voiceLabPitch"' in html
+    assert 'id="voiceLabRealtimeVoice"' in html
+    assert 'id="voiceLabRealtimeStartButton"' in html
+    assert 'id="voiceLabRealtimeStopButton"' in html
     assert "loadVoiceLab" in ADMIN_PANEL_SCRIPT
     assert "/voice-lab/run" in ADMIN_PANEL_SCRIPT
     assert "/voice-lab/run-matrix" in ADMIN_PANEL_SCRIPT
+    assert "/voice-lab/realtime/session" in ADMIN_PANEL_SCRIPT
     assert "voiceLabScenarios" in ADMIN_PANEL_SCRIPT
     assert "SpeechSynthesisUtterance" in ADMIN_PANEL_SCRIPT
+    assert "RTCPeerConnection" in ADMIN_PANEL_SCRIPT
+    assert "apiFetchSdp" in ADMIN_PANEL_SCRIPT
+    assert "startVoiceLabRealtime" in ADMIN_PANEL_SCRIPT
     assert "VOICE_LAB_NATURAL_VOICE_HINTS" in ADMIN_PANEL_SCRIPT
+    assert "VOICE_LAB_REALTIME_VOICES" in ADMIN_PANEL_SCRIPT
     assert "populateVoiceLabVoiceOptions" in ADMIN_PANEL_SCRIPT
     assert "getVoiceLabSpeechRate" in ADMIN_PANEL_SCRIPT
     assert "getVoiceLabSpeechPitch" in ADMIN_PANEL_SCRIPT

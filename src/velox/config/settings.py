@@ -75,6 +75,8 @@ class Settings(BaseSettings):
     openai_fallback_model: str = "gpt-4o-mini"
     openai_max_tokens: int = 2048
     openai_temperature: float = 0.3
+    openai_realtime_model: str = "gpt-realtime-1.5"
+    openai_realtime_voice: str = "marin"
 
     # Operation Mode — controls outbound WhatsApp messaging behaviour.
     # "test":     system receives messages and generates replies but NEVER sends

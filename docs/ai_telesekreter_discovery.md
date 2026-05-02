@@ -165,6 +165,8 @@ Planlama bilgisi bu dosyaya, misafire soylenebilir otel gercegi ise `data/hotel_
 - Demo/admin paneline `Voice Lab` ekrani ve read-only API eklendi.
 - Demo/admin panelindeki `Voice Lab` ekranina tarayici tabanli ses onizleme eklendi; karsilama metni ve son mock yanit Turkce, Ingilizce veya Rusca secimine gore dinlenebilir.
 - Voice Lab ses onizlemesine tarayici ses tipi secimi, konusma hizi ve ton ayari eklendi. Bu ayar mevcut demo sesini denemek icindir; profesyonel ve daha gercekci final ses icin resmi neural TTS saglayici/model secimi henuz yapilmadi.
+- Profesyonel ses icin OpenAI Realtime `gpt-realtime-1.5` ana aday olarak secildi. Demo Voice Lab ekranina WebRTC tabanli OpenAI Realtime mikrofon oturumu eklendi; OpenAI API anahtari tarayiciya verilmez, SDP teklifi backend uzerinden `/v1/realtime/calls` endpoint'ine proxy edilir.
+- Realtime Voice Lab varsayilan sesi `marin`, alternatif kaliteli ses `cedar` olarak ayarlanabilir. Degerler `OPENAI_REALTIME_MODEL` ve `OPENAI_REALTIME_VOICE` ENV degiskenleriyle degistirilebilir.
 - V001-V018 senaryo matrisi kod tarafinda otomatik kosulabilir hale getirildi.
 - Test kapsami eklendi: fiyat/musaitlik tool zorunlulugu, otopark, Oludeniz plaj karakteri, odeme/taksit handoff, kart verisi maskeleme ve rezervasyon lookup tool zorunlulugu.
-- Canli Turkcell, gercek STT/TTS ve gercek PMS sorgusu henuz eklenmedi; bunlar Voice Lab temel kosulari stabil kaldiktan sonra ilerletilecek.
+- Canli Turkcell ve gercek PMS sorgusu henuz eklenmedi; Realtime ses testi demo/admin Voice Lab kapsamina alindi ve canli santral oncesi pilot olarak kullanilacak.

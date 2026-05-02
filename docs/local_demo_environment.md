@@ -46,6 +46,7 @@ cp .env.demo.example .env.demo.local
 Minimum kritik alanlar:
 
 - `OPENAI_API_KEY`
+- `OPENAI_REALTIME_MODEL` and `OPENAI_REALTIME_VOICE` when testing `Voice Lab` Realtime audio
 - `PHONE_HASH_SALT`
 - `ADMIN_JWT_SECRET`
 - `ADMIN_WEBHOOK_SECRET`
