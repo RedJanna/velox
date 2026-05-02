@@ -162,6 +162,7 @@ Planlama bilgisi bu dosyaya, misafire soylenebilir otel gercegi ise `data/hotel_
 
 - Voice Lab plan dosyasi olusturuldu: `docs/ai_telesekreter_voice_lab_plan.md`.
 - Ilk deterministik Voice Lab runner eklendi: `src/velox/voice_lab/`.
+- Demo/admin paneline `Voice Lab` ekrani ve read-only API eklendi.
 - V001-V018 senaryo matrisi kod tarafinda otomatik kosulabilir hale getirildi.
 - Test kapsami eklendi: fiyat/musaitlik tool zorunlulugu, otopark, Oludeniz plaj karakteri, odeme/taksit handoff, kart verisi maskeleme ve rezervasyon lookup tool zorunlulugu.
 - Canli Turkcell, gercek STT/TTS ve gercek PMS sorgusu henuz eklenmedi; bunlar Voice Lab temel kosulari stabil kaldiktan sonra ilerletilecek.

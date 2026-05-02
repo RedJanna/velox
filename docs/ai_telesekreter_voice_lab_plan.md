@@ -1,7 +1,7 @@
 # AI Telesekreter Voice Lab Plan
 
 > Son guncelleme: 2026-05-02
-> Durum: Birinci hafta teknik plan, test matrisi ve ilk mock runner
+> Durum: Birinci hafta teknik plan, test matrisi, ilk mock runner ve demo panel ekranı
 
 Bu dosya, Turkcell santrale canli baglanti yapmadan once Velox icinde kurulacak sesli test laboratuvarinin planidir. Amac, telefon AI'ini canli hatta almadan once guvenilirlik, cevap kaynagi, insan devri, ses kalitesi ve KVKK/GDPR davranisini kontrollu bicimde test etmektir.
 
@@ -300,17 +300,19 @@ Turkcell tarafinda su sorular netlesmeden canli entegrasyona gecilmez:
 Ilk mock runner tamamlandi:
 
 - Kod: `src/velox/voice_lab/`
+- Admin API: `src/velox/api/routes/admin_voice_lab.py`
+- Demo/admin ekranı: `Voice Lab` navigasyon sekmesi
 - Senaryo matrisi: `src/velox/voice_lab/scenarios.py`
 - Deterministik kosucu: `src/velox/voice_lab/runner.py`
 - Birim testleri: `tests/unit/test_voice_lab_runner.py`
 
-Mevcut runner, V001-V018 testlerini canli Turkcell, gercek STT/TTS veya PMS baglantisi olmadan calistirir. Fiyat, musaitlik ve rezervasyon kontrolu sorularinda tool zorunlulugunu isaretler; taksit, kur ve indirim sorularinda insan devri bekler; otopark, plaj ve konsept gibi cevaplari `HOTEL_PROFILE` kaynagindan uretir.
+Mevcut runner ve panel ekranı, V001-V018 testlerini canli Turkcell, gercek STT/TTS veya PMS baglantisi olmadan calistirir. Fiyat, musaitlik ve rezervasyon kontrolu sorularinda tool zorunlulugunu isaretler; taksit, kur ve indirim sorularinda insan devri bekler; otopark, plaj ve konsept gibi cevaplari `HOTEL_PROFILE` kaynagindan uretir.
 
 Sonraki teknik uygulama:
 
-1. `voice_lab` icin minimal backend endpoint veya CLI prototip karari.
-2. Ses dosyasi yukleme veya mikrofon girdisi secimi.
-3. STT -> Velox text pipeline -> TTS mock akisinin metin runner'a baglanmasi.
-4. Turkce disinda Ingilizce ve Rusca smoke senaryolarinin eklenmesi.
+1. Ses dosyasi yukleme veya mikrofon girdisi secimi.
+2. STT -> Velox text pipeline -> TTS mock akisinin metin runner'a baglanmasi.
+3. Turkce disinda Ingilizce ve Rusca smoke senaryolarinin eklenmesi.
+4. Voice Lab sonuc kayitlari icin saklama/erisim/silme politikasinin netlestirilmesi.
 
 Canli Turkcell santral entegrasyonu, Voice Lab temel testleri gecmeden baslamamalidir.

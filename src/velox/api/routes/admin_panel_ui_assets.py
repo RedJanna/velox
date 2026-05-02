@@ -102,7 +102,8 @@ button,input,select,textarea{font:inherit}
 .detail-list{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
 .qr-wrap{display:flex;justify-content:center;padding:10px;border:1px dashed var(--line);border-radius:14px;background:#fff}
 .qr-wrap img{width:190px;height:190px;max-width:100%;display:block}
-.section-grid{display:grid;gap:18px}
+.section-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;min-width:0}
+.section-grid > *{min-width:0}
 .card-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .overview-card h4{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .overview-card strong{display:block;margin-top:12px;font-size:34px;font-family:var(--serif);line-height:1}
@@ -270,6 +271,34 @@ tbody tr:hover{background:#fffcf7}
 .response-preview-tool-list{display:flex;flex-wrap:wrap;gap:8px;min-height:38px}
 .response-preview-tool-list .pill{max-width:100%;overflow-wrap:anywhere}
 .response-preview-diagnostics pre{max-height:280px;overflow:auto;margin:0;padding:12px;border:1px solid var(--line);border-radius:10px;background:#0f172a;color:#e2e8f0;font-size:12px;line-height:1.45}
+.voice-lab-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.voice-lab-kpi{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:0 10px 28px rgba(16,32,51,.04)}
+.voice-lab-kpi h4{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.voice-lab-kpi strong{display:block;margin-top:12px;font-size:32px;font-family:var(--serif);line-height:1}
+.voice-lab-kpi span{display:block;margin-top:8px;color:var(--muted);font-size:13px;line-height:1.45}
+.voice-lab-layout{display:grid;grid-template-columns:minmax(320px,.9fr) minmax(360px,1.1fr);gap:18px;align-items:start}
+.voice-lab-form{display:grid;gap:16px}
+.voice-lab-form textarea{min-height:230px;resize:vertical;line-height:1.45}
+.voice-lab-sample-list{display:flex;gap:8px;flex-wrap:wrap;margin-top:-4px}
+.voice-lab-sample-list button{border:1px solid var(--line);background:var(--surface-2);color:var(--ink);border-radius:999px;padding:8px 11px;font-size:12px;font-weight:800;cursor:pointer;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.voice-lab-sample-list button:hover{border-color:rgba(15,118,110,.36);box-shadow:0 8px 18px rgba(15,118,110,.08);transform:translateY(-1px)}
+.voice-lab-options{gap:12px}
+.voice-lab-actions{display:flex;gap:10px;flex-wrap:wrap}
+.voice-lab-safety{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.voice-lab-safety span{border:1px solid var(--line);background:#f8fafc;color:var(--muted);border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700}
+.voice-lab-safety span.success{background:#ecfdf5;color:var(--ok);border-color:rgba(22,101,52,.18)}
+.voice-lab-safety span.warn{background:#fff7ed;color:var(--warn);border-color:rgba(180,83,9,.18)}
+.voice-lab-safety span.info{background:#e8f3f1;color:#115e59;border-color:rgba(15,118,110,.18)}
+.voice-lab-result-panel{min-height:420px}
+.voice-lab-result-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.voice-lab-result-block{padding:14px 16px;border-radius:18px;background:var(--surface-2);border:1px solid var(--line)}
+.voice-lab-result-block strong{display:block;margin-bottom:6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.voice-lab-result-block span{font-weight:800;color:var(--ink);overflow-wrap:anywhere}
+.voice-lab-response{padding:16px;border:1px solid var(--line);border-radius:14px;background:#fff;white-space:pre-wrap;line-height:1.55;margin-bottom:14px}
+.voice-lab-violations{display:flex;flex-direction:column;gap:8px}
+.voice-lab-violation{padding:10px 12px;border-radius:14px;background:#fff4f3;border:1px solid rgba(180,35,24,.18);color:#7f1d1d;font-size:13px;line-height:1.45}
+.voice-lab-table-shell table{min-width:760px}
+.voice-lab-status-cell{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .response-translation-dialog{max-width:760px;width:min(94vw,760px)}
 .response-translation-card{display:grid;gap:16px}
 .response-translation-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
@@ -378,8 +407,12 @@ tbody tr:hover{background:#fffcf7}
 @media(max-width:1240px){
   .card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .split,.auth-grid,.access-control-layout,.access-control-main{grid-template-columns:1fr}
+  .voice-lab-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .voice-lab-layout{grid-template-columns:1fr}
+  .voice-lab-table-shell{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
 }
 @media(max-width:980px){
+  html,body{overflow-x:hidden}
   body{padding:12px}.shell{grid-template-columns:1fr}
   .sidebar{position:fixed;left:12px;top:12px;bottom:12px;z-index:70;width:min(86vw,320px);padding:18px;border-radius:24px;transform:translateX(-112%);transition:transform .2s ease}
   .sidebar.is-open{transform:translateX(0)}
@@ -388,7 +421,7 @@ tbody tr:hover{background:#fffcf7}
   .topbar-aside{justify-content:flex-start}
   .table-shell{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
   .table-shell table{min-width:640px}
-  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid,.debug-summary-grid,.debug-layout,.response-preview-layout,.response-preview-diagnostics,.access-toggle-grid,.access-user-controls{grid-template-columns:1fr}
+  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid,.debug-summary-grid,.debug-layout,.response-preview-layout,.response-preview-diagnostics,.voice-lab-summary-grid,.voice-lab-layout,.voice-lab-result-grid,.access-toggle-grid,.access-user-controls{grid-template-columns:1fr}
   .topbar{padding:18px 20px;border-radius:24px;flex-direction:column}
   .card-grid{grid-template-columns:1fr}
   .status-strip{grid-template-columns:1fr}
@@ -407,7 +440,15 @@ const LIVE_REFRESH_INTERVAL_MS = 3000;
 const VIEW_PERMISSIONS = {
   accesscontrol: 'access_control:read',
   responsewindow: 'conversations:read',
+  voicelab: 'conversations:read',
 };
+
+function normalizeAdminViewKey(value) {
+  const normalized = String(value || 'dashboard').replace('#', '').trim().toLowerCase();
+  if (normalized === 'access-control') return 'accesscontrol';
+  if (normalized === 'voice-lab') return 'voicelab';
+  return normalized || 'dashboard';
+}
 
 const state = {
   me: null,
@@ -415,9 +456,7 @@ const state = {
   bootstrapPending: null,
   hotels: [],
   selectedHotelId: window.localStorage.getItem(HOTEL_KEY) || '',
-  currentView: ((window.location.hash || '#dashboard').replace('#', '').toLowerCase() === 'access-control'
-    ? 'accesscontrol'
-    : (window.location.hash || '#dashboard').replace('#', '')),
+  currentView: normalizeAdminViewKey(window.location.hash || '#dashboard'),
   lastDebugSourceView: 'dashboard',
   dashboard: null,
   conversations: [],
@@ -502,6 +541,11 @@ const state = {
   debugBrowserScanTarget: '',
   responsePreviewResult: null,
   responsePreviewLoading: false,
+  voiceLabScenarios: [],
+  voiceLabResult: null,
+  voiceLabMatrixResults: [],
+  voiceLabMatrixSummary: null,
+  voiceLabLoading: false,
   refreshPromise: null,
   liveRefreshHandle: null,
   _authKeepAliveTimer: null,
@@ -557,6 +601,10 @@ function bindRefs() {
     'responsePreviewSafety','responsePreviewReply','responsePreviewMeta','responsePreviewTranslate','responsePreviewCopy',
     'responsePreviewToolList','responsePreviewInternalJson','responsePreviewTranslationDialog',
     'responsePreviewTranslationTitle','responsePreviewTranslationMeta','responsePreviewTranslationBody','responsePreviewTranslationClose',
+    'voiceLabSummaryCards','voiceLabTotalCount','voiceLabPassedCount','voiceLabFailedCount','voiceLabBlockedCount',
+    'voiceLabForm','voiceLabTranscript','voiceLabSampleList','voiceLabScenario','voiceLabLanguage',
+    'voiceLabRunButton','voiceLabRunMatrixButton','voiceLabClearButton','voiceLabSafety','voiceLabResultMeta',
+    'voiceLabResultBadge','voiceLabResultPanel','voiceLabMatrixBadge','voiceLabMatrixBody',
     'logoutButton','reloadButton','decisionDialog','decisionForm','decisionTitle','decisionLead','decisionReason',
     'decisionHoldId','decisionMode'
   ].forEach(id => refs[id] = document.getElementById(id));
@@ -601,6 +649,11 @@ function bindEvents() {
   refs.responsePreviewTranslate?.addEventListener('click', openResponsePreviewTranslation);
   refs.responsePreviewTranslationClose?.addEventListener('click', closeResponsePreviewTranslation);
   refs.responsePreviewCopy?.addEventListener('click', copyResponsePreviewReply);
+  refs.voiceLabForm?.addEventListener('submit', onVoiceLabSubmit);
+  refs.voiceLabSampleList?.addEventListener('click', onVoiceLabSampleClick);
+  refs.voiceLabScenario?.addEventListener('change', onVoiceLabScenarioChange);
+  refs.voiceLabRunMatrixButton?.addEventListener('click', runVoiceLabMatrix);
+  refs.voiceLabClearButton?.addEventListener('click', clearVoiceLab);
   refs.reloadButton?.addEventListener('click', reloadConfig);
   refs.logoutButton?.addEventListener('click', logout);
   refs.conversationFilters?.addEventListener('submit', event => {
@@ -681,8 +734,7 @@ function bindEvents() {
     }
   });
   window.addEventListener('hashchange', () => {
-    const rawView = window.location.hash.replace('#', '') || 'dashboard';
-    const newView = String(rawView).toLowerCase() === 'access-control' ? 'accesscontrol' : rawView;
+    const newView = normalizeAdminViewKey(window.location.hash || '#dashboard');
     if (newView !== state.currentView) {
       setView(newView);
     }
@@ -1196,6 +1248,7 @@ function showPanel() {
 }
 
 function setView(view) {
+  view = normalizeAdminViewKey(view);
   if (state.me && VIEW_PERMISSIONS[view] && !hasPermission(VIEW_PERMISSIONS[view])) {
     notify('Bu bölümü görüntüleme yetkiniz bulunmuyor.', 'warn');
     view = 'dashboard';
@@ -1227,6 +1280,7 @@ function setView(view) {
     accesscontrol: ['Rol ve Yetkiler', 'Kullanıcı, rol, departman ve pencere bazlı işlem izinlerini aynı ekranda yönetin.'],
     system: ['Sistem Durumu', 'Sunucu sağlığı, alan adı ve güvenlik ayarlarını kontrol edin.'],
     responsewindow: ['Yanıt Penceresi', 'Tek müşteri sorusuna otel verisiyle geçmişsiz yanıt üretin.'],
+    voicelab: ['Voice Lab', 'Telefon senaryolarını canlı hatta çıkmadan kaynak, aksiyon ve güvenlik açısından ölçün.'],
     chatlab: ['Test Paneli', 'Yapay zekâyı canlı test edin, puanlayın ve raporlayın.'],
     debug: ['Hata Raporları', 'Canlı panelde başlatılan yalnızca raporlama amaçlı taramaların bulgularını inceleyin.'],
   }[view] || ['Yönetim Paneli', 'Yönetim merkezi'];
@@ -1249,6 +1303,7 @@ function setView(view) {
   if (view === 'accesscontrol') loadAccessControl();
   if (view === 'system') loadSystemOverview();
   if (view === 'responsewindow') loadResponsePreview();
+  if (view === 'voicelab') loadVoiceLab();
   if (view === 'chatlab') loadChatLab();
   if (view === 'debug') loadDebugRunsSafely({preserveSelection: true}, {notifyOnError: true});
   scheduleLiveRefresh();
@@ -1290,6 +1345,9 @@ function onHotelScopeChange() {
   refs.hotelProfileSelect.value = refs.hotelSelect.value;
   window.localStorage.setItem(HOTEL_KEY, state.selectedHotelId);
   refs.hotelScope.textContent = state.selectedHotelId || '-';
+  state.voiceLabResult = null;
+  state.voiceLabMatrixResults = [];
+  state.voiceLabMatrixSummary = null;
   setView(state.currentView);
 }
 
@@ -2131,6 +2189,316 @@ function renderDebugArtifacts() {
       `).join('')}
     </div>
   `;
+}
+
+async function loadVoiceLab() {
+  renderVoiceLabSummary();
+  renderVoiceLabResult();
+  renderVoiceLabMatrix();
+  if (state.voiceLabScenarios.length) {
+    renderVoiceLabScenarioOptions();
+    return;
+  }
+  try {
+    const response = await apiFetch('/voice-lab/scenarios');
+    state.voiceLabScenarios = Array.isArray(response.items) ? response.items : [];
+    renderVoiceLabScenarioOptions();
+    renderVoiceLabSummary();
+    renderVoiceLabMatrix();
+  } catch (error) {
+    notify(error.message, 'error');
+  }
+}
+
+function renderVoiceLabScenarioOptions() {
+  if (!refs.voiceLabScenario) return;
+  const currentValue = refs.voiceLabScenario.value || '';
+  const options = ['<option value="">Otomatik eşleştir</option>'].concat(
+    state.voiceLabScenarios.map(item => (
+      `<option value="${escapeHtml(item.scenario_id || '')}">${escapeHtml(item.scenario_id || '-')} · ${escapeHtml(item.expected_intent || '-')}</option>`
+    ))
+  );
+  refs.voiceLabScenario.innerHTML = options.join('');
+  if (currentValue && state.voiceLabScenarios.some(item => item.scenario_id === currentValue)) {
+    refs.voiceLabScenario.value = currentValue;
+  }
+}
+
+function findVoiceLabScenario(scenarioId) {
+  return state.voiceLabScenarios.find(item => item.scenario_id === scenarioId) || null;
+}
+
+function onVoiceLabScenarioChange() {
+  const scenario = findVoiceLabScenario(refs.voiceLabScenario?.value || '');
+  if (!scenario) return;
+  if (refs.voiceLabTranscript) {
+    refs.voiceLabTranscript.value = scenario.sample_input || '';
+    refs.voiceLabTranscript.focus();
+  }
+}
+
+function onVoiceLabSampleClick(event) {
+  const target = event.target.closest('[data-voice-sample]');
+  if (!target || !refs.voiceLabSampleList?.contains(target)) return;
+  const scenario = findVoiceLabScenario(target.dataset.voiceSample || '');
+  if (!scenario) {
+    notify('Senaryo listesi henüz yüklenmedi.', 'warn');
+    return;
+  }
+  if (refs.voiceLabScenario) refs.voiceLabScenario.value = scenario.scenario_id || '';
+  if (refs.voiceLabTranscript) {
+    refs.voiceLabTranscript.value = scenario.sample_input || '';
+    refs.voiceLabTranscript.focus();
+  }
+  state.voiceLabResult = null;
+  renderVoiceLabResult();
+}
+
+async function onVoiceLabSubmit(event) {
+  event.preventDefault();
+  const transcript = String(refs.voiceLabTranscript?.value || '').trim();
+  if (!transcript) {
+    notify('Arama transkripti zorunludur.', 'warn');
+    return;
+  }
+  if (!state.selectedHotelId) {
+    notify('Lütfen bir otel seçin.', 'warn');
+    return;
+  }
+
+  setVoiceLabLoading(true);
+  try {
+    state.voiceLabResult = await apiFetch('/voice-lab/run', {
+      method: 'POST',
+      body: {
+        hotel_id: Number(state.selectedHotelId),
+        transcript,
+        language: getVoiceLabLanguage(),
+        scenario_id: String(refs.voiceLabScenario?.value || '') || null,
+      },
+    });
+    renderVoiceLabResult();
+    renderVoiceLabSummary();
+    notify('Voice Lab senaryosu çalıştırıldı.', 'success');
+  } catch (error) {
+    notify(error.message, 'error');
+  } finally {
+    setVoiceLabLoading(false);
+  }
+}
+
+async function runVoiceLabMatrix() {
+  if (!state.selectedHotelId) {
+    notify('Lütfen bir otel seçin.', 'warn');
+    return;
+  }
+  setVoiceLabLoading(true);
+  try {
+    const response = await apiFetch('/voice-lab/run-matrix', {
+      method: 'POST',
+      body: {
+        hotel_id: Number(state.selectedHotelId),
+        language: getVoiceLabLanguage(),
+      },
+    });
+    state.voiceLabMatrixSummary = response.summary || null;
+    state.voiceLabMatrixResults = Array.isArray(response.items) ? response.items : [];
+    state.voiceLabResult = state.voiceLabMatrixResults[0] || state.voiceLabResult;
+    renderVoiceLabSummary();
+    renderVoiceLabResult();
+    renderVoiceLabMatrix();
+    notify('Voice Lab matrisi çalıştırıldı.', 'success');
+  } catch (error) {
+    notify(error.message, 'error');
+  } finally {
+    setVoiceLabLoading(false);
+  }
+}
+
+function clearVoiceLab() {
+  if (refs.voiceLabTranscript) refs.voiceLabTranscript.value = '';
+  if (refs.voiceLabScenario) refs.voiceLabScenario.value = '';
+  state.voiceLabResult = null;
+  state.voiceLabMatrixResults = [];
+  state.voiceLabMatrixSummary = null;
+  renderVoiceLabSummary();
+  renderVoiceLabResult();
+  renderVoiceLabMatrix();
+}
+
+function setVoiceLabLoading(isLoading) {
+  state.voiceLabLoading = isLoading;
+  if (refs.voiceLabRunButton) {
+    refs.voiceLabRunButton.disabled = isLoading;
+    refs.voiceLabRunButton.textContent = isLoading ? 'Çalıştırılıyor...' : 'Senaryoyu Çalıştır';
+  }
+  if (refs.voiceLabRunMatrixButton) {
+    refs.voiceLabRunMatrixButton.disabled = isLoading;
+    refs.voiceLabRunMatrixButton.textContent = isLoading ? 'Matris Çalışıyor...' : 'Tüm Matrisi Çalıştır';
+  }
+}
+
+function getVoiceLabLanguage() {
+  const normalized = String(refs.voiceLabLanguage?.value || 'tr').trim().toLowerCase();
+  return ['tr','en','ru'].includes(normalized) ? normalized : 'tr';
+}
+
+function renderVoiceLabSummary() {
+  const matrixSummary = state.voiceLabMatrixSummary;
+  const singleResult = state.voiceLabResult;
+  const fallbackTotal = state.voiceLabScenarios.length || 18;
+  const summary = matrixSummary || (singleResult ? {
+    total: 1,
+    passed: singleResult.result === 'PASS' ? 1 : 0,
+    failed: singleResult.result === 'FAIL' ? 1 : 0,
+    blocked: singleResult.result === 'BLOCKED' ? 1 : 0,
+  } : {total: fallbackTotal, passed: 0, failed: 0, blocked: 0});
+  if (refs.voiceLabTotalCount) refs.voiceLabTotalCount.textContent = String(summary.total || 0);
+  if (refs.voiceLabPassedCount) refs.voiceLabPassedCount.textContent = String(summary.passed || 0);
+  if (refs.voiceLabFailedCount) refs.voiceLabFailedCount.textContent = String(summary.failed || 0);
+  if (refs.voiceLabBlockedCount) refs.voiceLabBlockedCount.textContent = String(summary.blocked || 0);
+  if (refs.voiceLabMatrixBadge) {
+    refs.voiceLabMatrixBadge.className = `pill ${voiceLabResultClass((summary.failed || summary.blocked) ? 'FAIL' : (summary.passed ? 'PASS' : 'UNKNOWN'))}`;
+    refs.voiceLabMatrixBadge.textContent = matrixSummary ? `${summary.passed || 0}/${summary.total || 0} geçti` : 'Henüz koşulmadı';
+  }
+}
+
+function renderVoiceLabResult() {
+  const result = state.voiceLabResult;
+  if (!result) {
+    if (refs.voiceLabResultBadge) {
+      refs.voiceLabResultBadge.className = 'pill info';
+      refs.voiceLabResultBadge.textContent = 'Bekliyor';
+    }
+    if (refs.voiceLabResultMeta) refs.voiceLabResultMeta.textContent = 'Henüz senaryo çalıştırılmadı.';
+    if (refs.voiceLabResultPanel) {
+      refs.voiceLabResultPanel.innerHTML = `
+        <div class="empty-state">
+          <h4>Seçim bekleniyor</h4>
+          <p>Bir senaryo çalıştırıldığında kaynak, aksiyon, cevap ve ihlal listesi burada görünür.</p>
+        </div>
+      `;
+    }
+    renderVoiceLabSafety(null);
+    setVoiceLabLoading(Boolean(state.voiceLabLoading));
+    return;
+  }
+
+  if (refs.voiceLabResultBadge) {
+    refs.voiceLabResultBadge.className = `pill ${voiceLabResultClass(result.result)}`;
+    refs.voiceLabResultBadge.textContent = formatVoiceLabResult(result.result);
+  }
+  if (refs.voiceLabResultMeta) {
+    refs.voiceLabResultMeta.textContent = [
+      result.scenario_id || 'Otomatik',
+      `${result.latency_ms?.total || 0} ms`,
+      formatVoiceLabSource(result.source_type),
+      result.handoff_required ? 'insan devri' : 'self-servis',
+    ].join(' · ');
+  }
+  if (refs.voiceLabResultPanel) {
+    const violations = Array.isArray(result.violations) ? result.violations : [];
+    refs.voiceLabResultPanel.innerHTML = `
+      <div class="voice-lab-result-grid">
+        <div class="voice-lab-result-block"><strong>Niyet</strong><span>${escapeHtml(result.intent || '-')}</span></div>
+        <div class="voice-lab-result-block"><strong>Kaynak</strong><span>${escapeHtml(formatVoiceLabSource(result.source_type))}</span></div>
+        <div class="voice-lab-result-block"><strong>Aksiyon</strong><span>${escapeHtml(formatVoiceLabAction(result.action))}</span></div>
+        <div class="voice-lab-result-block"><strong>Araç</strong><span>${escapeHtml(result.tool_name || (result.tool_required ? 'tool gerekli' : '-'))}</span></div>
+      </div>
+      <div class="voice-lab-response">${escapeHtml(result.response_text || '-')}</div>
+      <div class="voice-lab-result-grid">
+        <div class="voice-lab-result-block"><strong>Risk Flag</strong><span>${escapeHtml((result.risk_flags || []).join(', ') || '-')}</span></div>
+        <div class="voice-lab-result-block"><strong>Kaynak Detayı</strong><span>${escapeHtml(result.source_detail || '-')}</span></div>
+      </div>
+      ${renderVoiceLabViolations(violations)}
+    `;
+  }
+  renderVoiceLabSafety(result);
+  setVoiceLabLoading(Boolean(state.voiceLabLoading));
+}
+
+function renderVoiceLabViolations(violations) {
+  if (!violations.length) {
+    return '<div class="voice-lab-violations"><span class="pill success">İhlal yok</span></div>';
+  }
+  return `
+    <div class="voice-lab-violations">
+      ${violations.map(item => `<div class="voice-lab-violation">${escapeHtml(item)}</div>`).join('')}
+    </div>
+  `;
+}
+
+function renderVoiceLabMatrix() {
+  if (!refs.voiceLabMatrixBody) return;
+  const items = state.voiceLabMatrixResults;
+  if (!items.length && !state.voiceLabScenarios.length) {
+    refs.voiceLabMatrixBody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>Matris koşusu bekleniyor.</p></div></td></tr>';
+    return;
+  }
+  if (!items.length) {
+    refs.voiceLabMatrixBody.innerHTML = state.voiceLabScenarios.map(item => `
+      <tr>
+        <td><strong>${escapeHtml(item.scenario_id || '-')}</strong></td>
+        <td><span class="pill info">Bekliyor</span></td>
+        <td>${escapeHtml(item.expected_intent || '-')}</td>
+        <td>${escapeHtml(formatVoiceLabSource(item.expected_source))}</td>
+        <td>${escapeHtml(formatVoiceLabAction(item.expected_action))}</td>
+        <td><span class="muted">-</span></td>
+      </tr>
+    `).join('');
+    return;
+  }
+  refs.voiceLabMatrixBody.innerHTML = items.map(item => {
+    const violationText = (item.violations || []).join(' | ') || '-';
+    return `
+      <tr>
+        <td><strong>${escapeHtml(item.scenario_id || '-')}</strong></td>
+        <td><div class="voice-lab-status-cell"><span class="pill ${voiceLabResultClass(item.result)}">${escapeHtml(formatVoiceLabResult(item.result))}</span></div></td>
+        <td>${escapeHtml(item.intent || '-')}</td>
+        <td>${escapeHtml(formatVoiceLabSource(item.source_type))}</td>
+        <td>${escapeHtml(formatVoiceLabAction(item.action))}</td>
+        <td><span class="muted">${escapeHtml(violationText)}</span></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderVoiceLabSafety(result) {
+  if (!refs.voiceLabSafety) return;
+  const badges = result ? [
+    {label: result.tool_called ? 'Tool çağrıldı' : (result.tool_required ? 'Tool gerekli' : 'Tool gerekmedi'), cls: result.tool_called ? 'success' : (result.tool_required ? 'warn' : 'info')},
+    {label: result.handoff_required ? 'İnsan devri' : 'İnsan devri yok', cls: result.handoff_required ? 'warn' : 'success'},
+    {label: 'DB yazımı yok', cls: 'success'},
+    {label: result.result === 'BLOCKED' ? 'Güvenlik blokladı' : 'Güvenlik kontrolü', cls: result.result === 'BLOCKED' ? 'warn' : 'info'},
+  ] : [
+    {label: 'Canlı arama yok', cls: 'info'},
+    {label: 'Ses kaydı yok', cls: 'info'},
+    {label: 'DB yazımı yok', cls: 'info'},
+    {label: 'PMS yazımı yok', cls: 'info'},
+  ];
+  refs.voiceLabSafety.innerHTML = badges.map(item => `<span class="${escapeHtml(item.cls)}">${escapeHtml(item.label)}</span>`).join('');
+}
+
+function voiceLabResultClass(value) {
+  if (value === 'PASS') return 'success';
+  if (value === 'FAIL') return 'danger';
+  if (value === 'BLOCKED') return 'warn';
+  return 'info';
+}
+
+function formatVoiceLabResult(value) {
+  const labels = {PASS: 'Geçti', FAIL: 'Başarısız', BLOCKED: 'Bloke', UNKNOWN: 'Bekliyor'};
+  return labels[String(value || 'UNKNOWN').toUpperCase()] || 'Bekliyor';
+}
+
+function formatVoiceLabSource(value) {
+  const labels = {HOTEL_PROFILE: 'HOTEL_PROFILE', TOOL: 'Tool', HANDOFF: 'İnsan Devri', UNKNOWN: 'Bilinmiyor'};
+  return labels[String(value || 'UNKNOWN').toUpperCase()] || String(value || '-');
+}
+
+function formatVoiceLabAction(value) {
+  const labels = {answer: 'Cevap', tool_required: 'Tool Gerekli', handoff: 'İnsan Devri', clarify: 'Netleştirme'};
+  return labels[String(value || '')] || String(value || '-');
 }
 
 function loadResponsePreview() {

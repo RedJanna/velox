@@ -69,8 +69,9 @@ def render_admin_panel_html() -> str:
         <button data-nav="whatsappapi"><span class="nav-label"><strong>WhatsApp Bağlantısı</strong><span>Meta bağlantısı ve şablonlar</span></span><span>10</span></button>
         <button data-nav="system"><span class="nav-label"><strong>Sistem Durumu</strong><span>Sunucu ve bağlantı kontrolleri</span></span><span>11</span></button>
         <button data-nav="responsewindow"><span class="nav-label"><strong>Yanıt Penceresi</strong><span>Tek soru yanıt önizleme</span></span><span>12</span></button>
-        <button data-nav="chatlab"><span class="nav-label"><strong>Test Paneli</strong><span>Canlı test ve değerlendirme</span></span><span>13</span></button>
-        <button data-nav="debug"><span class="nav-label"><strong>Hata Raporları</strong><span>Canlı tarama bulguları</span></span><span>14</span></button>
+        <button data-nav="voicelab"><span class="nav-label"><strong>Voice Lab</strong><span>Telefon senaryo testleri</span></span><span>13</span></button>
+        <button data-nav="chatlab"><span class="nav-label"><strong>Test Paneli</strong><span>Canlı test ve değerlendirme</span></span><span>14</span></button>
+        <button data-nav="debug"><span class="nav-label"><strong>Hata Raporları</strong><span>Canlı tarama bulguları</span></span><span>15</span></button>
       </nav>
 
       <section class="sidebar-card">
@@ -1261,6 +1262,110 @@ def render_admin_panel_html() -> str:
               </div>
             </article>
           </div>
+        </section>
+
+        <section data-view="voicelab" class="section-grid" hidden>
+          <div class="voice-lab-summary-grid" id="voiceLabSummaryCards" aria-live="polite">
+            <article class="voice-lab-kpi"><h4>Toplam Senaryo</h4><strong id="voiceLabTotalCount">18</strong><span>V001-V018 matrisi</span></article>
+            <article class="voice-lab-kpi"><h4>Geçen</h4><strong id="voiceLabPassedCount">0</strong><span>Son koşu sonucu</span></article>
+            <article class="voice-lab-kpi"><h4>Başarısız</h4><strong id="voiceLabFailedCount">0</strong><span>Kaynak veya aksiyon ihlali</span></article>
+            <article class="voice-lab-kpi"><h4>Bloke</h4><strong id="voiceLabBlockedCount">0</strong><span>Güvenlik veya kapsam dışı</span></article>
+          </div>
+
+          <div class="voice-lab-layout">
+            <article class="module-card voice-lab-input-card">
+              <div class="module-header">
+                <div>
+                  <h3>Telefon Senaryosu</h3>
+                  <p>Canlı hatta çıkmadan önce metin transkriptiyle kaynak, aksiyon ve güvenlik davranışını ölçün.</p>
+                </div>
+                <span class="pill info">Mock</span>
+              </div>
+              <form id="voiceLabForm" class="voice-lab-form">
+                <div class="field full">
+                  <label for="voiceLabTranscript">Arama transkripti</label>
+                  <textarea id="voiceLabTranscript" name="transcript" rows="9" maxlength="4000" placeholder="Örn. Kredi kartı için taksitlendirme uyguluyor musunuz?"></textarea>
+                </div>
+                <div class="voice-lab-sample-list" id="voiceLabSampleList" aria-label="Voice Lab hızlı senaryolar">
+                  <button type="button" data-voice-sample="V001">Fiyat</button>
+                  <button type="button" data-voice-sample="V005">Müsaitlik</button>
+                  <button type="button" data-voice-sample="V009">Taksit</button>
+                  <button type="button" data-voice-sample="V011">Otopark</button>
+                  <button type="button" data-voice-sample="V018">Ölüdeniz</button>
+                </div>
+                <div class="field-grid voice-lab-options">
+                  <div class="field">
+                    <label for="voiceLabScenario">Senaryo</label>
+                    <select id="voiceLabScenario" name="scenario_id">
+                      <option value="">Otomatik eşleştir</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="voiceLabLanguage">Dil</label>
+                    <select id="voiceLabLanguage" name="language">
+                      <option value="tr">Türkçe</option>
+                      <option value="en">İngilizce</option>
+                      <option value="ru">Rusça</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="voice-lab-actions">
+                  <button id="voiceLabRunButton" class="action-button primary" type="submit">Senaryoyu Çalıştır</button>
+                  <button id="voiceLabRunMatrixButton" class="action-button secondary" type="button">Tüm Matrisi Çalıştır</button>
+                  <button id="voiceLabClearButton" class="action-button secondary" type="button">Temizle</button>
+                </div>
+              </form>
+              <div id="voiceLabSafety" class="voice-lab-safety">
+                <span>Canlı arama yok</span>
+                <span>Ses kaydı yok</span>
+                <span>DB yazımı yok</span>
+                <span>PMS yazımı yok</span>
+              </div>
+            </article>
+
+            <article class="module-card voice-lab-result-card">
+              <div class="module-header">
+                <div>
+                  <h3>Koşu Sonucu</h3>
+                  <p id="voiceLabResultMeta">Henüz senaryo çalıştırılmadı.</p>
+                </div>
+                <span id="voiceLabResultBadge" class="pill info">Bekliyor</span>
+              </div>
+              <div id="voiceLabResultPanel" class="voice-lab-result-panel" aria-live="polite">
+                <div class="empty-state">
+                  <h4>Seçim bekleniyor</h4>
+                  <p>Bir senaryo çalıştırıldığında kaynak, aksiyon, cevap ve ihlal listesi burada görünür.</p>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <article class="module-card voice-lab-matrix-card">
+            <div class="module-header">
+              <div>
+                <h3>Senaryo Matrisi</h3>
+                <p>V001-V018 koşularının son durumu, kaynak/aksiyon ve hata ayrıntıları.</p>
+              </div>
+              <span id="voiceLabMatrixBadge" class="pill info">Henüz koşulmadı</span>
+            </div>
+            <div class="table-shell voice-lab-table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Durum</th>
+                    <th>Niyet</th>
+                    <th>Kaynak</th>
+                    <th>Aksiyon</th>
+                    <th>İhlal</th>
+                  </tr>
+                </thead>
+                <tbody id="voiceLabMatrixBody">
+                  <tr><td colspan="6"><div class="empty-state"><p>Matris koşusu bekleniyor.</p></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
         </section>
 
         <section data-view="chatlab" class="section-grid" hidden>

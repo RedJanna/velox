@@ -26,6 +26,7 @@ from velox.api.routes import (
     admin_portal,
     admin_response_preview,
     admin_session,
+    admin_voice_lab,
     admin_webhook,
     admin_whatsapp,
     confirmation_forms,
@@ -238,6 +239,7 @@ app.include_router(admin_holds.router, prefix="/api/v1")
 app.include_router(admin_portal.router, prefix="/api/v1")
 app.include_router(admin_response_preview.router, prefix="/api/v1")
 app.include_router(admin_session.router, prefix="/api/v1")
+app.include_router(admin_voice_lab.router, prefix="/api/v1")
 app.include_router(admin_whatsapp.router, prefix="/api/v1")
 app.include_router(confirmation_forms.admin_router, prefix="/api/v1")
 app.include_router(whatsapp_webhook.router, prefix="/api/v1")

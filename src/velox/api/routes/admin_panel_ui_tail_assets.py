@@ -4894,6 +4894,11 @@ function clearClientSession() {
   state.stayProfileRoomTypes = [];
   state.responsePreviewResult = null;
   state.responsePreviewLoading = false;
+  state.voiceLabScenarios = [];
+  state.voiceLabResult = null;
+  state.voiceLabMatrixResults = [];
+  state.voiceLabMatrixSummary = null;
+  state.voiceLabLoading = false;
   stopAuthKeepAlive();
 }
 

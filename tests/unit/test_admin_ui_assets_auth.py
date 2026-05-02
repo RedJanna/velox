@@ -664,9 +664,24 @@ def test_response_window_translation_overlay_markup_is_present() -> None:
 def test_response_window_translation_script_is_history_free() -> None:
     assert "getResponsePreviewTranslation" in ADMIN_PANEL_SCRIPT
     assert "openResponsePreviewTranslation" in ADMIN_PANEL_SCRIPT
-    assert "refs.responsePreviewTranslate?.addEventListener('click', openResponsePreviewTranslation)" in ADMIN_PANEL_SCRIPT
+    assert (
+        "refs.responsePreviewTranslate?.addEventListener('click', openResponsePreviewTranslation)"
+        in ADMIN_PANEL_SCRIPT
+    )
     assert "translation?.available" in ADMIN_PANEL_SCRIPT
     assert "sourceLanguage === 'tr'" in ADMIN_PANEL_SCRIPT
+
+
+def test_admin_panel_exposes_voice_lab_view() -> None:
+    html = render_admin_panel_html()
+
+    assert 'data-nav="voicelab"' in html
+    assert 'data-view="voicelab"' in html
+    assert 'id="voiceLabForm"' in html
+    assert "loadVoiceLab" in ADMIN_PANEL_SCRIPT
+    assert "/voice-lab/run" in ADMIN_PANEL_SCRIPT
+    assert "/voice-lab/run-matrix" in ADMIN_PANEL_SCRIPT
+    assert "voiceLabScenarios" in ADMIN_PANEL_SCRIPT
 
 
 def test_admin_panel_contains_access_control_view() -> None:
@@ -714,10 +729,17 @@ def test_admin_panel_script_loads_hotel_facts_status_and_publish_actions() -> No
     assert "data-access-edit-permissions" in ADMIN_PANEL_SCRIPT
     assert "Giriş yaptığınız hesap" in ADMIN_PANEL_SCRIPT
     assert "İzinleri Görüntüle" in ADMIN_PANEL_SCRIPT
-    assert "rol değişikliği için önce ikinci bir yönetici hesabı oluşturup bu kullanıcıyı onunla düzenleyin" in ADMIN_PANEL_SCRIPT
+    assert (
+        "rol değişikliği için önce ikinci bir yönetici hesabı oluşturup bu kullanıcıyı onunla düzenleyin"
+        in ADMIN_PANEL_SCRIPT
+    )
     assert "editableUser?.user_id || state.accessControlUsers[0]?.user_id || 0" in ADMIN_PANEL_SCRIPT
     assert "${!canWrite ? 'disabled' : ''}" not in ADMIN_PANEL_SCRIPT
-    assert 'data-user-display="${escapeHtml(user.user_id)}" maxlength="100" value="${escapeHtml(draftDisplayName || \'\')}" ${!hasWritePermission ? \'disabled\' : \'\'}' in ADMIN_PANEL_SCRIPT
+    assert (
+        'data-user-display="${escapeHtml(user.user_id)}" maxlength="100" '
+        'value="${escapeHtml(draftDisplayName || \'\')}" ${!hasWritePermission ? \'disabled\' : \'\'}'
+        in ADMIN_PANEL_SCRIPT
+    )
     assert "accessControlPreviewRole" in ADMIN_PANEL_SCRIPT
     assert "renderAccessPermissionGroups(rolePermissions, rolePermissions, false)" in ADMIN_PANEL_SCRIPT
     assert "refs.accessUsersList?.addEventListener('change', onAccessUsersListChange)" in ADMIN_PANEL_SCRIPT
