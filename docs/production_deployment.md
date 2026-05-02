@@ -15,6 +15,9 @@
    `WHATSAPP_TOKEN_ENCRYPTION_KEY`, `META_APP_ID`, `META_APP_SECRET`, and `META_EMBEDDED_SIGNUP_CONFIG_ID`.
    The Meta OAuth redirect URL must be configured as:
    `https://<public-host>/api/v1/admin/whatsapp/oauth/callback`.
+   The local demo auth bypass must not be enabled in production. Production should use a public HTTPS
+   `PUBLIC_BASE_URL` and production `APP_ENV`; live admin access continues to require username, password,
+   and Google Authenticator.
 3. Ensure `.env.production` is not committed (already ignored by `.gitignore`).
 
 ## 2. Local Admin Demo Preview Gate
@@ -40,6 +43,7 @@ Minimum checks:
 - No stale English UI copy remains in the changed area unless it is an approved product term.
 - Critical buttons, toggles, and form submissions touched by the change still work.
 - The layout does not overlap, collapse, or hide important controls.
+- Local demo may open the admin panel without username/password/TOTP, but this is only for localhost demo validation.
 
 If the local demo cannot be reached or the affected screen cannot be verified, report that as a blocker and do not mark the change as production-ready.
 
@@ -72,12 +76,15 @@ curl -fsS http://127.0.0.1:8001/api/v1/health
 curl -fsS http://127.0.0.1:8001/api/v1/health/ready
 curl -fsS http://127.0.0.1:8001/metrics | head
 curl -fsS http://127.0.0.1:8001/api/v1/admin/bootstrap/status
+curl -s -o /dev/null -w "%{http_code}\n" https://<public-host>/api/v1/admin/me
 curl -I http://127.0.0.1:8001/confirmations/invalid-token-for-smoke-check
 docker compose --env-file .env.production -f docker-compose.prod.yml exec app python -c "import importlib.util; assert importlib.util.find_spec('playwright.async_api') is not None; print('playwright-python-ok')"
 docker compose --env-file .env.production -f docker-compose.prod.yml exec app sh -lc "test -d /ms-playwright && ls /ms-playwright | grep chromium"
 ```
 
 `/api/v1/health/ready` returns HTTP `200` when all checks are green, otherwise HTTP `503`.
+The unauthenticated public `/api/v1/admin/me` smoke check must return HTTP `401`; a `200` here means the demo
+auth bypass leaked into a live/public context and deployment must stop.
 The readiness payload now includes a `migrations` check so pending SQL drift is visible immediately.
 The readiness payload also includes `elektraweb_generic_sync`.
 The invalid confirmation-form smoke check should return HTTP `404`, proving the public route is mounted without exposing data for bad tokens.
@@ -122,6 +129,7 @@ GitHub Actions workflow: `.github/workflows/ci.yml`
 ## 7. Production Checklist
 - [ ] All env vars set in `.env.production`
 - [ ] Admin panel/frontend/UI text changes previewed on `http://127.0.0.1:8011/admin#` before production deployment
+- [ ] Public admin panel still requires username, password, and Google Authenticator; unauthenticated `/api/v1/admin/me` returns 401
 - [ ] DB migration ran successfully
 - [ ] `/admin#holds` confirmation form panel previewed locally
 - [ ] `/confirmations/{token}` public route returns no-store headers and invalid tokens return 404

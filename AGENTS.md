@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v6.6 | **Son güncelleme:** 2026-05-02 14:20:19
-> **Değişiklik özeti:** AI telesekreter Voice Lab admin ekranı ve read-only API eklendi.
+> **Sürüm:** v6.7 | **Son güncelleme:** 2026-05-02 16:16:18
+> **Değişiklik özeti:** Yerel demo admin paneli icin localhost-only auth bypass kurali eklendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -188,7 +188,7 @@ Execute tasks in `tasks/` directory sequentially:
 6. **Modular code**: Target 600 lines per file. Split by responsibility if exceeded.
 7. **Async everywhere**: Use async/await for all I/O operations.
 8. **Type hints**: Use Pydantic models and Python type hints everywhere.
-9. **Admin auth**: Access token kısa ömürlü kalır; tekrar TOTP azaltma sadece doğrulanmış trusted device ile yapılır, 2FA kapatılmaz.
+9. **Admin auth**: Canli/production panelde access token kısa ömürlü kalır; tekrar TOTP azaltma sadece doğrulanmış trusted device ile yapılır, 2FA kapatılmaz. Yalnizca yerel demo panelinde `OPERATION_MODE=test`, lokal `APP_ENV`, localhost `PUBLIC_BASE_URL` ve localhost request host kosullari birlikte saglanirsa girissiz demo bypass calisabilir; public/canli panelde bu bypass kesinlikle kullanilmaz.
 10. **Migration disiplini**: DB schema değişikliği (yeni tablo/sütun/index/constraint) içeren her işte migration dosyası zorunludur ve deploy akışında otomatik çalıştırılır; sadece manuel psql adımına bırakılmaz.
 11. **Backend-first debugging zorunlu**: Problem analizi, hata ayıklama ve root cause analysis `docker compose` üstündeki backend servislerinin (`app`, `db`, `redis`, gerekiyorsa ilgili ingress/worker yan servisleri) durum, healthcheck, log, env/config, dependency readiness ve migration bütünlüğü doğrulanarak başlar; bu adım tamamlanmadan frontend/prompt/model katmanına geçilmez.
 12. **Kanıt temelli teşhis**: Hata mesajını tekrar etmek root cause analysis değildir. Belirti, tetikleyici ve sistemik neden ayrı ayrı ortaya konur; hipotezler tek tek test edilir.

@@ -281,6 +281,18 @@ def test_chat_lab_does_not_persist_admin_token_in_localstorage() -> None:
     assert "localStorage.setItem" not in TEST_CHAT_SCRIPT
 
 
+def test_admin_panel_skips_auth_keepalive_for_local_demo_bypass() -> None:
+    assert "function isLocalDemoAuth()" in ADMIN_PANEL_SCRIPT
+    assert "state.me?.auth_source === 'local_demo_bypass'" in ADMIN_PANEL_SCRIPT
+    assert "if (!isLocalDemoAuth()) {\n      startAuthKeepAlive();" in ADMIN_PANEL_SCRIPT
+    assert "if (isLocalDemoAuth()) return;" in ADMIN_PANEL_SCRIPT
+
+
+def test_admin_panel_logout_rehydrates_local_demo_instead_of_showing_login() -> None:
+    assert "const wasLocalDemo = isLocalDemoAuth();" in ADMIN_PANEL_SCRIPT
+    assert "await hydrateSession();\n    notify('Demo panel girişsiz modda açık.', 'info');" in ADMIN_PANEL_SCRIPT
+
+
 def test_chat_lab_exposes_reply_action_in_context_menu() -> None:
     assert "Yanıtla" in TEST_CHAT_SCRIPT
     assert "setReplyTarget" in TEST_CHAT_SCRIPT

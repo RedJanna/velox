@@ -2,7 +2,9 @@
 
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
+from ipaddress import ip_address
 from typing import Annotated, cast
+from urllib.parse import urlsplit
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -13,8 +15,13 @@ from velox.api.middleware.debug_report_only import get_debug_session
 from velox.config.constants import Role
 from velox.config.settings import settings
 from velox.core.admin_access_control import ROLE_PERMISSIONS, build_effective_permissions, default_department_for_role
+from velox.core.hotel_profile_loader import get_all_profiles
 from velox.db.repositories.admin_access import fetch_admin_access_context
 from velox.utils.admin_security import ACCESS_COOKIE_NAME, CSRF_COOKIE_NAME, CSRF_HEADER_NAME, SAFE_HTTP_METHODS
+
+LOCAL_DEMO_AUTH_SOURCE = "local_demo_bypass"
+_LOCAL_DEMO_HOSTS = {"127.0.0.1", "::1", "localhost"}
+_LOCAL_DEMO_ENVS = {"development", "dev", "local", "test"}
 
 
 class TokenData(BaseModel):
@@ -90,6 +97,10 @@ async def get_current_user(
             debug_run_id=str(debug_session.run_id),
             auth_source="debug_session",
         )
+    if credentials is None:
+        demo_user = _build_local_demo_user(request)
+        if demo_user is not None:
+            return demo_user
     token = _extract_token(request, credentials)
     if token is None:
         raise credentials_exception
@@ -137,6 +148,74 @@ def _extract_token(
     return cookie_token or None
 
 
+def _build_local_demo_user(request: Request) -> TokenData | None:
+    """Return a synthetic admin only for the localhost test demo panel."""
+    if not _local_demo_auth_bypass_enabled(request):
+        return None
+    return TokenData(
+        user_id=0,
+        hotel_id=_resolve_local_demo_hotel_id(),
+        username="local_demo_admin",
+        role=Role.ADMIN,
+        display_name="Local Demo Admin",
+        department_code=default_department_for_role(Role.ADMIN),
+        permissions=build_effective_permissions(Role.ADMIN),
+        auth_source=LOCAL_DEMO_AUTH_SOURCE,
+    )
+
+
+def _local_demo_auth_bypass_enabled(request: Request) -> bool:
+    """Allow auth-free admin access only on local demo/test hosts."""
+    if settings.operation_mode.strip().lower() != "test":
+        return False
+    if settings.app_env.strip().lower() not in _LOCAL_DEMO_ENVS:
+        return False
+    if not _is_local_hostname(_hostname_from_public_base_url(settings.public_base_url)):
+        return False
+    if not _is_local_hostname(_hostname_from_host_header(request.headers.get("host", ""))):
+        return False
+
+    client_host = request.client.host if request.client else ""
+    return _is_loopback_or_private_host(client_host)
+
+
+def _resolve_local_demo_hotel_id() -> int:
+    """Resolve the first loaded hotel profile for demo scope without hardcoding hotel data."""
+    profile_ids = sorted(get_all_profiles())
+    if profile_ids:
+        return profile_ids[0]
+    return settings.elektra_hotel_id
+
+
+def _hostname_from_public_base_url(value: str) -> str:
+    """Extract a normalized hostname from PUBLIC_BASE_URL."""
+    parsed = urlsplit(value.strip())
+    return (parsed.hostname or "").lower()
+
+
+def _hostname_from_host_header(value: str) -> str:
+    """Extract a normalized hostname from a request Host header."""
+    parsed = urlsplit(f"//{value.strip()}")
+    return (parsed.hostname or "").lower()
+
+
+def _is_local_hostname(value: str) -> bool:
+    """Return whether a hostname is an explicit localhost target."""
+    return value.strip().strip("[]").lower() in _LOCAL_DEMO_HOSTS
+
+
+def _is_loopback_or_private_host(value: str) -> bool:
+    """Return whether the request client address is local/private."""
+    normalized = value.strip().strip("[]")
+    if normalized.lower() in _LOCAL_DEMO_HOSTS:
+        return True
+    try:
+        parsed = ip_address(normalized)
+    except ValueError:
+        return False
+    return parsed.is_loopback or parsed.is_private
+
+
 def _validate_csrf(request: Request) -> None:
     """Require a matching CSRF header for cookie-backed unsafe requests."""
     header_token = request.headers.get(CSRF_HEADER_NAME, "").strip()
@@ -176,7 +255,7 @@ def check_permission(user: TokenData, permission: str) -> None:
         )
 
 
-def ensure_hotel_access(user: TokenData, hotel_id: int | object) -> int:
+def ensure_hotel_access(user: TokenData, hotel_id: int | str) -> int:
     """Enforce the hotel boundary for one admin request."""
     try:
         requested_hotel_id = int(hotel_id)

@@ -29,6 +29,13 @@ http://127.0.0.1:8011/admin
 
 Detayli local demo akisi icin `docs/local_demo_environment.md` dosyasina bakiniz.
 
+Yerel demo panelinde frontend hata yakalama ve UI testleri icin giris perdesi kaldirilmistir. Bu bypass sadece
+`OPERATION_MODE=test`, lokal `APP_ENV` ve localhost `PUBLIC_BASE_URL`/`Host` kosullari birlikte saglandiginda
+calisir. Public domain, LAN IP veya production env uzerinden admin panel acildiginda bypass devre disi kalir.
+
+Canli panelde kullanici adi, sifre ve Google Authenticator zorunlulugu korunur; deploy/cutover sirasinda bu
+auth akisi kaldirilmamalidir.
+
 ## Uygulama ayarlari
 
 Uretim ortaminda asagidaki degiskenleri doldurun:
@@ -75,6 +82,8 @@ CGNAT varsa public IP ile erisim olmaz. Bu durumda Cloudflare Tunnel kullanabili
 3. Public domain uzerinden bootstrap yapilacaksa `ADMIN_BOOTSTRAP_TOKEN` ile ilk admin kullanicisini olusturun.
 4. Donen TOTP secret veya `otpauth` URI ile authenticator uygulamasina kayit yapin.
 5. Sonraki girislerde kullanici adi + sifre + 6 haneli OTP kodu kullanin.
+6. Giris yapilmamis public panelde `/api/v1/admin/me` istegi `401` donmelidir; bu kontrol demo bypass'in canliya
+   sizmadigini dogrular.
 
 ## Dogrulama
 

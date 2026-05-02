@@ -302,5 +302,5 @@ async def test_debug_artifact_content_serves_file(debug_artifact_client: httpx.A
     )
 
     assert response.path is not None
-    assert str(response.path).endswith("run-1/screenshots/admin_shell.png")
+    assert str(response.path).replace("\\", "/").endswith("run-1/screenshots/admin_shell.png")
     assert response.media_type == "image/png"

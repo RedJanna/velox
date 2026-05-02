@@ -4858,12 +4858,20 @@ async function reloadConfig() {
 }
 
 async function logout() {
-  try {
-    await apiFetch('/logout', {method: 'POST', body: {}, allowRefresh: false});
-  } catch (_error) {
-    // UI logout should still continue even if the backend cookie already expired.
+  const wasLocalDemo = isLocalDemoAuth();
+  if (!wasLocalDemo) {
+    try {
+      await apiFetch('/logout', {method: 'POST', body: {}, allowRefresh: false});
+    } catch (_error) {
+      // UI logout should still continue even if the backend cookie already expired.
+    }
   }
   clearClientSession();
+  if (wasLocalDemo) {
+    await hydrateSession();
+    notify('Demo panel girişsiz modda açık.', 'info');
+    return;
+  }
   await loadSessionStatus();
   renderLoginSessionState();
   notify('Oturum kapatildi.', 'info');
@@ -4968,6 +4976,9 @@ async function handleResponse(response, options) {
 }
 
 async function refreshAccessSession({silent = false} = {}) {
+  if (isLocalDemoAuth()) {
+    return true;
+  }
   if (state.refreshPromise) {
     return state.refreshPromise;
   }
@@ -5013,12 +5024,14 @@ function stopAuthKeepAlive() {
 async function authKeepAliveTick() {
   // Only refresh if we're logged in (panel visible)
   if (!state.me) return;
+  if (isLocalDemoAuth()) return;
   await refreshAccessSession({silent: true});
 }
 
 async function onVisibilityChange() {
   if (document.visibilityState !== 'visible') return;
   if (!state.me) return;
+  if (isLocalDemoAuth()) return;
   // Check if access cookie is still present
   const hasAccess = Boolean(readCookie('velox_admin_access'));
   if (hasAccess) return; // token still alive, nothing to do

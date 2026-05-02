@@ -929,7 +929,9 @@ async function boot() {
 
   try {
     await hydrateSession();
-    startAuthKeepAlive();
+    if (!isLocalDemoAuth()) {
+      startAuthKeepAlive();
+    }
     return;
   } catch (_error) {
     showAuth();
@@ -1216,6 +1218,10 @@ function hasPermission(permission) {
   return false;
 }
 
+function isLocalDemoAuth() {
+  return state.me?.auth_source === 'local_demo_bypass';
+}
+
 function syncNavigationAccess() {
   document.querySelectorAll('[data-nav]').forEach(button => {
     const requiredPermission = VIEW_PERMISSIONS[button.dataset.nav];
@@ -1234,6 +1240,7 @@ function showAuth() {
   refs.currentUser.textContent = 'Misafir değil, operasyon';
   refs.currentRole.textContent = 'Panel girişi bekleniyor';
   refs.hotelScope.textContent = CONFIG.public_host || 'nexlumeai.com';
+  if (refs.logoutButton) refs.logoutButton.hidden = false;
   renderLoginSessionState();
 }
 
@@ -1245,6 +1252,7 @@ function showPanel() {
   refs.currentUser.textContent = state.me?.display_name || state.me?.username || '-';
   refs.currentRole.textContent = state.me?.role || '-';
   refs.hotelScope.textContent = state.selectedHotelId || '-';
+  if (refs.logoutButton) refs.logoutButton.hidden = isLocalDemoAuth();
 }
 
 function setView(view) {

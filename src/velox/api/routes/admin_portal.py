@@ -9,7 +9,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field, field_validator
 
-from velox.api.middleware.auth import TokenData, get_current_user, resolve_hotel_scope
+from velox.api.middleware.auth import LOCAL_DEMO_AUTH_SOURCE, TokenData, get_current_user, resolve_hotel_scope
 from velox.api.routes.health import (
     check_db,
     check_elektraweb,
@@ -238,7 +238,7 @@ async def admin_me(
         "display_name": user.display_name,
         "department_code": user.department_code,
         "department_label": get_department_label(user.department_code),
-        "two_factor_required": True,
+        "two_factor_required": user.auth_source != LOCAL_DEMO_AUTH_SOURCE,
         "debug_report_only": user.debug_report_only,
         "debug_run_id": user.debug_run_id,
         "auth_source": user.auth_source,

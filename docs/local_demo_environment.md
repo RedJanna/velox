@@ -18,6 +18,21 @@ http://127.0.0.1:8011/admin
 
 `APP_PORT` degerini `.env.demo.local` icinde degistirirseniz bu adres de degisir.
 
+## Demo panel giris davranisi
+
+Yerel demo admin paneli, frontend hata yakalama ve UI gelistirme akislarini hizlandirmak icin girissiz acilir.
+
+Bu bypass yalnizca asagidaki kosullarin tumu birlikte saglandiginda devrededir:
+
+- `OPERATION_MODE=test`
+- `APP_ENV=development`, `test` veya `local`
+- `PUBLIC_BASE_URL` localhost hedeflidir: `http://127.0.0.1:8011`, `http://localhost:8011` veya `http://[::1]:8011`
+- Istek `Host` header'i localhost hedeflidir; LAN IP veya public domain uzerinden bypass acilmaz
+- Istek istemci adresi loopback/private network olarak gorunur
+
+Bu modda demo panel kullanici adi, sifre ve Google Authenticator kodu istemeden sentetik `local_demo_admin` kimligiyle acilir.
+Canli panelde bu davranis yoktur; production/public domain her zaman normal kullanici adi + sifre + TOTP akisini korur.
+
 ## Kurulum
 
 1. Demo env dosyasini olusturun:
@@ -142,6 +157,7 @@ Local demo:
 - public hostname gerektirmez
 - tunnel acmaz
 - `OPERATION_MODE=test` ile daha guvenli calisir
+- admin paneli sadece localhost demo kosullarinda girissiz acar
 - canli admin URL'sine dokunmaz
 
 Canli ortam:
@@ -149,3 +165,4 @@ Canli ortam:
 - mevcut public adresi kullanir
 - production env ile ayri yonetilir
 - local demo ile ayni compose project'i kullanmaz
+- kullanici adi, sifre ve Google Authenticator zorunlulugunu korur
