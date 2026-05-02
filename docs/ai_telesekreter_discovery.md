@@ -164,6 +164,7 @@ Planlama bilgisi bu dosyaya, misafire soylenebilir otel gercegi ise `data/hotel_
 - Ilk deterministik Voice Lab runner eklendi: `src/velox/voice_lab/`.
 - Demo/admin paneline `Voice Lab` ekrani ve read-only API eklendi.
 - Demo/admin panelindeki `Voice Lab` ekranina tarayici tabanli ses onizleme eklendi; karsilama metni ve son mock yanit Turkce, Ingilizce veya Rusca secimine gore dinlenebilir.
+- Voice Lab ses onizlemesine tarayici ses tipi secimi, konusma hizi ve ton ayari eklendi. Bu ayar mevcut demo sesini denemek icindir; profesyonel ve daha gercekci final ses icin resmi neural TTS saglayici/model secimi henuz yapilmadi.
 - V001-V018 senaryo matrisi kod tarafinda otomatik kosulabilir hale getirildi.
 - Test kapsami eklendi: fiyat/musaitlik tool zorunlulugu, otopark, Oludeniz plaj karakteri, odeme/taksit handoff, kart verisi maskeleme ve rezervasyon lookup tool zorunlulugu.
 - Canli Turkcell, gercek STT/TTS ve gercek PMS sorgusu henuz eklenmedi; bunlar Voice Lab temel kosulari stabil kaldiktan sonra ilerletilecek.

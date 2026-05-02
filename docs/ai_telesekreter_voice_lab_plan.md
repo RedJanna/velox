@@ -1,7 +1,7 @@
 # AI Telesekreter Voice Lab Plan
 
 > Son guncelleme: 2026-05-02
-> Durum: Birinci hafta teknik plan, test matrisi, ilk mock runner, demo panel ekranı ve tarayıcı ses önizlemesi
+> Durum: Birinci hafta teknik plan, test matrisi, ilk mock runner, demo panel ekranı ve ayarlanabilir tarayıcı ses önizlemesi
 
 Bu dosya, Turkcell santrale canli baglanti yapmadan once Velox icinde kurulacak sesli test laboratuvarinin planidir. Amac, telefon AI'ini canli hatta almadan once guvenilirlik, cevap kaynagi, insan devri, ses kalitesi ve KVKK/GDPR davranisini kontrollu bicimde test etmektir.
 
@@ -13,6 +13,7 @@ Ilgili kaynaklar:
 
 Mevcut demo durumu:
 - `Voice Lab` ekraninda karsilama metni ve son deterministik yanit, tarayicinin yerel `SpeechSynthesis` motoru ile seslendirilebilir.
+- Ses onizlemede tarayicinin sundugu sesler arasindan secim yapilabilir; konusma hizi ve ton ayari tester tarafindan degistirilebilir.
 - Bu adim gercek TTS saglayici entegrasyonu degildir; ses dosyasi uretmez, kayit tutmaz ve panel disina audio verisi gondermez.
 - Gercek STT/TTS zinciri icin sonraki adim mikrofon veya dosya girdisini kontrollu sekilde metne baglamak, ardindan resmi TTS saglayici secimini yapmaktir.
 

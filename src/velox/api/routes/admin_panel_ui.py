@@ -1319,6 +1319,22 @@ def render_admin_panel_html() -> str:
                     <strong>Ses Önizleme</strong>
                     <span id="voiceLabVoiceStatus" aria-live="polite">Karşılama veya son yanıt sesini dinleyebilirsiniz.</span>
                   </div>
+                  <div class="voice-lab-tuning-grid" role="group" aria-label="Ses ayarları">
+                    <div class="field">
+                      <label for="voiceLabVoiceSelect">Ses tipi</label>
+                      <select id="voiceLabVoiceSelect" name="voice_name">
+                        <option value="">Dile göre en doğal ses</option>
+                      </select>
+                    </div>
+                    <div class="field voice-lab-slider-field">
+                      <label for="voiceLabRate">Konuşma hızı <span id="voiceLabRateValue">0.88x</span></label>
+                      <input id="voiceLabRate" name="speech_rate" type="range" min="0.78" max="1.03" step="0.01" value="0.88" aria-label="Konuşma hızı">
+                    </div>
+                    <div class="field voice-lab-slider-field">
+                      <label for="voiceLabPitch">Ses tonu <span id="voiceLabPitchValue">0.96</span></label>
+                      <input id="voiceLabPitch" name="speech_pitch" type="range" min="0.86" max="1.06" step="0.01" value="0.96" aria-label="Ses tonu">
+                    </div>
+                  </div>
                   <div class="voice-lab-voice-actions">
                     <button id="voiceLabSpeakGreetingButton" class="action-button secondary" type="button" aria-label="Karşılama metnini seslendir">Karşılamayı Dinle</button>
                     <button id="voiceLabSpeakReplyButton" class="action-button secondary" type="button" aria-label="Son Voice Lab yanıtını seslendir" disabled>Yanıtı Dinle</button>

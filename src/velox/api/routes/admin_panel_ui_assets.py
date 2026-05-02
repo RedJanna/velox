@@ -291,6 +291,11 @@ tbody tr:hover{background:#fffcf7}
 .voice-lab-audio-copy span[data-tone="success"]{color:var(--ok)}
 .voice-lab-audio-copy span[data-tone="warn"]{color:var(--warn)}
 .voice-lab-audio-copy span[data-tone="error"]{color:var(--danger)}
+.voice-lab-tuning-grid{display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(140px,.8fr) minmax(140px,.8fr);gap:12px;align-items:end}
+.voice-lab-slider-field label{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.voice-lab-slider-field label span{font-size:12px;color:var(--muted);font-weight:800}
+.voice-lab-slider-field input[type="range"]{width:100%;min-height:34px;accent-color:var(--accent)}
+.voice-lab-slider-field input[type="range"]:disabled{opacity:.55;cursor:not-allowed}
 .voice-lab-voice-actions{display:flex;gap:8px;flex-wrap:wrap}
 .voice-lab-safety{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 .voice-lab-safety span{border:1px solid var(--line);background:#f8fafc;color:var(--muted);border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700}
@@ -429,7 +434,7 @@ tbody tr:hover{background:#fffcf7}
   .topbar-aside{justify-content:flex-start}
   .table-shell{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
   .table-shell table{min-width:640px}
-  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid,.debug-summary-grid,.debug-layout,.response-preview-layout,.response-preview-diagnostics,.voice-lab-summary-grid,.voice-lab-layout,.voice-lab-result-grid,.access-toggle-grid,.access-user-controls{grid-template-columns:1fr}
+  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid,.debug-summary-grid,.debug-layout,.response-preview-layout,.response-preview-diagnostics,.voice-lab-summary-grid,.voice-lab-layout,.voice-lab-tuning-grid,.voice-lab-result-grid,.access-toggle-grid,.access-user-controls{grid-template-columns:1fr}
   .topbar{padding:18px 20px;border-radius:24px;flex-direction:column}
   .card-grid{grid-template-columns:1fr}
   .status-strip{grid-template-columns:1fr}
@@ -451,6 +456,16 @@ const VOICE_LAB_GREETING_TEXT = {
   ru: "Здравствуйте, добро пожаловать в Kassandra Oludeniz. В целях качества обслуживания и помощи с вашим запросом разговор может записываться. Чем могу помочь?",
 };
 const VOICE_LAB_SPEECH_LANG = {tr: 'tr-TR', en: 'en-US', ru: 'ru-RU'};
+const VOICE_LAB_VOICE_KEY = 'velox.voice_lab.voice';
+const VOICE_LAB_RATE_KEY = 'velox.voice_lab.rate';
+const VOICE_LAB_PITCH_KEY = 'velox.voice_lab.pitch';
+const VOICE_LAB_RATE_MIN = 0.78;
+const VOICE_LAB_RATE_MAX = 1.03;
+const VOICE_LAB_PITCH_MIN = 0.86;
+const VOICE_LAB_PITCH_MAX = 1.06;
+const VOICE_LAB_DEFAULT_RATE = 0.88;
+const VOICE_LAB_DEFAULT_PITCH = 0.96;
+const VOICE_LAB_NATURAL_VOICE_HINTS = ['natural','neural','online','premium','enhanced','microsoft','google'];
 const VIEW_PERMISSIONS = {
   accesscontrol: 'access_control:read',
   responsewindow: 'conversations:read',
@@ -618,6 +633,7 @@ function bindRefs() {
     'voiceLabSummaryCards','voiceLabTotalCount','voiceLabPassedCount','voiceLabFailedCount','voiceLabBlockedCount',
     'voiceLabForm','voiceLabTranscript','voiceLabSampleList','voiceLabScenario','voiceLabLanguage',
     'voiceLabRunButton','voiceLabRunMatrixButton','voiceLabClearButton','voiceLabSafety','voiceLabResultMeta',
+    'voiceLabVoiceSelect','voiceLabRate','voiceLabRateValue','voiceLabPitch','voiceLabPitchValue',
     'voiceLabSpeakGreetingButton','voiceLabSpeakReplyButton','voiceLabStopVoiceButton','voiceLabVoiceStatus',
     'voiceLabResultBadge','voiceLabResultPanel','voiceLabMatrixBadge','voiceLabMatrixBody',
     'logoutButton','reloadButton','decisionDialog','decisionForm','decisionTitle','decisionLead','decisionReason',
@@ -669,10 +685,14 @@ function bindEvents() {
   refs.voiceLabScenario?.addEventListener('change', onVoiceLabScenarioChange);
   refs.voiceLabRunMatrixButton?.addEventListener('click', runVoiceLabMatrix);
   refs.voiceLabClearButton?.addEventListener('click', clearVoiceLab);
+  refs.voiceLabVoiceSelect?.addEventListener('change', onVoiceLabVoiceTuningChange);
+  refs.voiceLabRate?.addEventListener('input', onVoiceLabVoiceTuningChange);
+  refs.voiceLabPitch?.addEventListener('input', onVoiceLabVoiceTuningChange);
   refs.voiceLabSpeakGreetingButton?.addEventListener('click', speakVoiceLabGreeting);
   refs.voiceLabSpeakReplyButton?.addEventListener('click', speakVoiceLabReply);
   refs.voiceLabStopVoiceButton?.addEventListener('click', stopVoiceLabSpeech);
-  refs.voiceLabLanguage?.addEventListener('change', syncVoiceLabSpeechControls);
+  refs.voiceLabLanguage?.addEventListener('change', onVoiceLabLanguageChange);
+  initializeVoiceLabTuningControls();
   bindVoiceLabSpeechEvents();
   refs.reloadButton?.addEventListener('click', reloadConfig);
   refs.logoutButton?.addEventListener('click', logout);
@@ -2383,12 +2403,100 @@ function getVoiceLabLanguage() {
   return ['tr','en','ru'].includes(normalized) ? normalized : 'tr';
 }
 
+function getVoiceLabStoredValue(key) {
+  try {
+    return window.localStorage.getItem(key);
+  } catch (_error) {
+    return null;
+  }
+}
+
+function setVoiceLabStoredValue(key, value) {
+  try {
+    window.localStorage.setItem(key, String(value || ''));
+  } catch (_error) {
+    // Voice tuning persistence is best-effort only.
+  }
+}
+
+function getVoiceLabVoiceStorageKey(language) {
+  return `${VOICE_LAB_VOICE_KEY}.${language || 'tr'}`;
+}
+
+function clampVoiceLabNumber(value, min, max, fallback) {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function formatVoiceLabRate(value) {
+  return `${value.toFixed(2)}x`;
+}
+
+function formatVoiceLabPitch(value) {
+  return value.toFixed(2);
+}
+
+function getVoiceLabSpeechRate() {
+  return clampVoiceLabNumber(
+    refs.voiceLabRate?.value,
+    VOICE_LAB_RATE_MIN,
+    VOICE_LAB_RATE_MAX,
+    VOICE_LAB_DEFAULT_RATE
+  );
+}
+
+function getVoiceLabSpeechPitch() {
+  return clampVoiceLabNumber(
+    refs.voiceLabPitch?.value,
+    VOICE_LAB_PITCH_MIN,
+    VOICE_LAB_PITCH_MAX,
+    VOICE_LAB_DEFAULT_PITCH
+  );
+}
+
+function updateVoiceLabTuningLabels() {
+  const rate = getVoiceLabSpeechRate();
+  const pitch = getVoiceLabSpeechPitch();
+  if (refs.voiceLabRate) refs.voiceLabRate.value = rate.toFixed(2);
+  if (refs.voiceLabPitch) refs.voiceLabPitch.value = pitch.toFixed(2);
+  if (refs.voiceLabRateValue) refs.voiceLabRateValue.textContent = formatVoiceLabRate(rate);
+  if (refs.voiceLabPitchValue) refs.voiceLabPitchValue.textContent = formatVoiceLabPitch(pitch);
+}
+
+function initializeVoiceLabTuningControls() {
+  if (refs.voiceLabRate) {
+    refs.voiceLabRate.value = clampVoiceLabNumber(
+      getVoiceLabStoredValue(VOICE_LAB_RATE_KEY),
+      VOICE_LAB_RATE_MIN,
+      VOICE_LAB_RATE_MAX,
+      VOICE_LAB_DEFAULT_RATE
+    ).toFixed(2);
+  }
+  if (refs.voiceLabPitch) {
+    refs.voiceLabPitch.value = clampVoiceLabNumber(
+      getVoiceLabStoredValue(VOICE_LAB_PITCH_KEY),
+      VOICE_LAB_PITCH_MIN,
+      VOICE_LAB_PITCH_MAX,
+      VOICE_LAB_DEFAULT_PITCH
+    ).toFixed(2);
+  }
+  updateVoiceLabTuningLabels();
+}
+
 function voiceLabSpeechSupported() {
   return (
     typeof window !== 'undefined' &&
     Boolean(window.speechSynthesis) &&
     typeof window.SpeechSynthesisUtterance === 'function'
   );
+}
+
+function getVoiceLabAvailableVoices() {
+  if (!voiceLabSpeechSupported()) return [];
+  if (typeof window.speechSynthesis.getVoices !== 'function') return [];
+  const voices = window.speechSynthesis.getVoices();
+  return Array.isArray(voices) ? voices : [];
 }
 
 function bindVoiceLabSpeechEvents() {
@@ -2403,10 +2511,17 @@ function bindVoiceLabSpeechEvents() {
   }
   synth.__veloxVoiceLabBound = true;
   if (typeof synth.addEventListener === 'function') {
-    synth.addEventListener('voiceschanged', syncVoiceLabSpeechControls);
+    synth.addEventListener('voiceschanged', () => {
+      populateVoiceLabVoiceOptions();
+      syncVoiceLabSpeechControls();
+    });
   } else if ('onvoiceschanged' in synth) {
-    synth.onvoiceschanged = syncVoiceLabSpeechControls;
+    synth.onvoiceschanged = () => {
+      populateVoiceLabVoiceOptions();
+      syncVoiceLabSpeechControls();
+    };
   }
+  populateVoiceLabVoiceOptions();
   syncVoiceLabSpeechControls();
 }
 
@@ -2414,18 +2529,107 @@ function resolveVoiceLabSpeechLang(language) {
   return VOICE_LAB_SPEECH_LANG[language] || VOICE_LAB_SPEECH_LANG.tr;
 }
 
-function findVoiceLabSpeechVoice(language) {
-  if (!voiceLabSpeechSupported()) return null;
-  const voices = typeof window.speechSynthesis.getVoices === 'function' ? window.speechSynthesis.getVoices() : [];
+function getVoiceLabVoiceId(voice) {
+  return `${voice?.name || ''}||${voice?.lang || ''}`;
+}
+
+function getVoiceLabVoiceLabel(voice) {
+  const source = voice?.localService === false ? 'Online' : 'Yerel';
+  return `${voice?.name || 'Ses'} · ${voice?.lang || 'Dil yok'} · ${source}`;
+}
+
+function scoreVoiceLabSpeechVoice(voice, language) {
   const speechLang = resolveVoiceLabSpeechLang(language).toLowerCase();
   const languagePrefix = String(language || 'tr').toLowerCase();
-  return (
-    voices.find(voice => String(voice.lang || '').toLowerCase() === speechLang) ||
-    voices.find(voice => String(voice.lang || '').toLowerCase().startsWith(languagePrefix)) ||
-    voices.find(voice => String(voice.lang || '').toLowerCase().startsWith('tr')) ||
-    voices[0] ||
-    null
-  );
+  const voiceLang = String(voice?.lang || '').toLowerCase();
+  const voiceName = String(voice?.name || '').toLowerCase();
+  let score = 0;
+  if (voiceLang === speechLang) {
+    score += 100;
+  } else if (voiceLang.startsWith(languagePrefix)) {
+    score += 72;
+  } else if (language === 'tr' && voiceLang.startsWith('tr')) {
+    score += 48;
+  }
+  if (score === 0) return 0;
+  VOICE_LAB_NATURAL_VOICE_HINTS.forEach((hint, index) => {
+    if (voiceName.includes(hint)) score += 18 - Math.min(index, 8);
+  });
+  if (voice?.localService === false) score += 10;
+  if (voice?.default) score += 4;
+  return score;
+}
+
+function getVoiceLabRankedVoices(language) {
+  return getVoiceLabAvailableVoices()
+    .map(voice => ({voice, score: scoreVoiceLabSpeechVoice(voice, language)}))
+    .sort((left, right) => right.score - left.score || getVoiceLabVoiceLabel(left.voice).localeCompare(getVoiceLabVoiceLabel(right.voice)));
+}
+
+function populateVoiceLabVoiceOptions() {
+  if (!refs.voiceLabVoiceSelect) return;
+  if (!voiceLabSpeechSupported()) {
+    refs.voiceLabVoiceSelect.innerHTML = '<option value="">Ses desteklenmiyor</option>';
+    refs.voiceLabVoiceSelect.disabled = true;
+    return;
+  }
+  const language = getVoiceLabLanguage();
+  const voices = getVoiceLabRankedVoices(language);
+  if (voices.length === 0) {
+    refs.voiceLabVoiceSelect.innerHTML = '<option value="">Tarayıcı sesleri yükleniyor</option>';
+    refs.voiceLabVoiceSelect.disabled = true;
+    return;
+  }
+  const displayVoices = voices.some(item => item.score > 0)
+    ? voices.filter(item => item.score > 0)
+    : voices;
+  const savedVoiceId = getVoiceLabStoredValue(getVoiceLabVoiceStorageKey(language)) || '';
+  const options = [
+    '<option value="">Dile göre en doğal ses</option>',
+    ...displayVoices.map(item => {
+      const voiceId = getVoiceLabVoiceId(item.voice);
+      return `<option value="${escapeHtml(voiceId)}">${escapeHtml(getVoiceLabVoiceLabel(item.voice))}</option>`;
+    }),
+  ];
+  refs.voiceLabVoiceSelect.innerHTML = options.join('');
+  refs.voiceLabVoiceSelect.disabled = false;
+  if (savedVoiceId && displayVoices.some(item => getVoiceLabVoiceId(item.voice) === savedVoiceId)) {
+    refs.voiceLabVoiceSelect.value = savedVoiceId;
+  }
+}
+
+function findVoiceLabSpeechVoice(language) {
+  if (!voiceLabSpeechSupported()) return null;
+  const voices = getVoiceLabRankedVoices(language);
+  const selectedVoiceId = refs.voiceLabVoiceSelect?.value || getVoiceLabStoredValue(getVoiceLabVoiceStorageKey(language)) || '';
+  if (selectedVoiceId) {
+    const selected = voices.find(item => getVoiceLabVoiceId(item.voice) === selectedVoiceId);
+    if (selected) return selected.voice;
+  }
+  const matchingVoice = voices.find(item => item.score > 0);
+  return matchingVoice?.voice || voices[0]?.voice || null;
+}
+
+function onVoiceLabLanguageChange() {
+  populateVoiceLabVoiceOptions();
+  syncVoiceLabSpeechControls();
+}
+
+function onVoiceLabVoiceTuningChange(event) {
+  const language = getVoiceLabLanguage();
+  if (event?.target === refs.voiceLabVoiceSelect) {
+    setVoiceLabStoredValue(getVoiceLabVoiceStorageKey(language), refs.voiceLabVoiceSelect.value || '');
+  }
+  if (event?.target === refs.voiceLabRate) {
+    setVoiceLabStoredValue(VOICE_LAB_RATE_KEY, getVoiceLabSpeechRate().toFixed(2));
+  }
+  if (event?.target === refs.voiceLabPitch) {
+    setVoiceLabStoredValue(VOICE_LAB_PITCH_KEY, getVoiceLabSpeechPitch().toFixed(2));
+  }
+  updateVoiceLabTuningLabels();
+  if (voiceLabSpeechSupported()) {
+    setVoiceLabVoiceStatus('Ses ayarı güncellendi. Tekrar dinleyebilirsiniz.', 'info');
+  }
 }
 
 function setVoiceLabVoiceStatus(message, tone = 'info') {
@@ -2441,11 +2645,17 @@ function getVoiceLabReplySpeechText() {
 function syncVoiceLabSpeechControls() {
   const supported = voiceLabSpeechSupported();
   const hasReply = Boolean(getVoiceLabReplySpeechText());
+  populateVoiceLabVoiceOptions();
+  updateVoiceLabTuningLabels();
+  if (refs.voiceLabRate) refs.voiceLabRate.disabled = !supported;
+  if (refs.voiceLabPitch) refs.voiceLabPitch.disabled = !supported;
   if (refs.voiceLabSpeakGreetingButton) refs.voiceLabSpeakGreetingButton.disabled = !supported;
   if (refs.voiceLabSpeakReplyButton) refs.voiceLabSpeakReplyButton.disabled = !supported || !hasReply;
   if (refs.voiceLabStopVoiceButton) refs.voiceLabStopVoiceButton.disabled = !supported;
   if (!supported) {
     setVoiceLabVoiceStatus('Bu tarayıcı sesli oynatma desteklemiyor.', 'warn');
+  } else if (getVoiceLabAvailableVoices().length === 0) {
+    setVoiceLabVoiceStatus('Tarayıcı sesleri yükleniyor. Birkaç saniye sonra tekrar deneyebilirsiniz.', 'warn');
   }
 }
 
@@ -2464,8 +2674,8 @@ function speakVoiceLabText(text, label) {
   const utterance = new window.SpeechSynthesisUtterance(speechText);
   utterance.lang = resolveVoiceLabSpeechLang(language);
   utterance.voice = findVoiceLabSpeechVoice(language);
-  utterance.rate = language === 'ru' ? 0.9 : 0.92;
-  utterance.pitch = 1;
+  utterance.rate = getVoiceLabSpeechRate();
+  utterance.pitch = getVoiceLabSpeechPitch();
   utterance.volume = 1;
   utterance.onstart = () => setVoiceLabVoiceStatus(`${label} sesi oynatılıyor.`, 'success');
   utterance.onend = () => setVoiceLabVoiceStatus('Ses önizleme tamamlandı.', 'info');
