@@ -1350,8 +1350,16 @@ def render_admin_panel_html() -> str:
                     <div class="field">
                       <label for="voiceLabRealtimeVoice">Realtime ses</label>
                       <select id="voiceLabRealtimeVoice" name="realtime_voice">
-                        <option value="marin">Marin</option>
-                        <option value="cedar">Cedar</option>
+                        <option value="marin">Marin (önerilen)</option>
+                        <option value="cedar">Cedar (önerilen)</option>
+                        <option value="alloy">Alloy</option>
+                        <option value="ash">Ash</option>
+                        <option value="ballad">Ballad</option>
+                        <option value="coral">Coral</option>
+                        <option value="echo">Echo</option>
+                        <option value="sage">Sage</option>
+                        <option value="shimmer">Shimmer</option>
+                        <option value="verse">Verse</option>
                       </select>
                     </div>
                     <div class="voice-lab-realtime-actions">

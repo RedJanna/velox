@@ -16,6 +16,7 @@ Mevcut demo durumu:
 - Ses onizlemede tarayicinin sundugu sesler arasindan secim yapilabilir; konusma hizi ve ton ayari tester tarafindan degistirilebilir.
 - Bu adim gercek TTS saglayici entegrasyonu degildir; ses dosyasi uretmez, kayit tutmaz ve panel disina audio verisi gondermez.
 - Profesyonel ses pilotu icin OpenAI Realtime `gpt-realtime-1.5` secildi. Voice Lab icinde WebRTC mikrofon oturumu baslatilabilir; OpenAI API anahtari sadece backend'de kalir ve panel SDP teklifini backend'e gonderir.
+- Realtime ses seciminde `marin` varsayilan kalir; `marin` ve `cedar` kalite oncelikli adaylardir. Panelde `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`, `marin` ve `cedar` secenekleri test edilebilir.
 - Realtime modunda mikrofon sesi OpenAI Realtime'a aktarilir; Voice Lab tarafinda yerel ses kaydi, DB yazimi, PMS yazimi veya WhatsApp gonderimi yapilmaz.
 - Gercek chained STT/TTS zinciri icin sonraki adim mikrofon veya dosya girdisini kontrollu sekilde metne baglamak ve metin runner raporlamasiyla birlestirmektir.
 
@@ -101,7 +102,7 @@ Plan seviyesinde karar:
 
 - STT: Turkce, Ingilizce ve Rusca icin transkripsiyon kalitesi olculecek.
 - LLM: Mevcut Velox tool calling, HOTEL_PROFILE ve QC kurallariyla calisacak.
-- TTS / Realtime pilot: OpenAI Realtime `gpt-realtime-1.5`; varsayilan ses `marin`, alternatif `cedar`.
+- TTS / Realtime pilot: OpenAI Realtime `gpt-realtime-1.5`; varsayilan ses `marin`. Built-in test sesleri: `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`, `marin`, `cedar`; kalite oncelikli adaylar `marin` ve `cedar`.
 - Realtime tasima: Demo/admin panelde WebRTC; canli telefon icin Turkcell SIP/Trunk netlesirse SIP tasima yeniden degerlendirilecek.
 
 Resmi OpenAI dokumanlarinda voice agent icin iki ana mimari anlatilir:
@@ -324,7 +325,7 @@ Mevcut runner ve panel ekranı, V001-V018 testlerini canli Turkcell veya PMS bag
 
 Sonraki teknik uygulama:
 
-1. OpenAI Realtime sesini `marin` ve `cedar` ile dinleyerek otel markasina uygun sesi secmek.
+1. OpenAI Realtime seslerini panelde `marin`, `cedar`, `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer` ve `verse` ile dinleyerek otel markasina uygun sesi secmek.
 2. Ses dosyasi yukleme veya mikrofon girdisini deterministik metin runner raporlarina baglamak.
 3. STT -> Velox text pipeline -> TTS mock akisinin metin runner'a baglanmasi.
 4. Turkce disinda Ingilizce ve Rusca smoke senaryolarinin eklenmesi.

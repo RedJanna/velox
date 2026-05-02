@@ -710,6 +710,20 @@ def test_admin_panel_exposes_voice_lab_view() -> None:
     assert "startVoiceLabRealtime" in ADMIN_PANEL_SCRIPT
     assert "VOICE_LAB_NATURAL_VOICE_HINTS" in ADMIN_PANEL_SCRIPT
     assert "VOICE_LAB_REALTIME_VOICES" in ADMIN_PANEL_SCRIPT
+    for voice in (
+        "alloy",
+        "ash",
+        "ballad",
+        "coral",
+        "echo",
+        "sage",
+        "shimmer",
+        "verse",
+        "marin",
+        "cedar",
+    ):
+        assert f'value="{voice}"' in html
+        assert f"value: '{voice}'" in ADMIN_PANEL_SCRIPT
     assert "populateVoiceLabVoiceOptions" in ADMIN_PANEL_SCRIPT
     assert "getVoiceLabSpeechRate" in ADMIN_PANEL_SCRIPT
     assert "getVoiceLabSpeechPitch" in ADMIN_PANEL_SCRIPT

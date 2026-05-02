@@ -52,7 +52,22 @@ def test_admin_voice_lab_realtime_config_uses_openai_model_and_voice(
 def test_admin_voice_lab_realtime_voice_falls_back_to_marin() -> None:
     """Unsupported Realtime voices should never pass through to OpenAI."""
     assert normalize_voice_lab_realtime_voice("unknown_voice") == "marin"
-    assert normalize_voice_lab_realtime_voice("cedar") == "cedar"
+
+    supported_voices = (
+        "alloy",
+        "ash",
+        "ballad",
+        "coral",
+        "echo",
+        "sage",
+        "shimmer",
+        "verse",
+        "marin",
+        "cedar",
+    )
+    for voice in supported_voices:
+        assert normalize_voice_lab_realtime_voice(voice) == voice
+        assert normalize_voice_lab_realtime_voice(voice.upper()) == voice
 
 
 @pytest.mark.asyncio

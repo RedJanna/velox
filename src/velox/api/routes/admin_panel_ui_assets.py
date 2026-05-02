@@ -471,8 +471,16 @@ const VOICE_LAB_DEFAULT_PITCH = 0.96;
 const VOICE_LAB_NATURAL_VOICE_HINTS = ['natural','neural','online','premium','enhanced','microsoft','google'];
 const VOICE_LAB_REALTIME_VOICE_KEY = 'velox.voice_lab.realtime_voice';
 const VOICE_LAB_REALTIME_VOICES = [
-  {value: 'marin', label: 'Marin'},
-  {value: 'cedar', label: 'Cedar'},
+  {value: 'marin', label: 'Marin (önerilen)'},
+  {value: 'cedar', label: 'Cedar (önerilen)'},
+  {value: 'alloy', label: 'Alloy'},
+  {value: 'ash', label: 'Ash'},
+  {value: 'ballad', label: 'Ballad'},
+  {value: 'coral', label: 'Coral'},
+  {value: 'echo', label: 'Echo'},
+  {value: 'sage', label: 'Sage'},
+  {value: 'shimmer', label: 'Shimmer'},
+  {value: 'verse', label: 'Verse'},
 ];
 const VIEW_PERMISSIONS = {
   accesscontrol: 'access_control:read',
