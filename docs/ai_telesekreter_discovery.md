@@ -5,6 +5,9 @@
 
 Bu dosya, Velox projesine telefon santrali icin AI telesekreter ekleme surecinde kalici calisma notudur. AI telesekreter ile ilgili her yeni isten once bu dosya okunmalidir.
 
+Ilgili plan dosyasi:
+- `docs/ai_telesekreter_voice_lab_plan.md` - canli santral oncesi Voice Lab akisi, test matrisi, kabul kriterleri ve Turkcell teknik kontrol listesi
+
 Onemli ayrim:
 - Bu dosya planlama, karar ve acik soru kaynagidir.
 - Misafire soylenebilecek otel gercekleri icin ana runtime kaynak `data/hotel_profiles/kassandra_oludeniz.yaml` dosyasidir.
