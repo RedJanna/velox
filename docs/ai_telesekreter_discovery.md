@@ -22,6 +22,9 @@ Onemli ayrim:
 - Gorsel incelemesine gore dis entegrasyon kismen var.
 - SIP/Trunk tarafi Tek Ofis/Business Trunk paketlerinde mumkun gorunuyor; AI santral entegrasyonu icin Turkcell satis/musteri yoneticisiyle netlestirilmesi gerekiyor.
 - Standart Mobil Santral panelinde gelen cagrinin sesini webhook/API ile AI sistemine aktaran acik bir public API gorunmuyor.
+- Musterilerin arayacagi ana AI sekreter hatti Turkcell mobil hat olarak belirlendi; dokuman, prompt ve loglarda ham numara tutulmaz, yalnizca maskeli son 4 hane (`9048`) ile referans verilir.
+- Canli temsilci/insan devri hedefi resepsiyon hattidir; dokuman, prompt ve loglarda ham numara tutulmaz, yalnizca maskeli son 4 hane (`3277`) ile referans verilir.
+- Insan devri icin istenen davranis basit "AI'i atlayip yonlendirme" degil, AI'in once konusup karar verdigi kontrollu `call transfer / bridge / queue` akisidir.
 
 Ilk teknik varsayim:
 - Canli entegrasyondan once Voice Lab benzeri lokal/prototip test ortami kurulacak.
@@ -55,6 +58,12 @@ Ilk surumda hedeflenmeyenler:
 - Insan devri durumlari mevcut Velox handoff/escalation mantigi ile uyumlu olacak.
 - Odeme, guvenlik, belirsiz rezervasyon, PMS kontrolu, sikayet, yetkili talebi, tool hatasi ve guvenilir cevap verilememe durumlari insan devrine gider.
 - AI, insan devri gereken bir durumda gecikmeden admin/ilgili ekip bildirimi olusturmalidir.
+- Telefon aramasinda insan devri gerekirse AI once musteriyi bilgilendirir: "Talebiniz icin sizi canli temsilcimize aktariyorum. Lutfen hatta kalin."
+- Insan devri hedefi resepsiyon hattidir (`...3277`); tum telefon handoff'lari varsayilan olarak bu hedefe gider.
+- Resepsiyon hatti mesgul veya cevapsizsa musteri hatta bekletilir; maksimum bekleme suresi 120 saniyedir.
+- 120 saniye icinde canli temsilci cevap vermezse sistem callback/ticket kaydi olusturur ve admin WhatsApp numarasina kesinlikle bildirim gonderir.
+- Admin WhatsApp bildirimi opsiyonel degildir; ticket/callback olussa bile ayrica denenir ve basarisizlik loglanir.
+- Telefon numaralari repo, prompt, log veya test raporlarina ham yazilmaz; maskeli gosterim veya runtime/admin konfig kullanilir.
 
 ### Cagri kaydi
 
@@ -133,7 +142,8 @@ Ilk test setine eklenecek sorular:
 ## 6. Acik Sorular ve Blockerlar
 
 - Turkcell santral AI tarafina cagriyi hangi teknik yolla aktaracak: sadece yonlendirme mi, SIP/Trunk mi?
-- AI hattindan insana aktarim hangi dahili numara/kuyruk ile yapilacak?
+- AI hattindan insana aktarim resepsiyon hattina (`...3277`) yapilacak; teknik olarak SIP REFER, bridge veya queue desteginden hangisinin kullanilacagi netlesmeli.
+- Resepsiyon mesgulken 120 saniyeye kadar bekletme ve tekrar deneme davranisi Turkcell/SIP provider tarafinda destekleniyor mu?
 - Cagri kayitlari nerede tutulacak: Turkcell panelinde mi, Velox tarafinda mi?
 - Cagri kayitlari icin saklama suresi, erisim rolleri ve silme akisi netlesmeli.
 - Rusca yanitlarda runtime'in dogrulanmis kaynak metnini guvenli bicimde cevirmesi test edilmeli.

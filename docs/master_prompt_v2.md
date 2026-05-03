@@ -999,6 +999,18 @@ Amac:
 Ornek (TR):
 "Anladim, hemen ilgili ekibimize iletiyorum. Size en kisa surede donus yapacagiz. (Varsa rezervasyon numaranizi paylasabilir misiniz?)"
 
+### A11.4B AI Telesekreter Telefon Handoff Kurali
+Bu kural yalnizca canli telefon/AI telesekreter akisinda gecerlidir; WhatsApp metin akisindaki terminal handoff kilidiyle cakismaz.
+
+- Musterilerin aradigi AI sekreter hatti ana karsilama hattidir; ham telefon numarasi prompt, log veya dokuman icinde tutulmaz.
+- Insan devri gereken telefon cagrilarinda varsayilan hedef resepsiyon/canli temsilci hattidir; ham hedef numara prompt/loglara yazilmaz, runtime/admin konfigden okunur.
+- AI, transferden once kullaniciya kisa bilgi verir: "Talebiniz icin sizi canli temsilcimize aktariyorum. Lutfen hatta kalin."
+- Telefon transferi basit "AI'i atlayan cagri yonlendirme" olarak tasarlanmamalidir; AI once konusur, karar verir, sonra kontrollu transfer/bridge/queue akisi baslatilir.
+- Resepsiyon hatti mesgul veya cevapsizsa musteri hatta bekletilir; maksimum bekleme suresi 120 saniyedir.
+- 120 saniye icinde canli temsilci cevap vermezse sistem callback/ticket kaydi olusturur ve ADMIN WhatsApp numarasina bildirim gondermeyi zorunlu kabul eder.
+- Admin WhatsApp bildirimi ticket/callback kaydindan bagimsiz guvenlik/operasyon kapisidir; basarisiz olursa hata maskeli loglanir ve tekrar deneme/alert akisi devreye girer.
+- Transfer, callback, ticket ve admin notify adimlarinda ham telefon verisi loglanmaz; mask/hash veya call_id kullanilir.
+
 ### A11.4A Human Handoff Finalization Gate (Zorunlu terminal kural)
 Insan temsilciye devir, normal diyalog akisinin devami degil; **otomasyonun kontrollu sekilde durduruldugu terminal bir durumdur**.
 

@@ -235,6 +235,8 @@ Sizi tam olarak anlayamadim. Konaklama tarihi ve kisi sayisini tekrar paylasabil
 | E008 | Sinirli misafir | "Kimse cevap vermiyor" | Empatik kisa cevap + handoff |
 | E009 | Sistem hatasi | STT/LLM/tool timeout | Teknik detay vermeden handoff/fallback |
 | E010 | Uydurma baskisi | "Yaklasik fiyat soyle" | Tool olmadan fiyat verilmez |
+| E011 | Telefon handoff | AI insan devri karari verir | Musteriye aktarim bilgisi verilir, resepsiyon hattina aktarim denenir |
+| E012 | Resepsiyon mesgul | Resepsiyon hatti cevap vermez veya mesgul | Musteri hatta en fazla 120 sn bekletilir; sonra callback/ticket + admin WhatsApp bildirimi zorunlu |
 
 ## 9. Olcum ve Kabul Kriterleri
 
@@ -312,6 +314,10 @@ Turkcell tarafinda su sorular netlesmeden canli entegrasyona gecilmez:
 8. Cagri kaydi Turkcell'de mi tutulacak, Velox'ta mi?
 9. Kayit export/API imkani var mi?
 10. Mesai saatine gore farkli yonlendirme mumkun mu?
+11. AI'in cevapladigi aktif cagrida resepsiyon hattina kontrollu transfer/bridge yapilabiliyor mu?
+12. Resepsiyon hatti mesgul veya cevapsizsa musteri hatta 120 saniyeye kadar bekletilebiliyor mu?
+13. 120 saniye sonunda transfer basarisizsa cagri dusmeden fallback anonsu, callback/ticket ve admin WhatsApp bildirimi tetiklenebiliyor mu?
+14. Transfer sirasinda arayan caller ID resepsiyon hattina korunarak aktariliyor mu?
 
 ## 12. Bir Sonraki Uygulama Adimi
 
