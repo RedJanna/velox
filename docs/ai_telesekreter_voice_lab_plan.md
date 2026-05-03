@@ -1,7 +1,7 @@
 # AI Telesekreter Voice Lab Plan
 
-> Son guncelleme: 2026-05-02
-> Durum: Birinci hafta teknik plan, test matrisi, ilk mock runner, demo panel ekranı, ayarlanabilir tarayıcı ses önizlemesi ve OpenAI Realtime WebRTC pilotu
+> Son guncelleme: 2026-05-03
+> Durum: Birinci hafta teknik plan, test matrisi, ilk mock runner, demo panel ekranı, ayarlanabilir tarayıcı ses önizlemesi, OpenAI Realtime WebRTC pilotu ve ElevenLabs panel hazırlığı
 
 Bu dosya, Turkcell santrale canli baglanti yapmadan once Velox icinde kurulacak sesli test laboratuvarinin planidir. Amac, telefon AI'ini canli hatta almadan once guvenilirlik, cevap kaynagi, insan devri, ses kalitesi ve KVKK/GDPR davranisini kontrollu bicimde test etmektir.
 
@@ -18,6 +18,8 @@ Mevcut demo durumu:
 - Profesyonel ses pilotu icin OpenAI Realtime `gpt-realtime-1.5` secildi. Voice Lab icinde WebRTC mikrofon oturumu baslatilabilir; backend sadece kisa omurlu OpenAI Realtime client secret uretir, tarayici SDP teklifini bu ephemeral secret ile OpenAI `/v1/realtime/calls` endpoint'ine `application/sdp` olarak gonderir. Standart `OPENAI_API_KEY` tarayiciya verilmez.
 - Realtime ses seciminde `marin` varsayilan kalir; `marin` ve `cedar` kalite oncelikli adaylardir. Panelde `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`, `marin` ve `cedar` secenekleri test edilebilir.
 - Realtime modunda mikrofon sesi OpenAI Realtime'a aktarilir; Voice Lab tarafinda yerel ses kaydi, DB yazimi, PMS yazimi veya WhatsApp gonderimi yapilmaz.
+- Voice Lab panelinde ElevenLabs icin ayri bir entegrasyon alani hazirlandi. API key panelde istenmez veya gosterilmez; gercek baglanti sonraki adimda backend ENV, adapter ve test endpoint'i ile kurulmalidir.
+- OpenAI Realtime oturumunda canli mikrofon seviye gostergesi vardir. Bu gosterge tarayici icinde anlik ses seviyesini gosterir; ses dosyasi kaydetmez.
 - Gercek chained STT/TTS zinciri icin sonraki adim mikrofon veya dosya girdisini kontrollu sekilde metne baglamak ve metin runner raporlamasiyla birlestirmektir.
 
 ## 1. Voice Lab Hedefi
@@ -103,6 +105,7 @@ Plan seviyesinde karar:
 - STT: Turkce, Ingilizce ve Rusca icin transkripsiyon kalitesi olculecek.
 - LLM: Mevcut Velox tool calling, HOTEL_PROFILE ve QC kurallariyla calisacak.
 - TTS / Realtime pilot: OpenAI Realtime `gpt-realtime-1.5`; varsayilan ses `marin`. Built-in test sesleri: `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`, `marin`, `cedar`; kalite oncelikli adaylar `marin` ve `cedar`.
+- Alternatif TTS pilotu: ElevenLabs icin panelde ayar alani hazirlandi. Bu asamada model/voice secimi UI taslagidir; gercek ses uretimi icin backend adapter, sunucu tarafli secret yonetimi ve smoke test endpoint'i gereklidir.
 - Realtime tasima: Demo/admin panelde WebRTC; canli telefon icin Turkcell SIP/Trunk netlesirse SIP tasima yeniden degerlendirilecek.
 
 Resmi OpenAI dokumanlarinda voice agent icin iki ana mimari anlatilir:
@@ -154,6 +157,7 @@ Ses kaydi:
 - Voice Lab ilk fazda test amacli kayit tutabilir.
 - OpenAI Realtime pilotunda mikrofon sesi OpenAI'a aktarilir; Velox tarafinda yerel ses dosyasi veya gorusme kaydi tutulmaz.
 - Realtime SDP oturumu tarayici tarafindan kisa omurlu OpenAI client secret ile kurulur; `OPENAI_API_KEY` tarayiciya verilmez ve loglanmaz. Client secret sadece WebRTC oturum baslatma icindir ve standart server API key yerine gecmez.
+- ElevenLabs API key veya benzeri secret degerleri panelde alinmaz, gosterilmez ve localStorage'a yazilmaz. Bu degerler sadece backend ENV veya Docker secret uzerinden kullanilmalidir.
 - Canliya cikmadan once saklama suresi, kimlerin erisecegi ve silme akisi netlesmelidir.
 - Gercek misafir kaydi kullanilacaksa onceden riza ve anonimlestirme gerekir.
 
@@ -320,6 +324,8 @@ Ilk mock runner tamamlandi:
 - Deterministik kosucu: `src/velox/voice_lab/runner.py`
 - OpenAI Realtime WebRTC client secret endpoint'i: `POST /api/v1/admin/voice-lab/realtime/client-secret`
 - Geriye donuk OpenAI Realtime WebRTC proxy endpoint'i: `POST /api/v1/admin/voice-lab/realtime/session`
+- ElevenLabs panel hazirligi: Voice Lab icinde ayri entegrasyon alani, non-secret ses ayarlari ve baglanti durumu
+- Canli seviye gostergesi: Realtime mikrofon stream'i icin tarayici tabanli ses dalgasi/seviye gosterimi
 - Birim testleri: `tests/unit/test_voice_lab_runner.py`
 
 Mevcut runner ve panel ekranı, V001-V018 testlerini canli Turkcell veya PMS baglantisi olmadan calistirir. Fiyat, musaitlik ve rezervasyon kontrolu sorularinda tool zorunlulugunu isaretler; taksit, kur ve indirim sorularinda insan devri bekler; otopark, plaj ve konsept gibi cevaplari `HOTEL_PROFILE` kaynagindan uretir. OpenAI Realtime pilotu ise ses kalitesini ve mikrofonlu konusma hissini test eder; bu pilot deterministik runner raporlarini henuz DB'ye kaydetmez.
@@ -327,9 +333,10 @@ Mevcut runner ve panel ekranı, V001-V018 testlerini canli Turkcell veya PMS bag
 Sonraki teknik uygulama:
 
 1. OpenAI Realtime seslerini panelde `marin`, `cedar`, `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer` ve `verse` ile dinleyerek otel markasina uygun sesi secmek.
-2. Ses dosyasi yukleme veya mikrofon girdisini deterministik metin runner raporlarina baglamak.
-3. STT -> Velox text pipeline -> TTS mock akisinin metin runner'a baglanmasi.
-4. Turkce disinda Ingilizce ve Rusca smoke senaryolarinin eklenmesi.
-5. Voice Lab sonuc kayitlari icin saklama/erisim/silme politikasinin netlestirilmesi.
+2. ElevenLabs backend adapter'ini eklemek: server-side API key, voice test endpoint'i, timeout/hata davranisi ve secret loglamama kontrolleri.
+3. Ses dosyasi yukleme veya mikrofon girdisini deterministik metin runner raporlarina baglamak.
+4. STT -> Velox text pipeline -> TTS mock akisinin metin runner'a baglanmasi.
+5. Turkce disinda Ingilizce ve Rusca smoke senaryolarinin eklenmesi.
+6. Voice Lab sonuc kayitlari icin saklama/erisim/silme politikasinin netlestirilmesi.
 
 Canli Turkcell santral entegrasyonu, Voice Lab temel testleri gecmeden baslamamalidir.

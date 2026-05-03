@@ -1341,6 +1341,54 @@ def render_admin_panel_html() -> str:
                     <button id="voiceLabStopVoiceButton" class="action-button secondary" type="button" aria-label="Sesli oynatmayı durdur">Durdur</button>
                   </div>
                 </div>
+                <div class="voice-lab-elevenlabs-preview">
+                  <div class="voice-lab-provider-head">
+                    <div class="voice-lab-audio-copy">
+                      <strong>ElevenLabs Entegrasyonu</strong>
+                      <span id="voiceLabElevenLabsStatus" aria-live="polite">Bağlantı yapılandırması bekleniyor.</span>
+                    </div>
+                    <span id="voiceLabElevenLabsBadge" class="pill warn">Hazır değil</span>
+                  </div>
+                  <div class="voice-lab-elevenlabs-grid" role="group" aria-label="ElevenLabs ayarları">
+                    <div class="field">
+                      <label for="voiceLabElevenLabsKeyStatus">API anahtarı</label>
+                      <input id="voiceLabElevenLabsKeyStatus" type="text" value="Sunucu ENV üzerinde tutulur" disabled aria-label="ElevenLabs API anahtarı durumu">
+                    </div>
+                    <div class="field">
+                      <label for="voiceLabElevenLabsVoiceId">Voice ID / preset</label>
+                      <input id="voiceLabElevenLabsVoiceId" name="elevenlabs_voice_id" type="text" maxlength="120" placeholder="Voice ID veya otel preset adı">
+                    </div>
+                    <div class="field">
+                      <label for="voiceLabElevenLabsProfile">Model profili</label>
+                      <select id="voiceLabElevenLabsProfile" name="elevenlabs_profile">
+                        <option value="quality">Kalite öncelikli</option>
+                        <option value="balanced">Dengeli</option>
+                        <option value="low_latency">Düşük gecikme</option>
+                      </select>
+                    </div>
+                    <div class="field voice-lab-slider-field">
+                      <label for="voiceLabElevenLabsStability">Stabilite <span id="voiceLabElevenLabsStabilityValue">0.50</span></label>
+                      <input id="voiceLabElevenLabsStability" name="elevenlabs_stability" type="range" min="0" max="1" step="0.01" value="0.50" aria-label="ElevenLabs stabilite">
+                    </div>
+                    <div class="field voice-lab-slider-field">
+                      <label for="voiceLabElevenLabsSimilarity">Benzerlik <span id="voiceLabElevenLabsSimilarityValue">0.75</span></label>
+                      <input id="voiceLabElevenLabsSimilarity" name="elevenlabs_similarity" type="range" min="0" max="1" step="0.01" value="0.75" aria-label="ElevenLabs ses benzerliği">
+                    </div>
+                    <div class="field voice-lab-slider-field">
+                      <label for="voiceLabElevenLabsStyle">Stil <span id="voiceLabElevenLabsStyleValue">0.20</span></label>
+                      <input id="voiceLabElevenLabsStyle" name="elevenlabs_style" type="range" min="0" max="1" step="0.01" value="0.20" aria-label="ElevenLabs stil ayarı">
+                    </div>
+                  </div>
+                  <div class="voice-lab-provider-actions">
+                    <button id="voiceLabElevenLabsSaveButton" class="action-button secondary" type="button">Ayarları Kaydet</button>
+                    <button id="voiceLabElevenLabsTestButton" class="action-button secondary" type="button">Bağlantıyı Test Et</button>
+                  </div>
+                  <div class="voice-lab-provider-safety">
+                    <span>API key panelde görünmez</span>
+                    <span>Backend endpoint bekliyor</span>
+                    <span>Canlı çağrı yapılmaz</span>
+                  </div>
+                </div>
                 <div class="voice-lab-realtime-preview">
                   <div class="voice-lab-audio-copy">
                     <strong>OpenAI Realtime</strong>
@@ -1367,12 +1415,23 @@ def render_admin_panel_html() -> str:
                       <button id="voiceLabRealtimeStopButton" class="action-button secondary" type="button" disabled>Realtime Durdur</button>
                     </div>
                   </div>
+                  <div id="voiceLabRealtimeMeter" class="voice-lab-audio-meter" aria-label="Canlı mikrofon seviyesi">
+                    <div class="voice-lab-meter-head">
+                      <strong>Canlı ses seviyesi</strong>
+                      <span id="voiceLabRealtimeMeterText" aria-live="polite">Bekliyor</span>
+                    </div>
+                    <div id="voiceLabRealtimeMeterBars" class="voice-lab-meter-bars" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span><span></span><span></span>
+                      <span></span><span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                  </div>
                 </div>
               </form>
               <div id="voiceLabSafety" class="voice-lab-safety">
                 <span>Canlı arama yok</span>
                 <span>Yerel ses kaydı yok</span>
                 <span>Realtime açıkken mikrofon OpenAI'a gider</span>
+                <span>ElevenLabs key panelde görünmez</span>
                 <span>DB yazımı yok</span>
                 <span>PMS yazımı yok</span>
               </div>

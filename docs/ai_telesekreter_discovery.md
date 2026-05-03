@@ -1,6 +1,6 @@
 # AI Telesekreter Discovery
 
-> Son guncelleme: 2026-05-02
+> Son guncelleme: 2026-05-03
 > Durum: On entegrasyon kesif ve planlama notu
 
 Bu dosya, Velox projesine telefon santrali icin AI telesekreter ekleme surecinde kalici calisma notudur. AI telesekreter ile ilgili her yeni isten once bu dosya okunmalidir.
@@ -167,6 +167,8 @@ Planlama bilgisi bu dosyaya, misafire soylenebilir otel gercegi ise `data/hotel_
 - Voice Lab ses onizlemesine tarayici ses tipi secimi, konusma hizi ve ton ayari eklendi. Bu ayar mevcut demo sesini denemek icindir; profesyonel ve daha gercekci final ses icin resmi neural TTS saglayici/model secimi henuz yapilmadi.
 - Profesyonel ses icin OpenAI Realtime `gpt-realtime-1.5` ana aday olarak secildi. Demo Voice Lab ekranina WebRTC tabanli OpenAI Realtime mikrofon oturumu eklendi; OpenAI API anahtari tarayiciya verilmez. Backend `/v1/realtime/client_secrets` uzerinden kisa omurlu client secret uretir, tarayici SDP teklifini bu ephemeral secret ile OpenAI `/v1/realtime/calls` endpoint'ine `application/sdp` olarak gonderir.
 - Realtime Voice Lab varsayilan sesi `marin` olarak kalir; kalite oncelikli denemeler icin `marin` ve `cedar` onerilir. Panelde resmi built-in Realtime sesleri `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`, `marin` ve `cedar` secilebilir; `OPENAI_REALTIME_MODEL` ve `OPENAI_REALTIME_VOICE` ENV degiskenleriyle varsayilan degistirilebilir.
+- Demo Voice Lab ekranina ElevenLabs icin ayri bir entegrasyon alani eklendi. Bu alan API key girisi istemez; secret degeri ileride sadece backend ENV uzerinden yonetilmelidir. Panel simdilik voice preset, model profili ve ses karakteri ayarlarini taslak olarak tutar; gercek baglanti testi icin backend adapter/endpoint henuz eklenmedi.
+- OpenAI Realtime mikrofon oturumuna canli ses seviye gostergesi eklendi. Bu gosterge konusma sirasinda tarayicidaki mikrofon stream'inden seviye okuyarak tester'a sistemin sesi algiladigini gosterir; yerel ses kaydi olusturmaz.
 - V001-V018 senaryo matrisi kod tarafinda otomatik kosulabilir hale getirildi.
 - Test kapsami eklendi: fiyat/musaitlik tool zorunlulugu, otopark, Oludeniz plaj karakteri, odeme/taksit handoff, kart verisi maskeleme ve rezervasyon lookup tool zorunlulugu.
 - Canli Turkcell ve gercek PMS sorgusu henuz eklenmedi; Realtime ses testi demo/admin Voice Lab kapsamina alindi ve canli santral oncesi pilot olarak kullanilacak.

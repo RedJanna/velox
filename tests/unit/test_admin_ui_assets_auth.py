@@ -699,6 +699,15 @@ def test_admin_panel_exposes_voice_lab_view() -> None:
     assert 'id="voiceLabRealtimeVoice"' in html
     assert 'id="voiceLabRealtimeStartButton"' in html
     assert 'id="voiceLabRealtimeStopButton"' in html
+    assert 'id="voiceLabElevenLabsStatus"' in html
+    assert 'id="voiceLabElevenLabsVoiceId"' in html
+    assert 'id="voiceLabElevenLabsProfile"' in html
+    assert 'id="voiceLabElevenLabsSaveButton"' in html
+    assert 'id="voiceLabElevenLabsTestButton"' in html
+    assert 'id="voiceLabRealtimeMeter"' in html
+    assert 'id="voiceLabRealtimeMeterBars"' in html
+    assert "ElevenLabs Entegrasyonu" in html
+    assert "API key panelde görünmez" in html
     assert "loadVoiceLab" in ADMIN_PANEL_SCRIPT
     assert "/voice-lab/run" in ADMIN_PANEL_SCRIPT
     assert "/voice-lab/run-matrix" in ADMIN_PANEL_SCRIPT
@@ -727,8 +736,14 @@ def test_admin_panel_exposes_voice_lab_view() -> None:
         assert f'value="{voice}"' in html
         assert f"value: '{voice}'" in ADMIN_PANEL_SCRIPT
     assert "populateVoiceLabVoiceOptions" in ADMIN_PANEL_SCRIPT
+    assert "initializeVoiceLabElevenLabsControls" in ADMIN_PANEL_SCRIPT
+    assert "saveVoiceLabElevenLabsSettings" in ADMIN_PANEL_SCRIPT
+    assert "testVoiceLabElevenLabsConnection" in ADMIN_PANEL_SCRIPT
+    assert "startVoiceLabRealtimeMeter" in ADMIN_PANEL_SCRIPT
+    assert "updateVoiceLabRealtimeMeterFrame" in ADMIN_PANEL_SCRIPT
     assert "getVoiceLabSpeechRate" in ADMIN_PANEL_SCRIPT
     assert "getVoiceLabSpeechPitch" in ADMIN_PANEL_SCRIPT
+    assert "velox.voice_lab.elevenlabs.voice_id" in ADMIN_PANEL_SCRIPT
     assert "velox.voice_lab.rate" in ADMIN_PANEL_SCRIPT
     assert "speakVoiceLabGreeting" in ADMIN_PANEL_SCRIPT
     assert "speakVoiceLabReply" in ADMIN_PANEL_SCRIPT

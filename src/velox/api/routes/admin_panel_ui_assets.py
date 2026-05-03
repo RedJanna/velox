@@ -286,6 +286,8 @@ tbody tr:hover{background:#fffcf7}
 .voice-lab-actions{display:flex;gap:10px;flex-wrap:wrap}
 .voice-lab-audio-preview{display:grid;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:18px;background:var(--surface-2)}
 .voice-lab-realtime-preview{display:grid;gap:12px;padding:14px 16px;border:1px solid rgba(15,118,110,.22);border-radius:18px;background:#f1fbf9}
+.voice-lab-elevenlabs-preview{display:grid;gap:12px;padding:14px 16px;border:1px solid rgba(31,53,84,.18);border-radius:18px;background:#f8fafc}
+.voice-lab-provider-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .voice-lab-audio-copy{display:grid;gap:4px}
 .voice-lab-audio-copy strong{font-size:13px;color:var(--ink)}
 .voice-lab-audio-copy span{font-size:13px;color:var(--muted);line-height:1.45}
@@ -294,7 +296,19 @@ tbody tr:hover{background:#fffcf7}
 .voice-lab-audio-copy span[data-tone="error"]{color:var(--danger)}
 .voice-lab-tuning-grid{display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(140px,.8fr) minmax(140px,.8fr);gap:12px;align-items:end}
 .voice-lab-realtime-grid{display:grid;grid-template-columns:minmax(160px,.75fr) minmax(260px,1fr);gap:12px;align-items:end}
+.voice-lab-elevenlabs-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end}
 .voice-lab-realtime-actions{display:flex;gap:8px;flex-wrap:wrap}
+.voice-lab-provider-actions{display:flex;gap:8px;flex-wrap:wrap}
+.voice-lab-provider-safety{display:flex;gap:8px;flex-wrap:wrap}
+.voice-lab-provider-safety span{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700}
+.voice-lab-audio-meter{display:grid;gap:10px;padding:12px;border:1px solid rgba(15,118,110,.18);border-radius:16px;background:rgba(255,255,255,.72)}
+.voice-lab-meter-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.voice-lab-meter-head strong{font-size:12px;color:var(--ink)}
+.voice-lab-meter-head span{font-size:12px;color:var(--muted);font-weight:800}
+.voice-lab-audio-meter.active .voice-lab-meter-head span{color:#115e59}
+.voice-lab-meter-bars{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:5px;align-items:end;height:64px}
+.voice-lab-meter-bars span{display:block;min-height:8px;height:10px;border-radius:999px;background:linear-gradient(180deg,#0f766e,#7dd3fc);opacity:.45;transition:height .08s linear,opacity .12s ease}
+.voice-lab-audio-meter.active .voice-lab-meter-bars span{opacity:.9}
 .voice-lab-slider-field label{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .voice-lab-slider-field label span{font-size:12px;color:var(--muted);font-weight:800}
 .voice-lab-slider-field input[type="range"]{width:100%;min-height:34px;accent-color:var(--accent)}
@@ -437,7 +451,7 @@ tbody tr:hover{background:#fffcf7}
   .topbar-aside{justify-content:flex-start}
   .table-shell{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
   .table-shell table{min-width:640px}
-  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid,.debug-summary-grid,.debug-layout,.response-preview-layout,.response-preview-diagnostics,.voice-lab-summary-grid,.voice-lab-layout,.voice-lab-tuning-grid,.voice-lab-realtime-grid,.voice-lab-result-grid,.access-toggle-grid,.access-user-controls{grid-template-columns:1fr}
+  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid,.debug-summary-grid,.debug-layout,.response-preview-layout,.response-preview-diagnostics,.voice-lab-summary-grid,.voice-lab-layout,.voice-lab-tuning-grid,.voice-lab-realtime-grid,.voice-lab-elevenlabs-grid,.voice-lab-result-grid,.access-toggle-grid,.access-user-controls{grid-template-columns:1fr}
   .topbar{padding:18px 20px;border-radius:24px;flex-direction:column}
   .card-grid{grid-template-columns:1fr}
   .status-strip{grid-template-columns:1fr}
@@ -470,6 +484,11 @@ const VOICE_LAB_DEFAULT_RATE = 0.88;
 const VOICE_LAB_DEFAULT_PITCH = 0.96;
 const VOICE_LAB_NATURAL_VOICE_HINTS = ['natural','neural','online','premium','enhanced','microsoft','google'];
 const VOICE_LAB_REALTIME_VOICE_KEY = 'velox.voice_lab.realtime_voice';
+const VOICE_LAB_ELEVENLABS_VOICE_ID_KEY = 'velox.voice_lab.elevenlabs.voice_id';
+const VOICE_LAB_ELEVENLABS_PROFILE_KEY = 'velox.voice_lab.elevenlabs.profile';
+const VOICE_LAB_ELEVENLABS_STABILITY_KEY = 'velox.voice_lab.elevenlabs.stability';
+const VOICE_LAB_ELEVENLABS_SIMILARITY_KEY = 'velox.voice_lab.elevenlabs.similarity';
+const VOICE_LAB_ELEVENLABS_STYLE_KEY = 'velox.voice_lab.elevenlabs.style';
 const VOICE_LAB_REALTIME_VOICES = [
   {value: 'marin', label: 'Marin (önerilen)'},
   {value: 'cedar', label: 'Cedar (önerilen)'},
@@ -597,6 +616,10 @@ const state = {
   voiceLabRealtimeDataChannel: null,
   voiceLabRealtimeLocalStream: null,
   voiceLabRealtimeAudioElement: null,
+  voiceLabRealtimeAudioContext: null,
+  voiceLabRealtimeAnalyser: null,
+  voiceLabRealtimeMeterSource: null,
+  voiceLabRealtimeMeterAnimationFrame: 0,
   refreshPromise: null,
   liveRefreshHandle: null,
   _authKeepAliveTimer: null,
@@ -657,7 +680,12 @@ function bindRefs() {
     'voiceLabRunButton','voiceLabRunMatrixButton','voiceLabClearButton','voiceLabSafety','voiceLabResultMeta',
     'voiceLabVoiceSelect','voiceLabRate','voiceLabRateValue','voiceLabPitch','voiceLabPitchValue',
     'voiceLabSpeakGreetingButton','voiceLabSpeakReplyButton','voiceLabStopVoiceButton','voiceLabVoiceStatus',
+    'voiceLabElevenLabsStatus','voiceLabElevenLabsBadge','voiceLabElevenLabsKeyStatus',
+    'voiceLabElevenLabsVoiceId','voiceLabElevenLabsProfile','voiceLabElevenLabsStability',
+    'voiceLabElevenLabsStabilityValue','voiceLabElevenLabsSimilarity','voiceLabElevenLabsSimilarityValue',
+    'voiceLabElevenLabsStyle','voiceLabElevenLabsStyleValue','voiceLabElevenLabsSaveButton','voiceLabElevenLabsTestButton',
     'voiceLabRealtimeVoice','voiceLabRealtimeStartButton','voiceLabRealtimeStopButton','voiceLabRealtimeStatus',
+    'voiceLabRealtimeMeter','voiceLabRealtimeMeterText','voiceLabRealtimeMeterBars',
     'voiceLabResultBadge','voiceLabResultPanel','voiceLabMatrixBadge','voiceLabMatrixBody',
     'logoutButton','reloadButton','decisionDialog','decisionForm','decisionTitle','decisionLead','decisionReason',
     'decisionHoldId','decisionMode'
@@ -714,11 +742,19 @@ function bindEvents() {
   refs.voiceLabSpeakGreetingButton?.addEventListener('click', speakVoiceLabGreeting);
   refs.voiceLabSpeakReplyButton?.addEventListener('click', speakVoiceLabReply);
   refs.voiceLabStopVoiceButton?.addEventListener('click', stopVoiceLabSpeech);
+  refs.voiceLabElevenLabsProfile?.addEventListener('change', onVoiceLabElevenLabsChange);
+  refs.voiceLabElevenLabsVoiceId?.addEventListener('input', onVoiceLabElevenLabsChange);
+  refs.voiceLabElevenLabsStability?.addEventListener('input', onVoiceLabElevenLabsChange);
+  refs.voiceLabElevenLabsSimilarity?.addEventListener('input', onVoiceLabElevenLabsChange);
+  refs.voiceLabElevenLabsStyle?.addEventListener('input', onVoiceLabElevenLabsChange);
+  refs.voiceLabElevenLabsSaveButton?.addEventListener('click', saveVoiceLabElevenLabsSettings);
+  refs.voiceLabElevenLabsTestButton?.addEventListener('click', testVoiceLabElevenLabsConnection);
   refs.voiceLabRealtimeVoice?.addEventListener('change', onVoiceLabRealtimeVoiceChange);
   refs.voiceLabRealtimeStartButton?.addEventListener('click', startVoiceLabRealtime);
   refs.voiceLabRealtimeStopButton?.addEventListener('click', stopVoiceLabRealtime);
   refs.voiceLabLanguage?.addEventListener('change', onVoiceLabLanguageChange);
   initializeVoiceLabTuningControls();
+  initializeVoiceLabElevenLabsControls();
   initializeVoiceLabRealtimeControls();
   bindVoiceLabSpeechEvents();
   refs.reloadButton?.addEventListener('click', reloadConfig);
@@ -2514,6 +2550,100 @@ function initializeVoiceLabTuningControls() {
   updateVoiceLabTuningLabels();
 }
 
+function initializeVoiceLabElevenLabsControls() {
+  if (refs.voiceLabElevenLabsVoiceId) {
+    refs.voiceLabElevenLabsVoiceId.value = getVoiceLabStoredValue(VOICE_LAB_ELEVENLABS_VOICE_ID_KEY) || '';
+  }
+  if (refs.voiceLabElevenLabsProfile) {
+    const profile = getVoiceLabStoredValue(VOICE_LAB_ELEVENLABS_PROFILE_KEY) || 'quality';
+    refs.voiceLabElevenLabsProfile.value = ['quality','balanced','low_latency'].includes(profile) ? profile : 'quality';
+  }
+  if (refs.voiceLabElevenLabsStability) {
+    refs.voiceLabElevenLabsStability.value = clampVoiceLabNumber(
+      getVoiceLabStoredValue(VOICE_LAB_ELEVENLABS_STABILITY_KEY),
+      0,
+      1,
+      0.5
+    ).toFixed(2);
+  }
+  if (refs.voiceLabElevenLabsSimilarity) {
+    refs.voiceLabElevenLabsSimilarity.value = clampVoiceLabNumber(
+      getVoiceLabStoredValue(VOICE_LAB_ELEVENLABS_SIMILARITY_KEY),
+      0,
+      1,
+      0.75
+    ).toFixed(2);
+  }
+  if (refs.voiceLabElevenLabsStyle) {
+    refs.voiceLabElevenLabsStyle.value = clampVoiceLabNumber(
+      getVoiceLabStoredValue(VOICE_LAB_ELEVENLABS_STYLE_KEY),
+      0,
+      1,
+      0.2
+    ).toFixed(2);
+  }
+  updateVoiceLabElevenLabsLabels();
+  setVoiceLabElevenLabsStatus('Bağlantı yapılandırması bekleniyor.', 'warn', 'Hazır değil');
+}
+
+function updateVoiceLabElevenLabsLabels() {
+  if (refs.voiceLabElevenLabsStabilityValue) {
+    refs.voiceLabElevenLabsStabilityValue.textContent = clampVoiceLabNumber(
+      refs.voiceLabElevenLabsStability?.value,
+      0,
+      1,
+      0.5
+    ).toFixed(2);
+  }
+  if (refs.voiceLabElevenLabsSimilarityValue) {
+    refs.voiceLabElevenLabsSimilarityValue.textContent = clampVoiceLabNumber(
+      refs.voiceLabElevenLabsSimilarity?.value,
+      0,
+      1,
+      0.75
+    ).toFixed(2);
+  }
+  if (refs.voiceLabElevenLabsStyleValue) {
+    refs.voiceLabElevenLabsStyleValue.textContent = clampVoiceLabNumber(
+      refs.voiceLabElevenLabsStyle?.value,
+      0,
+      1,
+      0.2
+    ).toFixed(2);
+  }
+}
+
+function setVoiceLabElevenLabsStatus(message, tone = 'info', badge = 'Planlandı') {
+  if (refs.voiceLabElevenLabsStatus) {
+    refs.voiceLabElevenLabsStatus.textContent = message;
+    refs.voiceLabElevenLabsStatus.dataset.tone = tone;
+  }
+  if (refs.voiceLabElevenLabsBadge) {
+    refs.voiceLabElevenLabsBadge.className = `pill ${tone}`;
+    refs.voiceLabElevenLabsBadge.textContent = badge;
+  }
+}
+
+function onVoiceLabElevenLabsChange() {
+  updateVoiceLabElevenLabsLabels();
+  setVoiceLabElevenLabsStatus('Kaydedilmemiş ElevenLabs ayarı var.', 'info', 'Taslak');
+}
+
+function saveVoiceLabElevenLabsSettings() {
+  setVoiceLabStoredValue(VOICE_LAB_ELEVENLABS_VOICE_ID_KEY, String(refs.voiceLabElevenLabsVoiceId?.value || '').trim());
+  setVoiceLabStoredValue(VOICE_LAB_ELEVENLABS_PROFILE_KEY, String(refs.voiceLabElevenLabsProfile?.value || 'quality'));
+  setVoiceLabStoredValue(VOICE_LAB_ELEVENLABS_STABILITY_KEY, clampVoiceLabNumber(refs.voiceLabElevenLabsStability?.value, 0, 1, 0.5).toFixed(2));
+  setVoiceLabStoredValue(VOICE_LAB_ELEVENLABS_SIMILARITY_KEY, clampVoiceLabNumber(refs.voiceLabElevenLabsSimilarity?.value, 0, 1, 0.75).toFixed(2));
+  setVoiceLabStoredValue(VOICE_LAB_ELEVENLABS_STYLE_KEY, clampVoiceLabNumber(refs.voiceLabElevenLabsStyle?.value, 0, 1, 0.2).toFixed(2));
+  setVoiceLabElevenLabsStatus('ElevenLabs panel ayarları kaydedildi. Bağlantı testi için backend endpoint gereklidir.', 'info', 'Taslak');
+  notify('ElevenLabs panel ayarları kaydedildi.', 'success');
+}
+
+function testVoiceLabElevenLabsConnection() {
+  setVoiceLabElevenLabsStatus('ElevenLabs bağlantı testi için backend endpoint ve sunucu ENV bağlantısı sonraki adımdır.', 'warn', 'Bekliyor');
+  notify('ElevenLabs bağlantı testi backend entegrasyonundan sonra çalışacak.', 'warn');
+}
+
 function initializeVoiceLabRealtimeControls() {
   populateVoiceLabRealtimeVoiceOptions();
   const savedVoice = getVoiceLabStoredValue(VOICE_LAB_REALTIME_VOICE_KEY) || 'marin';
@@ -2521,6 +2651,7 @@ function initializeVoiceLabRealtimeControls() {
     refs.voiceLabRealtimeVoice.value = savedVoice;
   }
   syncVoiceLabRealtimeControls();
+  resetVoiceLabRealtimeMeter();
 }
 
 function populateVoiceLabRealtimeVoiceOptions() {
@@ -2558,6 +2689,77 @@ function setVoiceLabRealtimeStatus(message, tone = 'info') {
   if (!refs.voiceLabRealtimeStatus) return;
   refs.voiceLabRealtimeStatus.textContent = message;
   refs.voiceLabRealtimeStatus.dataset.tone = tone;
+}
+
+function setVoiceLabRealtimeMeter(message, active = false) {
+  if (refs.voiceLabRealtimeMeterText) refs.voiceLabRealtimeMeterText.textContent = message;
+  if (refs.voiceLabRealtimeMeter) refs.voiceLabRealtimeMeter.classList.toggle('active', Boolean(active));
+}
+
+function setVoiceLabRealtimeMeterBars(levels = []) {
+  const bars = refs.voiceLabRealtimeMeterBars ? Array.from(refs.voiceLabRealtimeMeterBars.children) : [];
+  bars.forEach((bar, index) => {
+    const level = Math.max(0.08, Math.min(1, Number(levels[index]) || 0.08));
+    bar.style.height = `${Math.round(8 + level * 56)}px`;
+  });
+}
+
+function resetVoiceLabRealtimeMeter() {
+  if (state.voiceLabRealtimeMeterAnimationFrame) {
+    window.cancelAnimationFrame(state.voiceLabRealtimeMeterAnimationFrame);
+    state.voiceLabRealtimeMeterAnimationFrame = 0;
+  }
+  try { state.voiceLabRealtimeMeterSource?.disconnect(); } catch (_error) {}
+  try { state.voiceLabRealtimeAnalyser?.disconnect(); } catch (_error) {}
+  try { state.voiceLabRealtimeAudioContext?.close(); } catch (_error) {}
+  state.voiceLabRealtimeMeterSource = null;
+  state.voiceLabRealtimeAnalyser = null;
+  state.voiceLabRealtimeAudioContext = null;
+  setVoiceLabRealtimeMeter('Bekliyor', false);
+  setVoiceLabRealtimeMeterBars([]);
+}
+
+function startVoiceLabRealtimeMeter(localStream) {
+  resetVoiceLabRealtimeMeter();
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass || !localStream) {
+    setVoiceLabRealtimeMeter('Seviye ölçümü yok', false);
+    return;
+  }
+  try {
+    const audioContext = new AudioContextClass();
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.72;
+    const source = audioContext.createMediaStreamSource(localStream);
+    source.connect(analyser);
+    state.voiceLabRealtimeAudioContext = audioContext;
+    state.voiceLabRealtimeAnalyser = analyser;
+    state.voiceLabRealtimeMeterSource = source;
+    updateVoiceLabRealtimeMeterFrame();
+  } catch (_error) {
+    resetVoiceLabRealtimeMeter();
+    setVoiceLabRealtimeMeter('Seviye ölçümü başlatılamadı', false);
+  }
+}
+
+function updateVoiceLabRealtimeMeterFrame() {
+  const analyser = state.voiceLabRealtimeAnalyser;
+  if (!analyser) return;
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(data);
+  const bars = refs.voiceLabRealtimeMeterBars ? Array.from(refs.voiceLabRealtimeMeterBars.children) : [];
+  const step = Math.max(1, Math.floor(data.length / Math.max(1, bars.length)));
+  const levels = bars.map((_bar, index) => {
+    const start = index * step;
+    const slice = data.slice(start, start + step);
+    const total = slice.reduce((sum, value) => sum + value, 0);
+    return Math.max(0.08, total / Math.max(1, slice.length) / 255);
+  });
+  const peak = Math.max(...levels, 0);
+  setVoiceLabRealtimeMeter(peak > 0.16 ? 'Ses algılanıyor' : 'Dinleniyor', true);
+  setVoiceLabRealtimeMeterBars(levels);
+  state.voiceLabRealtimeMeterAnimationFrame = window.requestAnimationFrame(updateVoiceLabRealtimeMeterFrame);
 }
 
 function syncVoiceLabRealtimeControls() {
@@ -2637,6 +2839,7 @@ async function startVoiceLabRealtime() {
     localStream = await navigator.mediaDevices.getUserMedia({
       audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true},
     });
+    startVoiceLabRealtimeMeter(localStream);
     localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
     dataChannel = peer.createDataChannel('oai-events');
     dataChannel.addEventListener('open', () => {
@@ -2734,6 +2937,7 @@ function onVoiceLabRealtimeEvent(event) {
 }
 
 function cleanupVoiceLabRealtimeResources(resources = {}) {
+  resetVoiceLabRealtimeMeter();
   const dataChannel = resources.dataChannel || state.voiceLabRealtimeDataChannel;
   const localStream = resources.localStream || state.voiceLabRealtimeLocalStream;
   const peer = resources.peer || state.voiceLabRealtimePeer;
@@ -3110,11 +3314,13 @@ function renderVoiceLabSafety(result) {
     {label: 'DB yazımı yok', cls: 'success'},
     {label: 'Yerel ses kaydı yok', cls: 'success'},
     {label: 'Realtime açıkken mikrofon OpenAI’a gider', cls: 'warn'},
+    {label: 'ElevenLabs key panelde görünmez', cls: 'success'},
     {label: result.result === 'BLOCKED' ? 'Güvenlik blokladı' : 'Güvenlik kontrolü', cls: result.result === 'BLOCKED' ? 'warn' : 'info'},
   ] : [
     {label: 'Canlı arama yok', cls: 'info'},
     {label: 'Yerel ses kaydı yok', cls: 'success'},
     {label: 'Realtime açıkken mikrofon OpenAI’a gider', cls: 'warn'},
+    {label: 'ElevenLabs key panelde görünmez', cls: 'success'},
     {label: 'DB yazımı yok', cls: 'info'},
     {label: 'PMS yazımı yok', cls: 'info'},
   ];
