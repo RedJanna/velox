@@ -29,19 +29,19 @@ contacts:
     role: RECEPTION
     email: info@kassandraoludeniz.com
     hours: 08:00-16:00
-    phone: '+905332503277'
+    phone: '+905331289048'
   restaurant:
     name: Suat
     role: RESTAURANT
     email: info@kassandraoludeniz.com
     hours: 12:00-22:00
-    phone: '+905332503277'
+    phone: '+905331289048'
   housekeeping:
     name: Yağmur
     role: HOUSEKEEPING
     email: info@kassandraoludeniz.com
     hours: 08:00-16:00
-    phone: '+905332503277'
+    phone: '+905331289048'
   escalation_admin:
     name: Ömer
     role: OTHER
@@ -1526,7 +1526,7 @@ transfer_routes:
   vehicle_type: Vito
   from_location: Kassandra Ölüdeniz
   oversize_vehicle: null
-whatsapp_number: '+905332503277'
+whatsapp_number: '+905331289048'
 facility_policies:
   pets:
     allowed: false
