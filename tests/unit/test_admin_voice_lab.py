@@ -1,5 +1,7 @@
 """Unit tests for admin Voice Lab API helpers."""
 
+from datetime import UTC, datetime
+
 import httpx
 import pytest
 from fastapi import HTTPException
@@ -10,15 +12,24 @@ from velox.api.routes.admin_voice_lab import (
     VoiceLabMatrixRunRequest,
     VoiceLabRunAdminRequest,
     build_voice_lab_realtime_session_config,
+    build_voice_lab_run_id,
+    evaluate_voice_lab_release_gate,
     extract_openai_error_summary,
     normalize_voice_lab_realtime_voice,
     request_openai_realtime_client_secret,
     request_openai_realtime_sdp_answer,
     run_voice_lab_matrix,
     run_voice_lab_transcript,
+    summarize_voice_lab_matrix,
 )
 from velox.config.constants import Role
 from velox.models.hotel_profile import HotelProfile
+from velox.voice_lab import (
+    VoiceLabAction,
+    VoiceLabResult,
+    VoiceLabRunResult,
+    VoiceLabSource,
+)
 
 
 def _admin_user(hotel_id: int) -> TokenData:
@@ -184,6 +195,11 @@ async def test_admin_voice_lab_runs_full_matrix(
     assert response.summary.passed == 18
     assert response.summary.failed == 0
     assert response.summary.blocked == 0
+    assert response.summary.critical_failed == 0
+    assert response.run_id.startswith("voice-lab-")
+    assert response.mode == "quick"
+    assert response.languages == ["tr"]
+    assert response.release_gate == "PASS"
     assert response.items[0].scenario_id == "V001"
 
 
@@ -218,3 +234,39 @@ async def test_admin_voice_lab_enforces_hotel_scope(hotel_profile: HotelProfile)
         )
 
     assert exc_info.value.status_code == 403
+
+
+def test_voice_lab_run_id_uses_compact_timestamp() -> None:
+    """Voice Lab reports should have a predictable run ID shape."""
+    run_id = build_voice_lab_run_id(datetime(2026, 5, 3, 12, 34, 56, tzinfo=UTC))
+
+    assert run_id == "voice-lab-20260503-123456"
+
+
+def test_voice_lab_release_gate_blocks_critical_failures(hotel_profile: HotelProfile) -> None:
+    """Failed tool/handoff scenarios should block a live release decision."""
+    failed_item = VoiceLabRunResult(
+        hotel_id=hotel_profile.hotel_id,
+        scenario_id="V001",
+        input_transcript="fiyat",
+        normalized_text="fiyat",
+        language_detected="tr",
+        intent="stay_quote_request",
+        source_type=VoiceLabSource.TOOL,
+        source_detail="booking.quote",
+        action=VoiceLabAction.TOOL_REQUIRED,
+        tool_required=True,
+        tool_called=False,
+        tool_name="booking.quote",
+        handoff_required=False,
+        risk_flags=[],
+        response_text="",
+        result=VoiceLabResult.FAIL,
+    )
+
+    summary = summarize_voice_lab_matrix([failed_item])
+    release_gate, reason = evaluate_voice_lab_release_gate(summary)
+
+    assert summary.critical_failed == 1
+    assert release_gate == "BLOCKED"
+    assert "Kritik" in reason

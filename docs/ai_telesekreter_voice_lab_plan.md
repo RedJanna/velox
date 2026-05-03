@@ -326,6 +326,7 @@ Ilk mock runner tamamlandi:
 - Geriye donuk OpenAI Realtime WebRTC proxy endpoint'i: `POST /api/v1/admin/voice-lab/realtime/session`
 - ElevenLabs panel hazirligi: Voice Lab icinde ayri entegrasyon alani, non-secret ses ayarlari ve baglanti durumu
 - Canli seviye gostergesi: Realtime mikrofon stream'i icin tarayici tabanli ses dalgasi/seviye gosterimi
+- Matrix API raporu: `run_id`, ortam, test edilen dil, `critical_failed` sayaci ve `release_gate` karari
 - Birim testleri: `tests/unit/test_voice_lab_runner.py`
 
 Mevcut runner ve panel ekranı, V001-V018 testlerini canli Turkcell veya PMS baglantisi olmadan calistirir. Fiyat, musaitlik ve rezervasyon kontrolu sorularinda tool zorunlulugunu isaretler; taksit, kur ve indirim sorularinda insan devri bekler; otopark, plaj ve konsept gibi cevaplari `HOTEL_PROFILE` kaynagindan uretir. OpenAI Realtime pilotu ise ses kalitesini ve mikrofonlu konusma hissini test eder; bu pilot deterministik runner raporlarini henuz DB'ye kaydetmez.

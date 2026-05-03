@@ -170,5 +170,6 @@ Planlama bilgisi bu dosyaya, misafire soylenebilir otel gercegi ise `data/hotel_
 - Demo Voice Lab ekranina ElevenLabs icin ayri bir entegrasyon alani eklendi. Bu alan API key girisi istemez; secret degeri ileride sadece backend ENV uzerinden yonetilmelidir. Panel simdilik voice preset, model profili ve ses karakteri ayarlarini taslak olarak tutar; gercek baglanti testi icin backend adapter/endpoint henuz eklenmedi.
 - OpenAI Realtime mikrofon oturumuna canli ses seviye gostergesi eklendi. Bu gosterge konusma sirasinda tarayicidaki mikrofon stream'inden seviye okuyarak tester'a sistemin sesi algiladigini gosterir; yerel ses kaydi olusturmaz.
 - V001-V018 senaryo matrisi kod tarafinda otomatik kosulabilir hale getirildi.
+- Voice Lab matrix kosusu `run_id`, ortam, dil, `critical_failed` ve `release_gate` alanlariyla raporlanir; bu rapor canli oncesi hizli yayin kapisi olarak okunabilir.
 - Test kapsami eklendi: fiyat/musaitlik tool zorunlulugu, otopark, Oludeniz plaj karakteri, odeme/taksit handoff, kart verisi maskeleme ve rezervasyon lookup tool zorunlulugu.
 - Canli Turkcell ve gercek PMS sorgusu henuz eklenmedi; Realtime ses testi demo/admin Voice Lab kapsamina alindi ve canli santral oncesi pilot olarak kullanilacak.

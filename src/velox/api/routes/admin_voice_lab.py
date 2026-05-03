@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import Annotated
 
 import httpx
@@ -116,12 +117,19 @@ class VoiceLabMatrixSummary(BaseModel):
     passed: int
     failed: int
     blocked: int
+    critical_failed: int
 
 
 class VoiceLabMatrixRunResponse(BaseModel):
     """Result set for the baseline Voice Lab matrix."""
 
+    run_id: str
+    mode: str
+    environment: str
+    languages: list[str]
     summary: VoiceLabMatrixSummary
+    release_gate: str
+    release_gate_reason: str
     items: list[VoiceLabRunResult]
 
 
@@ -171,13 +179,18 @@ async def run_voice_lab_matrix(
     hotel_id = resolve_hotel_scope(current_user, payload.hotel_id)
     runner = _runner_for_hotel(hotel_id)
     items = runner.run_matrix(language=payload.language)
-    summary = VoiceLabMatrixSummary(
-        total=len(items),
-        passed=sum(1 for item in items if item.result == VoiceLabResult.PASS),
-        failed=sum(1 for item in items if item.result == VoiceLabResult.FAIL),
-        blocked=sum(1 for item in items if item.result == VoiceLabResult.BLOCKED),
+    summary = summarize_voice_lab_matrix(items)
+    release_gate, release_gate_reason = evaluate_voice_lab_release_gate(summary)
+    return VoiceLabMatrixRunResponse(
+        run_id=build_voice_lab_run_id(),
+        mode="quick",
+        environment=settings.app_env,
+        languages=[payload.language],
+        summary=summary,
+        release_gate=release_gate,
+        release_gate_reason=release_gate_reason,
+        items=items,
     )
-    return VoiceLabMatrixRunResponse(summary=summary, items=items)
 
 
 @router.post("/realtime/session", response_class=PlainTextResponse)
@@ -242,6 +255,41 @@ def _profile_for_hotel(hotel_id: int) -> HotelProfile:
             detail="Seçili otel profili bulunamadı.",
         )
     return profile
+
+
+def build_voice_lab_run_id(now: datetime | None = None) -> str:
+    """Build a stable Voice Lab run identifier for report correlation."""
+    current = now or datetime.now(UTC)
+    return f"voice-lab-{current.strftime('%Y%m%d-%H%M%S')}"
+
+
+def summarize_voice_lab_matrix(items: list[VoiceLabRunResult]) -> VoiceLabMatrixSummary:
+    """Summarize matrix results with a critical release gate counter."""
+    return VoiceLabMatrixSummary(
+        total=len(items),
+        passed=sum(1 for item in items if item.result == VoiceLabResult.PASS),
+        failed=sum(1 for item in items if item.result == VoiceLabResult.FAIL),
+        blocked=sum(1 for item in items if item.result == VoiceLabResult.BLOCKED),
+        critical_failed=sum(1 for item in items if is_critical_voice_lab_failure(item)),
+    )
+
+
+def evaluate_voice_lab_release_gate(summary: VoiceLabMatrixSummary) -> tuple[str, str]:
+    """Return the release gate decision for a Voice Lab report summary."""
+    if summary.critical_failed:
+        return "BLOCKED", "Kritik Voice Lab senaryosu başarısız oldu."
+    if summary.failed:
+        return "REVIEW", "Kritik olmayan başarısız senaryolar incelenmeli."
+    if summary.blocked:
+        return "REVIEW", "Bloklanan senaryolar canlı öncesi yeniden koşulmalı."
+    return "PASS", "Voice Lab hızlı koşusu yayın kapısını geçti."
+
+
+def is_critical_voice_lab_failure(item: VoiceLabRunResult) -> bool:
+    """Treat failed safety, tool, and handoff checks as release-blocking."""
+    if item.result != VoiceLabResult.FAIL:
+        return False
+    return item.tool_required or item.handoff_required or bool(item.risk_flags)
 
 
 async def _read_realtime_offer_sdp(request: Request) -> str:
