@@ -208,7 +208,19 @@ async def availability(
 
     logger.info("elektraweb_availability_request", hotel_id=hotel_id, checkin=str(checkin), checkout=str(checkout))
     raw = await client.get(f"/hotel/{hotel_id}/availability", params=params)
-    return parse_availability(raw)
+    parsed = parse_availability(raw)
+    if parsed.available or parsed.rows:
+        return parsed
+    return await _availability_from_price_fallback(
+        hotel_id=hotel_id,
+        checkin=checkin,
+        checkout=checkout,
+        adults=adults,
+        chd_count=chd_count,
+        chd_ages=chd_ages,
+        currency=currency,
+        availability_response=parsed,
+    )
 
 
 async def quote(
@@ -264,6 +276,131 @@ async def quote(
             f"{CHILD_OCCUPANCY_UNVERIFIED}: PMS quote did not reflect requested child occupancy."
         )
     return parse_quote(raw)
+
+
+async def _availability_from_price_fallback(
+    *,
+    hotel_id: int,
+    checkin: date,
+    checkout: date,
+    adults: int,
+    chd_count: int,
+    chd_ages: list[int] | None,
+    currency: str,
+    availability_response: AvailabilityResponse,
+) -> AvailabilityResponse:
+    """Use price offers as fallback proof when live availability returns no rows."""
+    try:
+        quote_response = await quote(
+            hotel_id=hotel_id,
+            checkin=checkin,
+            checkout=checkout,
+            adults=adults,
+            chd_count=chd_count,
+            chd_ages=chd_ages,
+            currency=currency,
+        )
+    except Exception as exc:
+        logger.warning(
+            "elektraweb_availability_price_fallback_failed",
+            hotel_id=hotel_id,
+            checkin=str(checkin),
+            checkout=str(checkout),
+            error_type=type(exc).__name__,
+        )
+        derived = dict(availability_response.derived)
+        derived.update(
+            {
+                "availability_status": "unverified",
+                "fallback_source": "price",
+                "fallback_error_type": type(exc).__name__,
+            }
+        )
+        availability_response.derived = derived
+        availability_response.notes = "availability_empty_price_fallback_failed"
+        return availability_response
+
+    sellable_offers = _sellable_quote_offers(quote_response.offers)
+    if not sellable_offers:
+        derived = dict(availability_response.derived)
+        derived.update(
+            {
+                "availability_status": "verified_no_offer",
+                "fallback_source": "price",
+                "fallback_offer_count": len(quote_response.offers),
+            }
+        )
+        availability_response.derived = derived
+        return availability_response
+
+    logger.warning(
+        "elektraweb_availability_empty_price_fallback_available",
+        hotel_id=hotel_id,
+        checkin=str(checkin),
+        checkout=str(checkout),
+        quote_offer_count=len(quote_response.offers),
+        sellable_room_type_count=len({offer.room_type_id for offer in sellable_offers}),
+    )
+    return _availability_response_from_quote_offers(
+        availability_response=availability_response,
+        quote_offers=sellable_offers,
+    )
+
+
+def _sellable_quote_offers(offers: list[BookingOffer]) -> list[BookingOffer]:
+    """Return quote offers that are usable as fallback sellability proof."""
+    sellable: list[BookingOffer] = []
+    for offer in offers:
+        if offer.room_type_id <= 0:
+            continue
+        if offer.stop_sell:
+            continue
+        if max(offer.price, offer.discounted_price) <= 0:
+            continue
+        sellable.append(offer)
+    return sellable
+
+
+def _availability_response_from_quote_offers(
+    *,
+    availability_response: AvailabilityResponse,
+    quote_offers: list[BookingOffer],
+) -> AvailabilityResponse:
+    """Build availability rows from quote offers after empty availability drift."""
+    rows_by_room_type: dict[int, BookingOffer] = {}
+    for offer in quote_offers:
+        current = rows_by_room_type.get(offer.room_type_id)
+        if current is None or offer.room_to_sell > current.room_to_sell:
+            rows_by_room_type[offer.room_type_id] = offer
+
+    rows = [
+        {
+            "date": "",
+            "room_type_id": offer.room_type_id,
+            "room_type": offer.room_type,
+            "room_to_sell": max(offer.room_to_sell, 1),
+            "stop_sell": False,
+        }
+        for offer in rows_by_room_type.values()
+    ]
+    eligible_room_type_ids = sorted(rows_by_room_type)
+    derived = dict(availability_response.derived)
+    derived.update(
+        {
+            "source": "price_fallback_after_empty_availability",
+            "availability_status": "verified_by_price",
+            "fallback_source": "price",
+            "fallback_offer_count": len(quote_offers),
+            "row_count": len(rows),
+            "eligible_room_type_ids": eligible_room_type_ids,
+        }
+    )
+    return AvailabilityResponse(
+        available=True,
+        rows=rows,
+        derived=derived,
+        notes="availability endpoint returned no rows; price endpoint returned sellable offers",
+    )
 
 
 def _safe_int(value: object, default: int = 0) -> int:

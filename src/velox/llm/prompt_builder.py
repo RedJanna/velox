@@ -1,6 +1,5 @@
 """System prompt and message assembly for LLM requests."""
 
-from pathlib import Path
 from typing import Any
 
 import orjson
@@ -18,8 +17,8 @@ from velox.models.hotel_profile import (
     RoomType,
     TransferRouteConfig,
 )
-from velox.utils.project_paths import get_project_root
 from velox.utils.metrics import record_prompt_truncation
+from velox.utils.project_paths import get_project_root
 
 logger = structlog.get_logger(__name__)
 
@@ -54,6 +53,9 @@ VELox runtime core
   call hotel_info_lookup before answering.
 - Use booking_availability and booking_quote for live stay answers.
   Never state live availability or price without tool grounding.
+- If booking_availability returns an error, handoff_required=true, or
+  availability_status=unverified, never tell the guest the hotel is full or
+  unavailable; state that live verification is needed and route to ADMIN.
 - Ask exactly one missing field per turn during verification.
 - Do not ask card, CVV, OTP, or bank password. Payment collection is always human-assisted.
 - Do not promise a physical action, order, preparation, sending, or finalized
@@ -270,7 +272,10 @@ def _count_menu_items(value: Any) -> int:
     if isinstance(value, list):
         return sum(_count_menu_items(item) for item in value)
     if isinstance(value, dict):
-        if any(isinstance(value.get(key), str) and str(value.get(key)).strip() for key in ("name", "name_tr", "name_en")):
+        if any(
+            isinstance(value.get(key), str) and str(value.get(key)).strip()
+            for key in ("name", "name_tr", "name_en")
+        ):
             return 1
         return sum(_count_menu_items(item) for item in value.values())
     return 0
@@ -491,9 +496,12 @@ class PromptBuilder:
             f"- summarize_large_price_lists={str(summarize_large_lists).lower()}\n"
             f"- ask_before_full_price_dump={str(ask_before_full_dump).lower()}\n"
             "- Do not repeat already confirmed details unless the guest asks again or data changes.\n"
-            "- For stay pricing, if the guest asks generally without naming a room type, include every eligible and available room type suitable for the requested occupancy in the same reply.\n"
-            "- For stay pricing, if the guest explicitly asks for one room type, keep the reply limited to that room type only.\n"
-            "- Never omit an eligible available room type from a general stay-pricing reply and never defer part of the room-price list to a later turn.\n"
+            "- For stay pricing, if the guest asks generally without naming a room type, include every "
+            "eligible and available room type suitable for the requested occupancy in the same reply.\n"
+            "- For stay pricing, if the guest explicitly asks for one room type, keep the reply limited "
+            "to that room type only.\n"
+            "- Never omit an eligible available room type from a general stay-pricing reply and never "
+            "defer part of the room-price list to a later turn.\n"
             "- During reservation data collection, ask for exactly one missing field per turn."
         )
 

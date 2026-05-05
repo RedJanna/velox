@@ -425,6 +425,7 @@ Output:
 }
 Kural: `checkin_date` veya `checkout_date`, `HOTEL_PROFILE.season.open` ile `HOTEL_PROFILE.season.close` araliginda degilse tool `OUT_OF_SEASON` doner ve konaklama rezervasyon akisi sezon ici yeni tarih istemeye cekilir.
 Kural: `checkin_date` otelin bugun tarihinden eskiyse tool PMS'e gitmeden `CHECKIN_DATE_IN_PAST` doner; `checkout_date <= checkin_date` ise `CHECKOUT_DATE_NOT_AFTER_CHECKIN` doner. Her iki durumda da sadece ilgili tarih yeniden istenir.
+Kural: Elektra availability endpoint'i tamamen bos satir donerse bu sonuc tek basina "musait degil" kaniti sayilmaz. Backend ayni tarih/kisi icin `booking.quote` fiyat endpoint'ini read-only fallback olarak kontrol eder; sellable offer varsa `booking.availability` `available=true` ve `derived.source=price_fallback_after_empty_availability` doner. Fallback teknik olarak dogrulanamazsa tool `LIVE_AVAILABILITY_UNVERIFIED` / `handoff_required=true` isaretler; model bu durumda asla "otel dolu/musait degil" diyemez, ADMIN handoff yapar.
 
 #### TOOL: booking.quote (stay)
 Adapter -> Elektra Booking API: GET /hotel/{hotel_id}/price/
@@ -866,7 +867,9 @@ TRANSFER:
 - `stay_quote` akisi fiyat metni olustururken once `booking_availability` sonucundaki sellable oda tiplerini filtreler.
 - `booking_availability` sonucu satir/eligible bilgiyle doluysa ve sellable oda yoksa, kullaniciya "müsait degil" mesaji verilir.
 - `booking_availability` sonucu tamamen bos donmusse (provider drift: availability bos ama price dolu), yanit dogrudan "müsait degil"e dusmez.
-- Bu durumda `booking_quote` offers icindeki oda-tipleri fallback filtre olarak kullanilir:
+- Bu durumda backend once `booking_quote`/price fallback kontrolu yapar; sellable offer varsa `booking_availability` sonucu `available=true` olarak normalize edilir ve `derived.source=price_fallback_after_empty_availability` ile isaretlenir.
+- Fallback teknik olarak basarisizsa `booking_availability` sonucu `LIVE_AVAILABILITY_UNVERIFIED` / `handoff_required=true` tasir; model kesinlikle "müsait degil" demeden ADMIN handoff yapar.
+- Quote metni olusturulurken `booking_quote` offers icindeki oda-tipleri fallback filtre olarak kullanilir:
   - `stop_sell=true` veya `room_to_sell<=0` olan offer'lar dislanir.
   - Sellable offer varsa fiyat mesaji devam eder.
   - Sellable offer yoksa "müsait degil" mesaji verilir.
@@ -1149,7 +1152,7 @@ Kural: Native OpenAI tool call gelmez ama gecerli `INTERNAL_JSON.tool_calls` ici
 - Response preview modunda `booking_quote` calisip `booking_availability` calismamissa backend availability kontrolunu read-only olarak backfill eder.
 - Fiyat yaniti, yalnizca talep edilen konaklama gecelerinin her birinde `room_to_sell > 0` ve `stop_sell=false` olan oda tiplerini icerebilir; checkout gunu gece sayilmaz.
 - `booking_availability` dogrulamasi satir/eligible bilgiyle doluysa ama sellable oda yoksa model fiyat uretmez; kisa musait-degil mesaji ve `handoff.needed=true` metadata'si doner.
-- Availability provider tamamen bos donerse A9.8'deki quote offer fallback kurali uygulanir; bu istisna disinda fiyat endpoint'i satilabilirlik kaniti sayilmaz.
+- Availability provider tamamen bos donerse A9.8'deki price/quote fallback kurali uygulanir; fallback dogrulanamaz ve `LIVE_AVAILABILITY_UNVERIFIED` gelirse preview yaniti da "musait degil" diyemez, sadece handoff metadata'si uretir. Bu istisna disinda fiyat endpoint'i satilabilirlik kaniti sayilmaz.
 - Write/side-effect tool'lari (`stay_create_hold`, `restaurant_create_hold`, `transfer_create_hold`, `handoff_create_ticket`, `notify_send`, `crm_log`, payment/approval/confirm/cancel/modify tool'lari) bu modda sunulmaz ve cagrilsa bile backend tarafindan engellenir.
 - Handoff gerekiyorsa sadece INTERNAL_JSON icinde `handoff.needed=true` olarak isaretlenir; gercek ticket veya bildirim uretilmez ve USER_MESSAGE icinde islem olusturulmus gibi davranilmaz.
 - Response validator bu modda teknik sizinti, bos mesaj ve operasyonel aksiyon vaadini engeller; preview metadata alanlari `history_used=false`, `history_created=false`, `persisted=false` olarak doner.

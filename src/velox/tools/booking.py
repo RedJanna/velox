@@ -108,6 +108,14 @@ def _stay_date_guard_response(
     return None
 
 
+def _availability_unverified(payload: dict[str, Any]) -> bool:
+    """Return True when PMS availability cannot safely prove sold-out status."""
+    derived = payload.get("derived")
+    if not isinstance(derived, dict):
+        return False
+    return str(derived.get("availability_status") or "").strip() == "unverified"
+
+
 class BookingAvailabilityTool(BaseTool):
     """Tool for stay availability lookup via Elektraweb adapter."""
 
@@ -138,7 +146,17 @@ class BookingAvailabilityTool(BaseTool):
             chd_ages=request.chd_ages,
             currency=request.currency,
         )
-        return response.model_dump(mode="json")
+        payload = response.model_dump(mode="json")
+        if _availability_unverified(payload):
+            payload.update(
+                {
+                    "error": "LIVE_AVAILABILITY_UNVERIFIED",
+                    "handoff_required": True,
+                    "reason": "AVAILABILITY_EMPTY_PRICE_FALLBACK_FAILED",
+                    "next_step": "handoff_to_live_availability_team",
+                }
+            )
+        return payload
 
 
 class BookingQuoteTool(BaseTool):

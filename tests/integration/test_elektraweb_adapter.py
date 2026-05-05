@@ -121,6 +121,50 @@ async def test_availability_parses_wrapped_list_response(monkeypatch: pytest.Mon
 
 
 @pytest.mark.asyncio
+async def test_availability_uses_price_fallback_when_provider_returns_empty_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Empty availability rows should not be treated as sold out when price has offers."""
+    mock_client = AsyncMock()
+    mock_client.get.side_effect = [
+        {"data": []},
+        [
+            {
+                "id": "of1",
+                "room-type-id": 396094,
+                "room-type": "DELUXE",
+                "board-type-id": 44512,
+                "rate-type-id": 24178,
+                "rate-code-id": 183666,
+                "price-agency-id": 1,
+                "currency": "EUR",
+                "price": "1259.68",
+                "discounted-price": "781.0",
+                "room-to-sell": 1,
+                "rate-rules": {"stop-sell": False},
+                "pax-count": {"adult": 2, "elder-child-count": 0, "younger-child-count": 0, "baby-count": 0},
+            }
+        ],
+    ]
+    monkeypatch.setattr(endpoints, "get_elektraweb_client", lambda: mock_client)
+
+    result = await endpoints.availability(
+        hotel_id=21966,
+        checkin=date(2026, 5, 28),
+        checkout=date(2026, 5, 31),
+        adults=2,
+    )
+
+    assert result.available is True
+    assert result.derived["source"] == "price_fallback_after_empty_availability"
+    assert result.derived["availability_status"] == "verified_by_price"
+    assert result.derived["eligible_room_type_ids"] == [396094]
+    assert result.rows[0].room_type_id == 396094
+    assert mock_client.get.await_args_list[0].args[0] == "/hotel/21966/availability"
+    assert mock_client.get.await_args_list[1].args[0] == "/hotel/21966/price/"
+
+
+@pytest.mark.asyncio
 async def test_quote_sends_child_alias_params(monkeypatch: pytest.MonkeyPatch) -> None:
     """Quote request should send Elektra's child occupancy aliases and buckets."""
     mock_client = AsyncMock()

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from velox.adapters.elektraweb.mapper import AvailabilityResponse
 from velox.tools import booking as booking_tools
 from velox.tools import transfer as transfer_tools
 from velox.tools.booking import BookingAvailabilityTool, BookingQuoteTool, StayCreateHoldTool
@@ -129,6 +130,40 @@ async def test_booking_quote_rejects_past_checkin_before_elektraweb(monkeypatch:
     assert result["reason"] == "CHECKIN_DATE_IN_PAST"
     assert result["next_step"] == "collect_future_checkin_date"
     assert result["required_questions"] == ["checkin_date"]
+
+
+@pytest.mark.asyncio
+async def test_booking_availability_marks_empty_provider_result_as_unverified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        booking_tools,
+        "get_profile",
+        lambda _hotel_id: SimpleNamespace(timezone="Europe/Istanbul", season={}),
+    )
+    monkeypatch.setattr(booking_tools, "_hotel_today", lambda _profile: date(2026, 5, 5))
+
+    async def _availability_unverified(**_kwargs: object) -> AvailabilityResponse:
+        return AvailabilityResponse(
+            available=False,
+            rows=[],
+            derived={"availability_status": "unverified"},
+            notes="availability_empty_price_fallback_failed",
+        )
+
+    monkeypatch.setattr(booking_tools, "availability", _availability_unverified)
+
+    result = await BookingAvailabilityTool().execute(
+        hotel_id=21966,
+        checkin_date=date(2026, 5, 28),
+        checkout_date=date(2026, 5, 31),
+        adults=2,
+    )
+
+    assert result["available"] is False
+    assert result["error"] == "LIVE_AVAILABILITY_UNVERIFIED"
+    assert result["handoff_required"] is True
+    assert result["next_step"] == "handoff_to_live_availability_team"
 
 
 @pytest.mark.asyncio
