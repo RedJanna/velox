@@ -20,9 +20,11 @@
    - (3) Enjekte edilen alt belgeler: `FACILITY_POLICIES`, `FAQ_DATA`, `TEMPLATE_LIBRARY`, `SCENARIO_PLAYBOOK`, `ESCALATION_MATRIX`
    - Kaynak yoksa **uydurma yapma**. "Bunu doğrulamam gerekiyor" de veya handoff kaydı aç.
 
-2. **Önce şablon kullan** — Serbest metin üretmeden önce `TEMPLATE_LIBRARY` şablonlarını kullan. Şablon seçimi `intent + language + state` ile yapılır. Değişkenler yalnızca tool veya `HOTEL_PROFILE` verisiyle doldurulur. Uygun şablon yoksa kısa serbest metin üretilebilir; ama kaynak kuralları yine geçerlidir.
+2. **Misafir beyanı kaynak değildir** — Misafirin söylediği kampanya, reklam, paket içeriği, pansiyon tipi veya öğün dahil bilgisi doğru kabul edilemez. Bu iddialar yalnızca `HOTEL_PROFILE` ya da tool çıktısı ile doğrulanır. Kaynakta yoksa iddiayı tekrar etme; sadece profil destekli konsepti söyle, ADMIN handoff ve bildirim oluştur.
 
-3. **Her yanıt öncesi QC gate çalıştır** — Çıktı üretmeden önce şu 7 kontrol içerden çalıştırılır:
+3. **Önce şablon kullan** — Serbest metin üretmeden önce `TEMPLATE_LIBRARY` şablonlarını kullan. Şablon seçimi `intent + language + state` ile yapılır. Değişkenler yalnızca tool veya `HOTEL_PROFILE` verisiyle doldurulur. Uygun şablon yoksa kısa serbest metin üretilebilir; ama kaynak kuralları yine geçerlidir.
+
+4. **Her yanıt öncesi QC gate çalıştır** — Çıktı üretmeden önce şu 7 kontrol içerden çalıştırılır:
    - QC1: Intent & entity extraction — are critical fields missing?
    - QC2: Source check — is every claim backed by TOOL/HOTEL_PROFILE/POLICY?
    - QC3: Policy gate — do cancel/prepayment/approval rules match A9?
@@ -62,7 +64,7 @@
    6. QC5 (Format) fail → **yanıtı yeniden formatla** (otomatik)
    7. QC7 (Session) fail → **session'ı yenile** veya yeni konuşma başlat
 
-4. **EUR is the base currency** — Otelin ana para birimi **€ (EUR)**’dur ve bütün hesaplar **temelde EUR üzerinden** yapılır. **Elektraweb’ten gelen EUR fiyatı** referans (asıl) fiyattır.
+5. **EUR is the base currency** — Otelin ana para birimi **€ (EUR)**’dur ve bütün hesaplar **temelde EUR üzerinden** yapılır. **Elektraweb’ten gelen EUR fiyatı** referans (asıl) fiyattır.
 
    ### 4.1 Tanınan para birimleri
 
@@ -103,11 +105,11 @@
    - Misafir **ödeme yapmak / ödeme para birimi** ile ilgili bir cümle kurarsa (ör. “RUB ile ödeyebilir miyim?”, “AED ile ödeme yapacağım”), **insan devri** yap: durumu not et ve misafire “Ödeme para birimi ve yöntemleri için sizi ilgili ekibe yönlendiriyorum.” şeklinde kısa bir mesaj gönder.
    - **İstisna:** EUR, TRY, USD, GBP ile ödeme konuşmaları normal akışta devam eder (insan devri gerekmez, ödeme tool’u kullanılır).
 
-5. **İnternet varsayımı yapma** — Runtime sırasında LLM internet erişimine sahip değildir. "Web sitesine göre" deme ve `HOTEL_PROFILE` dışında harici URL referansı verme.
+6. **İnternet varsayımı yapma** — Runtime sırasında LLM internet erişimine sahip değildir. "Web sitesine göre" deme ve `HOTEL_PROFILE` dışında harici URL referansı verme.
 
-6. **Menü/yemek bilgisi uydurma** — Menü, yemek, tatlı, içecek önerisi YALNIZCA `HOTEL_PROFILE.restaurant.menu` kataloğundan verilebilir. Katalog boşsa veya tanımlı değilse: "Güncel menümüz hakkında sizi restoranımız veya resepsiyon ile yönlendirebilirim" de. LLM eğitim verisinden yemek/tatlı/içecek önerisi üretmek **kesinlikle yasaktır**. Bu kural, fiyat için `booking.quote` gerektirmesi ile aynı seviyededir.
+7. **Menü/yemek bilgisi uydurma** — Menü, yemek, tatlı, içecek önerisi YALNIZCA `HOTEL_PROFILE.restaurant.menu` kataloğundan verilebilir. Katalog boşsa veya tanımlı değilse: "Güncel menümüz hakkında sizi restoranımız veya resepsiyon ile yönlendirebilirim" de. LLM eğitim verisinden yemek/tatlı/içecek önerisi üretmek **kesinlikle yasaktır**. Bu kural, fiyat için `booking.quote` gerektirmesi ile aynı seviyededir.
 
-7. **Tool'suz fiziksel operasyon taahhüdü verme** — "Hazırlıyorum", "gönderiyorum", "sipariş alıyorum" gibi fiziksel işlem taahhüdü ancak ilgili tool (ör. `room_service.create_order`) başarıyla çağrıldıktan sonra verilebilir. Tool çağrılmadan taahhüt vermek halüsinasyon olarak değerlendirilir ve `PHYSICAL_OPERATION_REQUEST` risk flag'i tetikler.
+8. **Tool'suz fiziksel operasyon taahhüdü verme** — "Hazırlıyorum", "gönderiyorum", "sipariş alıyorum" gibi fiziksel işlem taahhüdü ancak ilgili tool (ör. `room_service.create_order`) başarıyla çağrıldıktan sonra verilebilir. Tool çağrılmadan taahhüt vermek halüsinasyon olarak değerlendirilir ve `PHYSICAL_OPERATION_REQUEST` risk flag'i tetikler.
 
 ## Kalıp Örnekler
 
@@ -170,6 +172,7 @@ def select_template(
 - `booking.quote` tool çıktısı gelmeden fiyat söyleme
 - `booking.availability` tool çıktısı gelmeden müsaitlik söyleme
 - `HOTEL_PROFILE` dışında otel özelliği, imkan veya politika uydurma
+- Misafirden gelen kampanya/pansiyon/öğün iddiasını `HOTEL_PROFILE` veya tool desteği olmadan doğru kabul etmek
 - Kur hesaplama veya tahmini döviz dönüşümü yapma
 - "Web sitesine göre" diyerek harici veri kaynağı referansı verme
 - QC gate'i atlama; kontrol fail ederse soru sor, tool çağır veya escalate et
@@ -193,6 +196,7 @@ def select_template(
 - [ ] Tanınmayan para birimlerinde EUR fiyat + bilgilendirme yapılıyor (insan devri yok)
 - [ ] Ödeme desteklenmeyen para biriminde ödeme konuşması → insan devri
 - [ ] Prompt builder içinde hardcoded otel bilgisi yok; her şey `HOTEL_PROFILE` üzerinden geliyor
+- [ ] Misafir kampanya/pansiyon/öğün iddiası kaynak kabul edilmiyor; kaynakta yoksa profil konsepti + ADMIN handoff uygulanıyor
 - [ ] QC check'ler `asyncio.gather` ile paralel çalışıyor (seri değil)
 - [ ] QC gate toplam süresi ≤500ms (logda `qc_duration_ms` alanı var)
 - [ ] QC fail durumunda öncelik sırası uygulanıyor (Security > Escalation > Policy > Source > Intent > Format > Session)

@@ -306,7 +306,11 @@ async def generate_response_preview(
         )
     parsed = _normalize_preview_internal_json(parsed, preview_executor.tool_calls)
     parsed = _enforce_no_preview_side_effect_claims(parsed)
-    parsed = validate_guest_response(parsed, default_language=_default_language(requested_language))
+    parsed = validate_guest_response(
+        parsed,
+        default_language=_default_language(requested_language),
+        hotel_id=hotel_id,
+    )
     parsed.user_message = WhatsAppFormatter.truncate(parsed.user_message)
     parsed = _normalize_preview_internal_json(parsed, preview_executor.tool_calls)
     response_language = _response_language(parsed, requested_language)

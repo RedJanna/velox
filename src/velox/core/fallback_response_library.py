@@ -82,6 +82,31 @@ def menu_not_available_fallback(language: str) -> str:
     )
 
 
+def hotel_fact_conflict_fallback(language: str, board_summary: str = "") -> str:
+    """Return safe fallback when a guest claim conflicts with hotel profile facts."""
+    lang = (language or "tr").lower()
+    board = board_summary.strip()
+    if lang == "en":
+        concept = f" Our current accommodation concept is {board}." if board else ""
+        return (
+            f"I cannot confirm that information from our current hotel details.{concept} "
+            "I am forwarding this to our team so they can check the advertisement or package details "
+            "and contact you as soon as possible."
+        )
+    if lang == "ru":
+        concept = f" Текущая концепция проживания: {board}." if board else ""
+        return (
+            f"Я не могу подтвердить эту информацию по актуальным данным отеля.{concept} "
+            "Я передаю запрос нашей команде, чтобы они проверили детали акции или пакета "
+            "и связались с вами как можно скорее."
+        )
+    concept = f" Guncel konaklama konseptimiz {board}." if board else ""
+    return (
+        f"Bu bilgiyi guncel otel bilgilerimizden dogrulayamiyorum.{concept} "
+        "Reklam veya paket detayini ekibimize iletiyorum; en kisa surede size net donus yapacaklar."
+    )
+
+
 def order_commitment_fallback(language: str) -> str:
     """Return safe fallback when an order commitment is made without tool backing."""
     lang = (language or "tr").lower()

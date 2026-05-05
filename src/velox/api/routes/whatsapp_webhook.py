@@ -5365,6 +5365,7 @@ async def _run_message_pipeline(
             candidate,
             default_language=language_override or target_language,
             scope_decision=scope_decision,
+            hotel_id=conversation.hotel_id,
         )
 
     if PAYMENT_DATA_PATTERN.search(normalized_text):
