@@ -241,6 +241,7 @@ Opsiyonel alanlar (sorulabilir ama zorunlu degil):
 - Tum rezervasyon turlerinde (konaklama/restoran/transfer) tarih toplarken yil ayri bir soru olarak sorulmaz; varsayilan yil sistemin guncel yilidir.
 - Misafir acikca guncel yildan farkli bir yil belirtirse otomatik akis durdurulur ve insan devri yapilir.
 - `booking.quote` canli fiyat donmezse (error veya offers bos) fallback olarak yil sorusu sorma; kisa bir "canli fiyat su an alinmiyor" bilgilendirmesi yapip insan devri oner.
+- Gecmis `checkin_date` veya `checkout_date <= checkin_date` PMS kesintisi sayilmaz; backend PMS'e gitmeden `CHECKIN_DATE_IN_PAST` veya `CHECKOUT_DATE_NOT_AFTER_CHECKIN` doner ve akisi insan devri yerine tek tarih netlestirme sorusuna ceker.
 - Telefon toplama adiminda tek mesajda iki secenek sunulur:
   - 1) Mevcut WhatsApp numarasini kaydet
   - 2) Farkli numara paylas
@@ -415,6 +416,7 @@ Output:
   "notes": "..."
 }
 Kural: `checkin_date` veya `checkout_date`, `HOTEL_PROFILE.season.open` ile `HOTEL_PROFILE.season.close` araliginda degilse tool `OUT_OF_SEASON` doner ve konaklama rezervasyon akisi sezon ici yeni tarih istemeye cekilir.
+Kural: `checkin_date` otelin bugun tarihinden eskiyse tool PMS'e gitmeden `CHECKIN_DATE_IN_PAST` doner; `checkout_date <= checkin_date` ise `CHECKOUT_DATE_NOT_AFTER_CHECKIN` doner. Her iki durumda da sadece ilgili tarih yeniden istenir.
 
 #### TOOL: booking.quote (stay)
 Adapter -> Elektra Booking API: GET /hotel/{hotel_id}/price/
@@ -450,6 +452,7 @@ Output:
   ]
 }
 Kural: `checkin_date` veya `checkout_date`, `HOTEL_PROFILE.season.open` ile `HOTEL_PROFILE.season.close` araliginda degilse tool `OUT_OF_SEASON` doner; fiyat teklifine gecilmez.
+Kural: `checkin_date` otelin bugun tarihinden eskiyse PMS fiyat endpoint'i cagrilmaz; `CHECKIN_DATE_IN_PAST` doner ve misafirden bugun veya daha ileri bir giris tarihi istenir. `checkout_date <= checkin_date` ise `CHECKOUT_DATE_NOT_AFTER_CHECKIN` doner.
 
 #### TOOL: stay.create_hold (konaklama hold — SADECE Admin Panel DB, Elektraweb yok)
 Amac: Admin onayi oncesi konaklama talebini HOLD olarak kaydetmek. Admin ONAY verince backend bu hold'daki draft ile Elektraweb'de gercek rezervasyonu olusturur.
@@ -488,6 +491,7 @@ Output:
   "summary": "..."
 }
 Kural: Draft icindeki check-in/check-out tarihleri sezon disinda ise tool yeni hold acmaz; `OUT_OF_SEASON` doner ve misafirden sezon icinde farkli tarih istenir.
+Kural: Draft icindeki check-in gecmis tarih ise veya check-out check-in'den sonra degilse hold acilmaz; `CHECKIN_DATE_IN_PAST` veya `CHECKOUT_DATE_NOT_AFTER_CHECKIN` doner ve sadece ilgili tarih yeniden istenir.
 NOT: Hold olusturuldugunda admin panele bildirim duser ve ayni anda admin WhatsApp numaralarina otomatik mesaj gonderilir.
 
 #### TOOL: booking.create_reservation (stay)

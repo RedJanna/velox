@@ -3927,6 +3927,62 @@ async def test_run_message_pipeline_quote_error_uses_live_price_unavailable_fall
 
 
 @pytest.mark.asyncio
+async def test_run_message_pipeline_past_quote_date_asks_for_future_checkin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Past-date quote validation should not become a PMS-unavailable handoff."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Fiyatı kontrol ediyorum.\nINTERNAL_JSON: "
+            '{"language":"tr","intent":"stay_quote","state":"READY_FOR_TOOL","entities":{},'
+            '"required_questions":[],"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"send_quote"}',
+            [
+                {
+                    "name": "booking_quote",
+                    "arguments": {
+                        "hotel_id": 21966,
+                        "checkin_date": "2026-05-03",
+                        "checkout_date": "2026-05-05",
+                        "adults": 2,
+                    },
+                    "result": {
+                        "available": False,
+                        "reason": "CHECKIN_DATE_IN_PAST",
+                        "checkin_date": "2026-05-03",
+                        "checkout_date": "2026-05-05",
+                        "current_date": "2026-05-05",
+                        "required_questions": ["checkin_date"],
+                        "next_step": "collect_future_checkin_date",
+                    },
+                }
+            ],
+        )
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    conversation = Conversation(hotel_id=21966, phone_hash="hash", language="tr")
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="3-5 Mayıs fiyat alabilir miyim",
+        expected_language="tr",
+    )
+
+    assert result.internal_json.state == "NEEDS_VERIFICATION"
+    assert result.internal_json.handoff["needed"] is False
+    assert result.internal_json.required_questions == ["checkin_date"]
+    assert "DATE_INVALID" in result.internal_json.risk_flags
+    assert "05.05.2026" in result.user_message
+    assert "canlı fiyat" not in result.user_message.casefold()
+
+
+@pytest.mark.asyncio
 async def test_run_message_pipeline_non_current_year_routes_to_handoff(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

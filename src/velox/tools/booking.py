@@ -1,7 +1,9 @@
 """Booking-related tools (availability, quote, hold, reservation operations)."""
 
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import structlog
 
@@ -30,6 +32,82 @@ from velox.utils.customer_notes import format_customer_visible_note
 logger = structlog.get_logger(__name__)
 
 
+def _hotel_today(profile: Any | None) -> date:
+    """Return current date in the hotel's configured timezone."""
+    timezone_name = str(getattr(profile, "timezone", "") or "Europe/Istanbul").strip()
+    try:
+        timezone = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        logger.warning("hotel_timezone_invalid_for_booking_date_guard", timezone=timezone_name)
+        timezone = UTC
+    return datetime.now(timezone).date()
+
+
+def _invalid_stay_date_response(
+    *,
+    checkin_date: date,
+    checkout_date: date,
+    current_date: date,
+    reason: str,
+    required_question: str,
+    next_step: str,
+) -> dict[str, Any]:
+    return {
+        "available": False,
+        "reason": reason,
+        "suggestion": "request_valid_date",
+        "checkin_date": checkin_date.isoformat(),
+        "checkout_date": checkout_date.isoformat(),
+        "current_date": current_date.isoformat(),
+        "required_questions": [required_question],
+        "next_step": next_step,
+    }
+
+
+def _stay_date_guard_response(
+    *,
+    hotel_id: int,
+    checkin_date: date,
+    checkout_date: date,
+    profile: Any | None,
+) -> dict[str, Any] | None:
+    """Reject invalid stay date ranges before any PMS call."""
+    current_date = _hotel_today(profile)
+    if checkout_date <= checkin_date:
+        logger.info(
+            "stay_date_guard_rejected",
+            hotel_id=hotel_id,
+            reason="CHECKOUT_DATE_NOT_AFTER_CHECKIN",
+            checkin_date=checkin_date.isoformat(),
+            checkout_date=checkout_date.isoformat(),
+        )
+        return _invalid_stay_date_response(
+            checkin_date=checkin_date,
+            checkout_date=checkout_date,
+            current_date=current_date,
+            reason="CHECKOUT_DATE_NOT_AFTER_CHECKIN",
+            required_question="checkout_date",
+            next_step="collect_valid_checkout_date",
+        )
+    if checkin_date < current_date:
+        logger.info(
+            "stay_date_guard_rejected",
+            hotel_id=hotel_id,
+            reason="CHECKIN_DATE_IN_PAST",
+            checkin_date=checkin_date.isoformat(),
+            current_date=current_date.isoformat(),
+        )
+        return _invalid_stay_date_response(
+            checkin_date=checkin_date,
+            checkout_date=checkout_date,
+            current_date=current_date,
+            reason="CHECKIN_DATE_IN_PAST",
+            required_question="checkin_date",
+            next_step="collect_future_checkin_date",
+        )
+    return None
+
+
 class BookingAvailabilityTool(BaseTool):
     """Tool for stay availability lookup via Elektraweb adapter."""
 
@@ -37,6 +115,14 @@ class BookingAvailabilityTool(BaseTool):
         self.validate_required(kwargs, ["hotel_id", "checkin_date", "checkout_date", "adults"])
         request = BookingAvailabilityRequest.model_validate(kwargs)
         profile = get_profile(request.hotel_id)
+        date_guard = _stay_date_guard_response(
+            hotel_id=request.hotel_id,
+            checkin_date=request.checkin_date,
+            checkout_date=request.checkout_date,
+            profile=profile,
+        )
+        if date_guard is not None:
+            return date_guard
         if profile is not None and not are_dates_within_hotel_season(
             profile,
             (request.checkin_date, request.checkout_date),
@@ -62,6 +148,14 @@ class BookingQuoteTool(BaseTool):
         self.validate_required(kwargs, ["hotel_id", "checkin_date", "checkout_date", "adults"])
         request = BookingQuoteRequest.model_validate(kwargs)
         profile = get_profile(request.hotel_id)
+        date_guard = _stay_date_guard_response(
+            hotel_id=request.hotel_id,
+            checkin_date=request.checkin_date,
+            checkout_date=request.checkout_date,
+            profile=profile,
+        )
+        if date_guard is not None:
+            return date_guard
         if profile is not None and not are_dates_within_hotel_season(
             profile,
             (request.checkin_date, request.checkout_date),
@@ -105,6 +199,14 @@ class StayCreateHoldTool(BaseTool):
         # Validate and resolve room_type_id against hotel profile
         room_name = ""
         profile = get_profile(hotel_id)
+        date_guard = _stay_date_guard_response(
+            hotel_id=hotel_id,
+            checkin_date=draft.checkin_date,
+            checkout_date=draft.checkout_date,
+            profile=profile,
+        )
+        if date_guard is not None:
+            return date_guard
         if profile is not None and not are_dates_within_hotel_season(
             profile,
             (draft.checkin_date, draft.checkout_date),

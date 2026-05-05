@@ -30,6 +30,7 @@ async def test_booking_availability_rejects_out_of_season_dates(monkeypatch: pyt
         "get_profile",
         lambda _hotel_id: SimpleNamespace(season={"open": "04-20", "close": "11-10"}),
     )
+    monkeypatch.setattr(booking_tools, "_hotel_today", lambda _profile: date(2026, 1, 1))
 
     async def _availability_should_not_run(**_kwargs: object) -> object:
         raise AssertionError("Out-of-season request should stop before Elektraweb availability call")
@@ -55,6 +56,7 @@ async def test_booking_quote_rejects_out_of_season_dates(monkeypatch: pytest.Mon
         "get_profile",
         lambda _hotel_id: SimpleNamespace(season={"open": "04-20", "close": "11-10"}),
     )
+    monkeypatch.setattr(booking_tools, "_hotel_today", lambda _profile: date(2026, 1, 1))
 
     async def _quote_should_not_run(**_kwargs: object) -> object:
         raise AssertionError("Out-of-season request should stop before Elektraweb quote call")
@@ -74,12 +76,69 @@ async def test_booking_quote_rejects_out_of_season_dates(monkeypatch: pytest.Mon
 
 
 @pytest.mark.asyncio
+async def test_booking_availability_rejects_past_checkin_before_elektraweb(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        booking_tools,
+        "get_profile",
+        lambda _hotel_id: SimpleNamespace(timezone="Europe/Istanbul", season={}),
+    )
+    monkeypatch.setattr(booking_tools, "_hotel_today", lambda _profile: date(2026, 5, 5))
+
+    async def _availability_should_not_run(**_kwargs: object) -> object:
+        raise AssertionError("Past-date request should stop before Elektraweb availability call")
+
+    monkeypatch.setattr(booking_tools, "availability", _availability_should_not_run)
+
+    result = await BookingAvailabilityTool().execute(
+        hotel_id=21966,
+        checkin_date=date(2026, 5, 3),
+        checkout_date=date(2026, 5, 5),
+        adults=2,
+    )
+
+    assert result["available"] is False
+    assert result["reason"] == "CHECKIN_DATE_IN_PAST"
+    assert result["current_date"] == "2026-05-05"
+    assert result["required_questions"] == ["checkin_date"]
+
+
+@pytest.mark.asyncio
+async def test_booking_quote_rejects_past_checkin_before_elektraweb(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        booking_tools,
+        "get_profile",
+        lambda _hotel_id: SimpleNamespace(timezone="Europe/Istanbul", season={}),
+    )
+    monkeypatch.setattr(booking_tools, "_hotel_today", lambda _profile: date(2026, 5, 5))
+
+    async def _quote_should_not_run(**_kwargs: object) -> object:
+        raise AssertionError("Past-date request should stop before Elektraweb quote call")
+
+    monkeypatch.setattr(booking_tools, "quote", _quote_should_not_run)
+
+    result = await BookingQuoteTool().execute(
+        hotel_id=21966,
+        checkin_date=date(2026, 5, 3),
+        checkout_date=date(2026, 5, 5),
+        adults=2,
+    )
+
+    assert result["available"] is False
+    assert result["reason"] == "CHECKIN_DATE_IN_PAST"
+    assert result["next_step"] == "collect_future_checkin_date"
+    assert result["required_questions"] == ["checkin_date"]
+
+
+@pytest.mark.asyncio
 async def test_stay_create_hold_rejects_out_of_season_dates(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         booking_tools,
         "get_profile",
         lambda _hotel_id: SimpleNamespace(season={"open": "04-20", "close": "11-10"}, room_types=[]),
     )
+    monkeypatch.setattr(booking_tools, "_hotel_today", lambda _profile: date(2026, 1, 1))
 
     result = await StayCreateHoldTool(_DummyReservationRepository()).execute(
         hotel_id=21966,

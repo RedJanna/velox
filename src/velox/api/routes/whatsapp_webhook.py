@@ -107,6 +107,7 @@ EXPLICIT_YEAR_PATTERN = re.compile(r"\b20\d{2}\b")
 YEAR_KEYWORD_PATTERN = re.compile(r"\b(y[ıi]l|year)\b", flags=re.IGNORECASE)
 RESERVATION_INTENT_PREFIXES = ("stay_", "restaurant_", "transfer_")
 RESERVATION_DATE_FIELD_KEYS = {"checkin_date", "checkout_date", "date"}
+INVALID_STAY_DATE_REASONS = {"CHECKIN_DATE_IN_PAST", "CHECKOUT_DATE_NOT_AFTER_CHECKIN"}
 PHONE_CHOICE_USE_CURRENT_VALUES = {
     "1",
     "bir",
@@ -2410,6 +2411,126 @@ def _build_restaurant_capacity_handoff_response(
 def _is_out_of_season_tool_result(result: dict[str, Any]) -> bool:
     """Return True when tool payload indicates season rejection."""
     return str(result.get("reason") or "").strip().upper() == "OUT_OF_SEASON"
+
+
+def _is_invalid_stay_date_tool_result(result: dict[str, Any]) -> bool:
+    """Return True when tool payload rejects a stay date before PMS lookup."""
+    return str(result.get("reason") or "").strip().upper() in INVALID_STAY_DATE_REASONS
+
+
+def _format_iso_date_for_guest(value: Any) -> str:
+    """Format an ISO date as a short guest-facing date when possible."""
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    try:
+        parsed = date.fromisoformat(raw)
+    except ValueError:
+        return raw
+    return parsed.strftime("%d.%m.%Y")
+
+
+def _invalid_stay_date_message(language: str, reason: str, current_date: Any) -> str:
+    """Build deterministic guest copy for invalid stay dates."""
+    today_display = _format_iso_date_for_guest(current_date) or str(current_date or "").strip()
+    reason_code = reason.strip().upper()
+    if reason_code == "CHECKOUT_DATE_NOT_AFTER_CHECKIN":
+        if language == "en":
+            return (
+                "The check-out date must be later than the check-in date. "
+                f"Today is {today_display}. Could you share a valid check-out date?"
+            )
+        if language == "ru":
+            return (
+                "Дата выезда должна быть позже даты заезда. "
+                f"Сегодня {today_display}. Пожалуйста, укажите корректную дату выезда."
+            )
+        return (
+            "Çıkış tarihi giriş tarihinden sonra olmalı. "
+            f"Bugün: {today_display}. Çıkış tarihinizi yeniden paylaşır mısınız? (GG.AA)"
+        )
+    if language == "en":
+        return (
+            "The check-in date cannot be in the past. "
+            f"Today is {today_display}. Could you share a check-in date for today or later?"
+        )
+    if language == "ru":
+        return (
+            "Дата заезда не может быть в прошлом. "
+            f"Сегодня {today_display}. Пожалуйста, укажите дату заезда на сегодня или позже."
+        )
+    return (
+        "Giriş tarihi bugünden önce olamaz. "
+        f"Bugün: {today_display}. Bugün veya daha ileri bir giriş tarihi paylaşır mısınız? (GG.AA)"
+    )
+
+
+def _extract_stay_invalid_date_context(executed_calls: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return context for deterministic stay date validation responses."""
+    tool_intent_map = {
+        "booking_availability": "stay_availability",
+        "booking_quote": "stay_quote",
+        "stay_create_hold": "stay_booking_create",
+    }
+    for call in reversed(executed_calls):
+        tool_name = str(call.get("name") or "")
+        intent = tool_intent_map.get(tool_name)
+        if not intent:
+            continue
+
+        result = _loads_tool_payload(call.get("result"))
+        if not _is_invalid_stay_date_tool_result(result):
+            continue
+
+        args = _loads_tool_payload(call.get("arguments") or call.get("args"))
+        if tool_name == "stay_create_hold":
+            draft = args.get("draft") if isinstance(args, dict) else {}
+            if isinstance(draft, dict):
+                args = draft
+
+        reason = str(result.get("reason") or "").strip().upper()
+        required_questions = result.get("required_questions")
+        if not isinstance(required_questions, list) or not required_questions:
+            required_questions = ["checkout_date" if reason == "CHECKOUT_DATE_NOT_AFTER_CHECKIN" else "checkin_date"]
+
+        return {
+            "intent": intent,
+            "reason": reason,
+            "checkin_date": args.get("checkin_date") or result.get("checkin_date"),
+            "checkout_date": args.get("checkout_date") or result.get("checkout_date"),
+            "current_date": result.get("current_date"),
+            "required_questions": [str(item) for item in required_questions if str(item).strip()],
+            "next_step": str(result.get("next_step") or "collect_valid_stay_date"),
+        }
+    return {}
+
+
+def _build_stay_invalid_date_response(
+    conversation: Conversation,
+    executed_calls: list[dict[str, Any]],
+    language: str,
+) -> LLMResponse | None:
+    """Create deterministic guest response for invalid stay dates."""
+    context = _extract_stay_invalid_date_context(executed_calls)
+    if not context:
+        return None
+
+    entities = _merge_entities_with_context(conversation.entities_json, context)
+    reason = str(context.get("reason") or "CHECKIN_DATE_IN_PAST")
+    required_questions = list(context.get("required_questions") or ["checkin_date"])
+    return LLMResponse(
+        user_message=_invalid_stay_date_message(language, reason, context.get("current_date")),
+        internal_json=InternalJSON(
+            language=language,
+            intent=str(context.get("intent") or "stay_quote"),
+            state="NEEDS_VERIFICATION",
+            entities=entities,
+            required_questions=required_questions,
+            handoff={"needed": False, "reason": None},
+            risk_flags=["DATE_INVALID"],
+            next_step=str(context.get("next_step") or "collect_valid_stay_date"),
+        ),
+    )
 
 
 def _extract_stay_or_transfer_out_of_season_context(executed_calls: list[dict[str, Any]]) -> dict[str, Any]:
@@ -5760,6 +5881,18 @@ async def _run_message_pipeline(
         if stay_or_transfer_out_of_season is not None:
             return _finalize_response(
                 stay_or_transfer_out_of_season,
+                scope_decision=scope_result.decision,
+                language_override=language,
+                executed_calls=executed_calls,
+            )
+        stay_invalid_date_response = _build_stay_invalid_date_response(
+            conversation,
+            executed_calls,
+            language,
+        )
+        if stay_invalid_date_response is not None:
+            return _finalize_response(
+                stay_invalid_date_response,
                 scope_decision=scope_result.decision,
                 language_override=language,
                 executed_calls=executed_calls,
