@@ -4907,6 +4907,7 @@ function clearClientSession() {
   state.voiceLabMatrixResults = [];
   state.voiceLabMatrixSummary = null;
   state.voiceLabLoading = false;
+  state.lastRefreshFailure = null;
   state.mobileSidebarOpen = false;
   if (typeof closeSidebar === 'function') closeSidebar();
   stopVoiceLabRealtime({silent: true});
@@ -4964,6 +4965,13 @@ async function handleResponse(response, options) {
           logoutOn401: options.logoutOn401,
         });
       }
+      if (state.lastRefreshFailure && !isTerminalRefreshFailure(state.lastRefreshFailure)) {
+        var refreshError = new Error(state.lastRefreshFailure.message || 'Oturum yenileme geçici olarak tamamlanamadı; panel açık kalacak.');
+        refreshError.status = state.lastRefreshFailure.status || 503;
+        refreshError.payload = payload;
+        refreshError.recoverableAuthRefresh = true;
+        throw refreshError;
+      }
     }
     if (options.auth && response.status === 401 && options.logoutOn401) {
       clearClientSession();
@@ -4978,6 +4986,14 @@ async function handleResponse(response, options) {
   return payload;
 }
 
+function isTerminalRefreshFailure(failure) {
+  return Number(failure?.status || 0) === 401;
+}
+
+function isTerminalAuthError(error) {
+  return Number(error?.status || 0) === 401 && !error?.recoverableAuthRefresh;
+}
+
 async function refreshAccessSession({silent = false} = {}) {
   if (isLocalDemoAuth()) {
     return true;
@@ -4987,10 +5003,16 @@ async function refreshAccessSession({silent = false} = {}) {
   }
   state.refreshPromise = (async () => {
     try {
+      state.lastRefreshFailure = null;
       await apiFetch('/session/refresh', {method: 'POST', body: {}, auth: false, allowRefresh: false, logoutOn401: false});
       await loadSessionStatus();
+      state.lastRefreshFailure = null;
       return true;
     } catch (error) {
+      state.lastRefreshFailure = {
+        status: Number(error?.status || 0),
+        message: error?.message || '',
+      };
       if (!silent) {
         notify(error.message, 'warn');
       }
@@ -5035,12 +5057,10 @@ async function onVisibilityChange() {
   if (document.visibilityState !== 'visible') return;
   if (!state.me) return;
   if (isLocalDemoAuth()) return;
-  // Check if access cookie is still present
-  const hasAccess = Boolean(readCookie('velox_admin_access'));
-  if (hasAccess) return; // token still alive, nothing to do
-  // Token expired while tab was hidden — attempt silent refresh
+  // The access cookie is httpOnly; attempt a silent refresh when returning
+  // to the tab instead of treating cookie visibility as auth state.
   const recovered = await refreshAccessSession({silent: true});
-  if (!recovered) {
+  if (!recovered && isTerminalRefreshFailure(state.lastRefreshFailure)) {
     clearClientSession();
     showAuth();
     notify('Oturum süresi doldu; lütfen tekrar giriş yapın.', 'warn');

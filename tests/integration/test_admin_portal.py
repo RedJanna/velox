@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from datetime import datetime, timedelta, timezone
 
 import httpx
 import pytest
@@ -481,6 +482,53 @@ async def test_session_refresh_works_with_trusted_device_cookie(admin_client: ht
     me_response = await admin_client.get("/api/v1/admin/me")
     assert me_response.status_code == 200
     assert me_response.json()["username"] == "ops_refresh"
+
+
+async def test_seven_day_session_preset_is_applied_and_refreshed(admin_client: httpx.AsyncClient) -> None:
+    bootstrap_response = await admin_client.post(
+        "/api/v1/admin/bootstrap",
+        json={
+            "hotel_id": 21966,
+            "username": "ops_seven_day",
+            "display_name": "Ops Seven Day",
+            "password": "SevenDayPass123!",
+            "bootstrap_token": "bootstrap-secret",
+        },
+    )
+    otp_code = generate_totp_code(bootstrap_response.json()["totp_secret"])
+    login_response = await admin_client.post(
+        "/api/v1/admin/login",
+        json={
+            "username": "ops_seven_day",
+            "password": "SevenDayPass123!",
+            "otp_code": otp_code,
+            "remember_device": True,
+            "verification_preset": "7_days",
+            "session_preset": "7_days",
+        },
+    )
+
+    assert login_response.status_code == 200
+    login_payload = login_response.json()
+    assert login_payload["trusted_device_enabled"] is True
+    login_session_expires_at = datetime.fromisoformat(login_payload["session_expires_at"].replace("Z", "+00:00"))
+    assert login_session_expires_at - datetime.now(timezone.utc) > timedelta(days=6, hours=23)
+
+    status_response = await admin_client.get("/api/v1/admin/session/status")
+    assert status_response.status_code == 200
+    status_payload = status_response.json()
+    assert status_payload["session_preset"] == "7_days"
+    assert status_payload["session_active"] is True
+
+    admin_client.cookies.delete(ACCESS_COOKIE_NAME)
+    admin_client.cookies.delete(CSRF_COOKIE_NAME)
+
+    refresh_response = await admin_client.post("/api/v1/admin/session/refresh")
+    assert refresh_response.status_code == 200
+    refresh_payload = refresh_response.json()
+    assert refresh_payload["authentication_mode"] == "session_refresh"
+    refreshed_expires_at = datetime.fromisoformat(refresh_payload["session_expires_at"].replace("Z", "+00:00"))
+    assert refreshed_expires_at - datetime.now(timezone.utc) > timedelta(days=6, hours=23)
 
 
 async def test_access_control_catalog_is_available_for_bootstrapped_admin(admin_client: httpx.AsyncClient) -> None:

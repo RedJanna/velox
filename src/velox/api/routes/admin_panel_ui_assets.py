@@ -523,6 +523,8 @@ const CONFIG = window.ADMIN_PANEL_CONFIG || {};
 const API_ROOT = '/api/v1/admin';
 const HOTEL_KEY = 'velox.admin.hotel';
 const CSRF_COOKIE = 'velox_admin_csrf';
+const DEFAULT_VERIFICATION_PRESET = '24_hours';
+const DEFAULT_SESSION_PRESET = '8_hours';
 const LIVE_REFRESH_INTERVAL_MS = 3000;
 const SIDEBAR_STATE_KEY = 'hotel-ai.sidebar.state';
 const SIDEBAR_OPEN_GROUPS_KEY = 'hotel-ai.sidebar.openGroups';
@@ -857,6 +859,7 @@ const state = {
   voiceLabRealtimeMeterSource: null,
   voiceLabRealtimeMeterAnimationFrame: 0,
   refreshPromise: null,
+  lastRefreshFailure: null,
   liveRefreshHandle: null,
   _authKeepAliveTimer: null,
   _visibilityBound: false,
@@ -1412,15 +1415,13 @@ async function boot() {
   await Promise.all([loadBootstrapStatus(), loadSessionStatus()]);
 
   // ── Proactive session recovery ──────────────────────────
-  // If access cookie is gone but a trusted device session exists,
-  // try a silent refresh BEFORE hydrateSession so we avoid the
-  // 401 → refresh → retry round-trip that sometimes loses the race
-  // against concurrent requests.
-  const hasAccess = Boolean(readCookie('velox_admin_access'));
+  // The access cookie is httpOnly, so the browser UI cannot inspect it.
+  // When a remembered session exists, refresh first and let terminal
+  // trusted-device failures decide whether the login screen is required.
   const status = state.sessionStatus || {};
-  if (!hasAccess && status.has_trusted_device && status.session_active) {
+  if (status.has_trusted_device && status.session_active) {
     const recovered = await refreshAccessSession({silent: true});
-    if (!recovered) {
+    if (!recovered && isTerminalRefreshFailure(state.lastRefreshFailure)) {
       showAuth();
       return;
     }
@@ -1432,8 +1433,16 @@ async function boot() {
       startAuthKeepAlive();
     }
     return;
-  } catch (_error) {
-    showAuth();
+  } catch (error) {
+    if (error?.recoverableAuthRefresh) {
+      notify(error.message || 'Oturum geri yükleme geçici olarak tamamlanamadı; lütfen biraz sonra tekrar deneyin.', 'warn');
+      return;
+    }
+    if (isTerminalAuthError(error) || !state.me) {
+      showAuth();
+      return;
+    }
+    notify(error.message || 'Panel verilerinin bir bölümü yüklenemedi.', 'warn');
   }
 }
 
@@ -1501,13 +1510,13 @@ function renderLoginSessionState() {
     refs.loginVerificationOptions,
     'verification_preset',
     verificationOptions,
-    status.verification_preset || '7_days',
+    status.verification_preset || DEFAULT_VERIFICATION_PRESET,
   );
   renderChoiceGroup(
     refs.loginSessionOptions,
     'session_preset',
     sessionOptions,
-    status.session_preset || '24_hours',
+    status.session_preset || DEFAULT_SESSION_PRESET,
   );
   toggleLoginRememberOptions();
 
@@ -1570,8 +1579,8 @@ async function onLogin(event) {
   event.preventDefault();
   const payload = formToJson(refs.loginForm);
   payload.remember_device = refs.rememberDeviceToggle.checked;
-  payload.verification_preset = getSelectedChoice(refs.loginForm, 'verification_preset', state.sessionStatus?.verification_preset || '7_days');
-  payload.session_preset = getSelectedChoice(refs.loginForm, 'session_preset', state.sessionStatus?.session_preset || '24_hours');
+  payload.verification_preset = getSelectedChoice(refs.loginForm, 'verification_preset', state.sessionStatus?.verification_preset || DEFAULT_VERIFICATION_PRESET);
+  payload.session_preset = getSelectedChoice(refs.loginForm, 'session_preset', state.sessionStatus?.session_preset || DEFAULT_SESSION_PRESET);
   if (!payload.otp_code) {
     delete payload.otp_code;
   }
@@ -1675,13 +1684,37 @@ async function hydrateSession() {
   populateHotelSelectors();
   showPanel();
   syncNavigationAccess();
-  await Promise.all([
+  const hydrationResults = await Promise.allSettled([
     loadDashboard(),
     loadSystemOverview(),
     loadSessionPreferences(),
     loadDebugRunsSafely({preserveSelection: false}, {notifyOnError: false}),
   ]);
+  const terminalAuthError = findTerminalHydrationAuthError(hydrationResults);
+  if (terminalAuthError) {
+    throw terminalAuthError;
+  }
+  const recoverableError = hydrationResults
+    .filter(result => result.status === 'rejected')
+    .map(result => result.reason)
+    .find(error => error?.recoverableAuthRefresh);
+  const firstNonAuthError = hydrationResults
+    .filter(result => result.status === 'rejected')
+    .map(result => result.reason)
+    .find(error => !error?.recoverableAuthRefresh);
+  if (recoverableError) {
+    notify(recoverableError.message || 'Oturum yenileme geçici olarak tamamlanamadı; panel açık kalacak.', 'warn');
+  } else if (firstNonAuthError) {
+    notify(firstNonAuthError.message || 'Panel verilerinin bir bölümü yüklenemedi.', 'warn');
+  }
   setView(state.currentView || 'dashboard');
+}
+
+function findTerminalHydrationAuthError(results) {
+  return results
+    .filter(result => result.status === 'rejected')
+    .map(result => result.reason)
+    .find(error => isTerminalAuthError(error)) || null;
 }
 
 function resolvePreferredHotel() {

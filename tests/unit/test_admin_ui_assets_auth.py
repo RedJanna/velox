@@ -293,6 +293,136 @@ def test_admin_panel_logout_rehydrates_local_demo_instead_of_showing_login() -> 
     assert "await hydrateSession();\n    notify('Demo panel girişsiz modda açık.', 'info');" in ADMIN_PANEL_SCRIPT
 
 
+def test_admin_panel_login_duration_defaults_match_backend_defaults() -> None:
+    assert "const DEFAULT_VERIFICATION_PRESET = '24_hours';" in ADMIN_PANEL_SCRIPT
+    assert "const DEFAULT_SESSION_PRESET = '8_hours';" in ADMIN_PANEL_SCRIPT
+    assert "status.verification_preset || DEFAULT_VERIFICATION_PRESET" in ADMIN_PANEL_SCRIPT
+    assert "status.session_preset || DEFAULT_SESSION_PRESET" in ADMIN_PANEL_SCRIPT
+    assert "state.sessionStatus?.verification_preset || DEFAULT_VERIFICATION_PRESET" in ADMIN_PANEL_SCRIPT
+    assert "state.sessionStatus?.session_preset || DEFAULT_SESSION_PRESET" in ADMIN_PANEL_SCRIPT
+
+
+def test_admin_panel_recoverable_refresh_failure_does_not_force_login() -> None:
+    result = _run_admin_panel_script_harness(
+        """
+const calls = [];
+let showAuthCount = 0;
+let clearSessionCount = 0;
+
+showAuth = function() {
+  showAuthCount += 1;
+};
+clearClientSession = function() {
+  clearSessionCount += 1;
+};
+loadSessionStatus = async function() {
+  calls.push('/session/status');
+};
+
+globalThis.fetch = async function(path) {
+  calls.push(path);
+  if (path === '/api/v1/admin/protected') {
+    return {ok: false, status: 401, json: async () => ({detail: 'access expired'})};
+  }
+  if (path === '/api/v1/admin/session/refresh') {
+    return {ok: false, status: 503, json: async () => ({detail: 'database restarting'})};
+  }
+  throw new Error('Unexpected fetch path: ' + path);
+};
+
+(async () => {
+  try {
+    await apiFetch('/protected');
+  } catch (error) {
+    console.log(JSON.stringify({
+      status: error.status,
+      recoverable: Boolean(error.recoverableAuthRefresh),
+      showAuthCount,
+      clearSessionCount,
+      calls,
+    }));
+    return;
+  }
+  throw new Error('apiFetch unexpectedly succeeded');
+})().catch(error => {
+  console.error(error);
+  process.exit(1);
+});
+"""
+    )
+
+    assert result["status"] == 503
+    assert result["recoverable"] is True
+    assert result["showAuthCount"] == 0
+    assert result["clearSessionCount"] == 0
+    assert result["calls"] == [
+        "/api/v1/admin/protected",
+        "/api/v1/admin/session/refresh",
+        "/session/status",
+    ]
+
+
+def test_admin_panel_terminal_refresh_failure_returns_to_login() -> None:
+    result = _run_admin_panel_script_harness(
+        """
+const calls = [];
+let showAuthCount = 0;
+let clearSessionCount = 0;
+
+showAuth = function() {
+  showAuthCount += 1;
+};
+clearClientSession = function() {
+  clearSessionCount += 1;
+};
+loadSessionStatus = async function() {
+  calls.push('/session/status');
+};
+
+globalThis.fetch = async function(path) {
+  calls.push(path);
+  if (path === '/api/v1/admin/protected') {
+    return {ok: false, status: 401, json: async () => ({detail: 'access expired'})};
+  }
+  if (path === '/api/v1/admin/session/refresh') {
+    return {ok: false, status: 401, json: async () => ({detail: 'trusted session expired'})};
+  }
+  throw new Error('Unexpected fetch path: ' + path);
+};
+
+(async () => {
+  try {
+    await apiFetch('/protected');
+  } catch (error) {
+    console.log(JSON.stringify({
+      status: error.status,
+      recoverable: Boolean(error.recoverableAuthRefresh),
+      showAuthCount,
+      clearSessionCount,
+      calls,
+    }));
+    return;
+  }
+  throw new Error('apiFetch unexpectedly succeeded');
+})().catch(error => {
+  console.error(error);
+  process.exit(1);
+});
+"""
+    )
+
+    assert result["status"] == 401
+    assert result["recoverable"] is False
+    assert result["showAuthCount"] == 1
+    assert result["clearSessionCount"] == 1
+    assert result["calls"] == [
+        "/api/v1/admin/protected",
+        "/api/v1/admin/session/refresh",
+        "/session/status",
+        "/session/status",
+    ]
+
+
 def test_chat_lab_exposes_reply_action_in_context_menu() -> None:
     assert "Yanıtla" in TEST_CHAT_SCRIPT
     assert "setReplyTarget" in TEST_CHAT_SCRIPT
