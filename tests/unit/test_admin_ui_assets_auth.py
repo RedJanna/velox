@@ -687,7 +687,8 @@ def test_response_window_translation_script_is_history_free() -> None:
 def test_admin_panel_exposes_voice_lab_view() -> None:
     html = render_admin_panel_html()
 
-    assert 'data-nav="voicelab"' in html
+    assert "id: 'voicelab'" in ADMIN_PANEL_SCRIPT
+    assert "label: 'Voice Lab'" in ADMIN_PANEL_SCRIPT
     assert 'data-view="voicelab"' in html
     assert 'id="voiceLabForm"' in html
     assert 'id="voiceLabSpeakGreetingButton"' in html
@@ -752,7 +753,8 @@ def test_admin_panel_exposes_voice_lab_view() -> None:
 def test_admin_panel_contains_access_control_view() -> None:
     html = render_admin_panel_html()
 
-    assert 'data-nav="accesscontrol"' in html
+    assert "id: 'accesscontrol'" in ADMIN_PANEL_SCRIPT
+    assert "label: 'Rol ve Yetkiler'" in ADMIN_PANEL_SCRIPT
     assert 'data-view="accesscontrol"' in html
     assert 'id="accessCreateUserForm"' in html
     assert 'id="accessUsersList"' in html

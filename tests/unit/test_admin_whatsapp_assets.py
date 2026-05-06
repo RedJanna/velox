@@ -1,13 +1,15 @@
 """Smoke tests for WhatsApp admin panel assets."""
 
 from velox.api.routes.admin_panel_ui import render_admin_panel_html
+from velox.api.routes.admin_panel_ui_assets import ADMIN_PANEL_SCRIPT
 from velox.api.routes.admin_panel_whatsapp_assets import ADMIN_WHATSAPP_SCRIPT
 
 
 def test_admin_panel_contains_whatsapp_api_view() -> None:
     html = render_admin_panel_html()
 
-    assert 'data-nav="whatsappapi"' in html
+    assert "id: 'whatsappapi'" in ADMIN_PANEL_SCRIPT
+    assert "label: 'WhatsApp Bağlantısı'" in ADMIN_PANEL_SCRIPT
     assert 'data-view="whatsappapi"' in html
     assert "whatsappConnectDialog" in html
     assert "whatsappGuideDialog" in html
@@ -58,10 +60,25 @@ def test_whatsapp_meta_resource_hub_lists_required_meta_urls() -> None:
     assert "WABA, telefon ve kimlikler" in ADMIN_WHATSAPP_SCRIPT
     assert "Webhook ve mesaj gönderimi" in ADMIN_WHATSAPP_SCRIPT
     assert "Şablon ve 24 saat penceresi" in ADMIN_WHATSAPP_SCRIPT
-    assert "https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started" in ADMIN_WHATSAPP_SCRIPT
-    assert "https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/overview" in ADMIN_WHATSAPP_SCRIPT
-    assert "https://developers.facebook.com/documentation/business-messaging/whatsapp/access-tokens" in ADMIN_WHATSAPP_SCRIPT
-    assert "https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/overview" in ADMIN_WHATSAPP_SCRIPT
-    assert "https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/overview" in ADMIN_WHATSAPP_SCRIPT
+    assert (
+        "https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started"
+        in ADMIN_WHATSAPP_SCRIPT
+    )
+    assert (
+        "https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/overview"
+        in ADMIN_WHATSAPP_SCRIPT
+    )
+    assert (
+        "https://developers.facebook.com/documentation/business-messaging/whatsapp/access-tokens"
+        in ADMIN_WHATSAPP_SCRIPT
+    )
+    assert (
+        "https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/overview"
+        in ADMIN_WHATSAPP_SCRIPT
+    )
+    assert (
+        "https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/overview"
+        in ADMIN_WHATSAPP_SCRIPT
+    )
     assert "https://business.facebook.com/wa/manage/message-templates/" in ADMIN_WHATSAPP_SCRIPT
     assert "https://developers.facebook.com/tools/explorer/" in ADMIN_WHATSAPP_SCRIPT

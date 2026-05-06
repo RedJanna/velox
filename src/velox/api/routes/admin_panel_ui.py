@@ -55,24 +55,12 @@ def render_admin_panel_html() -> str:
           <p>Misafir konuşmaları, onaylar ve otel ayarları tek yerden yönetilir.</p>
         </div>
       </div>
+      <button id="sidebarCollapseToggle" class="sidebar-collapse-toggle" type="button" aria-label="Menüyü daralt" aria-expanded="true">
+        <span aria-hidden="true">‹</span>
+        <strong>Menüyü Daralt</strong>
+      </button>
 
-      <nav id="nav" class="nav" aria-label="Yönetim paneli gezinmesi">
-        <button data-nav="dashboard"><span class="nav-label"><strong>Genel Bakış</strong><span>Anlık durum özeti</span></span><span>01</span></button>
-        <button data-nav="conversations"><span class="nav-label"><strong>Konuşmalar</strong><span>Misafir mesajları ve geçmiş</span></span><span>02</span></button>
-        <button data-nav="holds"><span class="nav-label"><strong>Onay Bekleyenler</strong><span>Rezervasyon onay ve ret işlemleri</span></span><span>03</span></button>
-        <button data-nav="tickets"><span class="nav-label"><strong>Destek Talepleri</strong><span>Ekibe aktarılan görevler</span></span><span>04</span></button>
-        <button data-nav="hotels"><span class="nav-label"><strong>Otel Bilgileri</strong><span>Otel profili ve ayarları</span></span><span>05</span></button>
-        <button data-nav="faq"><span class="nav-label"><strong>Sık Sorulan Sorular</strong><span>Hazır yanıt yönetimi</span></span><span>06</span></button>
-        <button data-nav="restaurant"><span class="nav-label"><strong>Restoran Yönetimi</strong><span>Masa ve kapasite ayarları</span></span><span>07</span></button>
-        <button data-nav="notifications"><span class="nav-label"><strong>Bildirim Ayarları</strong><span>WhatsApp bildirim numaraları</span></span><span>08</span></button>
-        <button data-nav="accesscontrol"><span class="nav-label"><strong>Rol ve Yetkiler</strong><span>Kullanıcı, rol ve izin yönetimi</span></span><span>09</span></button>
-        <button data-nav="whatsappapi"><span class="nav-label"><strong>WhatsApp Bağlantısı</strong><span>Meta bağlantısı ve şablonlar</span></span><span>10</span></button>
-        <button data-nav="system"><span class="nav-label"><strong>Sistem Durumu</strong><span>Sunucu ve bağlantı kontrolleri</span></span><span>11</span></button>
-        <button data-nav="responsewindow"><span class="nav-label"><strong>Yanıt Penceresi</strong><span>Tek soru yanıt önizleme</span></span><span>12</span></button>
-        <button data-nav="voicelab"><span class="nav-label"><strong>Voice Lab</strong><span>Telefon senaryo testleri</span></span><span>13</span></button>
-        <button data-nav="chatlab"><span class="nav-label"><strong>Test Paneli</strong><span>Canlı test ve değerlendirme</span></span><span>14</span></button>
-        <button data-nav="debug"><span class="nav-label"><strong>Hata Raporları</strong><span>Canlı tarama bulguları</span></span><span>15</span></button>
-      </nav>
+      <nav id="nav" class="nav" aria-label="Ana navigasyon"></nav>
 
       <section class="sidebar-card">
         <h2>Kimlik</h2>
@@ -95,11 +83,12 @@ def render_admin_panel_html() -> str:
         </div>
       </section>
     </aside>
+    <div id="sidebarOverlay" class="sidebar-overlay" hidden></div>
 
     <main class="workspace">
       <header id="topbar" class="topbar" hidden>
         <div>
-          <div class="badge dark">NexlumeAI Yönetim Paneli</div>
+          <nav id="pageBreadcrumb" class="breadcrumb" aria-label="Sayfa yolu">Genel Bakış</nav>
           <h2 id="pageTitle">Genel Bakış</h2>
           <p id="pageLead">Aktif konuşmaları, bekleyen onayları ve açık talepleri tek ekranda görüntüleyin.</p>
         </div>

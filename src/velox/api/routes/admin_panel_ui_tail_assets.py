@@ -4907,6 +4907,8 @@ function clearClientSession() {
   state.voiceLabMatrixResults = [];
   state.voiceLabMatrixSummary = null;
   state.voiceLabLoading = false;
+  state.mobileSidebarOpen = false;
+  if (typeof closeSidebar === 'function') closeSidebar();
   stopVoiceLabRealtime({silent: true});
   stopAuthKeepAlive();
 }

@@ -11,6 +11,7 @@ ADMIN_PANEL_STYLE = """\
   --bg:#f4efe6;--bg-2:#ebe4d8;--surface:#fffdf8;--surface-2:#f8f4ec;--ink:#102033;--muted:#5d6877;
   --line:rgba(16,32,51,.12);--line-strong:rgba(16,32,51,.2);--accent:#0f766e;--accent-2:#1d8f86;
   --warn:#b45309;--danger:#b42318;--danger-2:#7f1d1d;--ok:#166534;--gold:#bb8a2a;--shadow:0 18px 42px rgba(16,32,51,.08);
+  --sidebar-bg:#102033;--sidebar-bg-2:#142842;--sidebar-muted:rgba(239,246,255,.72);--sidebar-line:rgba(239,246,255,.12);
   --radius-lg:26px;--radius-md:18px;--radius-sm:12px;--mono:'Cascadia Code','Fira Code',monospace;
   --sans:'Manrope','Segoe UI Variable','Aptos','Segoe UI',system-ui,sans-serif;--serif:'Fraunces','Iowan Old Style','Georgia',serif;
 }
@@ -23,19 +24,44 @@ body{padding:18px}
 button,input,select,textarea{font:inherit}
 [hidden]{display:none!important}
 .shell{display:grid;grid-template-columns:280px minmax(0,1fr);gap:18px;min-height:calc(100vh - 36px)}
+.shell.is-sidebar-collapsed{grid-template-columns:72px minmax(0,1fr)}
 .shell:has(> .sidebar[hidden]){grid-template-columns:1fr}
-.sidebar{background:linear-gradient(180deg,#11223a 0%,#0a1525 100%);color:#eff6ff;border-radius:30px;padding:24px;display:flex;flex-direction:column;gap:22px;box-shadow:var(--shadow)}
+.sidebar{background:var(--sidebar-bg);color:#eff6ff;border-radius:30px;padding:24px;display:flex;flex-direction:column;gap:18px;box-shadow:var(--shadow);min-width:0;transition:width .18s ease,padding .18s ease}
 .brand{display:flex;align-items:flex-start;gap:14px}
-.brand-mark{width:46px;height:46px;border-radius:16px;background:linear-gradient(135deg,var(--gold),#f2ca72);display:grid;place-items:center;color:#4c3506;font-weight:900;letter-spacing:.06em}
+.brand-mark{width:46px;height:46px;border-radius:16px;background:#e7bf5f;display:grid;place-items:center;color:#4c3506;font-weight:900;letter-spacing:.06em;flex:0 0 auto}
 .brand h1{margin:0;font-family:var(--serif);font-size:22px;line-height:1.05}
 .brand p{margin:6px 0 0;color:rgba(239,246,255,.72);font-size:13px;line-height:1.45}
-.nav{display:flex;flex-direction:column;gap:8px}
-.nav button{border:none;background:transparent;color:inherit;padding:12px 14px;border-radius:16px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;transition:.18s background ease,.18s transform ease}
-.nav button:hover{background:rgba(255,255,255,.08);transform:translateX(2px)}
-.nav button.is-active{background:linear-gradient(135deg,rgba(29,143,134,.24),rgba(187,138,42,.18));box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
-.nav-label{display:flex;flex-direction:column;gap:3px}
-.nav-label strong{font-size:14px}
-.nav-label span{font-size:12px;color:rgba(239,246,255,.72)}
+.sidebar-collapse-toggle{min-height:40px;border:1px solid var(--sidebar-line);border-radius:14px;background:rgba(255,255,255,.06);color:#eff6ff;padding:9px 10px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:800;cursor:pointer;transition:.18s background ease,.18s border-color ease}
+.sidebar-collapse-toggle:hover{background:rgba(255,255,255,.1)}
+.sidebar-collapse-toggle span{font-size:18px;line-height:1}
+.nav{display:flex;flex-direction:column;gap:20px;overflow-y:auto;scrollbar-width:thin;min-height:0}
+.nav-group{display:flex;flex-direction:column;gap:6px}
+.nav-group-label{padding:0 12px;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--sidebar-muted)}
+.nav button{position:relative;min-height:44px;border:none;background:transparent;color:#dbeafe;padding:0 12px;border-radius:10px;text-align:left;display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:10px;cursor:pointer;transition:.18s background ease,.18s color ease}
+.nav button:hover{background:rgba(255,255,255,.08);color:#fff}
+.nav button.is-active{background:rgba(255,255,255,.12);color:#fff;font-weight:800}
+.nav button.is-active::before{content:"";position:absolute;left:0;top:50%;width:2px;height:22px;border-radius:999px;background:var(--accent);transform:translateY(-50%)}
+.nav button.is-active .nav-label{font-weight:800}
+.nav button.is-active .nav-icon{background:rgba(15,118,110,.35);color:#fff}
+.nav-icon{width:24px;height:24px;border-radius:8px;display:grid;place-items:center;color:#eff6ff;background:rgba(255,255,255,.08);font-size:10px;font-weight:900;letter-spacing:0}
+.nav-copy{display:flex;flex-direction:column;gap:2px;min-width:0}
+.nav-label{font-size:14px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-subtitle{font-size:12px;line-height:1.25;color:var(--sidebar-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-badge{min-width:24px;height:22px;border-radius:999px;background:#fff2dd;color:#92400e;display:inline-flex;align-items:center;justify-content:center;padding:0 7px;font-size:11px;font-weight:900}
+.nav-empty{padding:10px 12px;color:var(--sidebar-muted);font-size:13px;line-height:1.4}
+.sidebar.is-collapsed{padding:16px 10px;align-items:center;gap:14px}
+.sidebar.is-collapsed .brand{justify-content:center}
+.sidebar.is-collapsed .brand > div:not(.brand-mark),.sidebar.is-collapsed .sidebar-card,.sidebar.is-collapsed .sidebar-actions,.sidebar.is-collapsed .sidebar-collapse-toggle strong,.sidebar.is-collapsed .nav-group-label,.sidebar.is-collapsed .nav-copy,.sidebar.is-collapsed .nav-badge{display:none}
+.sidebar.is-collapsed .brand-mark{width:44px;height:44px;border-radius:14px}
+.sidebar.is-collapsed .sidebar-collapse-toggle{width:44px;height:40px;padding:0}
+.sidebar.is-collapsed .sidebar-collapse-toggle span{transform:rotate(180deg)}
+.sidebar.is-collapsed .nav{width:100%;overflow:visible}
+.sidebar.is-collapsed .nav-group{align-items:center;gap:6px}
+.sidebar.is-collapsed .nav button{width:44px;min-width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center}
+.sidebar.is-collapsed .nav button::after{content:attr(data-tooltip);position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%);z-index:90;min-width:max-content;max-width:220px;padding:7px 9px;border-radius:8px;background:#0b1220;color:#fff;font-size:12px;font-weight:800;box-shadow:0 10px 24px rgba(16,32,51,.18);opacity:0;pointer-events:none;transition:.14s opacity ease}
+.sidebar.is-collapsed .nav button:hover::after,.sidebar.is-collapsed .nav button:focus-visible::after{opacity:1}
+.sidebar-overlay{position:fixed;inset:0;background:rgba(16,32,51,.42);z-index:65}
+.breadcrumb{margin-bottom:8px;color:var(--muted);font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
 .sidebar-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:16px}
 .sidebar-card h2{margin:0 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:rgba(239,246,255,.72)}
 .sidebar-card p,.sidebar-card label,.sidebar-card small{color:rgba(239,246,255,.72)}
@@ -60,7 +86,7 @@ button,input,select,textarea{font:inherit}
 .topbar-actions{display:flex;align-items:flex-start;gap:10px}
 .topbar-aside{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end}
 .sidebar-toggle{display:none;border:none;border-radius:12px;padding:10px 14px;background:#13253e;color:#fff;font-weight:800;cursor:pointer}
-.sidebar-toggle:focus-visible,.nav button:focus-visible,.sidebar-button:focus-visible,.toolbar button:focus-visible,.inline-button:focus-visible,.action-button:focus-visible{
+.sidebar-toggle:focus-visible,.sidebar-collapse-toggle:focus-visible,.nav button:focus-visible,.sidebar-button:focus-visible,.toolbar button:focus-visible,.inline-button:focus-visible,.action-button:focus-visible{
   outline:2px solid rgba(187,138,42,.9);outline-offset:2px
 }
 .badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:.03em}
@@ -443,10 +469,7 @@ tbody tr:hover{background:#fffcf7}
 }
 @media(max-width:980px){
   html,body{overflow-x:hidden}
-  body{padding:12px}.shell{grid-template-columns:1fr}
-  .sidebar{position:fixed;left:12px;top:12px;bottom:12px;z-index:70;width:min(86vw,320px);padding:18px;border-radius:24px;transform:translateX(-112%);transition:transform .2s ease}
-  .sidebar.is-open{transform:translateX(0)}
-  .sidebar-toggle{display:inline-flex;align-items:center;justify-content:center}
+  body{padding:12px}
   .topbar-actions{width:100%;justify-content:space-between;align-items:center}
   .topbar-aside{justify-content:flex-start}
   .table-shell{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
@@ -459,6 +482,40 @@ tbody tr:hover{background:#fffcf7}
   .debug-artifact-preview-meta{align-items:flex-start}
   .access-permission-row{grid-template-columns:1fr}
 }
+@media(min-width:768px) and (max-width:1023px){
+  .shell{grid-template-columns:72px minmax(0,1fr)}
+  .shell.is-sidebar-expanded{grid-template-columns:280px minmax(0,1fr)}
+  .sidebar{position:static;transform:none;width:auto}
+  .sidebar-toggle{display:none}
+  .sidebar:not(.is-expanded){padding:16px 10px;align-items:center;gap:14px}
+  .sidebar:not(.is-expanded) .brand{justify-content:center}
+  .sidebar:not(.is-expanded) .brand > div:not(.brand-mark),.sidebar:not(.is-expanded) .sidebar-card,.sidebar:not(.is-expanded) .sidebar-actions,.sidebar:not(.is-expanded) .sidebar-collapse-toggle strong,.sidebar:not(.is-expanded) .nav-group-label,.sidebar:not(.is-expanded) .nav-copy,.sidebar:not(.is-expanded) .nav-badge{display:none}
+  .sidebar:not(.is-expanded) .brand-mark{width:44px;height:44px;border-radius:14px}
+  .sidebar:not(.is-expanded) .sidebar-collapse-toggle{width:44px;height:40px;padding:0}
+  .sidebar:not(.is-expanded) .sidebar-collapse-toggle span{transform:rotate(180deg)}
+  .sidebar:not(.is-expanded) .nav{width:100%;overflow:visible}
+  .sidebar:not(.is-expanded) .nav-group{align-items:center;gap:6px}
+  .sidebar:not(.is-expanded) .nav button{width:44px;min-width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center}
+}
+@media(max-width:767px){
+  body{padding:12px}
+  body.sidebar-drawer-open{overflow:hidden}
+  .shell,.shell.is-sidebar-collapsed,.shell.is-sidebar-expanded{grid-template-columns:1fr}
+  .sidebar{position:fixed;left:12px;top:12px;bottom:12px;z-index:70;width:min(88vw,360px);padding:18px;border-radius:24px;transform:translateX(-112%);transition:transform .2s ease;align-items:stretch}
+  .sidebar.is-open{transform:translateX(0)}
+  .sidebar.is-collapsed{padding:18px;align-items:stretch}
+  .sidebar.is-collapsed .brand > div:not(.brand-mark),.sidebar.is-collapsed .sidebar-card,.sidebar.is-collapsed .sidebar-actions,.sidebar.is-collapsed .sidebar-collapse-toggle strong,.sidebar.is-collapsed .nav-group-label,.sidebar.is-collapsed .nav-copy,.sidebar.is-collapsed .nav-badge{display:initial}
+  .sidebar.is-collapsed .sidebar-card,.sidebar.is-collapsed .sidebar-actions{display:flex}
+  .sidebar.is-collapsed .nav-group-label{display:block}
+  .sidebar.is-collapsed .nav-copy{display:flex}
+  .sidebar.is-collapsed .nav-badge{display:inline-flex}
+  .sidebar.is-collapsed .nav{overflow-y:auto}
+  .sidebar.is-collapsed .nav-group{align-items:stretch}
+  .sidebar.is-collapsed .nav button{width:100%;height:auto;padding:0 12px;display:grid;grid-template-columns:24px minmax(0,1fr) auto;justify-content:stretch}
+  .sidebar-collapse-toggle{display:none}
+  .sidebar-toggle{display:inline-flex;align-items:center;justify-content:center}
+  .sidebar-overlay:not([hidden]){display:block}
+}
 """
 
 ADMIN_PANEL_SCRIPT = UI_SHARED_SCRIPT + """\
@@ -467,6 +524,8 @@ const API_ROOT = '/api/v1/admin';
 const HOTEL_KEY = 'velox.admin.hotel';
 const CSRF_COOKIE = 'velox_admin_csrf';
 const LIVE_REFRESH_INTERVAL_MS = 3000;
+const SIDEBAR_STATE_KEY = 'hotel-ai.sidebar.state';
+const SIDEBAR_OPEN_GROUPS_KEY = 'hotel-ai.sidebar.openGroups';
 const VOICE_LAB_GREETING_TEXT = {
   tr: "Merhaba, Kassandra Ölüdeniz'e hoş geldiniz. Hizmet kalitesi ve talebinizi karşılayabilmemiz için görüşmemiz kayıt altına alınabilir. Size nasıl yardımcı olabilirim?",
   en: "Hello, welcome to Kassandra Oludeniz. For service quality and to assist with your request, this call may be recorded. How may I help you?",
@@ -501,11 +560,185 @@ const VOICE_LAB_REALTIME_VOICES = [
   {value: 'shimmer', label: 'Shimmer'},
   {value: 'verse', label: 'Verse'},
 ];
-const VIEW_PERMISSIONS = {
-  accesscontrol: 'access_control:read',
-  responsewindow: 'conversations:read',
-  voicelab: 'conversations:read',
-};
+const NAVIGATION_GROUPS = [
+  {
+    id: 'overview',
+    label: 'Genel Bakış',
+    items: [
+      {
+        id: 'dashboard',
+        label: 'Genel Bakış',
+        subtitle: 'Anlık durum özeti',
+        icon: 'GB',
+        permission: 'dashboard:read',
+        title: 'Genel Bakış',
+        lead: 'Aktif konuşmaları, bekleyen onayları ve açık talepleri tek ekranda görüntüleyin.',
+      },
+    ],
+  },
+  {
+    id: 'reception',
+    label: 'Resepsiyon',
+    items: [
+      {
+        id: 'conversations',
+        label: 'Konuşmalar',
+        subtitle: 'Misafir mesajları ve geçmiş',
+        icon: 'K',
+        permission: 'conversations:read',
+        badgeKey: 'conversations_active',
+        title: 'Konuşmalar',
+        lead: 'Misafir mesajlarını, durumlarını ve geçmişini inceleyin.',
+      },
+      {
+        id: 'tickets',
+        label: 'Destek Talepleri',
+        subtitle: 'Ekibe aktarılan görevler',
+        icon: 'D',
+        permission: 'tickets:read',
+        badgeKey: 'open_tickets',
+        title: 'Destek Talepleri',
+        lead: 'Ekibe aktarılan görevleri öncelik ve duruma göre takip edin.',
+      },
+    ],
+  },
+  {
+    id: 'reservations',
+    label: 'Rezervasyonlar',
+    items: [
+      {
+        id: 'holds',
+        label: 'Onay Bekleyenler',
+        subtitle: 'Rezervasyon onay ve ret işlemleri',
+        icon: 'OB',
+        permission: 'holds:read',
+        badgeKey: 'pending_holds',
+        title: 'Onay Bekleyenler',
+        lead: 'Konaklama, restoran ve transfer taleplerini onaylayın veya reddedin.',
+      },
+    ],
+  },
+  {
+    id: 'operations',
+    label: 'Operasyon',
+    items: [
+      {
+        id: 'restaurant',
+        label: 'Restoran Yönetimi',
+        subtitle: 'Masa ve kapasite ayarları',
+        icon: 'R',
+        permission: 'holds:read',
+        title: 'Restoran Yönetimi',
+        lead: 'Tarih ve saat bazlı masa kapasitelerini ayarlayın.',
+      },
+      {
+        id: 'notifications',
+        label: 'Bildirim Ayarları',
+        subtitle: 'WhatsApp bildirim numaraları',
+        icon: 'B',
+        permission: 'notification_phones:read',
+        title: 'Bildirim Ayarları',
+        lead: 'Rezervasyon onayları için WhatsApp bildirim numaralarını yönetin.',
+      },
+    ],
+  },
+  {
+    id: 'ai',
+    label: 'AI Yönetimi',
+    items: [
+      {
+        id: 'faq',
+        label: 'Sık Sorulan Sorular',
+        subtitle: 'Hazır yanıt yönetimi',
+        icon: 'SS',
+        permission: 'hotels:read',
+        title: 'Sık Sorulan Sorular',
+        lead: 'Hazır yanıtları yönetin, uygunsuz içerikleri hızlıca kaldırın.',
+      },
+      {
+        id: 'responsewindow',
+        label: 'Yanıt Penceresi',
+        subtitle: 'Tek soru yanıt önizleme',
+        icon: 'YP',
+        permission: 'conversations:read',
+        title: 'Yanıt Penceresi',
+        lead: 'Tek müşteri sorusuna otel verisiyle geçmişsiz yanıt üretin.',
+      },
+      {
+        id: 'voicelab',
+        label: 'Voice Lab',
+        subtitle: 'Telefon senaryo testleri',
+        icon: 'VL',
+        permission: 'conversations:read',
+        title: 'Voice Lab',
+        lead: 'Telefon senaryolarını canlı hatta çıkmadan kaynak, aksiyon ve güvenlik açısından ölçün.',
+      },
+      {
+        id: 'chatlab',
+        label: 'Test Paneli',
+        subtitle: 'Canlı test ve değerlendirme',
+        icon: 'TP',
+        title: 'Test Paneli',
+        lead: 'Yapay zekâyı canlı test edin, puanlayın ve raporlayın.',
+      },
+      {
+        id: 'debug',
+        label: 'Hata Raporları',
+        subtitle: 'Canlı tarama bulguları',
+        icon: 'HR',
+        roles: ['ADMIN'],
+        title: 'Hata Raporları',
+        lead: 'Canlı panelde başlatılan yalnızca raporlama amaçlı taramaların bulgularını inceleyin.',
+      },
+    ],
+  },
+  {
+    id: 'settings',
+    label: 'Ayarlar',
+    items: [
+      {
+        id: 'hotels',
+        label: 'Otel Bilgileri',
+        subtitle: 'Otel profili ve ayarları',
+        icon: 'OT',
+        permission: 'hotels:read',
+        title: 'Otel Bilgileri',
+        lead: 'Otel profilini düzenleyin ve değişiklikleri sisteme güvenle uygulayın.',
+      },
+      {
+        id: 'accesscontrol',
+        label: 'Rol ve Yetkiler',
+        subtitle: 'Kullanıcı, rol ve izin yönetimi',
+        icon: 'RY',
+        permission: 'access_control:read',
+        title: 'Rol ve Yetkiler',
+        lead: 'Kullanıcı, rol, departman ve pencere bazlı işlem izinlerini aynı ekranda yönetin.',
+      },
+      {
+        id: 'whatsappapi',
+        label: 'WhatsApp Bağlantısı',
+        subtitle: 'Meta bağlantısı ve şablonlar',
+        icon: 'WA',
+        roles: ['ADMIN'],
+        title: 'WhatsApp Bağlantısı',
+        lead: 'Meta bağlantısı, telefon varlıkları ve mesaj şablonlarını yönetin.',
+      },
+      {
+        id: 'system',
+        label: 'Sistem Durumu',
+        subtitle: 'Sunucu ve bağlantı kontrolleri',
+        icon: 'SD',
+        title: 'Sistem Durumu',
+        lead: 'Sunucu sağlığı, alan adı ve güvenlik ayarlarını kontrol edin.',
+      },
+    ],
+  },
+];
+const NAVIGATION_ITEMS = NAVIGATION_GROUPS.flatMap(group => group.items);
+const VIEW_PERMISSIONS = NAVIGATION_ITEMS.reduce((acc, item) => {
+  if (item.permission) acc[item.id] = item.permission;
+  return acc;
+}, {});
 
 function normalizeAdminViewKey(value) {
   const normalized = String(value || 'dashboard').replace('#', '').trim().toLowerCase();
@@ -521,6 +754,9 @@ const state = {
   hotels: [],
   selectedHotelId: window.localStorage.getItem(HOTEL_KEY) || '',
   currentView: normalizeAdminViewKey(window.location.hash || '#dashboard'),
+  sidebarCollapsed: false,
+  sidebarOpenGroups: new Set(),
+  mobileSidebarOpen: false,
   lastDebugSourceView: 'dashboard',
   dashboard: null,
   conversations: [],
@@ -631,6 +867,8 @@ const refs = {};
 document.addEventListener('DOMContentLoaded', () => {
   startInteractiveLabelObserver(document.body);
   bindRefs();
+  initializeNavigationState();
+  renderNavigation();
   stripSensitiveQueryParams();
   // Prevent native form submission on all auth forms as a safety net
   ['loginForm','bootstrapForm','totpRecoveryForm','otpVerifyForm'].forEach(id => {
@@ -643,11 +881,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function bindRefs() {
   [
-    'sidebar','sidebarToggle','topbar',
+    'sidebar','sidebarToggle','sidebarCollapseToggle','sidebarOverlay','topbar',
     'toast','authView','panelView','loginForm','bootstrapForm','bootstrapCard','bootstrapSummary',
     'totpRecovery','totpRecoveryForm','trustedSessionBanner','loginOtpField','rememberDeviceToggle',
     'loginRememberOptions','loginVerificationOptions','loginSessionOptions',
-    'otpSetup','otpSecret','otpUri','otpQrImage','otpVerifyForm','otpVerifyHint','currentUser','currentRole','hotelScope','hotelSelect','nav','pageTitle','pageLead',
+    'otpSetup','otpSecret','otpUri','otpQrImage','otpVerifyForm','otpVerifyHint','currentUser','currentRole','hotelScope','hotelSelect','nav','pageBreadcrumb','pageTitle','pageLead',
     'dashboardCards','dashboardQueues','conversationFilters','conversationBulkBar','conversationSelectAll','conversationSelectionCount','conversationTableBody','conversationDetail',
     'stayHoldFilters','stayHoldTableBody','stayHoldDetail','stayHoldCreatePanel','stayWizardSteps','stayWizardBody','stayStatusChips',
     'restaurantHoldFilters','restaurantHoldTableBody','restaurantHoldDetail','restaurantHoldCreatePanel','restaurantCreateForm','restaurantStatusChips','restaurantDateFrom','restaurantDateTo',
@@ -696,6 +934,12 @@ function bindRefs() {
 
 function bindEvents() {
   refs.sidebarToggle?.addEventListener('click', toggleSidebar);
+  refs.sidebarCollapseToggle?.addEventListener('click', toggleSidebarCollapsed);
+  refs.sidebarOverlay?.addEventListener('click', closeSidebar);
+  refs.nav?.addEventListener('click', onNavigationClick);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closeSidebar();
+  });
   refs.loginForm?.addEventListener('submit', onLogin);
   refs.bootstrapForm?.addEventListener('submit', onBootstrap);
   refs.totpRecoveryForm?.addEventListener('submit', onTotpRecovery);
@@ -814,14 +1058,6 @@ function bindEvents() {
   refs.hotelProfileSectionBody?.addEventListener('click', onHotelProfileSectionClick);
   refs.hotelProfileSectionBody?.addEventListener('input', onHotelProfileSectionInput);
   refs.hotelProfileSectionBody?.addEventListener('change', onHotelProfileSectionChange);
-  document.querySelectorAll('[data-nav]').forEach(button => {
-    const label = button.querySelector('.nav-label strong')?.textContent || 'Navigasyon';
-    button.setAttribute('aria-label', label.trim());
-    button.addEventListener('click', () => {
-      setView(button.dataset.nav);
-      closeSidebar();
-    });
-  });
   refs.saveHotelProfile?.addEventListener('click', saveHotelProfile);
   document.getElementById('loadSlotsButton').addEventListener('click', event => {
     event.preventDefault();
@@ -842,7 +1078,7 @@ function bindEvents() {
       setView(newView);
     }
   });
-  window.addEventListener('resize', closeSidebar);
+  window.addEventListener('resize', syncSidebarLayout);
   bindDelegatedEvents();
 }
 
@@ -859,20 +1095,180 @@ function stripSensitiveQueryParams() {
   notify('URL içindeki giriş parametreleri güvenlik için temizlendi. Girişi form üzerinden yapın.', 'warn');
 }
 
+function initializeNavigationState() {
+  const savedState = readSidebarState();
+  state.sidebarCollapsed = typeof savedState.collapsed === 'boolean' ? savedState.collapsed : isTabletLayout();
+  state.sidebarOpenGroups = readSidebarOpenGroups();
+  syncSidebarLayout();
+}
+
+function readSidebarState() {
+  try {
+    return JSON.parse(window.localStorage.getItem(SIDEBAR_STATE_KEY) || '{}') || {};
+  } catch (_error) {
+    return {};
+  }
+}
+
+function readSidebarOpenGroups() {
+  try {
+    const values = JSON.parse(window.localStorage.getItem(SIDEBAR_OPEN_GROUPS_KEY) || '[]');
+    return new Set(Array.isArray(values) ? values.map(String) : []);
+  } catch (_error) {
+    return new Set();
+  }
+}
+
+function persistSidebarState() {
+  window.localStorage.setItem(SIDEBAR_STATE_KEY, JSON.stringify({collapsed: Boolean(state.sidebarCollapsed)}));
+  window.localStorage.setItem(SIDEBAR_OPEN_GROUPS_KEY, JSON.stringify([...state.sidebarOpenGroups]));
+}
+
+function getNavigationItem(view) {
+  const key = normalizeAdminViewKey(view);
+  return NAVIGATION_ITEMS.find(item => item.id === key) || null;
+}
+
+function getNavigationGroupForView(view) {
+  const key = normalizeAdminViewKey(view);
+  return NAVIGATION_GROUPS.find(group => group.items.some(item => item.id === key)) || null;
+}
+
+function canAccessNavigationItem(item) {
+  if (!state.me) return true;
+  if (Array.isArray(item.roles) && item.roles.length && !item.roles.includes(state.me.role)) {
+    return false;
+  }
+  if (item.permission && !hasPermission(item.permission)) {
+    return false;
+  }
+  return true;
+}
+
+function getFilteredNavigationGroups() {
+  return NAVIGATION_GROUPS
+    .map(group => ({
+      ...group,
+      items: group.items.filter(canAccessNavigationItem),
+    }))
+    .filter(group => group.items.length > 0);
+}
+
+function getNavigationBadgeValue(item) {
+  const key = item.badgeKey;
+  if (!key || !state.dashboard?.cards) return null;
+  return state.dashboard.cards[key];
+}
+
+function formatNavBadge(value) {
+  if (value === null || value === undefined) return '';
+  const count = Number(value);
+  if (!Number.isFinite(count) || count <= 0) return '';
+  return count > 99 ? '99+' : String(count);
+}
+
+function renderNavigation() {
+  if (!refs.nav) return;
+  const groups = getFilteredNavigationGroups();
+  if (!groups.length) {
+    refs.nav.innerHTML = '<div class="nav-empty">Bu rol için görünür menü bulunmuyor.</div>';
+    return;
+  }
+  refs.nav.innerHTML = groups.map(group => `
+    <section class="nav-group" aria-labelledby="nav-group-${escapeHtml(group.id)}">
+      <div id="nav-group-${escapeHtml(group.id)}" class="nav-group-label">${escapeHtml(group.label)}</div>
+      ${group.items.map(item => {
+        const badge = formatNavBadge(getNavigationBadgeValue(item));
+        return `
+          <button type="button" data-nav="${escapeHtml(item.id)}" data-tooltip="${escapeHtml(item.label)}" aria-label="${escapeHtml(item.label)}" title="${escapeHtml(item.label)}">
+            <span class="nav-icon" aria-hidden="true">${escapeHtml(item.icon || '')}</span>
+            <span class="nav-copy">
+              <span class="nav-label">${escapeHtml(item.label)}</span>
+              <span class="nav-subtitle">${escapeHtml(item.subtitle || '')}</span>
+            </span>
+            ${badge ? `<span class="nav-badge">${escapeHtml(badge)}</span>` : ''}
+          </button>
+        `;
+      }).join('')}
+    </section>
+  `).join('');
+  updateNavigationState();
+}
+
+function updateNavigationState() {
+  document.querySelectorAll('[data-nav]').forEach(button => {
+    const isActive = button.dataset.nav === state.currentView;
+    button.classList.toggle('is-active', isActive);
+    if (isActive) {
+      button.setAttribute('aria-current', 'page');
+    } else {
+      button.removeAttribute('aria-current');
+    }
+  });
+}
+
+function onNavigationClick(event) {
+  const button = event.target.closest('[data-nav]');
+  if (!button) return;
+  setView(button.dataset.nav);
+  closeSidebar();
+}
+
 function isMobileLayout() {
-  return window.matchMedia('(max-width: 980px)').matches;
+  return window.matchMedia('(max-width: 767px)').matches;
+}
+
+function isTabletLayout() {
+  return window.matchMedia('(min-width: 768px) and (max-width: 1023px)').matches;
+}
+
+function syncSidebarLayout() {
+  applySidebarState();
+  if (!isMobileLayout()) {
+    closeSidebar();
+  }
+}
+
+function applySidebarState() {
+  if (!refs.sidebar) return;
+  const shell = refs.sidebar.closest('.shell');
+  const useCollapsed = !isMobileLayout() && state.sidebarCollapsed;
+  refs.sidebar.classList.toggle('is-collapsed', useCollapsed);
+  refs.sidebar.classList.toggle('is-expanded', !useCollapsed && !isMobileLayout());
+  shell?.classList.toggle('is-sidebar-collapsed', useCollapsed);
+  shell?.classList.toggle('is-sidebar-expanded', !useCollapsed && !isMobileLayout());
+  if (refs.sidebarCollapseToggle) {
+    refs.sidebarCollapseToggle.hidden = isMobileLayout();
+    refs.sidebarCollapseToggle.setAttribute('aria-expanded', useCollapsed ? 'false' : 'true');
+    refs.sidebarCollapseToggle.setAttribute('aria-label', useCollapsed ? 'Menüyü genişlet' : 'Menüyü daralt');
+    const label = refs.sidebarCollapseToggle.querySelector('strong');
+    if (label) label.textContent = useCollapsed ? 'Menüyü Genişlet' : 'Menüyü Daralt';
+  }
 }
 
 function closeSidebar() {
   if (!refs.sidebar || !refs.sidebarToggle) return;
   refs.sidebar.classList.remove('is-open');
   refs.sidebarToggle.setAttribute('aria-expanded', 'false');
+  refs.sidebarOverlay.hidden = true;
+  document.body.classList.remove('sidebar-drawer-open');
+  state.mobileSidebarOpen = false;
 }
 
 function toggleSidebar() {
   if (!refs.sidebar || !refs.sidebarToggle || !isMobileLayout()) return;
-  refs.sidebar.classList.toggle('is-open');
-  refs.sidebarToggle.setAttribute('aria-expanded', refs.sidebar.classList.contains('is-open') ? 'true' : 'false');
+  state.mobileSidebarOpen = !refs.sidebar.classList.contains('is-open');
+  refs.sidebar.classList.toggle('is-open', state.mobileSidebarOpen);
+  refs.sidebarOverlay.hidden = !state.mobileSidebarOpen;
+  document.body.classList.toggle('sidebar-drawer-open', state.mobileSidebarOpen);
+  refs.sidebarToggle.setAttribute('aria-expanded', state.mobileSidebarOpen ? 'true' : 'false');
+}
+
+function toggleSidebarCollapsed() {
+  if (isMobileLayout()) return;
+  state.sidebarCollapsed = !state.sidebarCollapsed;
+  persistSidebarState();
+  applySidebarState();
 }
 
 function bindDelegatedEvents() {
@@ -1091,6 +1487,7 @@ function renderBootstrapState() {
       <p>${escapeHtml(accessMode)}</p>
     </div>
   `;
+  renderNavigation();
 }
 
 function renderLoginSessionState() {
@@ -1326,16 +1723,14 @@ function isLocalDemoAuth() {
 }
 
 function syncNavigationAccess() {
-  document.querySelectorAll('[data-nav]').forEach(button => {
-    const requiredPermission = VIEW_PERMISSIONS[button.dataset.nav];
-    button.hidden = Boolean(requiredPermission) && !hasPermission(requiredPermission);
-  });
+  renderNavigation();
 }
 
 function showAuth() {
   clearLiveRefresh();
   stopDebugPolling();
   stopAuthKeepAlive();
+  closeSidebar();
   refs.sidebar.hidden = true;
   refs.topbar.hidden = true;
   refs.authView.hidden = false;
@@ -1356,11 +1751,14 @@ function showPanel() {
   refs.currentRole.textContent = state.me?.role || '-';
   refs.hotelScope.textContent = state.selectedHotelId || '-';
   if (refs.logoutButton) refs.logoutButton.hidden = isLocalDemoAuth();
+  applySidebarState();
+  renderNavigation();
 }
 
 function setView(view) {
   view = normalizeAdminViewKey(view);
-  if (state.me && VIEW_PERMISSIONS[view] && !hasPermission(VIEW_PERMISSIONS[view])) {
+  const navItem = getNavigationItem(view);
+  if (state.me && navItem && !canAccessNavigationItem(navItem)) {
     notify('Bu bölümü görüntüleme yetkiniz bulunmuyor.', 'warn');
     view = 'dashboard';
   }
@@ -1375,29 +1773,19 @@ function setView(view) {
   document.querySelectorAll('[data-view]').forEach(section => {
     section.hidden = section.dataset.view !== view;
   });
-  document.querySelectorAll('[data-nav]').forEach(button => {
-    button.classList.toggle('is-active', button.dataset.nav === view);
-  });
+  updateNavigationState();
 
-  const meta = {
-    dashboard: ['Genel Bakış', 'Aktif konuşmaları, bekleyen onayları ve açık talepleri tek ekranda görüntüleyin.'],
-    conversations: ['Konuşmalar', 'Misafir mesajlarını, durumlarını ve geçmişini inceleyin.'],
-    holds: ['Onay Bekleyenler', 'Konaklama, restoran ve transfer taleplerini onaylayın veya reddedin.'],
-    tickets: ['Destek Talepleri', 'Ekibe aktarılan görevleri öncelik ve duruma göre takip edin.'],
-    hotels: ['Otel Bilgileri', 'Otel profilini düzenleyin ve değişiklikleri sisteme güvenle uygulayın.'],
-    faq: ['Sık Sorulan Sorular', 'Hazır yanıtları yönetin, uygunsuz içerikleri hızlıca kaldırın.'],
-    restaurant: ['Restoran Yönetimi', 'Tarih ve saat bazlı masa kapasitelerini ayarlayın.'],
-    notifications: ['Bildirim Ayarları', 'Rezervasyon onayları için WhatsApp bildirim numaralarını yönetin.'],
-    accesscontrol: ['Rol ve Yetkiler', 'Kullanıcı, rol, departman ve pencere bazlı işlem izinlerini aynı ekranda yönetin.'],
-    system: ['Sistem Durumu', 'Sunucu sağlığı, alan adı ve güvenlik ayarlarını kontrol edin.'],
-    responsewindow: ['Yanıt Penceresi', 'Tek müşteri sorusuna otel verisiyle geçmişsiz yanıt üretin.'],
-    voicelab: ['Voice Lab', 'Telefon senaryolarını canlı hatta çıkmadan kaynak, aksiyon ve güvenlik açısından ölçün.'],
-    chatlab: ['Test Paneli', 'Yapay zekâyı canlı test edin, puanlayın ve raporlayın.'],
-    debug: ['Hata Raporları', 'Canlı panelde başlatılan yalnızca raporlama amaçlı taramaların bulgularını inceleyin.'],
-  }[view] || ['Yönetim Paneli', 'Yönetim merkezi'];
+  const activeItem = getNavigationItem(view);
+  const activeGroup = getNavigationGroupForView(view);
+  const meta = activeItem
+    ? [activeItem.title || activeItem.label, activeItem.lead || activeItem.subtitle || 'Yönetim merkezi']
+    : ['Yönetim Paneli', 'Yönetim merkezi'];
 
   refs.pageTitle.textContent = meta[0];
   refs.pageLead.textContent = meta[1];
+  if (refs.pageBreadcrumb) {
+    refs.pageBreadcrumb.textContent = activeGroup ? `${activeGroup.label} / ${activeItem.label}` : 'Yönetim Paneli';
+  }
 
   if (view === 'dashboard') loadDashboard();
   if (view === 'conversations') loadConversations();
@@ -3660,6 +4048,7 @@ function renderDashboard() {
       `, 'Açık talep yok')}
     </div>
   `;
+  renderNavigation();
 }
 
 function renderQueue(items, renderItem, emptyLabel) {
