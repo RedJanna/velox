@@ -57,7 +57,8 @@ body{overflow:hidden}
 .msg-user{align-self:flex-end;background:linear-gradient(135deg,var(--teal),var(--teal-2));color:#fff;border-bottom-right-radius:6px}
 .msg-assistant{align-self:flex-start;background:rgba(255,255,255,.96);border:1px solid rgba(18,33,59,.08);border-bottom-left-radius:6px}
 .msg-system{align-self:center;max-width:88%;background:rgba(18,33,59,.08);color:var(--muted);box-shadow:none}
-.msg-body{font-size:14px;line-height:1.55;word-break:break-word}
+.msg-body{font-size:14px;line-height:1.55;white-space:break-spaces;overflow-wrap:anywhere;tab-size:4}
+.msg-body-structured,.live-feed-text-structured,.conv-msg-body-structured{font-family:var(--mono);font-size:13px;line-height:1.55}
 .msg-attachments{display:flex;flex-direction:column;gap:8px}
 .msg-attachment{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;background:rgba(18,33,59,.08);border:1px solid rgba(18,33,59,.12)}
 .msg-user .msg-attachment{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.22)}
@@ -177,7 +178,7 @@ body{overflow:hidden}
 .live-feed-phone{font-size:12px;font-weight:700;color:#ffe49a}
 .live-feed-time{font-size:12px;color:rgba(255,255,255,.78)}
 .live-feed-msgs{margin-top:6px;font-size:13px;line-height:1.6}
-.live-feed-user,.live-feed-assistant{white-space:pre-wrap;word-break:break-word;display:block;overflow:visible}
+.live-feed-user,.live-feed-assistant{white-space:break-spaces;overflow-wrap:anywhere;tab-size:4;display:block;overflow:visible}
 .live-feed-user{color:rgba(255,255,255,.7)}
 .live-feed-assistant{color:rgba(42,157,143,.8)}
 #live-feed-container{min-height:320px;max-height:60vh;overflow-y:auto;padding-right:4px}
@@ -221,7 +222,7 @@ body{overflow:hidden}
 .conv-msg-role{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
 .conv-msg-user .conv-msg-role{color:#86efac}
 .conv-msg-assistant .conv-msg-role{color:#93c5fd}
-.conv-msg-body{font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.conv-msg-body{font-size:13px;line-height:1.6;white-space:break-spaces;overflow-wrap:anywhere;tab-size:4}
 .conv-msg-time{font-size:12px;color:rgba(255,255,255,.78);margin-top:4px}
 .conv-msg-status{display:inline-flex;padding:1px 6px;border-radius:6px;font-size:12px;font-weight:800;margin-left:6px}
 .conv-msg-status.sent{background:rgba(34,197,94,.25);color:#4ade80}
@@ -336,7 +337,7 @@ body{overflow:hidden}
 .live-feed-preview{display:grid;gap:8px;margin-top:12px}
 .live-feed-preview-block{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:16px;background:rgba(18,33,59,.04);border:1px solid rgba(18,33,59,.05)}
 .live-feed-preview-label{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#516173}
-.live-feed-user,.live-feed-assistant{font-size:13px;line-height:1.55;word-break:break-word}
+.live-feed-user,.live-feed-assistant{font-size:13px;line-height:1.55;overflow-wrap:anywhere}
 .live-feed-user{color:var(--ink)}
 .live-feed-assistant{color:#44576d}
 .live-feed-status-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
@@ -367,7 +368,7 @@ body{overflow:hidden}
 .msg-system{align-self:center;max-width:92%;background:rgba(18,33,59,.06);color:var(--muted);border:1px solid rgba(18,33,59,.06)}
 .msg.msg-ai-draft{align-self:flex-end;max-width:82%;background:linear-gradient(180deg,#fff8e8,#fff);border:1px dashed rgba(231,191,95,.85);color:var(--ink)}
 .msg.msg-internal-note{align-self:center;max-width:88%;background:rgba(15,23,42,.92);color:#e2e8f0;border:1px solid rgba(15,23,42,.92)}
-.msg-body{font-size:14px;line-height:1.65}
+.msg-body{font-size:14px;line-height:1.65;white-space:break-spaces;overflow-wrap:anywhere;tab-size:4}
 .msg-role{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;opacity:.95}
 .msg-status-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .msg-status-pill{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:800;background:rgba(18,33,59,.1);color:#34475c;border:1px solid rgba(18,33,59,.1)}
@@ -2497,6 +2498,7 @@ function renderMessages() {
     bubble.dataset.status = message.status || '';
     if (message.status === 'sending') bubble.classList.add('msg-sending');
     if (message.status === 'error') bubble.classList.add('msg-error');
+    bubble._copyText = normalizeClipboardText(message.content || '');
 
     const roleRow = document.createElement('div');
     roleRow.className = 'msg-role';
@@ -2528,6 +2530,7 @@ function renderMessages() {
 
     const body = document.createElement('div');
     body.className = 'msg-body';
+    if (isStructuredText(message.content || '')) body.classList.add('msg-body-structured');
     body.innerHTML = formatMessageHtml(message.content || '');
     const attachmentsHtml = renderMessageAttachments(message);
     if (attachmentsHtml) {
@@ -3584,9 +3587,59 @@ function removeCtxMenu() {
   if (prev) prev.remove();
 }
 
+function normalizeClipboardText(value) {
+  return String(value ?? '').replace(/\\r\\n?/g, '\\n');
+}
+
+function hasCopyableText(value) {
+  return normalizeClipboardText(value).replace(/\\s/g, '').length > 0;
+}
+
+function isStructuredText(value) {
+  const text = normalizeClipboardText(value);
+  const lines = text.split('\\n');
+  const nonEmptyLines = lines.filter(line => line.trim());
+  if (text.includes('\\t')) return true;
+  if (nonEmptyLines.some(line => / {2,}/.test(line))) return true;
+  if (nonEmptyLines.filter(line => /^\\s{2,}\\S/.test(line)).length >= 2) return true;
+  return nonEmptyLines.some(line => /[|┌┬┐│├┼┤└┴┘]/.test(line));
+}
+
+function clipboardHtmlForText(text) {
+  return '<pre style="margin:0;white-space:pre-wrap;font-family:Cascadia Code,Fira Code,Consolas,monospace;font-size:13px;line-height:1.5">' + escapeHtml(normalizeClipboardText(text)) + '</pre>';
+}
+
+async function writeClipboardText(text) {
+  const normalized = normalizeClipboardText(text);
+  if (typeof navigator === 'undefined' || !navigator.clipboard) {
+    throw new Error('clipboard_unavailable');
+  }
+  if (typeof ClipboardItem !== 'undefined' && typeof Blob !== 'undefined' && typeof navigator.clipboard.write === 'function') {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/plain': new Blob([normalized], {type: 'text/plain'}),
+        'text/html': new Blob([clipboardHtmlForText(normalized)], {type: 'text/html'}),
+      })]);
+      return;
+    } catch (_error) {
+      // Some browser permission paths allow plain text but reject rich clipboard items.
+    }
+  }
+  await navigator.clipboard.writeText(normalized);
+}
+
+function getCopyTextFromBubble(bubble, fallbackNode) {
+  if (bubble && typeof bubble._copyText === 'string') {
+    return normalizeClipboardText(bubble._copyText);
+  }
+  return normalizeClipboardText(fallbackNode?.textContent || '');
+}
+
 function showCtxMenu(event, text, bubble) {
   event.preventDefault();
   removeCtxMenu();
+  const copyText = normalizeClipboardText(text);
+  if (!hasCopyableText(copyText)) return;
   const menu = document.createElement('div');
   menu.className = 'ctx-menu';
   menu.setAttribute('role', 'menu');
@@ -3613,8 +3666,13 @@ function showCtxMenu(event, text, bubble) {
   copyBtn.className = 'ctx-menu-item';
   copyBtn.setAttribute('role', 'menuitem');
   copyBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>Kopyala';
-  copyBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(text).then(() => notify('Panoya kopyalandı.', 'success')).catch(() => notify('Kopyalanamadı.', 'error'));
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await writeClipboardText(copyText);
+      notify('Panoya kopyalandı.', 'success');
+    } catch (_error) {
+      notify('Kopyalanamadı.', 'error');
+    }
     removeCtxMenu();
   });
   menu.appendChild(copyBtn);
@@ -3822,6 +3880,7 @@ function renderConvModal(data) {
   let lastAssistantMsg = null;
   const msgHtml = msgs.map(m => {
     const roleClass = m.role === 'user' ? 'conv-msg-user' : m.role === 'assistant' ? 'conv-msg-assistant' : 'conv-msg-system';
+    const contentClass = 'conv-msg-body' + (isStructuredText(m.content || '') ? ' conv-msg-body-structured' : '');
     const roleName = m.role === 'user' ? 'Misafir' : m.role === 'assistant' ? 'Yapay zekâ önerisi' : 'Sistem';
     const timeStr = m.created_at ? formatTime(m.created_at) : '';
     let statusHtml = '';
@@ -3842,7 +3901,7 @@ function renderConvModal(data) {
     }
     return '<div class="conv-msg ' + roleClass + '">' +
       '<div class="conv-msg-role">' + roleName + statusHtml + '</div>' +
-      '<div class="conv-msg-body">' + escapeHtml(m.content) + '</div>' +
+      '<div class="' + contentClass + '">' + escapeHtml(m.content) + '</div>' +
       '<div class="conv-msg-time">' + escapeHtml(timeStr) + '</div>' +
     '</div>';
   }).join('');
@@ -4087,6 +4146,8 @@ function renderLiveFeed(container, data) {
     const timeStr = c.last_message_at ? formatTime(c.last_message_at) : '-';
     const userSnippet = c.last_user_msg ? escapeHtml(c.last_user_msg.slice(0, 300)) : '-';
     const assistantSnippet = c.last_assistant_msg ? escapeHtml(c.last_assistant_msg.slice(0, 300)) : '-';
+    const userTextClass = 'live-feed-user' + (isStructuredText(c.last_user_msg || '') ? ' live-feed-text-structured' : '');
+    const assistantTextClass = 'live-feed-assistant' + (isStructuredText(c.last_assistant_msg || '') ? ' live-feed-text-structured' : '');
     const blocked = c.send_blocked === 'true' || c.send_blocked === true || c.approval_pending === 'true' || c.approval_pending === true;
     const rejected = c.rejected === 'true' || c.rejected === true;
     const human = queueHumanOverrideActive(c);
@@ -4149,11 +4210,11 @@ function renderLiveFeed(container, data) {
       '<div class="live-feed-preview">' +
         '<div class="live-feed-preview-block">' +
           '<span class="live-feed-preview-label">Misafir</span>' +
-          '<div class="live-feed-user">' + userSnippet + '</div>' +
+          '<div class="' + userTextClass + '">' + userSnippet + '</div>' +
         '</div>' +
         '<div class="live-feed-preview-block">' +
           '<span class="live-feed-preview-label">Son çıkış</span>' +
-          '<div class="live-feed-assistant">' + assistantSnippet + '</div>' +
+          '<div class="' + assistantTextClass + '">' + assistantSnippet + '</div>' +
         '</div>' +
       '</div>' +
       '<div class="live-feed-status-row">' + statusTag + '</div>' +
@@ -4266,7 +4327,7 @@ function wireEvents() {
     if (!bubble) return;
     const body = bubble.querySelector('.msg-body');
     if (!body) return;
-    showCtxMenu(event, body.textContent, bubble);
+    showCtxMenu(event, getCopyTextFromBubble(bubble, body), bubble);
   });
   el('messages').addEventListener('click', async event => {
     const emptyActionBtn = event.target.closest('[data-empty-action]');
@@ -4644,8 +4705,8 @@ function wireEvents() {
     // Clone node and remove status badges so copied text is clean
     const clone = msgEl.cloneNode(true);
     clone.querySelectorAll('.live-feed-blocked,.live-feed-sent,.live-feed-rejected,.live-feed-approve-btn,.live-feed-reject-btn').forEach(n => n.remove());
-    const raw = clone.textContent.replace(/^(Misafir|Yapay Zekâ|Son çıkış):\\s*/, '').trim();
-    if (raw) showCtxMenu(event, raw);
+    const raw = normalizeClipboardText(clone.textContent || '').replace(/^(Misafir|Yapay Zekâ|Son çıkış):[ \\t]*/, '');
+    if (hasCopyableText(raw)) showCtxMenu(event, raw);
   });
   // Drag-and-drop: live feed card → chat panel
   el('live-feed-container').addEventListener('dragstart', event => {
@@ -4698,7 +4759,7 @@ function wireEvents() {
     if (!msgEl) return;
     const body = msgEl.querySelector('.conv-msg-body');
     if (!body) return;
-    showCtxMenu(event, body.textContent);
+    showCtxMenu(event, normalizeClipboardText(body.textContent || ''));
   });
   // Send message from modal
   el('conv-modal-send-btn').addEventListener('click', sendModalMessage);

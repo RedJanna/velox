@@ -37,7 +37,7 @@ function formatTime(iso) {
 }
 
 function formatMessageHtml(text) {
-  return escapeHtml(text).replace(/\\n/g, '<br>');
+  return escapeHtml(String(text ?? '').replace(/\\r\\n?/g, '\\n'));
 }
 
 function defaultDate(offsetDays = 0) {

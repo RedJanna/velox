@@ -298,6 +298,15 @@ def test_chat_lab_exposes_reply_action_in_context_menu() -> None:
     assert "setReplyTarget" in TEST_CHAT_SCRIPT
 
 
+def test_chat_lab_copy_preserves_message_block_formatting() -> None:
+    assert "return escapeHtml(String(text ?? '').replace(/\\r\\n?/g, '\\n'));" in TEST_CHAT_SCRIPT
+    assert ".msg-body{font-size:14px;line-height:1.65;white-space:break-spaces" in TEST_CHAT_STYLE
+    assert "bubble._copyText = normalizeClipboardText(message.content || '');" in TEST_CHAT_SCRIPT
+    assert "showCtxMenu(event, getCopyTextFromBubble(bubble, body), bubble);" in TEST_CHAT_SCRIPT
+    assert "'text/plain': new Blob([normalized], {type: 'text/plain'})" in TEST_CHAT_SCRIPT
+    assert "'text/html': new Blob([clipboardHtmlForText(normalized)], {type: 'text/html'})" in TEST_CHAT_SCRIPT
+
+
 def test_chat_lab_renders_reply_preview_composer() -> None:
     assert 'id="reply-preview"' in TEST_CHAT_HTML
     assert 'id="reply-preview-clear"' in TEST_CHAT_HTML
