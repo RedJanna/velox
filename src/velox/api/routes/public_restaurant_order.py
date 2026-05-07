@@ -90,8 +90,23 @@ async def create_public_order(body: RestaurantPublicOrderCreate) -> dict[str, An
     catalog_rows = await _active_catalog_rows(repo=repo, hotel_id=table.hotel_id, venue=table.venue)
     _validate_public_order_items(body=body, catalog_rows=catalog_rows, breakfast_items=breakfast_items)
 
-    recipients = await repo.list_order_notification_recipients(table.hotel_id, venue=table.venue)
+    try:
+        order = await repo.create_public_order(
+            hotel_id=table.hotel_id,
+            venue=table.venue,
+            table_no=table.table_no,
+            body=body,
+            catalog_items=catalog_rows,
+            breakfast_items=breakfast_items,
+            whatsapp_send_status="not_sent",
+            waiter_delivery=[],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    recipients = await _order_notification_recipients(repo=repo, hotel_id=table.hotel_id, venue=table.venue)
     pending_message = _format_staff_pending_message(
+        order_id=order["order_id"],
         venue=table.venue,
         table_no=table.table_no,
         body=body,
@@ -108,32 +123,46 @@ async def create_public_order(body: RestaurantPublicOrderCreate) -> dict[str, An
         waiter_delivery.append({"waiter_id": recipient["id"], "status": "sent" if sent else "failed"})
 
     whatsapp_status = _delivery_status(waiter_delivery)
-    try:
-        order = await repo.create_public_order(
-            hotel_id=table.hotel_id,
-            venue=table.venue,
-            table_no=table.table_no,
-            body=body,
-            catalog_items=catalog_rows,
-            breakfast_items=breakfast_items,
-            whatsapp_send_status=whatsapp_status,
-            waiter_delivery=waiter_delivery,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    order = await repo.update_public_order_delivery(
+        hotel_id=table.hotel_id,
+        order_id=order["order_id"],
+        whatsapp_send_status=whatsapp_status,
+        waiter_delivery=waiter_delivery,
+    ) or order
     logger.info(
         "public_restaurant_order_created",
         hotel_id=table.hotel_id,
         order_id=order["order_id"],
         service_type=body.service_type,
         meal_period=body.meal_period,
-        item_count=len(body.items),
+        recipient_count=len(recipients),
+        whatsapp_send_status=whatsapp_status,
     )
     return {
         "status": "pending_staff_approval",
         "order_id": order["order_id"],
         "message": "Siparişiniz restorana iletildi, personel onayı bekleniyor.",
     }
+
+
+async def _order_notification_recipients(
+    *,
+    repo: RestaurantAiRepository,
+    hotel_id: int,
+    venue: str,
+) -> list[dict[str, str]]:
+    recipients = await repo.list_order_notification_recipients(hotel_id, venue=venue)
+    if recipients:
+        return recipients
+    fallback = await repo.list_order_notification_recipients(hotel_id, venue=None)
+    if fallback:
+        logger.warning(
+            "public_restaurant_order_recipient_venue_fallback",
+            hotel_id=hotel_id,
+            venue=venue,
+            recipient_count=len(fallback),
+        )
+    return fallback
 
 
 def _customer_safe_catalog_item(row: dict[str, Any]) -> dict[str, Any]:
@@ -147,9 +176,7 @@ def _customer_safe_catalog_item(row: dict[str, Any]) -> dict[str, Any]:
         "price_try": str(row["price_try"]) if row["price_try"] is not None else None,
         "description_tr": row["description_tr"],
         "description_en": row["description_en"],
-        "tags": row["tags"],
-        "dietary_tags": row["dietary_tags"],
-        "allergen_tags": row["allergen_tags"],
+        "ingredients": row.get("ingredients") or [],
     }
 
 
@@ -184,6 +211,7 @@ def _validate_public_order_items(
 
 def _format_staff_pending_message(
     *,
+    order_id: str,
     venue: str,
     table_no: str,
     body: RestaurantPublicOrderCreate,
@@ -199,6 +227,7 @@ def _format_staff_pending_message(
     place = f"Masa: {table_no}" if body.service_type == "table_service" else f"Oda: {body.room_number}"
     return (
         "[VELOX-L1] Restaurant order approval\n"
+        f"Order: {order_id}\n"
         f"Venue: {venue}\n"
         f"{place}\n"
         f"Öğün: {body.meal_period}\n"

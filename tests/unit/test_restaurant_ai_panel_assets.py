@@ -25,5 +25,14 @@ def test_restaurant_ai_assets_call_expected_admin_endpoints() -> None:
     assert "/restaurant-ai/test-console" in ADMIN_RESTAURANT_AI_SCRIPT
     assert "/restaurant-ai/table-order-link" in ADMIN_RESTAURANT_AI_SCRIPT
     assert "/restaurant-ai/catalog/items" in ADMIN_RESTAURANT_AI_SCRIPT
+    assert "/restaurant-ai/catalog/items/${encodeURIComponent(menuItemId)}/content" in ADMIN_RESTAURANT_AI_SCRIPT
     assert "setRestaurantAiCatalogExpanded" in ADMIN_RESTAURANT_AI_SCRIPT
+
+
+def test_restaurant_ai_panel_can_manage_product_contents() -> None:
+    html = render_admin_panel_html()
+
+    assert "İçindekiler" in html
+    assert "restaurantAiIngredients" in ADMIN_RESTAURANT_AI_SCRIPT
+    assert "data-restaurant-ai-item-content" in ADMIN_RESTAURANT_AI_SCRIPT
     assert ".restaurant-ai-summary" in ADMIN_RESTAURANT_AI_STYLE

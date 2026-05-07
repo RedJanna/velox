@@ -96,6 +96,7 @@ class RestaurantAiManualMenuItemCreate(BaseModel):
     description_en: str | None = None
     description_tr: str | None = None
     tags: list[str] = Field(default_factory=list)
+    ingredients: list[str] = Field(default_factory=list)
     notes: str | None = None
 
     @field_validator("venue", "menu_type", "category", "name_en")
@@ -110,6 +111,28 @@ class RestaurantAiManualMenuItemCreate(BaseModel):
     @classmethod
     def _optional_text(cls, value: str | None) -> str | None:
         return _strip_or_none(value)
+
+
+class RestaurantAiMenuItemContentUpdate(BaseModel):
+    """Editable customer-facing content for a catalog item."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    description_en: str | None = Field(default=None, max_length=1000)
+    description_tr: str | None = Field(default=None, max_length=1000)
+    ingredients: list[str] | None = Field(default=None, max_length=80)
+
+    @field_validator("description_en", "description_tr")
+    @classmethod
+    def _optional_text(cls, value: str | None) -> str | None:
+        return _strip_or_none(value)
+
+    @field_validator("ingredients")
+    @classmethod
+    def _ingredients(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        return [item.strip() for item in value if item.strip()]
 
 
 class RestaurantAiWaiterCreate(BaseModel):

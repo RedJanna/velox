@@ -142,11 +142,17 @@ Kaynak yoksa: bilgi uydurma.
 - Public siparis ekraninda "siparis baglantisi olustur/ac" gibi teknik veya personel odakli CTA kullanilmaz.
 - Public siparis ekraninda "AI ile yemek onerisi al" akisi bulunmaz. Musteri dil secimi, ogun secimi,
   PDF/katalog goruntuleme, urun secimi, servis tipi ve iki asamali teyit akisi ile ilerler.
+- Public siparis ekraninda urun icerik bilgisi musterinin sectigi dilde veya katalogdaki dogrulanmis
+  icerik verisiyle gosterilir; `starter`, `light_candidate`, `vegetarian_candidate` gibi ic
+  siniflandirma tag'leri musteri arayuzunde veya public payload'da gosterilmez.
 - QR masa linkleri imzali token ile uretilir; masa numarasi musteri tarafindan degistirilemez.
 - Public siparislerde musteri adi alinmaz ve kalici DB loguna yazilmaz. Oda servisi icin oda numarasi
   yalnizca anlik operasyon bildirimi icin kullanilir; kalici `restaurant_ai_order_logs` kaydina oda numarasi
   veya musteri adi yazilmaz.
 - Musteri siparisi iki kez teyit etmeden siparis olusturulmaz.
+- Siparis kaydi olustuktan sonra aktif/bildirim acik garson WhatsApp alicilari cozulur ve siparis
+  bildirimi denenir; teslimat sonucu `whatsapp_send_status`, `selected_waiter_ids` ve
+  `waiter_delivery_json` alanlarina kaydedilir.
 - "Siparis iletildi" personel onayi anlamina gelmez. Musteriye ilk sonuc `pending_staff_approval`
   olarak aktarilir; gercek kabul `accepted_by_staff` durumudur.
 - Restaurant AI siparis log status degerleri: `draft`, `customer_confirmed_once`, `customer_confirmed_twice`,

@@ -97,3 +97,10 @@ def test_public_order_redesign_assets_include_customer_browsing_ui() -> None:
     assert "id=\"menuSearch\"" in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "data-cat" in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "brandLogoConfig" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+
+
+def test_public_order_product_cards_show_contents_not_internal_tags() -> None:
+    assert "function itemContents(item)" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "class=\"product-content\"" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "tags.map(tag" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "class=\"tag\"" not in PUBLIC_RESTAURANT_ORDER_SCRIPT

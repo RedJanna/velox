@@ -87,6 +87,12 @@ function restaurantAiTags(tags) {
   return `<div class="restaurant-ai-tags">${list.map(tag => `<span class="restaurant-ai-tag">${escapeHtml(tag)}</span>`).join('')}</div>`;
 }
 
+function restaurantAiIngredients(ingredients) {
+  const list = Array.isArray(ingredients) ? ingredients.filter(Boolean).slice(0, 8) : [];
+  if (!list.length) return '<span class="muted">İçerik eksik</span>';
+  return `<div class="restaurant-ai-tags">${list.map(item => `<span class="restaurant-ai-tag">${escapeHtml(item)}</span>`).join('')}</div>`;
+}
+
 function restaurantAiQueryFromForm(form) {
   const params = new URLSearchParams();
   const hotelId = restaurantAiHotelId();
@@ -207,7 +213,7 @@ function renderRestaurantAiCatalog() {
   const target = restaurantAiEl('restaurantAiCatalogTableBody');
   if (!target) return;
   if (!restaurantAiState.catalog.length) {
-    target.innerHTML = '<tr><td colspan="9" class="empty-state">Katalog kaydı bulunamadı.</td></tr>';
+    target.innerHTML = '<tr><td colspan="10" class="empty-state">Katalog kaydı bulunamadı.</td></tr>';
     renderRestaurantAiSummary();
     return;
   }
@@ -222,9 +228,11 @@ function renderRestaurantAiCatalog() {
       <td>${escapeHtml(item.venue || '-')}</td>
       <td>${restaurantAiMoney(item.price_try)}</td>
       <td>${escapeHtml(description)}</td>
+      <td>${restaurantAiIngredients(item.ingredients)}</td>
       <td>${restaurantAiTags(item.tags)}</td>
       <td>${restaurantAiStatePill(item.manual_status === 'approval_required' ? 'approval_required' : item.status)}</td>
       <td><div class="restaurant-ai-mini-actions">
+        <button type="button" data-restaurant-ai-item-content="${escapeHtml(item.menu_item_id || '')}" data-ingredients="${escapeHtml((item.ingredients || []).join(', '))}">İçerik</button>
         <button type="button" data-restaurant-ai-item-status="${escapeHtml(item.menu_item_id || '')}" data-status="${item.status === 'active' ? 'passive' : 'active'}">${item.status === 'active' ? 'Pasifleştir' : 'Aktifleştir'}</button>
       </div></td>
     </tr>`;
@@ -402,6 +410,7 @@ async function onRestaurantAiManualItem(event) {
     name_tr: String(data.get('name_tr') || '').trim() || null,
     price_try: data.get('price_try') ? Number(data.get('price_try')) : null,
     description_tr: String(data.get('description_tr') || '').trim() || null,
+    ingredients: String(data.get('ingredients') || '').split(',').map(item => item.trim()).filter(Boolean),
     tags: String(data.get('tags') || '').split(',').map(item => item.trim()).filter(Boolean),
     notes: String(data.get('notes') || '').trim() || null,
   };
@@ -536,6 +545,26 @@ async function onRestaurantAiPanelClick(event) {
       notify('Garson yönlendirmesi güncellendi.', 'success');
     } catch (error) {
       notify(error.message || 'Garson yönlendirmesi güncellenemedi.', 'error');
+    }
+    return;
+  }
+  const contentButton = event.target.closest('[data-restaurant-ai-item-content]');
+  if (contentButton) {
+    const menuItemId = contentButton.dataset.restaurantAiItemContent;
+    if (!menuItemId) return;
+    const current = contentButton.dataset.ingredients || '';
+    const value = window.prompt('İçindekileri virgülle ayırarak girin.', current);
+    if (value === null) return;
+    const ingredients = String(value || '').split(',').map(item => item.trim()).filter(Boolean);
+    try {
+      await apiFetch(`/restaurant-ai/catalog/items/${encodeURIComponent(menuItemId)}/content?hotel_id=${encodeURIComponent(restaurantAiHotelId())}`, {
+        method: 'PATCH',
+        body: {ingredients},
+      });
+      await loadRestaurantAiCatalog();
+      notify('Ürün içeriği güncellendi.', 'success');
+    } catch (error) {
+      notify(error.message || 'Ürün içeriği güncellenemedi.', 'error');
     }
     return;
   }

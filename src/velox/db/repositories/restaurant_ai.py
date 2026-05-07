@@ -21,6 +21,7 @@ from velox.db.database import get_pool
 from velox.models.restaurant_ai import (
     RestaurantAiManualMenuItemCreate,
     RestaurantAiMenuItem,
+    RestaurantAiMenuItemContentUpdate,
     RestaurantAiMenuItemStatusUpdate,
     RestaurantAiMessageSettingsUpdate,
     RestaurantAiOrderStatusUpdate,
@@ -418,7 +419,7 @@ class RestaurantAiRepository:
                 VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8,
                     $9, $10, $11::jsonb, '[]'::jsonb, '[]'::jsonb,
-                    '[]'::jsonb, 'pending_approval', 'approval_required', $12, $13::jsonb, $14, $14
+                    $12::jsonb, 'pending_approval', 'approval_required', $13, $14::jsonb, $15, $15
                 )
                 RETURNING *
                 """,
@@ -433,6 +434,7 @@ class RestaurantAiRepository:
                 body.description_tr,
                 body.description_en,
                 _json_dumps(body.tags),
+                _json_dumps(body.ingredients),
                 body.notes,
                 _json_dumps(raw_json),
                 actor_username,
@@ -490,6 +492,36 @@ class RestaurantAiRepository:
             )
         return _row_to_menu_item(row)
 
+    async def update_menu_item_content(
+        self,
+        *,
+        hotel_id: int,
+        menu_item_id: str,
+        body: RestaurantAiMenuItemContentUpdate,
+        actor_username: str,
+    ) -> dict[str, Any] | None:
+        """Update customer-facing content fields for one catalog item."""
+        row = await get_pool().fetchrow(
+            """
+            UPDATE restaurant_menu_catalog_items
+            SET description_tr = COALESCE($1::text, description_tr),
+                description_en = COALESCE($2::text, description_en),
+                ingredients_json = COALESCE($3::jsonb, ingredients_json),
+                updated_by = $4,
+                updated_at = now()
+            WHERE hotel_id = $5 AND menu_item_id = $6
+            RETURNING *
+            """,
+            body.description_tr,
+            body.description_en,
+            _json_dumps(body.ingredients) if body.ingredients is not None else None,
+            actor_username,
+            hotel_id,
+            menu_item_id,
+            timeout=DB_TIMEOUT_SECONDS,
+        )
+        return _row_to_menu_item(row) if row is not None else None
+
     async def list_waiters(self, hotel_id: int) -> list[dict[str, Any]]:
         pool = get_pool()
         rows = await pool.fetch(
@@ -518,7 +550,7 @@ class RestaurantAiRepository:
             WHERE hotel_id = $1
               AND active = TRUE
               AND receives_order_notifications = TRUE
-              AND ($2::text IS NULL OR venue IS NULL OR venue = $2)
+              AND ($2::text IS NULL OR venue IS NULL OR btrim(venue) = '' OR venue = $2)
             ORDER BY venue NULLS LAST, waiter_name
             """,
             hotel_id,
@@ -727,6 +759,43 @@ class RestaurantAiRepository:
             },
         )
         return _row_to_order(row)
+
+    async def update_public_order_delivery(
+        self,
+        *,
+        hotel_id: int,
+        order_id: str,
+        whatsapp_send_status: str,
+        waiter_delivery: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        """Persist staff notification delivery details after send attempts."""
+        row = await get_pool().fetchrow(
+            """
+            UPDATE restaurant_ai_order_logs
+            SET whatsapp_send_status = $1,
+                selected_waiter_ids = $2::uuid[],
+                waiter_delivery_json = $3::jsonb,
+                updated_at = now()
+            WHERE hotel_id = $4 AND order_id = $5
+            RETURNING *
+            """,
+            whatsapp_send_status,
+            [UUID(str(item["waiter_id"])) for item in waiter_delivery if item.get("waiter_id")],
+            _json_dumps(waiter_delivery),
+            hotel_id,
+            order_id,
+            timeout=DB_TIMEOUT_SECONDS,
+        )
+        await self._log_public_order_event(
+            hotel_id=hotel_id,
+            order_id=order_id,
+            event_type="public_order_notification_delivery",
+            payload={
+                "whatsapp_send_status": whatsapp_send_status,
+                "recipient_count": len(waiter_delivery),
+            },
+        )
+        return _row_to_order(row) if row is not None else None
 
     async def _next_public_order_id(self, hotel_id: int) -> str:
         """Return a compact public order id without PII."""

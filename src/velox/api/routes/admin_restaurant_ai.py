@@ -30,6 +30,7 @@ from velox.core.restaurant_order_tokens import create_table_order_token
 from velox.db.repositories.restaurant_ai import RestaurantAiRepository
 from velox.models.restaurant_ai import (
     RestaurantAiManualMenuItemCreate,
+    RestaurantAiMenuItemContentUpdate,
     RestaurantAiMenuItemStatusUpdate,
     RestaurantAiMenuItem,
     RestaurantAiMessageSettingsUpdate,
@@ -202,6 +203,27 @@ async def update_catalog_item_status(
     check_permission(user, "restaurant_ai:write")
     effective = ensure_hotel_access(user, hotel_id)
     item = await RestaurantAiRepository().update_menu_item_status(
+        hotel_id=effective,
+        menu_item_id=menu_item_id,
+        body=body,
+        actor_username=_username(user),
+    )
+    if item is None:
+        raise HTTPException(status_code=404, detail="Menü ürünü bulunamadı.")
+    return {"status": "updated", "item": item}
+
+
+@router.patch("/catalog/items/{menu_item_id}/content")
+async def update_catalog_item_content(
+    menu_item_id: str,
+    body: RestaurantAiMenuItemContentUpdate,
+    user: Annotated[TokenData, Depends(get_current_user)],
+    hotel_id: int = Query(..., ge=1),
+) -> dict[str, Any]:
+    """Update customer-facing ingredients/description for one catalog item."""
+    check_permission(user, "restaurant_ai:write")
+    effective = ensure_hotel_access(user, hotel_id)
+    item = await RestaurantAiRepository().update_menu_item_content(
         hotel_id=effective,
         menu_item_id=menu_item_id,
         body=body,

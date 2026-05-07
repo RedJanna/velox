@@ -881,7 +881,7 @@ def render_admin_panel_html() -> str:
               </form>
               <div class="table-shell restaurant-ai-table">
                 <table>
-                  <thead><tr><th>Ürün</th><th>Kategori</th><th>Menü</th><th>Venue</th><th>Fiyat</th><th>Açıklama</th><th>Etiketler</th><th>Durum</th><th>İşlem</th></tr></thead>
+                  <thead><tr><th>Ürün</th><th>Kategori</th><th>Menü</th><th>Venue</th><th>Fiyat</th><th>Açıklama</th><th>İçerik</th><th>Etiketler</th><th>Durum</th><th>İşlem</th></tr></thead>
                   <tbody id="restaurantAiCatalogTableBody"></tbody>
                 </table>
               </div>
@@ -907,6 +907,7 @@ def render_admin_panel_html() -> str:
                 <div class="field"><label>Türkçe ad</label><input name="name_tr" placeholder="Türkçe ürün adı"></div>
                 <div class="field"><label>Fiyat TRY</label><input name="price_try" type="number" min="0" step="0.01"></div>
                 <div class="field full"><label>Açıklama</label><textarea name="description_tr" placeholder="Kısa açıklama"></textarea></div>
+                <div class="field full"><label>İçindekiler</label><input name="ingredients" placeholder="domates, mozzarella, fesleğen"></div>
                 <div class="field full"><label>Etiketler</label><input name="tags" placeholder="vegan, seafood, light_candidate"></div>
                 <div class="field full"><label>Not</label><input name="notes" placeholder="Neden eklenmek istendi?"></div>
                 <div class="field full"><button class="inline-button primary" type="submit">Onay Gerekli Olarak Kaydet</button></div>
