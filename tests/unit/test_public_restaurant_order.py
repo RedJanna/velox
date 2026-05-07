@@ -47,3 +47,11 @@ def test_public_order_script_has_copy_for_supported_languages() -> None:
 
     for language in payload["supported_languages"]:
         assert f"{language['code']}:{{" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+
+
+def test_public_order_script_renders_error_before_loading_state() -> None:
+    render_start = PUBLIC_RESTAURANT_ORDER_SCRIPT.index("function render(){")
+    render_end = PUBLIC_RESTAURANT_ORDER_SCRIPT.index("function renderLanguage()")
+    render_source = PUBLIC_RESTAURANT_ORDER_SCRIPT[render_start:render_end]
+
+    assert render_source.index("if(state.error)") < render_source.index("if(state.step==='loading')")
