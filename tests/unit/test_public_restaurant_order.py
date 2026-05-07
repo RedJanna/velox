@@ -57,9 +57,11 @@ def test_public_order_script_has_tokenless_entry_screen() -> None:
     assert "renderEntry()" in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "Siparişe başlamak için masa QR kodunu okutun" in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "Siparişe devam et" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "QR kodu veya size gönderilen kod" in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "Sipariş bağlantısını aç" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "Sipariş bağlantısı oluştur" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
-    assert "Geçerli bir sipariş bağlantısı veya imzalı token girin." in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "linkLabel:'Sipariş bağlantısı'" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "Geçerli bir QR kodu, bağlantı veya imzalı token girin." in PUBLIC_RESTAURANT_ORDER_SCRIPT
 
 
 def test_public_order_script_renders_error_before_loading_state() -> None:
