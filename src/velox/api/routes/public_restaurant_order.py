@@ -24,6 +24,12 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["public-restaurant-order"])
 api_router = APIRouter(prefix="/api/v1/public/restaurant-order", tags=["public-restaurant-order-api"])
 
+_ORDER_PAGE_CACHE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
 
 @router.get("/order", response_model=None)
 async def public_order_page() -> HTMLResponse:
@@ -42,7 +48,8 @@ async def public_order_page() -> HTMLResponse:
   <main id="orderApp" class="order-shell" aria-live="polite"></main>
   <script>{PUBLIC_RESTAURANT_ORDER_SCRIPT}</script>
 </body>
-</html>"""
+</html>""",
+        headers=_ORDER_PAGE_CACHE_HEADERS,
     )
 
 

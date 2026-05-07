@@ -4,6 +4,7 @@ from velox.api.routes.public_restaurant_order_assets import (
     PUBLIC_RESTAURANT_ORDER_SCRIPT,
     PUBLIC_RESTAURANT_ORDER_STYLE,
 )
+from velox.api.routes.public_restaurant_order import public_order_page
 from velox.core.restaurant_order_tokens import create_table_order_token, verify_table_order_token
 from velox.core.restaurant_public_order_config import public_order_payload
 
@@ -70,6 +71,14 @@ def test_public_order_script_renders_error_before_loading_state() -> None:
     render_source = PUBLIC_RESTAURANT_ORDER_SCRIPT[render_start:render_end]
 
     assert render_source.index("if(state.error)") < render_source.index("if(state.step==='loading')")
+
+
+async def test_public_order_page_disables_browser_cache() -> None:
+    response = await public_order_page()
+
+    assert response.headers["cache-control"] == "no-store, no-cache, must-revalidate, max-age=0"
+    assert response.headers["pragma"] == "no-cache"
+    assert response.headers["expires"] == "0"
 
 
 def test_public_order_redesign_assets_include_customer_browsing_ui() -> None:
