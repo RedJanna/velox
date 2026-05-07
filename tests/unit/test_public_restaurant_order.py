@@ -1,6 +1,9 @@
 """Unit tests for public restaurant ordering helpers and assets."""
 
-from velox.api.routes.public_restaurant_order_assets import PUBLIC_RESTAURANT_ORDER_SCRIPT
+from velox.api.routes.public_restaurant_order_assets import (
+    PUBLIC_RESTAURANT_ORDER_SCRIPT,
+    PUBLIC_RESTAURANT_ORDER_STYLE,
+)
 from velox.core.restaurant_order_tokens import create_table_order_token, verify_table_order_token
 from velox.core.restaurant_public_order_config import public_order_payload
 
@@ -62,3 +65,13 @@ def test_public_order_script_renders_error_before_loading_state() -> None:
     render_source = PUBLIC_RESTAURANT_ORDER_SCRIPT[render_start:render_end]
 
     assert render_source.index("if(state.error)") < render_source.index("if(state.step==='loading')")
+
+
+def test_public_order_redesign_assets_include_customer_browsing_ui() -> None:
+    assert "#192f9a" in PUBLIC_RESTAURANT_ORDER_STYLE
+    assert "brand-logo" in PUBLIC_RESTAURANT_ORDER_STYLE
+    assert "order-category-rail" in PUBLIC_RESTAURANT_ORDER_STYLE
+    assert "sticky-cart" in PUBLIC_RESTAURANT_ORDER_STYLE
+    assert "id=\"menuSearch\"" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "data-cat" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "brandLogoConfig" in PUBLIC_RESTAURANT_ORDER_SCRIPT
