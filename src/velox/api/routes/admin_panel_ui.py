@@ -9,6 +9,10 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from velox.api.routes.admin_panel_holds_assets import ADMIN_HOLDS_SCRIPT, ADMIN_HOLDS_STYLE
+from velox.api.routes.admin_panel_restaurant_ai_assets import (
+    ADMIN_RESTAURANT_AI_SCRIPT,
+    ADMIN_RESTAURANT_AI_STYLE,
+)
 from velox.api.routes.admin_panel_restaurant_assets import ADMIN_RESTAURANT_SCRIPT, ADMIN_RESTAURANT_STYLE
 from velox.api.routes.admin_panel_ui_assets import ADMIN_PANEL_SCRIPT, ADMIN_PANEL_STYLE
 from velox.api.routes.admin_panel_whatsapp_assets import ADMIN_WHATSAPP_SCRIPT, ADMIN_WHATSAPP_STYLE
@@ -42,6 +46,7 @@ def render_admin_panel_html() -> str:
   <style>{ADMIN_PANEL_STYLE}
 {ADMIN_HOLDS_STYLE}
 {ADMIN_RESTAURANT_STYLE}
+{ADMIN_RESTAURANT_AI_STYLE}
 {ADMIN_WHATSAPP_STYLE}</style>
 </head>
 <body>
@@ -825,6 +830,185 @@ def render_admin_panel_html() -> str:
               </div>
             </form>
           </dialog>
+        </section>
+
+        <section data-view="restaurantai" class="section-grid restaurant-ai-panel" hidden>
+          <article class="module-card restaurant-ai-hero">
+            <div class="module-header">
+              <div>
+                <h3>Restaurant AI / Menü Asistanı</h3>
+                <p>Menü kataloğu, garson WhatsApp yönlendirmesi, sipariş logları, menü dışı talepler ve deterministik test konsolu.</p>
+              </div>
+              <div class="module-actions">
+                <button id="restaurantAiImportCatalog" class="inline-button primary" type="button">JSON Kataloğu Versiyonlu İçe Aktar</button>
+              </div>
+            </div>
+            <div id="restaurantAiSummary" class="restaurant-ai-summary"></div>
+          </article>
+
+          <article class="module-card">
+            <div class="module-header">
+              <div><h3>Public Sipariş / QR Yönetimi</h3><p>Masa QR kodları için değiştirilemez, imzalı /order bağlantısı üretin. Müşteri adı ve oda numarası kalıcı sipariş loguna yazılmaz.</p></div>
+            </div>
+            <form id="restaurantAiQrForm" class="dense-form">
+              <div class="field"><label>Venue</label><input name="venue" required value="Kassandra Restaurant"></div>
+              <div class="field"><label>Masa no</label><input name="table_no" required placeholder="12"></div>
+              <div class="field full"><button class="inline-button primary" type="submit">QR Linki Üret</button></div>
+            </form>
+            <div id="restaurantAiQrResult" class="helper-panel mt-md"></div>
+          </article>
+
+          <article class="module-card">
+            <div class="module-header">
+              <div><h3>Menü Kataloğu Yönetimi</h3><p>menu_catalog.json veya versiyonlu DB kataloğunu görüntüleyin; manuel ürünler otomatik aktif olmaz.</p></div>
+              <div class="module-actions">
+                <button id="restaurantAiCatalogToggle" class="action-button secondary" type="button" aria-expanded="false" aria-controls="restaurantAiCatalogContent">Kataloğu Aç</button>
+              </div>
+            </div>
+            <div id="restaurantAiCatalogContent" hidden>
+              <form id="restaurantAiCatalogFilters" class="toolbar restaurant-ai-toolbar">
+                <input id="restaurantAiCatalogSearch" name="search" placeholder="Ürün, etiket veya açıklama ara" aria-label="Menü kataloğu arama">
+                <select id="restaurantAiCategoryFilter" name="category" aria-label="Kategori filtresi"><option value="">Tüm kategoriler</option></select>
+                <select id="restaurantAiVenueFilter" name="venue" aria-label="Venue filtresi"><option value="">Tüm venue</option></select>
+                <select id="restaurantAiMenuTypeFilter" name="menu_type" aria-label="Menü tipi filtresi"><option value="">Tüm menü tipleri</option></select>
+                <select id="restaurantAiStatusFilter" name="status" aria-label="Durum filtresi">
+                  <option value="">Tüm durumlar</option>
+                  <option value="active">Aktif</option>
+                  <option value="passive">Pasif</option>
+                  <option value="pending_approval">Onay gerekli</option>
+                </select>
+                <button class="primary" type="submit">Filtrele</button>
+              </form>
+              <div class="table-shell restaurant-ai-table">
+                <table>
+                  <thead><tr><th>Ürün</th><th>Kategori</th><th>Menü</th><th>Venue</th><th>Fiyat</th><th>Açıklama</th><th>Etiketler</th><th>Durum</th><th>İşlem</th></tr></thead>
+                  <tbody id="restaurantAiCatalogTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </article>
+
+          <div class="split">
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Fiyat Çakışmaları</h3><p>Aynı venue + menü tipinde aynı ürün farklı fiyatla görünürse burada ayrılır.</p></div>
+              </div>
+              <div id="restaurantAiConflictList" class="helper-panel"></div>
+            </article>
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Manuel Ürün Talebi</h3><p>Menü dışı veya elle eklenen ürün varsayılan olarak “onay gerekli” statüsünde kalır.</p></div>
+              </div>
+              <form id="restaurantAiManualItemForm" class="dense-form">
+                <div class="field"><label>Venue</label><input name="venue" required value="Kassandra Restaurant"></div>
+                <div class="field"><label>Menü tipi</label><input name="menu_type" required placeholder="Snack Menu"></div>
+                <div class="field"><label>Kategori</label><input name="category" required placeholder="Pizzas"></div>
+                <div class="field"><label>Ürün adı</label><input name="name_en" required placeholder="Menu item name"></div>
+                <div class="field"><label>Türkçe ad</label><input name="name_tr" placeholder="Türkçe ürün adı"></div>
+                <div class="field"><label>Fiyat TRY</label><input name="price_try" type="number" min="0" step="0.01"></div>
+                <div class="field full"><label>Açıklama</label><textarea name="description_tr" placeholder="Kısa açıklama"></textarea></div>
+                <div class="field full"><label>Etiketler</label><input name="tags" placeholder="vegan, seafood, light_candidate"></div>
+                <div class="field full"><label>Not</label><input name="notes" placeholder="Neden eklenmek istendi?"></div>
+                <div class="field full"><button class="inline-button primary" type="submit">Onay Gerekli Olarak Kaydet</button></div>
+              </form>
+            </article>
+          </div>
+
+          <div class="split">
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Garson WhatsApp Numaraları</h3><p>Sipariş bildirimlerinin gideceği aktif garsonları yönetin.</p></div>
+              </div>
+              <form id="restaurantAiWaiterForm" class="dense-form">
+                <div class="field"><label>Garson adı</label><input name="waiter_name" required></div>
+                <div class="field"><label>WhatsApp numarası</label><input name="whatsapp_number" required placeholder="+905XXXXXXXXX"></div>
+                <div class="field"><label>Rol</label><input name="role" placeholder="Garson / Şef / Bar"></div>
+                <div class="field"><label>Venue</label><input name="venue" placeholder="Kassandra Restaurant"></div>
+                <div class="field"><label>Aktif</label><input name="active" type="checkbox" class="checkbox-field" checked></div>
+                <div class="field"><label>Sipariş bildirimi</label><input name="receives_order_notifications" type="checkbox" class="checkbox-field" checked></div>
+                <div class="field full"><button class="inline-button primary" type="submit">Garson Numarası Ekle</button></div>
+              </form>
+              <div class="table-shell mt-md">
+                <table>
+                  <thead><tr><th>Garson</th><th>Numara</th><th>Rol</th><th>Venue</th><th>Aktif</th><th>Bildirim</th><th>İşlem</th></tr></thead>
+                  <tbody id="restaurantAiWaiterTableBody"></tbody>
+                </table>
+              </div>
+            </article>
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Menü Dışı Talep Logları</h3><p>Sushi, margarita cocktail veya lahmacun gibi katalog dışı talepler analiz için saklanır; öneri sistemine otomatik eklenmez.</p></div>
+              </div>
+              <form id="restaurantAiOffMenuForm" class="dense-form">
+                <div class="field"><label>Talep</label><input name="requested_text" required placeholder="sushi"></div>
+                <div class="field"><label>Niyet</label><input name="detected_intent" placeholder="off_menu_request"></div>
+                <div class="field"><label>Venue</label><input name="venue" placeholder="Kassandra Restaurant"></div>
+                <div class="field full"><button class="inline-button secondary" type="submit">Log Olarak Kaydet</button></div>
+              </form>
+              <div class="table-shell mt-md">
+                <table>
+                  <thead><tr><th>Talep</th><th>Niyet</th><th>Venue</th><th>Katalog</th><th>Tarih</th></tr></thead>
+                  <tbody id="restaurantAiOffMenuTableBody"></tbody>
+                </table>
+              </div>
+            </article>
+          </div>
+
+          <article class="module-card">
+            <div class="module-header">
+              <div><h3>Sipariş Logları</h3><p>AI üzerinden alınan siparişlerin onay ve WhatsApp gönderim durumlarını izleyin.</p></div>
+            </div>
+            <form id="restaurantAiOrderFilters" class="toolbar">
+              <select id="restaurantAiOrderStatusFilter" name="status" aria-label="Sipariş durumu">
+                <option value="">Tüm durumlar</option>
+                <option value="pending_staff_approval">pending_staff_approval</option>
+                <option value="accepted_by_staff">accepted_by_staff</option>
+                <option value="rejected_by_staff">rejected_by_staff</option>
+                <option value="preparing">preparing</option>
+                <option value="completed">completed</option>
+                <option value="pending_confirmation">pending_confirmation</option>
+                <option value="confirmed">confirmed</option>
+                <option value="sent_to_waiter">sent_to_waiter</option>
+                <option value="failed">failed</option>
+                <option value="cancelled">cancelled</option>
+              </select>
+              <button class="primary" type="submit">Siparişleri Getir</button>
+            </form>
+            <div class="table-shell restaurant-ai-table">
+              <table>
+                <thead><tr><th>Sipariş</th><th>Masa/Oda</th><th>Misafir</th><th>Detay</th><th>Toplam</th><th>Not</th><th>Alerji</th><th>Onay</th><th>WhatsApp</th></tr></thead>
+                <tbody id="restaurantAiOrderTableBody"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <div class="split">
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Test Konsolu</h3><p>Örnek müşteri sorusunu katalog doğrulamalı test edin.</p></div>
+              </div>
+              <form id="restaurantAiTestForm" class="dense-form">
+                <div class="field full"><label>Müşteri sorusu</label><textarea name="question" required placeholder="Sushi var mı?"></textarea></div>
+                <div class="field"><label>Venue</label><input name="venue" placeholder="Kassandra Restaurant"></div>
+                <div class="field"><label>Menü tipi</label><input name="menu_type" placeholder="Snack Menu"></div>
+                <div class="field full"><button class="inline-button primary" type="submit">Testi Çalıştır</button></div>
+              </form>
+              <div id="restaurantAiTestResult" class="restaurant-ai-test-result"></div>
+            </article>
+            <article class="module-card">
+              <div class="module-header">
+                <div><h3>Sistem Ayarları</h3><p>Menü dışı öneri engeli her zaman açık kalır; yalnızca mesaj metinleri düzenlenir.</p></div>
+              </div>
+              <div class="helper-box mb-md"><strong>Menü dışı öneri engeli: HER ZAMAN AÇIK</strong><p>Bu ayar panelden kapatılamaz.</p></div>
+              <form id="restaurantAiSettingsForm" class="dense-form">
+                <div class="field full"><label>Menü dışı ürün cevabı</label><textarea name="off_menu_response" required></textarea></div>
+                <div class="field full"><label>Sipariş onay mesajı</label><textarea name="order_confirmation_message" required></textarea></div>
+                <div class="field full"><label>WhatsApp bildirim şablonu</label><textarea name="whatsapp_notification_template" required></textarea></div>
+                <div class="field full"><label>Alerji uyarı metni</label><textarea name="allergy_warning_text" required></textarea></div>
+                <div class="field full"><button class="inline-button primary" type="submit">Mesajları Kaydet</button></div>
+              </form>
+            </article>
+          </div>
         </section>
 
         <section data-view="notifications" class="section-grid" hidden>
@@ -1964,6 +2148,7 @@ def render_admin_panel_html() -> str:
   <script>{ADMIN_PANEL_SCRIPT}</script>
   <script>{ADMIN_HOLDS_SCRIPT}</script>
   <script>{ADMIN_RESTAURANT_SCRIPT}</script>
+  <script>{ADMIN_RESTAURANT_AI_SCRIPT}</script>
   <script>{ADMIN_WHATSAPP_SCRIPT}</script>
 </body>
 </html>

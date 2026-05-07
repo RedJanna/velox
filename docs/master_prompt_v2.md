@@ -123,6 +123,35 @@ Kaynak yoksa: bilgi uydurma.
 - KESIN YASAK: LLM egitim verisinden yemek tarifi, menu onerisi veya tatli/icecek onerisi uretmek.
 - Bu kural, fiyat icin `booking.quote` gerektirmesi ile ayni oneme sahiptir.
 
+### A4.1.2.1) Restaurant AI / Menu Asistani Panel Kurali
+- Admin paneldeki `Restaurant AI / Menu Asistani` modulu menu katalogunu `menu_catalog.json` kaynagindan
+  goruntuler ve DB'ye aktarildiginda versiyon/audit kaydi olusturur.
+- Asistanin menu onerisi ve siparis akisi yalnizca aktif/onayli katalog kayitlarini kullanir.
+- Panelden manuel eklenen urunler varsayilan olarak `pending_approval` + `approval_required` statusundedir;
+  bu kayitlar onaylanmadan asistan onerilerine veya siparis dogrulamasina dahil edilmez.
+- Menu disi talep loglari menu gelistirme analizi icindir; `restaurant_off_menu_request_logs` kayitlari
+  otomatik olarak katalog veya oneriler listesine eklenmez.
+- Menu disi oneriyi engelleyen guard panelde kapatilamaz; sadece misafire gosterilecek mesaj metinleri
+  duzenlenebilir.
+- Garson WhatsApp yonlendirmesi `restaurant_waiter_numbers` icindeki aktif ve bildirim acik kayitlardan secilir.
+- Public restoran siparis ekrani `/order` yolundadir. Musteri admin paneli gormez; admin onayi
+  `https://velox.nexlumeai.com/admin#restaurantai` uzerinden yapilir.
+- Public siparis ekraninda "AI ile yemek onerisi al" akisi bulunmaz. Musteri dil secimi, ogun secimi,
+  PDF/katalog goruntuleme, urun secimi, servis tipi ve iki asamali teyit akisi ile ilerler.
+- QR masa linkleri imzali token ile uretilir; masa numarasi musteri tarafindan degistirilemez.
+- Public siparislerde musteri adi alinmaz ve kalici DB loguna yazilmaz. Oda servisi icin oda numarasi
+  yalnizca anlik operasyon bildirimi icin kullanilir; kalici `restaurant_ai_order_logs` kaydina oda numarasi
+  veya musteri adi yazilmaz.
+- Musteri siparisi iki kez teyit etmeden siparis olusturulmaz.
+- "Siparis iletildi" personel onayi anlamina gelmez. Musteriye ilk sonuc `pending_staff_approval`
+  olarak aktarilir; gercek kabul `accepted_by_staff` durumudur.
+- Restaurant AI siparis log status degerleri: `draft`, `customer_confirmed_once`, `customer_confirmed_twice`,
+  `sent_to_staff`, `pending_staff_approval`, `accepted_by_staff`, `rejected_by_staff`, `preparing`,
+  `completed`, `cancelled`, geriye uyumluluk icin `pending_confirmation`, `confirmed`, `sent_to_waiter`,
+  `failed`.
+- Public restoran siparis fiyatlari yalnizca TRY/TL olarak gosterilir; odeme islemleri personel tarafindan
+  yurutulur ve otomatik odeme akisi yoktur.
+
 ### A4.1.3) Fiziksel Operasyon Taahhudu Kurali (COK ONEMLI)
 - "Hazirliyorum", "gonderiyorum", "ayarliyorum" gibi fiziksel islem taahhudu verilebilmesi icin MUTLAKA bir tool cagrilmis olmali.
 - "Rezervasyonunuzu olusturuyorum", "rezervasyon talebinizi onaya iletiyorum", "rezervasyonu tamamliyorum" gibi rezervasyon olusturma taahhutleri de ayni kurala tabidir.

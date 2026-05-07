@@ -125,6 +125,7 @@ PERMISSION_GROUP_LABELS: dict[str, str] = {
     "hotel": "Otel Yapılandırması",
     "conversation": "Konuşmalar",
     "hold": "Rezervasyon ve Onay Akışları",
+    "restaurant_ai": "Restaurant AI / Menü Asistanı",
     "ticket": "Destek Talepleri",
     "notification": "Bildirim Numaraları",
 }
@@ -148,7 +149,10 @@ PERMISSION_CATALOG: dict[str, PermissionDefinition] = {
         key="access_control:write",
         group="access_control",
         label="Kullanıcıları ve rolleri yönetme",
-        description="Kullanıcı oluşturma, rol değiştirme, TOTP kurulumunu yenileme ve izin atamalarını düzenleme yetkisi verir.",
+        description=(
+            "Kullanıcı oluşturma, rol değiştirme, TOTP kurulumunu yenileme ve izin atamalarını düzenleme "
+            "yetkisi verir."
+        ),
         is_sensitive=True,
     ),
     "hotels:read": PermissionDefinition(
@@ -180,7 +184,10 @@ PERMISSION_CATALOG: dict[str, PermissionDefinition] = {
         key="holds:approve",
         group="hold",
         label="Onay kayıtlarını onaylama",
-        description="Operasyonel onay kayıtlarını ve rezervasyon iş akışlarını onaylama, oluşturma veya güncelleme yetkisi verir.",
+        description=(
+            "Operasyonel onay kayıtlarını ve rezervasyon iş akışlarını onaylama, oluşturma veya güncelleme "
+            "yetkisi verir."
+        ),
         is_sensitive=True,
     ),
     "holds:reject": PermissionDefinition(
@@ -188,6 +195,19 @@ PERMISSION_CATALOG: dict[str, PermissionDefinition] = {
         group="hold",
         label="Onay kayıtlarını reddetme",
         description="Onay akışlarını ve rezervasyon taleplerini reddetme veya arşivleme yetkisi verir.",
+        is_sensitive=True,
+    ),
+    "restaurant_ai:read": PermissionDefinition(
+        key="restaurant_ai:read",
+        group="restaurant_ai",
+        label="Restaurant AI panelini görüntüleme",
+        description="Menü kataloğu, garson yönlendirme, sipariş ve menü dışı talep kayıtlarını görüntüler.",
+    ),
+    "restaurant_ai:write": PermissionDefinition(
+        key="restaurant_ai:write",
+        group="restaurant_ai",
+        label="Restaurant AI panelini düzenleme",
+        description="Menü importu, onay bekleyen manuel ürünler, garson yönlendirme ve mesaj şablonlarını yönetir.",
         is_sensitive=True,
     ),
     "tickets:read": PermissionDefinition(
@@ -230,6 +250,8 @@ ROLE_PERMISSIONS: dict[Role, set[str]] = {
         "holds:read",
         "holds:approve",
         "holds:reject",
+        "restaurant_ai:read",
+        "restaurant_ai:write",
         "tickets:read",
         "tickets:write",
         "notification_phones:read",
@@ -242,6 +264,7 @@ ROLE_PERMISSIONS: dict[Role, set[str]] = {
         "holds:read",
         "holds:approve",
         "holds:reject",
+        "restaurant_ai:read",
         "tickets:read",
         "notification_phones:read",
     },
@@ -252,6 +275,8 @@ ROLE_PERMISSIONS: dict[Role, set[str]] = {
         "holds:read",
         "holds:approve",
         "holds:reject",
+        "restaurant_ai:read",
+        "restaurant_ai:write",
         "tickets:read",
         "tickets:write",
         "notification_phones:read",
@@ -261,6 +286,8 @@ ROLE_PERMISSIONS: dict[Role, set[str]] = {
         "dashboard:read",
         "holds:read",
         "holds:approve",
+        "restaurant_ai:read",
+        "restaurant_ai:write",
     },
     Role.NONE: set(),
 }

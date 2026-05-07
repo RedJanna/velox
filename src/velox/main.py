@@ -25,12 +25,14 @@ from velox.api.routes import (
     admin_panel_ui,
     admin_portal,
     admin_response_preview,
+    admin_restaurant_ai,
     admin_session,
     admin_voice_lab,
     admin_webhook,
     admin_whatsapp,
     confirmation_forms,
     health,
+    public_restaurant_order,
     test_chat,
     whatsapp_webhook,
 )
@@ -238,6 +240,7 @@ app.include_router(admin_debug.router, prefix="/api/v1")
 app.include_router(admin_holds.router, prefix="/api/v1")
 app.include_router(admin_portal.router, prefix="/api/v1")
 app.include_router(admin_response_preview.router, prefix="/api/v1")
+app.include_router(admin_restaurant_ai.router, prefix="/api/v1")
 app.include_router(admin_session.router, prefix="/api/v1")
 app.include_router(admin_voice_lab.router, prefix="/api/v1")
 app.include_router(admin_whatsapp.router, prefix="/api/v1")
@@ -246,6 +249,8 @@ app.include_router(whatsapp_webhook.router, prefix="/api/v1")
 app.include_router(admin_webhook.router, prefix="/api/v1")
 app.include_router(admin_panel_ui.router)
 app.include_router(confirmation_forms.public_router)
+app.include_router(public_restaurant_order.router)
+app.include_router(public_restaurant_order.api_router)
 app.include_router(test_chat.router, prefix="/api/v1")
 app.include_router(test_chat.ui_router)
 

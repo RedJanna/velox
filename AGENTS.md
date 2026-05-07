@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v6.8 | **Son güncelleme:** 2026-05-02 21:40:58
-> **Değişiklik özeti:** AI telesekreter Voice Lab icin OpenAI Realtime model ve ses ENV ayarlari eklendi.
+> **Sürüm:** v7.0 | **Son güncelleme:** 2026-05-07 11:36:56
+> **Değişiklik özeti:** Public `/order` QR restoran sipariş akışı, iki aşamalı müşteri teyidi ve personel onay statüleri eklendi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -111,6 +111,38 @@ FastAPI Webhook Endpoint
     └── 9. WhatsApp API (send reply)
             ├── Text / Reply Buttons (≤3) / List Message (4+)
             └── DB (log conversation) + Metrics (Prometheus)
+```
+
+### Public Restaurant Ordering Flow
+```
+Customer QR / Link
+    |
+    v
+Public /order Page
+    |
+    ├── 1. Signed Table Token Validation
+    |       └── table_no / venue token içinden gelir; müşteri değiştiremez
+    |
+    ├── 2. Language Selection
+    |
+    ├── 3. Meal Period Selection
+    |       ├── Breakfast -> yalnızca iki sabit kahvaltı seçeneği
+    |       └── Lunch/Dinner -> PDF menü + aktif katalog ürünleri
+    |
+    ├── 4. Cart + Service Selection
+    |       ├── Table service -> masa QR tokenından gelir
+    |       └── Room service -> oda no yalnızca anlık operasyon bildirimi için kullanılır
+    |
+    ├── 5. Customer Confirmation x2
+    |       └── iki teyit olmadan sipariş kaydı oluşturulmaz
+    |
+    ├── 6. Staff Notification
+    |       └── aktif restaurant_waiter_numbers kayıtlarına WhatsApp bildirimi denenir
+    |
+    └── 7. Admin Approval Queue
+            ├── /admin#restaurantai üzerinde pending_staff_approval
+            ├── staff kabul ederse accepted_by_staff
+            └── sipariş iletildi != sipariş kabul edildi
 ```
 
 ## Required Read Order
@@ -196,6 +228,7 @@ Execute tasks in `tasks/` directory sequentially:
 14. **Yarım iş bırakma**: Kullanıcı düzenleme veya düzeltme istiyorsa analizde durma; değişikliği uygula, doğrula, kalan riskleri net yaz.
 15. **Zorunlu admin bildirimi**: İnsan devri, çözülemeyen talep, güvenilir cevap verememe, yetki/bilgi/tool/policy/operasyon kapasitesi eksikliği veya `HANDOFF` durumunda admin bildirimi gecikmeden gönderilir; bu güvenlik/operasyon kuralı opsiyonel davranış değildir.
 16. **Yerel admin demo önizleme kapısı**: Admin panel, Chat Lab, frontend kodu, görünür UI metni, rol/yetki ekranı veya buton/toggle davranışı değiştiğinde canlı panele aktarım öncesi `http://127.0.0.1:8011/admin#` üzerindeki ilgili hash ekranda önizleme ve temel işlev kontrolü zorunludur; demo açılamazsa blocker olarak raporlanır ve değişiklik canlıya hazır sayılmaz.
+17. **Public restoran sipariş gizliliği**: `/order` müşteri ekranında AI yemek önerisi sunulmaz; müşteri siparişi iki kez teyit eder; müşteri adı kalıcı olarak alınmaz/saklanmaz; oda numarası kalıcı sipariş loguna yazılmaz; "sipariş iletildi" ile "sipariş kabul edildi" ayrı statülerdir ve kabul yalnızca personel onayıyla gerçekleşir.
 
 ## Operational Discipline
 
@@ -525,7 +558,7 @@ Dosyanın en üstündeki sürüm bloğu, her güncelleme sonrası şu formatta g
 src/velox/
 ├── main.py                    # FastAPI entry point
 ├── config/                    # Settings, constants
-├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses, confirmation form rendering, stateless response preview, stay quote availability guard, admin debug runner/scan registry, structured-output replay helpers, admin access-control catalog/helpers
+├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses, confirmation form rendering, stateless response preview, stay quote availability guard, Restaurant AI menu validator, public order token/config helpers, admin debug runner/scan registry, structured-output replay helpers, admin access-control catalog/helpers
 ├── llm/                       # OpenAI client, prompt builder, response parser
 ├── tools/                     # Tool implementations (booking, restaurant, etc.)
 ├── adapters/                  # External service clients (Elektraweb, WhatsApp)
@@ -533,7 +566,7 @@ src/velox/
 ├── escalation/                # Risk detection, escalation matrix
 ├── policies/                  # Business rules (approval, payment, cancellation)
 ├── models/                    # Pydantic data models
-├── db/                        # Database connection, repositories, migrations, confirmation form snapshots, admin access-control persistence helpers
-├── api/                       # FastAPI routes, middleware, public confirmation form route, embedded admin/chat-lab/response-preview/voice-lab UI modules, admin debug/report-only, access-control, and WhatsApp integration surfaces
+├── db/                        # Database connection, repositories, migrations, confirmation form snapshots, Restaurant AI catalog/order log persistence, admin access-control persistence helpers
+├── api/                       # FastAPI routes, middleware, public confirmation form and /order routes, embedded admin/chat-lab/response-preview/voice-lab/restaurant-ai UI modules, admin debug/report-only, access-control, and WhatsApp integration surfaces
 └── utils/                     # Logging, i18n, validators, admin/debug auth helpers, secret encryption, lightweight Prometheus metrics helpers
 ```

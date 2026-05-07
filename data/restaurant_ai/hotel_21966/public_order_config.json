@@ -1,0 +1,56 @@
+{
+  "enabled": true,
+  "default_language": "tr",
+  "supported_languages": [
+    {"code": "tr", "label": "Türkçe"},
+    {"code": "en", "label": "English"},
+    {"code": "de", "label": "Deutsch"},
+    {"code": "ru", "label": "Русский"},
+    {"code": "ar", "label": "العربية"},
+    {"code": "fr", "label": "Français"},
+    {"code": "nl", "label": "Nederlands"},
+    {"code": "es", "label": "Español"}
+  ],
+  "pdf_menus": {
+    "alacarte": {
+      "label": "A la carte",
+      "url": "https://kassandrarestaurant.com/uploads/menus/alacarte-98659f.pdf"
+    },
+    "snack": {
+      "label": "Snack",
+      "url": "https://kassandrarestaurant.com/uploads/menus/snack-386a07.pdf"
+    },
+    "wine": {
+      "label": "Wine",
+      "url": "https://kassandrarestaurant.com/uploads/menus/wine-4e6385.pdf"
+    }
+  },
+  "meal_periods": {
+    "breakfast": {
+      "enabled": true,
+      "pdf_keys": []
+    },
+    "lunch": {
+      "enabled": true,
+      "pdf_keys": ["snack", "alacarte", "wine"]
+    },
+    "dinner": {
+      "enabled": true,
+      "pdf_keys": ["alacarte", "wine"]
+    }
+  },
+  "breakfast_items": [
+    {
+      "menu_item_id": "breakfast_traditional_turkish_spread",
+      "name_tr": "Geleneksel Türk kahvaltısı serpmesi",
+      "name_en": "Traditional Turkish breakfast spread",
+      "price_try": null
+    },
+    {
+      "menu_item_id": "breakfast_english",
+      "name_tr": "İngiliz kahvaltısı",
+      "name_en": "English breakfast",
+      "price_try": null
+    }
+  ]
+}

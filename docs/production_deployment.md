@@ -69,6 +69,7 @@ docker compose --env-file .env.production -f docker-compose.prod.yml exec app py
 ```
 
 Migration `031_reservation_confirmation_forms.sql` creates the secure HTML confirmation form table. It must be applied before admin approval flows are considered ready, because post-approval delivery depends on `reservation_confirmation_forms`.
+Migration `033_public_restaurant_ordering.sql` extends Restaurant AI orders for the public `/order` QR flow, two customer confirmations, and staff approval states. It must be applied before the public restaurant ordering panel is enabled.
 
 ## 5. Verify Health and Readiness
 ```bash
@@ -77,6 +78,7 @@ curl -fsS http://127.0.0.1:8001/api/v1/health/ready
 curl -fsS http://127.0.0.1:8001/metrics | head
 curl -fsS http://127.0.0.1:8001/api/v1/admin/bootstrap/status
 curl -s -o /dev/null -w "%{http_code}\n" https://<public-host>/api/v1/admin/me
+curl -s -o /dev/null -w "%{http_code}\n" https://<public-host>/order
 curl -I http://127.0.0.1:8001/confirmations/invalid-token-for-smoke-check
 docker compose --env-file .env.production -f docker-compose.prod.yml exec app python -c "import importlib.util; assert importlib.util.find_spec('playwright.async_api') is not None; print('playwright-python-ok')"
 docker compose --env-file .env.production -f docker-compose.prod.yml exec app sh -lc "test -d /ms-playwright && ls /ms-playwright | grep chromium"
@@ -88,6 +90,7 @@ auth bypass leaked into a live/public context and deployment must stop.
 The readiness payload now includes a `migrations` check so pending SQL drift is visible immediately.
 The readiness payload also includes `elektraweb_generic_sync`.
 The invalid confirmation-form smoke check should return HTTP `404`, proving the public route is mounted without exposing data for bad tokens.
+The `/order` smoke check should return HTTP `200`; API calls still require a signed table token and must reject missing/invalid tokens.
 If only `ELEKTRA_GENERIC_LOGIN_TOKEN` is configured and the permanent Generic API credentials are missing,
 readiness stays `503` with `elektraweb_generic_override_only` because reservation-card `Voucher No` and
 visible `Notlar` sync cannot self-recover after token expiry.
@@ -133,6 +136,7 @@ GitHub Actions workflow: `.github/workflows/ci.yml`
 - [ ] DB migration ran successfully
 - [ ] `/admin#holds` confirmation form panel previewed locally
 - [ ] `/confirmations/{token}` public route returns no-store headers and invalid tokens return 404
+- [ ] `/order` public restaurant ordering route returns 200 and invalid table tokens are rejected
 - [ ] Hotel profile YAML loaded
 - [ ] WhatsApp webhook URL configured in Meta Business Manager
 - [ ] WhatsApp admin integration env vars configured when `/admin#whatsappapi` will be used

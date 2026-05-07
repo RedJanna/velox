@@ -634,6 +634,15 @@ const NAVIGATION_GROUPS = [
         lead: 'Tarih ve saat bazlı masa kapasitelerini ayarlayın.',
       },
       {
+        id: 'restaurantai',
+        label: 'Restaurant AI / Menü Asistanı',
+        subtitle: 'Katalog, sipariş ve garson akışı',
+        icon: 'RA',
+        permission: 'restaurant_ai:read',
+        title: 'Restaurant AI / Menü Asistanı',
+        lead: 'Menü kataloğunu, garson WhatsApp yönlendirmesini, sipariş loglarını ve test konsolunu yönetin.',
+      },
+      {
         id: 'notifications',
         label: 'Bildirim Ayarları',
         subtitle: 'WhatsApp bildirim numaraları',
@@ -1831,6 +1840,7 @@ function setView(view) {
     if (typeof loadRestaurantHolds === 'function') loadRestaurantHolds();
     if (typeof loadRestaurantSettings === 'function') loadRestaurantSettings();
   }
+  if (view === 'restaurantai' && typeof loadRestaurantAiPanel === 'function') loadRestaurantAiPanel();
   if (view === 'notifications') loadNotifPhones();
   if (view === 'accesscontrol') loadAccessControl();
   if (view === 'system') loadSystemOverview();
@@ -1862,6 +1872,9 @@ function scheduleLiveRefresh() {
       const tasks = [loadRestaurantSlots()];
       if (typeof loadRestaurantHolds === 'function') tasks.push(loadRestaurantHolds());
       await Promise.all(tasks);
+    },
+    restaurantai: async () => {
+      if (typeof loadRestaurantAiPanel === 'function') await loadRestaurantAiPanel();
     },
   };
   const refresh = refreshers[state.currentView];
