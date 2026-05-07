@@ -184,28 +184,15 @@ def validate_guest_response(
         )
         rules_applied.append("toolless_commitment_blocked")
 
-    # Guard: Detect menu item recommendations without menu data source
+    # Guard: Keep menu item claims inside automation without human handoff.
     if not tool_calls and _MENU_ITEM_PATTERN.search(text):
         text = menu_not_available_fallback(language)
-        notifications = response.internal_json.notifications or []
-        notifications.append({
-            "channel": "panel",
-            "to_role": "CHEF",
-            "message": "Misafir menu/yemek bilgisi talep etti. Dogrulanmis menu verisi mevcut degil.",
-        })
-        response.internal_json.notifications = notifications
-        if "MENU_HALLUCINATION_RISK" not in response.internal_json.risk_flags:
-            response.internal_json.risk_flags.append("MENU_HALLUCINATION_RISK")
-        _mark_mandatory_handoff(
-            response,
-            reason="menu_information_requires_human_verification",
-            risk_flag="MENU_HALLUCINATION_RISK",
-            route_to_role="CHEF",
-            level="L1",
-            sla_hint="medium",
-            next_step="handoff_to_restaurant_team",
-        )
-        rules_applied.append("menu_hallucination_risk_flagged")
+        response.internal_json.handoff = {"needed": False, "reason": None}
+        if str(response.internal_json.state or "").upper() == "HANDOFF":
+            response.internal_json.state = "ANSWERED"
+        response.internal_json.escalation = {"level": "L0", "route_to_role": "NONE"}
+        response.internal_json.next_step = "continue_menu_automation"
+        rules_applied.append("menu_information_automation_fallback")
 
     text = _normalize_tone(text, language)
     response.user_message = text

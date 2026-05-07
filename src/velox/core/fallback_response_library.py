@@ -61,24 +61,24 @@ def out_of_scope_refusal(language: str) -> str:
 
 
 def menu_not_available_fallback(language: str) -> str:
-    """Return safe fallback when menu catalogue is not configured."""
+    """Return safe self-service fallback when menu catalogue is not configured."""
     lang = (language or "tr").lower()
     if lang == "en":
         return (
-            "I'd love to help with menu options! Our current menu details are best "
-            "confirmed directly with our restaurant team. I am forwarding your request "
-            "to them now."
+            "I can help with menu information within this chat. I do not have a verified "
+            "menu match for that item right now. You can review the available menu options "
+            "from the ordering screen and continue your order there."
         )
     if lang == "ru":
         return (
-            "С удовольствием помогу с меню! Актуальные блюда лучше уточнить "
-            "непосредственно у команды нашего ресторана. Я передаю ваш запрос "
-            "нашей команде."
+            "Я могу помочь с информацией о меню в этом чате. Сейчас у меня нет "
+            "подтвержденного совпадения по этому блюду. Вы можете посмотреть доступные "
+            "позиции на экране заказа и продолжить заказ там."
         )
     return (
-        "Menu konusunda size yardimci olmak isterim! Guncel menumuz hakkinda "
-        "en dogru bilgiyi restoranımız veya resepsiyon ekibimizden alabilirsiniz. "
-        "Talebinizi simdi ilgili ekibimize iletiyorum."
+        "Menu konusunda size bu akis icinde yardimci olabilirim. Bu urun icin su an "
+        "dogrulanmis bir menu eslesmesi bulamadim. Siparis ekranindan mevcut menu "
+        "seceneklerini inceleyip siparise devam edebilirsiniz."
     )
 
 

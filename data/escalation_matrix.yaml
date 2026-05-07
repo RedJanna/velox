@@ -158,12 +158,12 @@
   reason_hint: "Fiziksel operasyon gerektiren talep (siparis, oda servisi, bakim vb.)"
 
 - risk_flag: MENU_HALLUCINATION_RISK
-  level: L1
-  route_to_role: CHEF
-  priority: medium
-  action: [notify.send]
+  level: L0
+  route_to_role: NONE
+  priority: low
+  action: []
   notify_channel: panel
-  reason_hint: "Menu/yemek bilgisi talebi — dogrulanmis menu verisi gerekli"
+  reason_hint: "Menu/yemek bilgisi otomasyon icinde guvenli fallback ile karsilanir"
 
 - risk_flag: VIP_REQUEST
   level: L1

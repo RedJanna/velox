@@ -59,6 +59,21 @@ def test_l0_flag_returns_no_handoff_actions() -> None:
     assert "handoff.create_ticket" not in result.actions
 
 
+def test_menu_hallucination_risk_stays_inside_automation() -> None:
+    """Restaurant menu info safeguards should not create human handoff by themselves."""
+    engine = _engine_with_loaded_matrix()
+    result = engine.evaluate(
+        risk_flags=["MENU_HALLUCINATION_RISK"],
+        intent="menu_inquiry",
+        reference_id="R-MENU",
+        conversation_id="C-MENU",
+    )
+
+    assert result.level == EscalationLevel.L0
+    assert result.route_to_role == Role.NONE
+    assert result.actions == []
+
+
 def test_l3_flag_includes_ticket_and_notify_actions() -> None:
     """L3 matrix entries should trigger high-priority actions."""
     engine = _engine_with_loaded_matrix()

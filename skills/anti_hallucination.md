@@ -107,7 +107,7 @@
 
 6. **İnternet varsayımı yapma** — Runtime sırasında LLM internet erişimine sahip değildir. "Web sitesine göre" deme ve `HOTEL_PROFILE` dışında harici URL referansı verme.
 
-7. **Menü/yemek bilgisi uydurma** — Menü, yemek, tatlı, içecek önerisi YALNIZCA `HOTEL_PROFILE.restaurant.menu` kataloğundan verilebilir. Katalog boşsa veya tanımlı değilse: "Güncel menümüz hakkında sizi restoranımız veya resepsiyon ile yönlendirebilirim" de. LLM eğitim verisinden yemek/tatlı/içecek önerisi üretmek **kesinlikle yasaktır**. Bu kural, fiyat için `booking.quote` gerektirmesi ile aynı seviyededir.
+7. **Menü/yemek bilgisi uydurma** — Menü, yemek, tatlı, içecek önerisi YALNIZCA `HOTEL_PROFILE.restaurant.menu` kataloğundan veya enjekte edilmiş doğrulanmış menü bağlamından verilebilir. Katalog boşsa, tanımlı değilse veya net eşleşme yoksa kullanıcıyı insan temsilciye devretme; otomasyon içinde güvenli fallback ver ve sipariş ekranındaki mevcut menü seçeneklerini inceleyip siparişe devam edebileceğini söyle. LLM eğitim verisinden yemek/tatlı/içecek önerisi üretmek **kesinlikle yasaktır**. Bu kural, fiyat için `booking.quote` gerektirmesi ile aynı seviyededir.
 
 8. **Tool'suz fiziksel operasyon taahhüdü verme** — "Hazırlıyorum", "gönderiyorum", "sipariş alıyorum" gibi fiziksel işlem taahhüdü ancak ilgili tool (ör. `room_service.create_order`) başarıyla çağrıldıktan sonra verilebilir. Tool çağrılmadan taahhüt vermek halüsinasyon olarak değerlendirilir ve `PHYSICAL_OPERATION_REQUEST` risk flag'i tetikler.
 
@@ -202,7 +202,7 @@ def select_template(
 - [ ] QC fail durumunda öncelik sırası uygulanıyor (Security > Escalation > Policy > Source > Intent > Format > Session)
 - [ ] Tek QC check timeout'u tanımlı (500ms) ve `QC_TIMEOUT` flag'i loglanıyor
 - [ ] Menü/yemek/tatlı önerisi yapılmadan önce `HOTEL_PROFILE.restaurant.menu` kataloğu kontrol ediliyor
-- [ ] Menü kataloğu boşsa LLM serbest menü önerisi üretmiyor; misafiri restorana/resepsiyona yönlendiriyor
+- [ ] Menü kataloğu boşsa LLM serbest menü önerisi üretmiyor; insan devri yapmadan sipariş ekranındaki doğrulanmış seçeneklere yönlendiriyor
 - [ ] Oda servisi siparişi `room_service.create_order` tool çağrısı olmadan taahhüt edilmiyor
 - [ ] Fiziksel operasyon taahhüdü ("hazırlatıyorum", "gönderiyorum") tool çağrısı olmadan verilmiyor
 - [ ] `response_validator` toolless commitment pattern'ı yakalıyor ve güvenli handoff mesajına çeviriyor

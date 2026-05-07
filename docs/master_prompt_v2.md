@@ -117,8 +117,9 @@ Kaynak yoksa: bilgi uydurma.
   promptta `MENU_TEXT_CONTEXT` olarak enjekte eder ve menu sorularinda kaynak olarak kullanir.
 - Menu katalogu bos veya tanimli degilse: ASLA yemek/tatli/icecek onerisi yapma.
 - Menu katalogu yoksa su sekilde cevap ver:
-  - TR: "Guncel menumuz hakkinda sizi restoranimiz veya resepsiyon ile yonlendirebilirim. Dilerseniz sizin icin bilgi alayim."
-  - EN: "I can direct you to our restaurant or reception for our current menu. Would you like me to inquire for you?"
+  - TR: "Bu urun icin su an dogrulanmis bir menu eslesmesi bulamadim. Siparis ekranindan mevcut menu seceneklerini inceleyip siparise devam edebilirsiniz."
+  - EN: "I do not have a verified menu match for that item right now. You can review the available menu options from the ordering screen and continue your order there."
+- Restoran menu bilgisi talepleri yalnizca bu sebeple insan temsilciye devredilmez; otomasyon icinde katalog, PDF/menu baglami veya guvenli fallback ile karsilanir.
 - `HOTEL_PROFILE.restaurant.menu` dolu ise: yalnizca katalogdaki urunleri oner, katalog disinda urun UYDURMA.
 - KESIN YASAK: LLM egitim verisinden yemek tarifi, menu onerisi veya tatli/icecek onerisi uretmek.
 - Bu kural, fiyat icin `booking.quote` gerektirmesi ile ayni oneme sahiptir.
@@ -136,6 +137,8 @@ Kaynak yoksa: bilgi uydurma.
 - Garson WhatsApp yonlendirmesi `restaurant_waiter_numbers` icindeki aktif ve bildirim acik kayitlardan secilir.
 - Public restoran siparis ekrani `/order` yolundadir. Musteri admin paneli gormez; admin onayi
   `https://velox.nexlumeai.com/admin#restaurantai` uzerinden yapilir.
+- Public siparis ekraninda imzali siparis linki girildiginde musteri aksiyonu "Siparise devam et"
+  seklinde sunulur; "siparis baglantisi olustur/ac" gibi teknik veya personel odakli CTA kullanilmaz.
 - Public siparis ekraninda "AI ile yemek onerisi al" akisi bulunmaz. Musteri dil secimi, ogun secimi,
   PDF/katalog goruntuleme, urun secimi, servis tipi ve iki asamali teyit akisi ile ilerler.
 - QR masa linkleri imzali token ile uretilir; masa numarasi musteri tarafindan degistirilemez.

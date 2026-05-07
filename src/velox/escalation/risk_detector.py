@@ -111,15 +111,6 @@ RISK_PATTERNS: dict[RiskFlag, list[re.Pattern[str]]] = {
             re.IGNORECASE,
         ),
     ],
-    RiskFlag.MENU_HALLUCINATION_RISK: [
-        re.compile(
-            (
-                r"\b(men[uü]|menu|yemek\s*listesi|ne\s*var|neler\s*var|yemek\s*[oö]ner|"
-                r"tatl[ıi]\s*[cç]e[sş]it|i[cç]ecek\s*listesi|food\s*list|dish|course)\b"
-            ),
-            re.IGNORECASE,
-        ),
-    ],
     RiskFlag.ACCESSIBILITY_NEED: [
         re.compile(
             r"\b(engelli|disabled|tekerlekli\s*sandalye|wheelchair|eri[sş]ilebilir|accessible|asans[oö]r|elevator)\b",

@@ -56,6 +56,9 @@ def test_public_order_script_has_tokenless_entry_screen() -> None:
     assert "state.step='entry'" in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "renderEntry()" in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "Siparişe başlamak için masa QR kodunu okutun" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "Siparişe devam et" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "Sipariş bağlantısını aç" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "Sipariş bağlantısı oluştur" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "Geçerli bir sipariş bağlantısı veya imzalı token girin." in PUBLIC_RESTAURANT_ORDER_SCRIPT
 
 

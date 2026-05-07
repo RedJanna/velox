@@ -94,7 +94,7 @@ def test_response_validator_blocks_toolless_reservation_commitment() -> None:
     assert "toolless_commitment_blocked" in validated.internal_json.entities["response_validator"]["rules"]
 
 
-def test_response_validator_routes_unverified_menu_claim_to_handoff() -> None:
+def test_response_validator_keeps_unverified_menu_claim_in_automation() -> None:
     response = LLMResponse(
         user_message="Tatli secenekleri olarak baklava ve sutlac onerebilirim.",
         internal_json=InternalJSON(language="tr", tool_calls=[]),
@@ -102,10 +102,14 @@ def test_response_validator_routes_unverified_menu_claim_to_handoff() -> None:
 
     validated = validate_guest_response(response, default_language="tr")
 
-    assert "ilgili ekibimize iletiyorum" in validated.user_message.lower()
-    assert validated.internal_json.state == "HANDOFF"
-    assert validated.internal_json.handoff["needed"] is True
-    assert "MENU_HALLUCINATION_RISK" in validated.internal_json.risk_flags
+    lowered = validated.user_message.lower()
+    assert "siparis ekranindan" in lowered
+    assert "ekibimize iletiyorum" not in lowered
+    assert validated.internal_json.state != "HANDOFF"
+    assert validated.internal_json.handoff["needed"] is False
+    assert validated.internal_json.escalation["level"] == "L0"
+    assert "MENU_HALLUCINATION_RISK" not in validated.internal_json.risk_flags
+    assert "menu_information_automation_fallback" in validated.internal_json.entities["response_validator"]["rules"]
 
 
 def test_response_validator_blocks_toolless_stay_price_claim() -> None:
