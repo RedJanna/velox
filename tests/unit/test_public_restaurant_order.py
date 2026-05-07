@@ -49,6 +49,13 @@ def test_public_order_script_has_copy_for_supported_languages() -> None:
         assert f"{language['code']}:{{" in PUBLIC_RESTAURANT_ORDER_SCRIPT
 
 
+def test_public_order_script_has_tokenless_entry_screen() -> None:
+    assert "state.step='entry'" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "renderEntry()" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "Siparişe başlamak için masa QR kodunu okutun" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "Geçerli bir sipariş bağlantısı veya imzalı token girin." in PUBLIC_RESTAURANT_ORDER_SCRIPT
+
+
 def test_public_order_script_renders_error_before_loading_state() -> None:
     render_start = PUBLIC_RESTAURANT_ORDER_SCRIPT.index("function render(){")
     render_end = PUBLIC_RESTAURANT_ORDER_SCRIPT.index("function renderLanguage()")
