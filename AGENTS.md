@@ -120,6 +120,9 @@ Customer QR / Link
     v
 Public /order Page
     |
+    ├── 0. Tokenless Entry CTA
+    |       └── /order token yoksa yalnızca "Siparişe devam et" görünür ve masa_no=0 imzalı linke gider
+    |
     ├── 1. Signed Table Token Validation
     |       └── table_no / venue token içinden gelir; müşteri değiştiremez
     |

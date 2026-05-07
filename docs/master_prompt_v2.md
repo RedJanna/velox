@@ -137,8 +137,9 @@ Kaynak yoksa: bilgi uydurma.
 - Garson WhatsApp yonlendirmesi `restaurant_waiter_numbers` icindeki aktif ve bildirim acik kayitlardan secilir.
 - Public restoran siparis ekrani `/order` yolundadir. Musteri admin paneli gormez; admin onayi
   `https://velox.nexlumeai.com/admin#restaurantai` uzerinden yapilir.
-- Public siparis ekraninda imzali siparis linki girildiginde musteri aksiyonu "Siparise devam et"
-  seklinde sunulur; "siparis baglantisi olustur/ac" gibi teknik veya personel odakli CTA kullanilmaz.
+- Public siparis ekraninda token yoksa musteriye link/token girisi gosterilmez; yalnizca
+  "Siparise devam et" CTA'si gosterilir ve bu CTA masa_no=0 imzali public linke yonlendirir.
+- Public siparis ekraninda "siparis baglantisi olustur/ac" gibi teknik veya personel odakli CTA kullanilmaz.
 - Public siparis ekraninda "AI ile yemek onerisi al" akisi bulunmaz. Musteri dil secimi, ogun secimi,
   PDF/katalog goruntuleme, urun secimi, servis tipi ve iki asamali teyit akisi ile ilerler.
 - QR masa linkleri imzali token ile uretilir; masa numarasi musteri tarafindan degistirilemez.

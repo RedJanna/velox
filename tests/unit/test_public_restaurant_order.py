@@ -56,13 +56,21 @@ def test_public_order_script_has_copy_for_supported_languages() -> None:
 def test_public_order_script_has_tokenless_entry_screen() -> None:
     assert "state.step='entry'" in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "renderEntry()" in PUBLIC_RESTAURANT_ORDER_SCRIPT
-    assert "Siparişe başlamak için masa QR kodunu okutun" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "Siparişe devam edin" in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "Siparişe devam et" in PUBLIC_RESTAURANT_ORDER_SCRIPT
-    assert "QR kodu veya size gönderilen kod" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "QR kodu veya size gönderilen kod" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "name=\"entryLink\"" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "state.entryLink" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "resolveToken" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "DEFAULT_ENTRY_ORDER_URL" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert (
+        "https://velox.nexlumeai.com/order?t=eyJob3RlbF9pZCI6MjE5NjYsInRhYmxlX25vIjoiMC"
+        in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    )
+    assert "InRhYmxlX25vIjoiMC" in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "Sipariş bağlantısını aç" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "Sipariş bağlantısı oluştur" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
-    assert "linkLabel:'Sipariş bağlantısı'" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
-    assert "Geçerli bir QR kodu, bağlantı veya imzalı token girin." in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "window.location.href=DEFAULT_ENTRY_ORDER_URL" in PUBLIC_RESTAURANT_ORDER_SCRIPT
 
 
 def test_public_order_script_renders_error_before_loading_state() -> None:
