@@ -87,11 +87,10 @@ def _format_message_for_delivery(
     )
 
 
-async def _send_alert_with_fallback(whatsapp: Any, *, phone: str, message: str) -> None:
+async def _send_alert_with_fallback(whatsapp: Any, *, phone: str, message: str) -> dict[str, Any]:
     """Send WhatsApp text and reopen the session window if Meta requires it."""
     try:
-        await whatsapp.send_text_message(to=phone, body=message, force=True)
-        return
+        return await whatsapp.send_text_message(to=phone, body=message, force=True)
     except httpx.HTTPStatusError as error:
         if not _is_session_reopen_error(error):
             raise
@@ -104,7 +103,7 @@ async def _send_alert_with_fallback(whatsapp: Any, *, phone: str, message: str) 
         components=[],
         force=True,
     )
-    await whatsapp.send_text_message(to=phone, body=message, force=True)
+    return await whatsapp.send_text_message(to=phone, body=message, force=True)
 
 
 def _is_session_reopen_error(error: httpx.HTTPStatusError) -> bool:
@@ -135,25 +134,38 @@ async def send_whatsapp_to_phone(
     hotel_id: int | None = None,
 ) -> bool:
     """Send one WhatsApp alert to a specific phone with session reopen fallback."""
+    result = await send_whatsapp_to_phone_with_result(phone=phone, message=message, hotel_id=hotel_id)
+    return result["status"] == "sent"
+
+
+async def send_whatsapp_to_phone_with_result(
+    *,
+    phone: str,
+    message: str,
+    hotel_id: int | None = None,
+) -> dict[str, Any]:
+    """Send one WhatsApp alert and return provider delivery metadata."""
     whatsapp = get_whatsapp_client()
     try:
-        await asyncio.wait_for(
+        payload = await asyncio.wait_for(
             _send_alert_with_fallback(whatsapp, phone=phone, message=message),
             timeout=_WHATSAPP_SEND_TIMEOUT,
         )
+        message_id = _extract_whatsapp_message_id(payload)
         logger.info(
             "notification_whatsapp_sent",
             hotel_id=hotel_id,
             phone=_mask_phone(phone),
+            whatsapp_message_id=message_id,
         )
-        return True
+        return {"status": "sent", "whatsapp_message_id": message_id}
     except WhatsAppSendBlockedError:
         logger.info(
             "notification_whatsapp_blocked_by_mode",
             hotel_id=hotel_id,
             phone=_mask_phone(phone),
         )
-        return False
+        return {"status": "blocked", "whatsapp_message_id": None}
     except Exception:
         logger.warning(
             "notification_whatsapp_failed",
@@ -161,7 +173,21 @@ async def send_whatsapp_to_phone(
             phone=_mask_phone(phone),
             exc_info=True,
         )
-        return False
+        return {"status": "failed", "whatsapp_message_id": None}
+
+
+def _extract_whatsapp_message_id(payload: Any) -> str | None:
+    """Extract the Meta WhatsApp message id from a send response."""
+    if not isinstance(payload, dict):
+        return None
+    messages = payload.get("messages")
+    if not isinstance(messages, list) or not messages:
+        return None
+    first = messages[0]
+    if not isinstance(first, dict):
+        return None
+    value = first.get("id")
+    return str(value).strip() or None
 
 
 async def send_admin_whatsapp_alerts(

@@ -151,7 +151,8 @@ Kaynak yoksa: bilgi uydurma.
   veya musteri adi yazilmaz.
 - Musteri siparisi iki kez teyit etmeden siparis olusturulmaz.
 - Siparis kaydi olustuktan sonra aktif/bildirim acik garson WhatsApp alicilari cozulur ve siparis
-  bildirimi denenir; teslimat sonucu `whatsapp_send_status`, `selected_waiter_ids` ve
+  bildirimi denenir; bildirim metni `PUBLIC_BASE_URL/admin#restaurantai` onay linkini icerir.
+  Teslimat sonucu `whatsapp_send_status`, `selected_waiter_ids`, provider WhatsApp message id ve
   `waiter_delivery_json` alanlarina kaydedilir.
 - "Siparis iletildi" personel onayi anlamina gelmez. Musteriye ilk sonuc `pending_staff_approval`
   olarak aktarilir; gercek kabul `accepted_by_staff` durumudur.

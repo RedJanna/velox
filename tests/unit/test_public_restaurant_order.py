@@ -4,9 +4,10 @@ from velox.api.routes.public_restaurant_order_assets import (
     PUBLIC_RESTAURANT_ORDER_SCRIPT,
     PUBLIC_RESTAURANT_ORDER_STYLE,
 )
-from velox.api.routes.public_restaurant_order import public_order_page
+from velox.api.routes.public_restaurant_order import _format_staff_pending_message, public_order_page
 from velox.core.restaurant_order_tokens import create_table_order_token, verify_table_order_token
 from velox.core.restaurant_public_order_config import public_order_payload
+from velox.models.restaurant_ai import RestaurantPublicOrderCreate
 
 
 def test_table_order_token_round_trip() -> None:
@@ -104,3 +105,27 @@ def test_public_order_product_cards_show_contents_not_internal_tags() -> None:
     assert "class=\"product-content\"" in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "tags.map(tag" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "class=\"tag\"" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
+
+
+def test_staff_pending_message_includes_admin_approval_url() -> None:
+    body = RestaurantPublicOrderCreate(
+        token="x" * 24,
+        language_code="tr",
+        meal_period="lunch",
+        service_type="table_service",
+        items=[{"menu_item_id": "item-1", "quantity": 2}],
+        customer_confirmation_count=2,
+    )
+
+    message = _format_staff_pending_message(
+        order_id="RO-21966-TEST",
+        venue="Kassandra Restaurant",
+        table_no="12",
+        body=body,
+        catalog_rows=[{"menu_item_id": "item-1", "name_tr": "Test Ürün"}],
+        breakfast_items=[],
+    )
+
+    assert "Order: RO-21966-TEST" in message
+    assert "Onay: " in message
+    assert "#restaurantai" in message

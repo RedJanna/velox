@@ -15,9 +15,10 @@ from velox.api.routes.public_restaurant_order_assets import (
 from velox.core.restaurant_order_tokens import verify_table_order_token
 from velox.core.restaurant_public_order_config import public_order_payload
 from velox.core.restaurant_ai_menu import filter_catalog_items, load_default_menu_catalog
+from velox.config.settings import settings
 from velox.db.repositories.restaurant_ai import RestaurantAiRepository
 from velox.models.restaurant_ai import RestaurantPublicOrderCreate
-from velox.tools.notification import send_whatsapp_to_phone
+from velox.tools.notification import send_whatsapp_to_phone_with_result
 
 logger = structlog.get_logger(__name__)
 
@@ -115,12 +116,18 @@ async def create_public_order(body: RestaurantPublicOrderCreate) -> dict[str, An
     )
     waiter_delivery = []
     for recipient in recipients:
-        sent = await send_whatsapp_to_phone(
+        delivery = await send_whatsapp_to_phone_with_result(
             phone=recipient["whatsapp_number"],
             message=pending_message,
             hotel_id=table.hotel_id,
         )
-        waiter_delivery.append({"waiter_id": recipient["id"], "status": "sent" if sent else "failed"})
+        waiter_delivery.append(
+            {
+                "waiter_id": recipient["id"],
+                "status": delivery["status"],
+                "whatsapp_message_id": delivery.get("whatsapp_message_id"),
+            }
+        )
 
     whatsapp_status = _delivery_status(waiter_delivery)
     order = await repo.update_public_order_delivery(
@@ -225,6 +232,7 @@ def _format_staff_pending_message(
         name = menu_item.get("name_tr") or menu_item.get("name_en") or item.menu_item_id
         lines.append(f"- {item.quantity}x {name}")
     place = f"Masa: {table_no}" if body.service_type == "table_service" else f"Oda: {body.room_number}"
+    approval_url = f"{settings.admin_panel_url}#restaurantai"
     return (
         "[VELOX-L1] Restaurant order approval\n"
         f"Order: {order_id}\n"
@@ -234,7 +242,7 @@ def _format_staff_pending_message(
         "Sipariş:\n"
         + "\n".join(lines)
         + f"\nNot: {body.customer_note or '-'}\nAlerji: {body.allergy_note or '-'}\n"
-        "Onay için admin panelde Restaurant AI sipariş kuyruğunu açın."
+        f"Onay: {approval_url}"
     )
 
 
