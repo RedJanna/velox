@@ -101,10 +101,20 @@ def test_public_order_redesign_assets_include_customer_browsing_ui() -> None:
 
 
 def test_public_order_product_cards_show_contents_not_internal_tags() -> None:
-    assert "function itemContents(item)" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "function itemSummary(item)" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "function itemDetails(item)" in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "class=\"product-content\"" in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "tags.map(tag" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "class=\"tag\"" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
+
+
+def test_public_order_localizes_mobile_menu_labels() -> None:
+    assert "allCategories:'Tümü'" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "allCategories:'All'" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "searchPlaceholder:'Ürün veya kategori ara'" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "searchPlaceholder:'Search products or categories'" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "label:'Tümü'" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "placeholder=\"Ürün veya kategori ara\"" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
 
 
 def test_staff_pending_message_includes_admin_approval_url() -> None:
