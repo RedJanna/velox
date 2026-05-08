@@ -175,11 +175,12 @@ function t(key){return (i18n[state.lang]||i18n.en)[key]||i18n.en[key]||key}
 function esc(value){return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function locale(){return {tr:'tr-TR',de:'de-DE',ru:'ru-RU',ar:'ar',fr:'fr-FR',nl:'nl-NL',es:'es-ES'}[state.lang]||'en-US'}
 function money(value){if(value===null||value===undefined||value==='')return t('pricePending');const n=Number(value);return Number.isFinite(n)?new Intl.NumberFormat(locale(),{maximumFractionDigits:2}).format(n)+' ₺':esc(value)}
+function languageCode(){return String(state.lang||'tr').split('-')[0]}
 function setLanguage(lang){state.lang=lang;document.documentElement.lang=lang;document.documentElement.dir=lang==='ar'?'rtl':'ltr'}
 function allItems(){if(!state.cfg)return[];if(state.meal==='breakfast')return state.cfg.breakfast_items||[];return state.cfg.catalog_items||[]}
 function itemName(item){if(state.lang==='tr')return item.name_tr||item.name_en||item.menu_item_id;return item.name_en||item.name_tr||item.menu_item_id}
-function itemDescription(item){return state.lang==='tr'?(item.description_tr||item.description_en||''):(item.description_en||item.description_tr||'')}
-function itemIngredients(item){return Array.isArray(item.ingredients)?item.ingredients.filter(Boolean):[]}
+function itemDescription(item){const code=languageCode();const localized=item['description_'+code];if(localized)return localized;if(code==='en')return item.description_en||item.description_tr||'';if(code==='tr')return item.description_tr||'';return ''}
+function itemIngredients(item){const localized=item.ingredients_i18n?.[languageCode()];if(Array.isArray(localized)&&localized.length)return localized.filter(Boolean);return Array.isArray(item.ingredients)?item.ingredients.filter(Boolean):[]}
 function itemSummary(item){const description=itemDescription(item);if(description)return description;const ingredients=itemIngredients(item);if(ingredients.length)return ingredients.slice(0,4).join(', ');return t('contentFallback')}
 function itemDetails(item){const ingredients=itemIngredients(item);if(ingredients.length<=4)return '';return ingredients.join(', ')}
 function cartRows(){const byId=Object.fromEntries(allItems().map(item=>[item.menu_item_id,item]));return Object.entries(state.cart).map(([id,row])=>({...row,item:byId[id]})).filter(row=>row.item)}
@@ -192,7 +193,7 @@ function categoryKey(item){return `${item.menu_type||state.meal||'menu'}::${item
 function categoryLabel(key){const parts=String(key||'').split('::');const raw=parts[1]&&parts[1]!==t('menu')?parts[1]:parts[0]||t('menu');return (categoryLabels[state.lang]||categoryLabels.en)[raw]||raw}
 function categoriesFor(items){const seen=new Map();for(const item of items){const key=categoryKey(item);if(!seen.has(key))seen.set(key,{key,label:categoryLabel(key),count:0});seen.get(key).count+=1}return Array.from(seen.values())}
 function normalizedSearch(){return state.search.trim().toLowerCase()}
-function itemMatchesSearch(item,query){if(!query)return true;const haystack=[itemName(item),itemDescription(item),item.category,item.menu_type,...(item.tags||[]),...(item.dietary_tags||[])].join(' ').toLowerCase();return haystack.includes(query)}
+function itemMatchesSearch(item,query){if(!query)return true;const haystack=[itemName(item),itemDescription(item),item.category,item.menu_type,...itemIngredients(item),...(item.tags||[]),...(item.dietary_tags||[])].join(' ').toLowerCase();return haystack.includes(query)}
 function visibleItems(){const query=normalizedSearch();return allItems().filter(item=>(!state.activeCategory||categoryKey(item)===state.activeCategory)&&itemMatchesSearch(item,query))}
 function languageSelector(){if(!state.cfg)return '';return `<div class="language-strip" aria-label="${esc(t('language'))}">${(state.cfg.supported_languages||[]).map(lang=>`<button class="language-chip ${lang.code===state.lang?'active':''}" data-lang="${esc(lang.code)}" aria-pressed="${lang.code===state.lang?'true':'false'}">${esc(lang.code.toUpperCase())}</button>`).join('')}</div>`}
 function header(){const place=state.cfg?`${esc(t('tableNumberLabel'))} ${esc(state.cfg.table_no)} · ${esc(state.cfg.venue)}`:'-';return `<div class="order-top"><div class="brand">${logoMarkup()}<div class="brand-copy"><h1>${esc(t('title'))}</h1><p>${esc(t('lead'))}</p></div></div><div class="header-actions">${languageSelector()}<span class="pill">${place}</span></div></div>`}

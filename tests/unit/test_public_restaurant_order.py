@@ -1,10 +1,18 @@
 """Unit tests for public restaurant ordering helpers and assets."""
 
+import json
+from pathlib import Path
+
 from velox.api.routes.public_restaurant_order_assets import (
     PUBLIC_RESTAURANT_ORDER_SCRIPT,
     PUBLIC_RESTAURANT_ORDER_STYLE,
 )
-from velox.api.routes.public_restaurant_order import _format_staff_pending_message, public_order_page
+from velox.api.routes.public_restaurant_order import (
+    _customer_safe_catalog_item,
+    _format_staff_pending_message,
+    public_order_page,
+)
+from velox.core.restaurant_menu_localization import PUBLIC_ORDER_LANGUAGE_CODES, load_ingredient_translations
 from velox.core.restaurant_order_tokens import create_table_order_token, verify_table_order_token
 from velox.core.restaurant_public_order_config import public_order_payload
 from velox.models.restaurant_ai import RestaurantPublicOrderCreate
@@ -103,9 +111,47 @@ def test_public_order_redesign_assets_include_customer_browsing_ui() -> None:
 def test_public_order_product_cards_show_contents_not_internal_tags() -> None:
     assert "function itemSummary(item)" in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "function itemDetails(item)" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "item.ingredients_i18n?.[languageCode()]" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "if(code==='en')return item.description_en" in PUBLIC_RESTAURANT_ORDER_SCRIPT
+    assert "item.description_tr||item.description_en" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "class=\"product-content\"" in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "tags.map(tag" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
     assert "class=\"tag\"" not in PUBLIC_RESTAURANT_ORDER_SCRIPT
+
+
+def test_public_order_customer_safe_item_localizes_ingredients() -> None:
+    row = {
+        "menu_item_id": "kr_alacarte_starters_avocado_hummus",
+        "venue": "Kassandra Restaurant",
+        "menu_type": "A La Carte",
+        "category": "Starters",
+        "name_tr": "Avokado Humus",
+        "name_en": "Avocado Hummus",
+        "price_try": 440,
+        "description_tr": None,
+        "description_en": "Chickpeas, avocado, fresh coriander, lemon and extra virgin olive oil.",
+        "ingredients": ["chickpeas", "avocado", "coriander", "lemon", "olive oil"],
+    }
+
+    item = _customer_safe_catalog_item(row, hotel_id=21966)
+
+    assert item["ingredients_i18n"]["tr"] == ["nohut", "avokado", "taze kişniş", "limon", "sızma zeytinyağı"]
+    assert item["ingredients_i18n"]["en"] == ["chickpeas", "avocado", "coriander", "lemon", "olive oil"]
+    assert item["ingredients_i18n"]["de"][0] == "Kichererbsen"
+    assert item["ingredients_i18n"]["ru"][0] == "нут"
+
+
+def test_public_order_has_translations_for_all_catalog_ingredients() -> None:
+    catalog_path = Path("data/restaurant_ai/hotel_21966/menu_catalog.json")
+    items = json.loads(catalog_path.read_text(encoding="utf-8"))["items"]
+    ingredients = {ingredient for item in items for ingredient in item.get("ingredients", [])}
+    translations = load_ingredient_translations(21966)
+
+    for ingredient in ingredients:
+        assert ingredient in translations
+        for language_code in PUBLIC_ORDER_LANGUAGE_CODES:
+            if language_code != "en":
+                assert translations[ingredient][language_code]
 
 
 def test_public_order_localizes_mobile_menu_labels() -> None:

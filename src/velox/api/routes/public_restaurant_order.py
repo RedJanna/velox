@@ -12,9 +12,10 @@ from velox.api.routes.public_restaurant_order_assets import (
     PUBLIC_RESTAURANT_ORDER_SCRIPT,
     PUBLIC_RESTAURANT_ORDER_STYLE,
 )
+from velox.core.restaurant_ai_menu import filter_catalog_items, load_default_menu_catalog
+from velox.core.restaurant_menu_localization import localize_ingredients
 from velox.core.restaurant_order_tokens import verify_table_order_token
 from velox.core.restaurant_public_order_config import public_order_payload
-from velox.core.restaurant_ai_menu import filter_catalog_items, load_default_menu_catalog
 from velox.config.settings import settings
 from velox.db.repositories.restaurant_ai import RestaurantAiRepository
 from velox.models.restaurant_ai import RestaurantPublicOrderCreate
@@ -71,7 +72,7 @@ async def public_order_config(token: str = Query(..., min_length=20)) -> dict[st
         "venue": table.venue,
         "table_no": table.table_no,
         "service_modes": ["table_service", "room_service"],
-        "catalog_items": [_customer_safe_catalog_item(row) for row in catalog_rows],
+        "catalog_items": [_customer_safe_catalog_item(row, hotel_id=table.hotel_id) for row in catalog_rows],
         **config,
     }
 
@@ -172,7 +173,8 @@ async def _order_notification_recipients(
     return fallback
 
 
-def _customer_safe_catalog_item(row: dict[str, Any]) -> dict[str, Any]:
+def _customer_safe_catalog_item(row: dict[str, Any], *, hotel_id: int) -> dict[str, Any]:
+    ingredients = row.get("ingredients") or []
     return {
         "menu_item_id": row["menu_item_id"],
         "venue": row["venue"],
@@ -183,7 +185,8 @@ def _customer_safe_catalog_item(row: dict[str, Any]) -> dict[str, Any]:
         "price_try": str(row["price_try"]) if row["price_try"] is not None else None,
         "description_tr": row["description_tr"],
         "description_en": row["description_en"],
-        "ingredients": row.get("ingredients") or [],
+        "ingredients": ingredients,
+        "ingredients_i18n": localize_ingredients(hotel_id, ingredients),
     }
 
 

@@ -1,0 +1,499 @@
+{
+  "translations": {
+    "aegean herbs": {
+      "tr": "Ege otları",
+      "de": "Ägäische Kräuter",
+      "ru": "эгейские травы",
+      "ar": "أعشاب بحر إيجة",
+      "fr": "herbes égéennes",
+      "nl": "Egeïsche kruiden",
+      "es": "hierbas egeas"
+    },
+    "artichoke": {
+      "tr": "enginar",
+      "de": "Artischocke",
+      "ru": "артишок",
+      "ar": "خرشوف",
+      "fr": "artichaut",
+      "nl": "artisjok",
+      "es": "alcachofa"
+    },
+    "avocado": {
+      "tr": "avokado",
+      "de": "Avocado",
+      "ru": "авокадо",
+      "ar": "أفوكادو",
+      "fr": "avocat",
+      "nl": "avocado",
+      "es": "aguacate"
+    },
+    "beef": {
+      "tr": "dana eti",
+      "de": "Rindfleisch",
+      "ru": "говядина",
+      "ar": "لحم بقري",
+      "fr": "boeuf",
+      "nl": "rundvlees",
+      "es": "ternera"
+    },
+    "beef tenderloin": {
+      "tr": "dana bonfile",
+      "de": "Rinderfilet",
+      "ru": "говяжья вырезка",
+      "ar": "فيليه بقري",
+      "fr": "filet de boeuf",
+      "nl": "runderhaas",
+      "es": "solomillo de ternera"
+    },
+    "beetroot": {
+      "tr": "pancar",
+      "de": "Rote Bete",
+      "ru": "свекла",
+      "ar": "شمندر",
+      "fr": "betterave",
+      "nl": "rode biet",
+      "es": "remolacha"
+    },
+    "berries": {
+      "tr": "orman meyveleri",
+      "de": "Beeren",
+      "ru": "ягоды",
+      "ar": "توت",
+      "fr": "fruits rouges",
+      "nl": "bessen",
+      "es": "frutos rojos"
+    },
+    "bread": {
+      "tr": "ekmek",
+      "de": "Brot",
+      "ru": "хлеб",
+      "ar": "خبز",
+      "fr": "pain",
+      "nl": "brood",
+      "es": "pan"
+    },
+    "calamari": {
+      "tr": "kalamar",
+      "de": "Calamari",
+      "ru": "кальмар",
+      "ar": "كاليماري",
+      "fr": "calamars",
+      "nl": "calamares",
+      "es": "calamares"
+    },
+    "cheese": {
+      "tr": "peynir",
+      "de": "Käse",
+      "ru": "сыр",
+      "ar": "جبن",
+      "fr": "fromage",
+      "nl": "kaas",
+      "es": "queso"
+    },
+    "chicken": {
+      "tr": "tavuk",
+      "de": "Hähnchen",
+      "ru": "курица",
+      "ar": "دجاج",
+      "fr": "poulet",
+      "nl": "kip",
+      "es": "pollo"
+    },
+    "chicken wings": {
+      "tr": "tavuk kanat",
+      "de": "Hähnchenflügel",
+      "ru": "куриные крылышки",
+      "ar": "أجنحة دجاج",
+      "fr": "ailes de poulet",
+      "nl": "kippenvleugels",
+      "es": "alitas de pollo"
+    },
+    "chickpeas": {
+      "tr": "nohut",
+      "de": "Kichererbsen",
+      "ru": "нут",
+      "ar": "حمص",
+      "fr": "pois chiches",
+      "nl": "kikkererwten",
+      "es": "garbanzos"
+    },
+    "chocolate": {
+      "tr": "çikolata",
+      "de": "Schokolade",
+      "ru": "шоколад",
+      "ar": "شوكولاتة",
+      "fr": "chocolat",
+      "nl": "chocolade",
+      "es": "chocolate"
+    },
+    "coriander": {
+      "tr": "taze kişniş",
+      "de": "Koriander",
+      "ru": "кориандр",
+      "ar": "كزبرة",
+      "fr": "coriandre",
+      "nl": "koriander",
+      "es": "cilantro"
+    },
+    "dried fruit": {
+      "tr": "kuru meyve",
+      "de": "Trockenfrüchte",
+      "ru": "сухофрукты",
+      "ar": "فواكه مجففة",
+      "fr": "fruits secs",
+      "nl": "gedroogd fruit",
+      "es": "frutas secas"
+    },
+    "egg": {
+      "tr": "yumurta",
+      "de": "Ei",
+      "ru": "яйцо",
+      "ar": "بيض",
+      "fr": "oeuf",
+      "nl": "ei",
+      "es": "huevo"
+    },
+    "falafel": {
+      "tr": "falafel",
+      "de": "Falafel",
+      "ru": "фалафель",
+      "ar": "فلافل",
+      "fr": "falafel",
+      "nl": "falafel",
+      "es": "falafel"
+    },
+    "fava": {
+      "tr": "fava",
+      "de": "Fava",
+      "ru": "фава",
+      "ar": "فافا",
+      "fr": "fava",
+      "nl": "fava",
+      "es": "fava"
+    },
+    "fettuccine": {
+      "tr": "fettuccine",
+      "de": "Fettuccine",
+      "ru": "феттучини",
+      "ar": "فيتوتشيني",
+      "fr": "fettuccine",
+      "nl": "fettuccine",
+      "es": "fettuccine"
+    },
+    "goat cheese": {
+      "tr": "keçi peyniri",
+      "de": "Ziegenkäse",
+      "ru": "козий сыр",
+      "ar": "جبن الماعز",
+      "fr": "fromage de chèvre",
+      "nl": "geitenkaas",
+      "es": "queso de cabra"
+    },
+    "halloumi": {
+      "tr": "hellim",
+      "de": "Halloumi",
+      "ru": "халлуми",
+      "ar": "حلوم",
+      "fr": "halloumi",
+      "nl": "halloumi",
+      "es": "halloumi"
+    },
+    "lamb": {
+      "tr": "kuzu eti",
+      "de": "Lamm",
+      "ru": "баранина",
+      "ar": "لحم ضأن",
+      "fr": "agneau",
+      "nl": "lamsvlees",
+      "es": "cordero"
+    },
+    "lamb shank": {
+      "tr": "kuzu incik",
+      "de": "Lammhaxe",
+      "ru": "баранья голяшка",
+      "ar": "موزة ضأن",
+      "fr": "jarret d'agneau",
+      "nl": "lamsschenkel",
+      "es": "jarrete de cordero"
+    },
+    "lemon": {
+      "tr": "limon",
+      "de": "Zitrone",
+      "ru": "лимон",
+      "ar": "ليمون",
+      "fr": "citron",
+      "nl": "citroen",
+      "es": "limón"
+    },
+    "mushroom": {
+      "tr": "mantar",
+      "de": "Pilz",
+      "ru": "грибы",
+      "ar": "فطر",
+      "fr": "champignon",
+      "nl": "paddenstoel",
+      "es": "champiñón"
+    },
+    "noodles": {
+      "tr": "noodle",
+      "de": "Nudeln",
+      "ru": "лапша",
+      "ar": "نودلز",
+      "fr": "nouilles",
+      "nl": "noedels",
+      "es": "fideos"
+    },
+    "octopus": {
+      "tr": "ahtapot",
+      "de": "Oktopus",
+      "ru": "осьминог",
+      "ar": "أخطبوط",
+      "fr": "poulpe",
+      "nl": "octopus",
+      "es": "pulpo"
+    },
+    "olive oil": {
+      "tr": "sızma zeytinyağı",
+      "de": "Olivenöl",
+      "ru": "оливковое масло",
+      "ar": "زيت الزيتون",
+      "fr": "huile d'olive",
+      "nl": "olijfolie",
+      "es": "aceite de oliva"
+    },
+    "panko": {
+      "tr": "panko",
+      "de": "Panko",
+      "ru": "панко",
+      "ar": "بانكو",
+      "fr": "panko",
+      "nl": "panko",
+      "es": "panko"
+    },
+    "parmesan": {
+      "tr": "parmesan",
+      "de": "Parmesan",
+      "ru": "пармезан",
+      "ar": "بارميزان",
+      "fr": "parmesan",
+      "nl": "parmezaan",
+      "es": "parmesano"
+    },
+    "pasta": {
+      "tr": "makarna",
+      "de": "Pasta",
+      "ru": "паста",
+      "ar": "معكرونة",
+      "fr": "pâtes",
+      "nl": "pasta",
+      "es": "pasta"
+    },
+    "penne": {
+      "tr": "penne",
+      "de": "Penne",
+      "ru": "пенне",
+      "ar": "بيني",
+      "fr": "penne",
+      "nl": "penne",
+      "es": "penne"
+    },
+    "pizza dough": {
+      "tr": "pizza hamuru",
+      "de": "Pizzateig",
+      "ru": "тесто для пиццы",
+      "ar": "عجينة بيتزا",
+      "fr": "pâte à pizza",
+      "nl": "pizzadeeg",
+      "es": "masa de pizza"
+    },
+    "porcini": {
+      "tr": "porcini mantarı",
+      "de": "Steinpilze",
+      "ru": "белые грибы",
+      "ar": "فطر بورسيني",
+      "fr": "cèpes",
+      "nl": "eekhoorntjesbrood",
+      "es": "boletus"
+    },
+    "potato": {
+      "tr": "patates",
+      "de": "Kartoffel",
+      "ru": "картофель",
+      "ar": "بطاطس",
+      "fr": "pomme de terre",
+      "nl": "aardappel",
+      "es": "patata"
+    },
+    "pumpkin": {
+      "tr": "balkabağı",
+      "de": "Kürbis",
+      "ru": "тыква",
+      "ar": "يقطين",
+      "fr": "potiron",
+      "nl": "pompoen",
+      "es": "calabaza"
+    },
+    "quinoa": {
+      "tr": "kinoa",
+      "de": "Quinoa",
+      "ru": "киноа",
+      "ar": "كينوا",
+      "fr": "quinoa",
+      "nl": "quinoa",
+      "es": "quinoa"
+    },
+    "rice": {
+      "tr": "pirinç",
+      "de": "Reis",
+      "ru": "рис",
+      "ar": "أرز",
+      "fr": "riz",
+      "nl": "rijst",
+      "es": "arroz"
+    },
+    "salmon": {
+      "tr": "somon",
+      "de": "Lachs",
+      "ru": "лосось",
+      "ar": "سلمون",
+      "fr": "saumon",
+      "nl": "zalm",
+      "es": "salmón"
+    },
+    "sea bass": {
+      "tr": "levrek",
+      "de": "Wolfsbarsch",
+      "ru": "сибас",
+      "ar": "قاروص",
+      "fr": "bar",
+      "nl": "zeebaars",
+      "es": "lubina"
+    },
+    "sea bream": {
+      "tr": "çipura",
+      "de": "Dorade",
+      "ru": "дорада",
+      "ar": "دنيس",
+      "fr": "dorade",
+      "nl": "zeebrasem",
+      "es": "dorada"
+    },
+    "seafood": {
+      "tr": "deniz ürünleri",
+      "de": "Meeresfrüchte",
+      "ru": "морепродукты",
+      "ar": "مأكولات بحرية",
+      "fr": "fruits de mer",
+      "nl": "zeevruchten",
+      "es": "mariscos"
+    },
+    "seasonal fruit": {
+      "tr": "mevsim meyveleri",
+      "de": "Saisonobst",
+      "ru": "сезонные фрукты",
+      "ar": "فواكه موسمية",
+      "fr": "fruits de saison",
+      "nl": "seizoensfruit",
+      "es": "fruta de temporada"
+    },
+    "shrimp": {
+      "tr": "karides",
+      "de": "Garnelen",
+      "ru": "креветки",
+      "ar": "روبيان",
+      "fr": "crevettes",
+      "nl": "garnalen",
+      "es": "gambas"
+    },
+    "smoked ribs": {
+      "tr": "füme kaburga",
+      "de": "geräucherte Rippchen",
+      "ru": "копченые ребрышки",
+      "ar": "أضلاع مدخنة",
+      "fr": "travers fumés",
+      "nl": "gerookte ribben",
+      "es": "costillas ahumadas"
+    },
+    "sourdough": {
+      "tr": "ekşi mayalı ekmek",
+      "de": "Sauerteigbrot",
+      "ru": "хлеб на закваске",
+      "ar": "خبز العجين المخمر",
+      "fr": "pain au levain",
+      "nl": "zuurdesembrood",
+      "es": "pan de masa madre"
+    },
+    "tagliatelle": {
+      "tr": "tagliatelle",
+      "de": "Tagliatelle",
+      "ru": "тальятелле",
+      "ar": "تالياتيلي",
+      "fr": "tagliatelle",
+      "nl": "tagliatelle",
+      "es": "tagliatelle"
+    },
+    "tahini": {
+      "tr": "tahin",
+      "de": "Tahini",
+      "ru": "тахини",
+      "ar": "طحينة",
+      "fr": "tahini",
+      "nl": "tahin",
+      "es": "tahini"
+    },
+    "tomato": {
+      "tr": "domates",
+      "de": "Tomate",
+      "ru": "помидор",
+      "ar": "طماطم",
+      "fr": "tomate",
+      "nl": "tomaat",
+      "es": "tomate"
+    },
+    "truffle": {
+      "tr": "trüf",
+      "de": "Trüffel",
+      "ru": "трюфель",
+      "ar": "كمأة",
+      "fr": "truffe",
+      "nl": "truffel",
+      "es": "trufa"
+    },
+    "tuna": {
+      "tr": "ton balığı",
+      "de": "Thunfisch",
+      "ru": "тунец",
+      "ar": "تونة",
+      "fr": "thon",
+      "nl": "tonijn",
+      "es": "atún"
+    },
+    "vegetables": {
+      "tr": "sebzeler",
+      "de": "Gemüse",
+      "ru": "овощи",
+      "ar": "خضروات",
+      "fr": "légumes",
+      "nl": "groenten",
+      "es": "verduras"
+    },
+    "walnut": {
+      "tr": "ceviz",
+      "de": "Walnuss",
+      "ru": "грецкий орех",
+      "ar": "جوز",
+      "fr": "noix",
+      "nl": "walnoot",
+      "es": "nuez"
+    },
+    "wine": {
+      "tr": "şarap",
+      "de": "Wein",
+      "ru": "вино",
+      "ar": "نبيذ",
+      "fr": "vin",
+      "nl": "wijn",
+      "es": "vino"
+    }
+  }
+}

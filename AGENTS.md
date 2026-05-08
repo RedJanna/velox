@@ -561,7 +561,7 @@ Dosyanın en üstündeki sürüm bloğu, her güncelleme sonrası şu formatta g
 src/velox/
 ├── main.py                    # FastAPI entry point
 ├── config/                    # Settings, constants
-├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses, confirmation form rendering, stateless response preview, stay quote availability guard, Restaurant AI menu validator, public order token/config helpers, admin debug runner/scan registry, structured-output replay helpers, admin access-control catalog/helpers
+├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses, confirmation form rendering, stateless response preview, stay quote availability guard, Restaurant AI menu validator/localization, public order token/config helpers, admin debug runner/scan registry, structured-output replay helpers, admin access-control catalog/helpers
 ├── llm/                       # OpenAI client, prompt builder, response parser
 ├── tools/                     # Tool implementations (booking, restaurant, etc.)
 ├── adapters/                  # External service clients (Elektraweb, WhatsApp)
