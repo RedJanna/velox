@@ -30,8 +30,8 @@ Permanent usage:
 
 - For tools that support neither repo instructions nor project instructions, the user must paste the critical rules manually at chat start.
 
-> **Sürüm:** v7.0 | **Son güncelleme:** 2026-05-07 11:36:56
-> **Değişiklik özeti:** Public `/order` QR restoran sipariş akışı, iki aşamalı müşteri teyidi ve personel onay statüleri eklendi.
+> **Sürüm:** v7.1 | **Son güncelleme:** 2026-05-09 16:59:20
+> **Değişiklik özeti:** `http://127.0.0.1:8011/admin` yerel demo panelinin kalıcı olarak şifresiz ve 2FA'sız kalacağı netleştirildi.
 
 ## Project Overview
 Velox is a WhatsApp AI Receptionist system for hotels. It handles guest inquiries, reservations (stay, restaurant, transfer), escalation, and CRM logging via WhatsApp using OpenAI GPT models.
@@ -223,14 +223,14 @@ Execute tasks in `tasks/` directory sequentially:
 6. **Modular code**: Target 600 lines per file. Split by responsibility if exceeded.
 7. **Async everywhere**: Use async/await for all I/O operations.
 8. **Type hints**: Use Pydantic models and Python type hints everywhere.
-9. **Admin auth**: Canli/production panelde access token kısa ömürlü kalır; tekrar TOTP azaltma sadece doğrulanmış trusted device ile yapılır, 2FA kapatılmaz. Yalnizca yerel demo panelinde `OPERATION_MODE=test`, lokal `APP_ENV`, localhost `PUBLIC_BASE_URL` ve localhost request host kosullari birlikte saglanirsa girissiz demo bypass calisabilir; public/canli panelde bu bypass kesinlikle kullanilmaz.
+9. **Admin auth**: Canli/production panelde access token kısa ömürlü kalır; tekrar TOTP azaltma sadece doğrulanmış trusted device ile yapılır, 2FA kapatılmaz. `http://127.0.0.1:8011/admin` kesin yerel demo adresidir ve bu adreste hiçbir yapay zeka ajanı kullanıcı adı, şifre, Google Authenticator, TOTP, OTP, security check veya auth wall eklemeyecek; demo her zaman girişsiz açılacak şekilde korunacaktır. Bu demo muafiyeti yalnızca loopback `127.0.0.1:8011` içindir; public/canlı panelde bu bypass kesinlikle kullanilmaz.
 10. **Migration disiplini**: DB schema değişikliği (yeni tablo/sütun/index/constraint) içeren her işte migration dosyası zorunludur ve deploy akışında otomatik çalıştırılır; sadece manuel psql adımına bırakılmaz.
 11. **Backend-first debugging zorunlu**: Problem analizi, hata ayıklama ve root cause analysis `docker compose` üstündeki backend servislerinin (`app`, `db`, `redis`, gerekiyorsa ilgili ingress/worker yan servisleri) durum, healthcheck, log, env/config, dependency readiness ve migration bütünlüğü doğrulanarak başlar; bu adım tamamlanmadan frontend/prompt/model katmanına geçilmez.
 12. **Kanıt temelli teşhis**: Hata mesajını tekrar etmek root cause analysis değildir. Belirti, tetikleyici ve sistemik neden ayrı ayrı ortaya konur; hipotezler tek tek test edilir.
 13. **Geçici çözüm etiketleme**: Workaround uygulanırsa bunu açıkça `geçici çözüm` diye işaretle; kalıcı çözümü ayrıca belirt.
 14. **Yarım iş bırakma**: Kullanıcı düzenleme veya düzeltme istiyorsa analizde durma; değişikliği uygula, doğrula, kalan riskleri net yaz.
 15. **Zorunlu admin bildirimi**: İnsan devri, çözülemeyen talep, güvenilir cevap verememe, yetki/bilgi/tool/policy/operasyon kapasitesi eksikliği veya `HANDOFF` durumunda admin bildirimi gecikmeden gönderilir; bu güvenlik/operasyon kuralı opsiyonel davranış değildir.
-16. **Yerel admin demo önizleme kapısı**: Admin panel, Chat Lab, frontend kodu, görünür UI metni, rol/yetki ekranı veya buton/toggle davranışı değiştiğinde canlı panele aktarım öncesi `http://127.0.0.1:8011/admin#` üzerindeki ilgili hash ekranda önizleme ve temel işlev kontrolü zorunludur; demo açılamazsa blocker olarak raporlanır ve değişiklik canlıya hazır sayılmaz.
+16. **Yerel admin demo önizleme kapısı**: Admin panel, Chat Lab, frontend kodu, görünür UI metni, rol/yetki ekranı veya buton/toggle davranışı değiştiğinde canlı panele aktarım öncesi `http://127.0.0.1:8011/admin#` üzerindeki ilgili hash ekranda önizleme ve temel işlev kontrolü zorunludur; demo açılamazsa blocker olarak raporlanır ve değişiklik canlıya hazır sayılmaz. Bu demo URL'sinde login/2FA ekranı çıkması hata kabul edilir; yeni geliştirme veya güvenlik düzenlemesi bu adrese auth zorunluluğu ekleyemez.
 17. **Public restoran sipariş gizliliği**: `/order` müşteri ekranında AI yemek önerisi sunulmaz; müşteri siparişi iki kez teyit eder; müşteri adı kalıcı olarak alınmaz/saklanmaz; oda numarası kalıcı sipariş loguna yazılmaz; "sipariş iletildi" ile "sipariş kabul edildi" ayrı statülerdir ve kabul yalnızca personel onayıyla gerçekleşir.
 
 ## Operational Discipline

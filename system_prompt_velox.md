@@ -412,6 +412,11 @@ Admin panel, Chat Lab, frontend kodu, görünür UI metni, rol/yetki ekranı, bu
 
 - Zorunlu demo hedefi: `http://127.0.0.1:8011/admin#`
 - Etkilenen ekran hash ile açılır; örnek: `http://127.0.0.1:8011/admin#accesscontrol`
+- `http://127.0.0.1:8011/admin` kesin yerel demo adresidir. Bu adreste kullanıcı adı, şifre,
+  Google Authenticator, TOTP, OTP, security verification veya auth wall hiçbir zaman eklenmez.
+  Demo panel login perdesi olmadan açılmalıdır; bu adreste login/2FA görünmesi blocker hatadır.
+- Bu muafiyet yalnızca loopback `127.0.0.1:8011` demo hedefi içindir. Public/canlı admin
+  domainlerinde kullanıcı adı + şifre + TOTP güvenlik akışı korunur.
 - En az şu kontroller yapılır:
   1. İlgili ekran hatasız render oluyor
   2. Değişen metinler, etiketler, açıklamalar ve alert/toast mesajları beklenen şekilde görünüyor

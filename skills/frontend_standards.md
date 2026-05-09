@@ -176,6 +176,9 @@ button.addEventListener('click', () => doSomething(value));
 - Token süresi dolunca otomatik refresh denenir; başarısızsa login ekranına yonlendirilir.
 - CSRF token her unsafe request'e (`POST`, `PUT`, `DELETE`) otomatik eklenir.
 - Chat Lab iframe içinde çalıştığında, token `postMessage` ile gönderilir; origin kontrolü zorunludur.
+- `http://127.0.0.1:8011/admin` kesin yerel demo URL'sidir; bu adrese kullanıcı adı, şifre,
+  Google Authenticator, TOTP, OTP, security verification veya auth wall eklenmez. Bu istisna
+  yalnızca loopback demo içindir; public/canlı admin domainlerinde normal auth korunur.
 
 ### 5.3 Hassas Veri Gösterimi
 - Telefon numaraları admin panelde **maskelenmiş** gösterilir (`phone_display` alanı).
@@ -238,6 +241,8 @@ button.addEventListener('click', () => doSomething(value));
 
 - Admin panel, Chat Lab, frontend kodu, görünür UI metni, stil veya etkileşim değişiklikleri canlı panele aktarılmadan önce yerel demo üzerinde önizlenir.
 - Zorunlu hedef URL: `http://127.0.0.1:8011/admin#`. Etkilenen ekran hash ile açılır; örnek: `http://127.0.0.1:8011/admin#accesscontrol`.
+- `http://127.0.0.1:8011/admin` demo paneli kalıcı olarak girişsiz açılmalıdır. Bu URL'de login,
+  2FA, Google Authenticator, TOTP/OTP veya güvenlik doğrulaması görünmesi blocker hatadır.
 - Ön incelemede en az şu kontroller yapılır: ekranın render olması, yeni metinlerin görünmesi, eski/İngilizce metin kalmaması, temel buton/toggle etkileşimlerinin çalışması ve layout kırılması olmaması.
 - Yerel demo açılamıyorsa veya ilgili ekran doğrulanamıyorsa bu durum blocker olarak raporlanır; değişiklik "canlıya hazır" veya "canlıda doğrulandı" diye sunulmaz.
 
@@ -274,6 +279,7 @@ Her frontend değişikliği sonrası aşağıdaki kontrol uygulanır:
 - [ ] Event listener'lar temiz (delegation veya innerHTML ile yeniden render)
 - [ ] Toast mesajları Türkçe ve anlaşılır
 - [ ] Admin panel/Chat Lab değişikliği etkilenen hash ile `http://127.0.0.1:8011/admin#` yerel demosunda önizlendi
+- [ ] `http://127.0.0.1:8011/admin` kullanıcı adı, şifre, Google Authenticator, TOTP/OTP veya auth wall istemeden açılıyor
 - [ ] Empty state tasarımı mevcut (boş tablo, boş liste)
 - [ ] Responsive breakpoint'lar çalışıyor (1240px, 980px)
 - [ ] `aria-label` interactive elementlerde mevcut

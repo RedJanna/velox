@@ -129,7 +129,7 @@ Aynı numara/IP kısa sürede çok istek atarsa:
 **Benzetme:** Bir kişi sürekli kapıyı çalıyorsa güvenlik müdahalesi.
 
 ### 2.8 Admin panel: kısa ömürlü anahtar + 2 aşama (JWT + 2FA)
-Admin panelde:
+Canlı/public admin panelde:
 - oturum anahtarı **kısa süreli** (60 dk)
 - access token frontend tarafında **httpOnly cookie** ile tutulur
 - kullanıcı isterse aynı tarayıcı için **trusted device** süresi tanımlanabilir
@@ -138,6 +138,18 @@ Admin panelde:
 - 2 aşamalı doğrulama (Google Authenticator / TOTP) kullanılır
 
 **Benzetme:** Personel kartı + ekstra PIN.
+
+#### 2.8.1 Yerel demo admin panel istisnası
+
+`http://127.0.0.1:8011/admin` kesin yerel demo adresidir ve UI geliştirme, hata yakalama,
+Chat Lab/admin ekran önizleme akışları için girişsiz açılır. Bu loopback demo URL'sine hiçbir
+ajan veya değişiklik kullanıcı adı, şifre, Google Authenticator, TOTP, OTP, security check veya
+auth wall ekleyemez. Bu adreste login/2FA görünmesi güvenlik sıkılaştırması değil, demo akışını
+bozan blocker hatadır.
+
+Bu istisna yalnızca `127.0.0.1:8011` loopback demo hedefi içindir. Public domain, canlı panel,
+LAN IP, tunnel veya production env üzerinden açılan admin panelde kullanıcı adı + şifre + TOTP
+zorunluluğu korunur ve demo bypass'ı kullanılamaz.
 
 ---
 
@@ -248,7 +260,8 @@ Misafir “verilerimi silin” derse:
 - [ ] Secrets kodda değil (ENV’de)
 - [ ] SQL sorguları parametreli (birleştirme yok)
 - [ ] Misafire iç hata detayları gösterilmiyor
-- [ ] Admin panel access token kısa ömürlü cookie, trusted device sadece OTP sonrası aktif
+- [ ] Canlı/public admin panel access token kısa ömürlü cookie, trusted device sadece OTP sonrası aktif
+- [ ] `http://127.0.0.1:8011/admin` yerel demo paneli kullanıcı adı, şifre, Google Authenticator, TOTP/OTP veya auth wall istemeden açılıyor
 - [ ] Veri saklama süreleri tanımlı ve uygulanıyor (log 30 gün, konuşma 90 gün, webhook 7 gün)
 - [ ] En az yetki / rol bazlı erişim var (SUPER_ADMIN, MANAGER, SALES, VIEWER)
 - [ ] İlk etkileşimde consent (rıza) mesajı gönderiliyor

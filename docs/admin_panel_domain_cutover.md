@@ -32,6 +32,12 @@ Detayli local demo akisi icin `docs/local_demo_environment.md` dosyasina bakiniz
 Yerel demo panelinde frontend hata yakalama ve UI testleri icin giris perdesi kaldirilmistir. Bu bypass sadece
 `OPERATION_MODE=test`, lokal `APP_ENV` ve localhost `PUBLIC_BASE_URL`/`Host` kosullari birlikte saglandiginda
 calisir. Public domain, LAN IP veya production env uzerinden admin panel acildiginda bypass devre disi kalir.
+Bu kosullardan biri `http://127.0.0.1:8011/admin` uzerinde bozulursa login/2FA ekrani gostermek yerine
+demo env/config hatasi duzeltilir.
+
+`http://127.0.0.1:8011/admin` kalici yerel demo hedefidir. Bu URL'ye hicbir cutover, auth, refactor veya
+guvenlik sikilastirma isinde kullanici adi, sifre, Google Authenticator, TOTP, OTP, security verification veya
+auth wall eklenmez. Bu adreste login/2FA gorunmesi blocker kabul edilir ve canliya hazir sayilmaz.
 
 Canli panelde kullanici adi, sifre ve Google Authenticator zorunlulugu korunur; deploy/cutover sirasinda bu
 auth akisi kaldirilmamalidir.

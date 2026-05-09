@@ -16,7 +16,9 @@ Yerel demo admin adresi:
 http://127.0.0.1:8011/admin
 ```
 
-`APP_PORT` degerini `.env.demo.local` icinde degistirirseniz bu adres de degisir.
+Bu proje icin kanonik demo adresi `http://127.0.0.1:8011/admin` olarak kabul edilir.
+`APP_PORT` degeri degistirilse bile bu kanonik URL'ye login/2FA eklemek yasaktir; farkli port
+yalnizca gecici manuel deneme sayilir ve standart demo hedefinin yerini almaz.
 
 ## Demo panel giris davranisi
 
@@ -30,7 +32,13 @@ Bu bypass yalnizca asagidaki kosullarin tumu birlikte saglandiginda devrededir:
 - Istek `Host` header'i localhost hedeflidir; LAN IP veya public domain uzerinden bypass acilmaz
 - Istek istemci adresi loopback/private network olarak gorunur
 
+Bu kosullardan biri `http://127.0.0.1:8011/admin` uzerinde saglanmiyorsa dogru aksiyon login/2FA
+ekrani gostermek degil, demo env/config hatasini duzeltmektir.
+
 Bu modda demo panel kullanici adi, sifre ve Google Authenticator kodu istemeden sentetik `local_demo_admin` kimligiyle acilir.
+`http://127.0.0.1:8011/admin` bu projenin kalici yerel demo adresidir; bu adrese hicbir zaman kullanici adi,
+sifre, Google Authenticator, TOTP, OTP, security verification veya auth wall eklenmez. Bu URL'de login/2FA ekrani
+gorunmesi dogru guvenlik davranisi degil, demo akisini bozan blocker hatadir.
 Canli panelde bu davranis yoktur; production/public domain her zaman normal kullanici adi + sifre + TOTP akisini korur.
 
 ## Kurulum
@@ -158,7 +166,7 @@ Local demo:
 - public hostname gerektirmez
 - tunnel acmaz
 - `OPERATION_MODE=test` ile daha guvenli calisir
-- admin paneli sadece localhost demo kosullarinda girissiz acar
+- `http://127.0.0.1:8011/admin` admin panelini kalici olarak girissiz acar; bu URL'ye sifre, Google Authenticator, TOTP/OTP veya auth wall eklenmez
 - canli admin URL'sine dokunmaz
 
 Canli ortam:
