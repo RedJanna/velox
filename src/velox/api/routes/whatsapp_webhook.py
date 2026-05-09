@@ -134,6 +134,16 @@ RESTAURANT_AREA_PROMPT_PATTERN = re.compile(
     r"(iç\s*mekan|ic\s*mekan|dış\s*mekan|dis\s*mekan|indoor|outdoor|alan tercihi|hangi alan|iç mi dış mı|ic mi dis mi)",
     flags=re.IGNORECASE,
 )
+STAY_PRICE_SIGNAL_TOKENS = (
+    "fiyat",
+    "ucret",
+    "ücret",
+    "tutar",
+    "price",
+    "rate",
+    "quote",
+)
+STAY_REQUIRED_QUESTION_REPAIR_KEYS = {"checkin_date", "checkout_date", "adults", "chd_ages"}
 
 TR_FREE_CANCEL_NOTE = (
     "Ücretsiz iptal seçeneği ile yapılan rezervasyonlarda girişten 5 gün öncesine kadar "
@@ -663,6 +673,19 @@ async def _process_voice_message(
         return None, result.transcription.language or None, fallback
 
     return transcript_text, result.transcription.language or None, None
+
+
+def _persisted_burst_user_content(
+    original_text: str,
+    audit_context: dict[str, Any],
+    *,
+    voice_transcript_text: str | None,
+) -> str:
+    """Persist voice transcript text instead of the opaque audio placeholder when available."""
+    message_type = str(audit_context.get("message_type") or "").strip().lower()
+    if voice_transcript_text and message_type == "audio":
+        return _normalize_text(voice_transcript_text)
+    return _normalize_text(original_text)
 
 
 def _payment_warning_message(language: str = "tr") -> str:
@@ -1873,6 +1896,117 @@ def _sanitize_entities_for_intent(intent: str | None, entities: dict[str, Any] |
         }
         return {key: value for key, value in source.items() if key in allowed}
     return source
+
+
+def _entity_satisfies_required_key(entities: dict[str, Any], required_key: str) -> bool:
+    """Return True when a canonical required field already exists in entity memory."""
+    key = _canonical_required_question_key(required_key)
+    if key in {"checkin_date", "checkout_date", "date", "time", "guest_name", "phone", "email", "route", "area"}:
+        return bool(str(entities.get(key) or "").strip())
+    if key in {"adults", "party_size"}:
+        return _to_int(entities.get(key), 0) > 0
+    if key == "chd_ages":
+        child_count = _to_int(entities.get("chd_count"), _to_int(entities.get("children"), 0))
+        if child_count <= 0:
+            return False
+        ages = entities.get("chd_ages") if isinstance(entities.get("chd_ages"), list) else entities.get("child_ages")
+        return isinstance(ages, list) and len(ages) >= child_count
+    if key == "cancel_policy_type":
+        return bool(str(entities.get("cancel_policy_type") or "").strip())
+    if key == "room_distribution":
+        return bool(str(entities.get("room_distribution") or "").strip())
+    return bool(str(entities.get(key) or "").strip())
+
+
+def _stay_pricing_fields_present(entities: dict[str, Any]) -> bool:
+    """Return True when a stay price lookup has the minimum fields."""
+    has_base_fields = (
+        bool(str(entities.get("checkin_date") or "").strip())
+        and bool(str(entities.get("checkout_date") or "").strip())
+        and _to_int(entities.get("adults"), 0) > 0
+    )
+    if not has_base_fields:
+        return False
+    child_count = _to_int(entities.get("chd_count"), _to_int(entities.get("children"), 0))
+    if child_count <= 0:
+        return True
+    ages = entities.get("chd_ages") if isinstance(entities.get("chd_ages"), list) else entities.get("child_ages")
+    return isinstance(ages, list) and len(ages) >= child_count
+
+
+def _has_stay_price_signal(*parts: str) -> bool:
+    """Detect whether the turn is about stay pricing."""
+    normalized = _canonical_text(" ".join(parts))
+    return any(_canonical_text(token) in normalized for token in STAY_PRICE_SIGNAL_TOKENS)
+
+
+def _response_reasks_satisfied_stay_field(response: LLMResponse, entities: dict[str, Any]) -> bool:
+    """Return True when response asks for a stay field already present."""
+    if str(response.internal_json.state or "").upper() != "NEEDS_VERIFICATION":
+        return False
+    for item in response.internal_json.required_questions:
+        if not isinstance(item, str) or not item.strip():
+            continue
+        key = _canonical_required_question_key(item)
+        if key in {"checkin_date", "checkout_date", "adults"} and _entity_satisfies_required_key(entities, key):
+            return True
+    return False
+
+
+def _repair_satisfied_required_questions(
+    response: LLMResponse,
+    *,
+    conversation: Conversation,
+    entities: dict[str, Any],
+    user_text: str,
+) -> None:
+    """Remove already-known fields from required questions and prepare quote recovery when complete."""
+    if str(response.internal_json.state or "").upper() != "NEEDS_VERIFICATION":
+        return
+
+    original_required = [
+        str(item).strip()
+        for item in response.internal_json.required_questions
+        if isinstance(item, str) and str(item).strip()
+    ]
+    if not original_required:
+        return
+
+    filtered_required = []
+    for question in original_required:
+        key = _canonical_required_question_key(question)
+        if key in STAY_REQUIRED_QUESTION_REPAIR_KEYS and _entity_satisfies_required_key(entities, question):
+            continue
+        filtered_required.append(question)
+    if len(filtered_required) == len(original_required):
+        return
+
+    response.internal_json.required_questions = filtered_required
+    language = str(response.internal_json.language or conversation.language or "tr").lower()
+    if filtered_required:
+        response.user_message = _single_field_prompt(language, filtered_required[0])
+        return
+
+    intent_text = str(response.internal_json.intent or conversation.current_intent or "")
+    if _stay_pricing_fields_present(entities) and _has_stay_price_signal(
+        user_text,
+        response.user_message,
+        str(response.internal_json.next_step or ""),
+        intent_text,
+    ):
+        response.internal_json.intent = "stay_quote"
+        response.internal_json.state = "READY_FOR_TOOL"
+        response.internal_json.next_step = "run_booking_quote"
+        response.user_message = _stay_quote_progress_message(language)
+
+
+def _stay_quote_progress_message(language: str) -> str:
+    """Return a short progress message before deterministic quote fallback runs."""
+    if language == "en":
+        return "I have the dates and guest count. I am checking the live room rates now."
+    if language == "ru":
+        return "Даты и количество гостей у меня есть. Сейчас проверяю актуальные цены на номера."
+    return "Tarih ve kişi bilgisini aldım. Güncel oda fiyatlarını kontrol ediyorum."
 
 
 def _extract_quote_offers(executed_calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -4542,6 +4676,93 @@ def _should_auto_submit_stay_hold_from_handoff(
     return has_rate_identifier_signal and has_stay_hold_signal
 
 
+def _should_auto_quote_stay_from_context(
+    internal_json: InternalJSON,
+    entities: dict[str, Any],
+    *,
+    conversation: Conversation,
+    user_text: str,
+    user_message: str,
+) -> bool:
+    """Recover a skipped stay quote when entity memory has the needed fields."""
+    if not _stay_pricing_fields_present(entities):
+        return False
+    state = str(internal_json.state or "").upper()
+    if state not in {"READY_FOR_TOOL", "NEEDS_VERIFICATION", "ANSWERED"}:
+        return False
+    if str(internal_json.intent or "").lower() == "stay_quote":
+        return True
+    intent_text = str(internal_json.intent or conversation.current_intent or "")
+    if _response_reasks_satisfied_stay_field(LLMResponse(user_message=user_message, internal_json=internal_json), entities):
+        return True
+    return _has_stay_price_signal(
+        user_text,
+        user_message,
+        str(internal_json.next_step or ""),
+        intent_text,
+    ) and (
+        _intent_domain(intent_text) == "stay"
+        or bool(str(entities.get("checkin_date") or "").strip())
+        or bool(str(entities.get("checkout_date") or "").strip())
+    )
+
+
+async def _auto_quote_stay_from_context(
+    *,
+    conversation: Conversation,
+    entities: dict[str, Any],
+    language: str,
+    dispatcher: Any,
+) -> list[dict[str, Any]]:
+    """Fetch a stay quote deterministically when LLM asks for already-known fields."""
+    checkin_date = str(entities.get("checkin_date") or "").strip()
+    checkout_date = str(entities.get("checkout_date") or "").strip()
+    adults = _to_int(entities.get("adults"), 0)
+    if not checkin_date or not checkout_date or adults <= 0:
+        return []
+
+    raw_chd_ages = entities.get("chd_ages")
+    if not isinstance(raw_chd_ages, list):
+        raw_chd_ages = entities.get("child_ages")
+    quote_language = str(entities.get("language") or language or "tr").upper()
+    if quote_language not in {"TR", "EN"}:
+        quote_language = "TR"
+
+    quote_args: dict[str, Any] = {
+        "hotel_id": conversation.hotel_id,
+        "checkin_date": checkin_date,
+        "checkout_date": checkout_date,
+        "adults": adults,
+        "chd_count": _to_int(entities.get("chd_count"), _to_int(entities.get("children"), 0)),
+        "chd_ages": raw_chd_ages if isinstance(raw_chd_ages, list) else [],
+        "currency": str(entities.get("currency") or "EUR").upper(),
+        "language": quote_language,
+        "nationality": str(entities.get("nationality") or "TR").upper(),
+        "cancel_policy_type": _normalize_cancel_policy(entities.get("cancel_policy_type")),
+    }
+    quote_result = await dispatcher.dispatch("booking_quote", **quote_args)
+    if not isinstance(quote_result, dict):
+        logger.warning(
+            "stay_quote_context_recovery_failed",
+            conversation_id=str(conversation.id) if conversation.id is not None else None,
+        )
+        return []
+
+    fallback_calls: list[dict[str, Any]] = [
+        {"name": "booking_quote", "arguments": quote_args, "result": quote_result},
+    ]
+    await _backfill_availability_for_quote(
+        conversation=conversation,
+        dispatcher=dispatcher,
+        executed_calls=fallback_calls,
+    )
+    logger.info(
+        "stay_quote_context_recovered",
+        conversation_id=str(conversation.id) if conversation.id is not None else None,
+    )
+    return fallback_calls
+
+
 def _restaurant_required_fields_present(entities: dict[str, Any]) -> bool:
     """Return True when enough restaurant fields exist to call availability/create tools."""
     return (
@@ -5579,6 +5800,13 @@ async def _run_message_pipeline(
             current_whatsapp_phone=current_whatsapp_phone,
         )
         entities = parsed.internal_json.entities if isinstance(parsed.internal_json.entities, dict) else {}
+        _repair_satisfied_required_questions(
+            parsed,
+            conversation=conversation,
+            entities=entities,
+            user_text=original_user_text,
+        )
+        entities = parsed.internal_json.entities if isinstance(parsed.internal_json.entities, dict) else {}
         _force_stay_intent_when_hold_ready(
             parsed,
             conversation=conversation,
@@ -5713,6 +5941,30 @@ async def _run_message_pipeline(
                 language_override=language,
                 executed_calls=executed_calls,
             )
+        if (
+            dispatcher is not None
+            and not _executed_booking_quote(executed_calls)
+            and _should_auto_quote_stay_from_context(
+                parsed.internal_json,
+                entities,
+                conversation=conversation,
+                user_text=original_user_text,
+                user_message=parsed.user_message,
+            )
+        ):
+            quote_calls = await _auto_quote_stay_from_context(
+                conversation=conversation,
+                entities=entities,
+                language=language,
+                dispatcher=dispatcher,
+            )
+            if quote_calls:
+                executed_calls.extend(quote_calls)
+                parsed.internal_json.intent = "stay_quote"
+                parsed.internal_json.state = "ANSWERED"
+                parsed.internal_json.required_questions = []
+                parsed.internal_json.next_step = "await_guest_selection_or_booking"
+                intent = "stay_quote"
         if (
             dispatcher is not None
             and not _executed_restaurant_hold_submission(executed_calls)
@@ -6992,10 +7244,16 @@ async def _process_burst_aggregated(
                 "burst_part_index": i + 1,
                 "burst_part_total": aggregated.part_count,
             }
+            if voice_transcript_text and str(audit.get("message_type") or "").lower() == "audio":
+                burst_audit["voice_transcription_applied"] = True
             msg = Message(
                 conversation_id=conversation.id,
                 role="user",
-                content=_normalize_text(text),
+                content=_persisted_burst_user_content(
+                    text,
+                    audit,
+                    voice_transcript_text=voice_transcript_text,
+                ),
                 whatsapp_message_id=str(audit.get("message_id") or "").strip() or None,
                 reply_to_whatsapp_message_id=str(audit.get("reply_to_message_id") or "").strip() or None,
                 internal_json=burst_audit,

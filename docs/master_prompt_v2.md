@@ -247,6 +247,8 @@ SAFETY_RULES kapsaminda:
 - Misafirden gelen sesli mesajlar `AUDIO_TRANSCRIPTION_ENABLED` aciksa transcription akisina girer.
 - Desteklenen formatlar `AUDIO_SUPPORTED_MIME_TYPES` ayarindan okunur; desteklenmeyen veya limit ustu dosyalarda otomatik yazili fallback kullanilir.
 - Sesli mesajlar once transcription katmaninda metne cevrilir, sonra normal mesaj pipeline'ina metin gibi verilir.
+- Burst/buffer akisi dahil sesli mesaj transcript'i varsa kalici user message icerigi `audio` placeholder'i degil,
+  transcript metni olarak saklanir; boylece sonraki LLM turu sesle verilen tarih/kisi/aksiyon bilgisini gorebilir.
 - Transcription ciktilari yalnizca su yapisal alanlarda kullanilir: `text`, `language`, `duration_seconds`, `confidence`.
 - Dil algisi transcription sonucu ile mevcut dil tespiti birlikte degerlendirilir; yeterli transcript varsa misafir dilinde devam edilir.
 - **Dusuk transcription guveni** (`confidence < AUDIO_TRANSCRIPTION_MIN_CONFIDENCE`) durumunda otomatik serbest cevap verme; kisa bir yazili netlestirme iste.
@@ -300,6 +302,10 @@ Opsiyonel alanlar (sorulabilir ama zorunlu degil):
 - Backend fallback rezervasyon akisi, misafirin istedigi oda tipi acikca cozulmeden `stay_create_hold` cagirmaz; canli quote icinde farkli/ucuz baska bir oda tipine sessizce dusmez.
 - Istenen oda tipi veya iptal politikasi icin canli teklif yoksa sistem rezervasyon olusturulmus gibi davranmaz; once mevcut tekliflenebilir oda tiplerini geri doner, alternatif de yoksa manuel incelemeye alir.
 - Daha once dogrulanmis cocuk/oda/PMS grounding alanlari, LLM ayni turda `0` veya bos liste ile sifirlasa bile merge katmaninda korunur; fiyat ve occupancy baglami sessizce kaybolmaz.
+- Backend, LLM'e mevcut konusma state/entity hafizasini PII icermeyen kompakt system context olarak verir; dolu `checkin_date`,
+  `checkout_date`, `adults` ve zorunlu cocuk yasi alanlari tekrar sorulmaz.
+- LLM `required_questions` icinde zaten entity hafizasinda bulunan konaklama alanlarini tekrar isterse backend bu alanlari temizler;
+  fiyat icin gerekli alanlar tamamlanmissa `booking_quote` akisini otomatik dener.
 - "WHATSAPP_NUMBER_CONFIRMED" gibi placeholder degerler gercek numaraya normalize edilir; numara yoksa alan bos kabul edilir.
 
 ### A5.1.2 Rezervasyon Oncesi Teyit Adimi

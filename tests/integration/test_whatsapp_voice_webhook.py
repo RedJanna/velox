@@ -56,6 +56,16 @@ def test_extract_media_items_from_incoming_audio() -> None:
     assert items[0].mime_type == "audio/ogg"
 
 
+def test_persisted_burst_user_content_uses_voice_transcript() -> None:
+    content = whatsapp_webhook._persisted_burst_user_content(
+        "audio",
+        {"message_type": "audio"},
+        voice_transcript_text="5 Haziran 6 Haziran tarihlerinde fiyat bilgisi verir misin?",
+    )
+
+    assert content == "5 Haziran 6 Haziran tarihlerinde fiyat bilgisi verir misin?"
+
+
 async def test_process_voice_message_returns_transcript(monkeypatch) -> None:
     monkeypatch.setattr(whatsapp_webhook.settings, "audio_transcription_enabled", True)
     monkeypatch.setattr(whatsapp_webhook, "VoicePipelineService", _FakeVoicePipelineService)

@@ -30,6 +30,28 @@ _MAX_TRANSFER_ROUTES_IN_PROMPT = 6
 _MAX_FAQ_TOPICS_IN_PROMPT = 10
 _MAX_MENU_TEXT_TOTAL_CHARS = 5000
 _MAX_MENU_TEXT_SINGLE_CHARS = 1800
+_STATE_CONTEXT_ENTITY_KEYS = (
+    "checkin_date",
+    "checkout_date",
+    "adults",
+    "chd_count",
+    "children",
+    "chd_ages",
+    "child_ages",
+    "room_type_id",
+    "room_type",
+    "room_name",
+    "board_type_id",
+    "cancel_policy_type",
+    "currency",
+    "nationality",
+    "date",
+    "time",
+    "party_size",
+    "area",
+    "route",
+)
+_STATE_CONTEXT_PII_PRESENCE_KEYS = ("guest_name", "phone", "email")
 
 _RUNTIME_POLICY_KERNEL = """
 VELox runtime core
@@ -128,6 +150,32 @@ def _compact_json(value: Any, max_chars: int = _MAX_PROFILE_JSON_CHARS) -> str:
     except TypeError:
         text = str(value)
     return _truncate_text(text, max_chars)
+
+
+def _conversation_state_context(conversation: Conversation) -> str:
+    """Return compact non-sensitive state memory for the next LLM turn."""
+    entities = conversation.entities_json if isinstance(conversation.entities_json, dict) else {}
+    known_entities = {
+        key: entities[key]
+        for key in _STATE_CONTEXT_ENTITY_KEYS
+        if key in entities and entities[key] not in (None, "")
+    }
+    for key in _STATE_CONTEXT_PII_PRESENCE_KEYS:
+        value = entities.get(key)
+        if isinstance(value, str) and value.strip():
+            known_entities[f"{key}_present"] = True
+
+    state_value = getattr(conversation.current_state, "value", conversation.current_state)
+    intent_value = getattr(conversation.current_intent, "value", conversation.current_intent)
+    return (
+        "KNOWN_CONVERSATION_STATE:\n"
+        f"- current_state={state_value or 'GREETING'}\n"
+        f"- current_intent={intent_value or 'unknown'}\n"
+        f"- known_entities={_compact_json(known_entities, max_chars=900)}\n"
+        "- Treat non-empty known_entities as already collected. Do not ask the guest again "
+        "for a field already present here. If stay pricing fields are complete, call the "
+        "stay pricing tools instead of re-asking for dates or guest count."
+    )
 
 
 def _localized_name(value: Any) -> str:
@@ -566,6 +614,7 @@ class PromptBuilder:
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self.build_system_prompt(conversation.hotel_id)}
         ]
+        messages.append({"role": "system", "content": _conversation_state_context(conversation)})
 
         history = sorted(conversation.messages, key=lambda message: message.created_at)
         if len(history) > CONTEXT_WINDOW_MAX_MESSAGES:

@@ -899,6 +899,73 @@ def test_merge_entities_with_context_ignores_null_and_blank_values() -> None:
     assert merged["cancel_policy_type"] == "NON_REFUNDABLE"
 
 
+def test_repair_satisfied_required_questions_promotes_complete_stay_quote() -> None:
+    conversation = Conversation(
+        hotel_id=21966,
+        phone_hash="hash",
+        language="tr",
+        entities_json={
+            "checkin_date": "2026-06-05",
+            "checkout_date": "2026-06-06",
+            "adults": 2,
+        },
+    )
+    response = LLMResponse(
+        user_message="Fiyat bilgisi paylaşabilmem için giriş ve çıkış tarihlerinizi rica edebilir miyim?",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="other",
+            state="NEEDS_VERIFICATION",
+            entities={
+                "checkin_date": "2026-06-05",
+                "checkout_date": "2026-06-06",
+                "adults": 2,
+            },
+            required_questions=["checkin_date", "checkout_date"],
+            handoff={"needed": False},
+            next_step="Collect check-in and check-out dates to proceed with availability check.",
+        ),
+    )
+
+    whatsapp_webhook._repair_satisfied_required_questions(
+        response,
+        conversation=conversation,
+        entities=response.internal_json.entities,
+        user_text="2 yetişkin",
+    )
+
+    assert response.internal_json.intent == "stay_quote"
+    assert response.internal_json.state == "READY_FOR_TOOL"
+    assert response.internal_json.required_questions == []
+    assert "kontrol ediyorum" in response.user_message
+
+
+def test_repair_satisfied_required_questions_keeps_unsatisfied_field() -> None:
+    conversation = Conversation(hotel_id=21966, phone_hash="hash", language="tr")
+    response = LLMResponse(
+        user_message="Giriş ve çıkış tarihlerinizi rica edebilir miyim?",
+        internal_json=InternalJSON(
+            language="tr",
+            intent="stay_quote",
+            state="NEEDS_VERIFICATION",
+            entities={"checkin_date": "2026-06-05"},
+            required_questions=["checkin_date", "checkout_date"],
+            handoff={"needed": False},
+            next_step="collect_missing_slots",
+        ),
+    )
+
+    whatsapp_webhook._repair_satisfied_required_questions(
+        response,
+        conversation=conversation,
+        entities=response.internal_json.entities,
+        user_text="5 Haziran",
+    )
+
+    assert response.internal_json.required_questions == ["checkout_date"]
+    assert "çıkış" in response.user_message.casefold()
+
+
 @pytest.mark.asyncio
 async def test_run_message_pipeline_auto_submits_hold_when_next_step_requires_it(
     monkeypatch: pytest.MonkeyPatch,
@@ -3924,6 +3991,98 @@ async def test_run_message_pipeline_quote_error_uses_live_price_unavailable_fall
     assert "TOOL_UNAVAILABLE" in result.internal_json.risk_flags
     assert "canlı fiyat" in result.user_message.casefold()
     assert "yıl" not in result.user_message.casefold()
+
+
+@pytest.mark.asyncio
+async def test_run_message_pipeline_recovers_quote_when_llm_reasks_known_dates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Known stay dates from earlier turns should trigger quote lookup instead of repeated questions."""
+
+    async def fake_run_tool_call_loop(**_kwargs: Any) -> tuple[str, list[dict[str, Any]]]:
+        return (
+            "Fiyat bilgisi paylaşabilmem için giriş ve çıkış tarihlerinizi rica edebilir miyim?\n"
+            "INTERNAL_JSON: "
+            '{"language":"tr","intent":"other","state":"NEEDS_VERIFICATION","entities":{"adults":2},'
+            '"required_questions":["checkin_date","checkout_date"],'
+            '"tool_calls":[],"notifications":[],"handoff":{"needed":false},'
+            '"risk_flags":[],"escalation":{"level":"L0","route_to_role":"NONE"},'
+            '"next_step":"Collect check-in and check-out dates to proceed with availability check."}',
+            [],
+        )
+
+    class _Dispatcher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, Any]]] = []
+
+        async def dispatch(self, name: str, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append((name, kwargs))
+            if name == "booking_quote":
+                return {
+                    "offers": [
+                        {
+                            "room_type_id": 396097,
+                            "board_type_id": 2,
+                            "rate_type_id": 24171,
+                            "rate_code_id": 301001,
+                            "price_agency_id": 11,
+                            "currency_code": "EUR",
+                            "price": "120",
+                            "discounted_price": "120",
+                            "rate_type": "İptal Edilemez",
+                            "cancel_possible": False,
+                        }
+                    ]
+                }
+            if name == "booking_availability":
+                return {
+                    "available": True,
+                    "rows": [{"room_type_id": 396097, "room_to_sell": 2, "stop_sell": False}],
+                }
+            return {"error": "unexpected_tool"}
+
+    fake_builder = SimpleNamespace(build_messages=lambda *_args, **_kwargs: [])
+    fake_client = SimpleNamespace(run_tool_call_loop=fake_run_tool_call_loop)
+    profile = SimpleNamespace(
+        rate_mapping={},
+        room_types=[
+            SimpleNamespace(
+                id=2,
+                pms_room_type_id=396097,
+                name=SimpleNamespace(tr="Superior", en="Superior"),
+                size_m2=30,
+            )
+        ],
+    )
+    dispatcher = _Dispatcher()
+    conversation = Conversation(
+        hotel_id=21966,
+        phone_hash="hash",
+        language="tr",
+        entities_json={
+            "checkin_date": "2026-06-05",
+            "checkout_date": "2026-06-06",
+        },
+    )
+
+    monkeypatch.setattr(whatsapp_webhook, "get_prompt_builder", lambda: fake_builder)
+    monkeypatch.setattr(whatsapp_webhook, "get_llm_client", lambda: fake_client)
+    monkeypatch.setattr(whatsapp_webhook, "get_tool_definitions", lambda: [])
+    monkeypatch.setattr(whatsapp_webhook, "get_profile", lambda _hotel_id: profile)
+
+    result = await whatsapp_webhook._run_message_pipeline(
+        conversation=conversation,
+        normalized_text="2 yetişkin",
+        dispatcher=dispatcher,
+        expected_language="tr",
+    )
+
+    assert [item[0] for item in dispatcher.calls] == ["booking_quote", "booking_availability"]
+    assert result.internal_json.intent == "stay_quote"
+    assert result.internal_json.required_questions == []
+    assert "Superior" in result.user_message
+    assert "120" in result.user_message
+    assert "rica edebilir" not in result.user_message.casefold()
 
 
 @pytest.mark.asyncio
