@@ -192,7 +192,7 @@ src/velox/
 ├── core/                      # Intent engine, state machine, verification, QC,
 │                              # scope classifier, response validator, fallback
 │                              # responses, admin debug runner/scan registry,
-│                              # hotel-information JSON loader/matcher,
+│                              # hotel-information JSON loader/matcher/response builder,
 │                              # structured-output replay helpers
 ├── llm/                       # OpenAI client, prompt builder, response parser
 ├── tools/                     # Tool implementations (booking, restaurant, etc.)

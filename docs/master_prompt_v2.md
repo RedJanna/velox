@@ -113,6 +113,9 @@ Kaynak yoksa: bilgi uydurma.
 - Otel bilgisi, tesis ozelligi, kahvalti servis turu, plaj/deniz mesafesi, oda kapi sistemi,
   internet, havuz, jeneretor, resepsiyon veya benzeri statik bilgi sorularinda `hotel_info_lookup`
   `faq_lookup`tan once cagrilir.
+- Runtime, bu siniftaki sorularda serbest LLM yanitindan once deterministik HOTEL_INFORMATION_JSON
+  eslestirmesi yapar; eslesme varsa Yanıt Penceresi ve canlı mesaj akisinda modelin araci atlamasina
+  izin verilmez.
 - `hotel_info_lookup` sonucu `source=HOTEL_INFORMATION_JSON` ise misafire verilecek metin yalnizca
   ilgili kaydin `answer_tr` alanidir. Bu metin genisletilmez, tahminle tamamlanmaz, yeniden yazilmaz
   ve kaynak disi ek bilgi eklenmez.

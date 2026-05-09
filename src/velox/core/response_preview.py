@@ -12,6 +12,7 @@ import structlog
 from pydantic import BaseModel, Field
 
 from velox.adapters.whatsapp.formatter import WhatsAppFormatter
+from velox.core.hotel_information_responses import try_build_structured_hotel_information_response
 from velox.core.response_validator import validate_guest_response
 from velox.core.stay_quote_availability_guard import (
     backfill_availability_for_quote,
@@ -270,6 +271,68 @@ async def generate_response_preview(
     selected_style = _normalize_response_style(response_style)
     selected_llm = llm_client or get_llm_client()
     preview_executor = PreviewToolExecutor(dispatcher=dispatcher, hotel_id=hotel_id)
+    structured_response, _structured_calls = await try_build_structured_hotel_information_response(
+        hotel_id=hotel_id,
+        query=cleaned_question,
+        language=_default_language(requested_language),
+        tool_runner=preview_executor,
+    )
+    if structured_response is not None:
+        parsed = _normalize_preview_internal_json(structured_response, preview_executor.tool_calls)
+        parsed = validate_guest_response(
+            parsed,
+            default_language=_default_language(requested_language),
+            hotel_id=hotel_id,
+        )
+        parsed.user_message = WhatsAppFormatter.truncate(parsed.user_message)
+        parsed = _normalize_preview_internal_json(parsed, preview_executor.tool_calls)
+        response_language = _response_language(parsed, requested_language)
+        translation = await _build_admin_translation(
+            llm_client=selected_llm,
+            reply=parsed.user_message,
+            source_language=response_language,
+            hotel_id=hotel_id,
+        )
+        parsed = _attach_translation_metadata(parsed, translation)
+        duration_ms = int((perf_counter() - started) * 1000)
+        logger.info(
+            "admin_response_preview_generated",
+            hotel_id=hotel_id,
+            question_chars=len(cleaned_question),
+            response_chars=len(parsed.user_message),
+            tool_names=[item.name for item in preview_executor.tool_calls],
+            duration_ms=duration_ms,
+            model=selected_llm.primary_model,
+            requested_language=requested_language,
+            response_style=selected_style,
+            translation_available=translation.available,
+            translation_source_language=translation.source_language,
+            translation_target_language=translation.target_language,
+            history_used=False,
+            history_created=False,
+            deterministic_source="HOTEL_INFORMATION_JSON",
+        )
+        return ResponsePreviewResult(
+            hotel_id=hotel_id,
+            question_chars=len(cleaned_question),
+            reply=parsed.user_message,
+            internal_json=parsed.internal_json,
+            model=selected_llm.primary_model,
+            duration_ms=duration_ms,
+            requested_language=requested_language,
+            response_style=selected_style,
+            tool_calls=preview_executor.tool_calls,
+            safety_notes=[
+                "single_question_only",
+                "conversation_history_not_loaded",
+                "message_history_not_created",
+                "side_effect_tools_blocked",
+                "structured_hotel_information_preflight",
+                f"response_style_{selected_style}",
+            ],
+            translation=translation,
+        )
+
     messages = build_response_preview_messages(
         hotel_id=hotel_id,
         question=cleaned_question,

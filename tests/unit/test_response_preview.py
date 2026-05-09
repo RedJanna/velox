@@ -11,6 +11,7 @@ import pytest
 from velox.api.middleware.auth import TokenData
 from velox.api.routes import admin_response_preview
 from velox.config.constants import Role
+from velox.core.hotel_profile_loader import load_all_profiles
 from velox.core.response_preview import (
     PreviewToolExecutor,
     ResponsePreviewResult,
@@ -20,6 +21,8 @@ from velox.core.response_preview import (
 )
 from velox.llm.function_registry import get_tool_definitions
 from velox.models.conversation import InternalJSON
+from velox.tools.base import ToolDispatcher
+from velox.tools.hotel_info import HotelInfoLookupTool
 
 
 class DummyPromptBuilder:
@@ -173,6 +176,13 @@ class QuoteOnlyLLMClient(DummyLLMClient):
         )
 
 
+def _hotel_info_dispatcher() -> ToolDispatcher:
+    load_all_profiles()
+    dispatcher = ToolDispatcher()
+    dispatcher.register("hotel_info_lookup", HotelInfoLookupTool())
+    return dispatcher
+
+
 def _message_text(messages: list[dict[str, Any]]) -> str:
     return "\n".join(str(message.get("content") or "") for message in messages)
 
@@ -250,6 +260,57 @@ async def test_generate_response_preview_does_not_persist_or_create_history() ->
     assert result.internal_json.entities["response_preview"]["history_used"] is False
     assert result.internal_json.entities["response_preview"]["history_created"] is False
     assert [message["role"] for message in llm_client.messages] == ["system", "system", "user", "system"]
+
+
+@pytest.mark.asyncio
+async def test_response_preview_uses_structured_hotel_info_before_llm() -> None:
+    llm_client = DummyLLMClient(
+        raw_content=(
+            "USER_MESSAGE: Kahvaltımız açık büfe değildir.\n"
+            'INTERNAL_JSON: {"language":"tr","intent":"faq_info","state":"ANSWERED",'
+            '"entities":{},"required_questions":[],"tool_calls":[],"notifications":[],'
+            '"handoff":{"needed":false},"risk_flags":[],'
+            '"escalation":{"level":"L0","route_to_role":"NONE"},"next_step":"answer_sent"}'
+        )
+    )
+
+    result = await generate_response_preview(
+        hotel_id=21966,
+        question="Kahvaltı açık büfe mi",
+        language="auto",
+        response_style="professional",
+        dispatcher=_hotel_info_dispatcher(),
+        llm_client=llm_client,  # type: ignore[arg-type]
+        prompt_builder=DummyPromptBuilder(),  # type: ignore[arg-type]
+    )
+
+    assert result.reply == "Kahvaltı açık büfe olarak servis edilmektedir."
+    assert result.internal_json.intent == "hotel_info"
+    assert result.internal_json.entities["hotel_information"]["id"] == "breakfast_service_type"
+    assert [item.name for item in result.tool_calls] == ["hotel_info_lookup"]
+    assert result.tool_calls[0].status == "ok"
+    assert llm_client.messages == []
+
+
+@pytest.mark.asyncio
+async def test_response_preview_hands_off_structured_product_detail() -> None:
+    result = await generate_response_preview(
+        hotel_id=21966,
+        question="Kahvaltıda Ezine peyniri var mı?",
+        language="tr",
+        response_style="professional",
+        dispatcher=_hotel_info_dispatcher(),
+        llm_client=DummyLLMClient(),  # type: ignore[arg-type]
+        prompt_builder=DummyPromptBuilder(),  # type: ignore[arg-type]
+    )
+
+    assert result.reply == (
+        "Bu ürünle ilgili en doğru bilgiyi verebilmemiz için sizi ekip arkadaşlarımıza yönlendiriyoruz."
+    )
+    assert result.internal_json.state == "HANDOFF"
+    assert result.internal_json.handoff["needed"] is True
+    assert "UNRESOLVED_CASE" in result.internal_json.risk_flags
+    assert result.internal_json.entities["hotel_information"]["id"] == "product_detail_handoff_rule"
 
 
 @pytest.mark.asyncio

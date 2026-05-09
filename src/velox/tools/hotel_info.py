@@ -7,8 +7,11 @@ from typing import Any
 
 from velox.core.hotel_information_loader import get_hotel_information, profile_has_hotel_information_dataset
 from velox.core.hotel_information_matcher import HotelInformationMatch, match_hotel_information
+from velox.core.hotel_information_responses import (
+    build_hotel_information_payload,
+    hotel_information_unresolved_payload,
+)
 from velox.core.hotel_profile_loader import get_profile
-from velox.models.hotel_information import HotelInformationEntry
 from velox.models.hotel_profile import HotelProfile
 from velox.tools.base import BaseTool
 
@@ -45,66 +48,12 @@ def _contact_payload(profile: HotelProfile, key: str) -> dict[str, Any] | None:
 
 def _hotel_information_payload(match: HotelInformationMatch) -> dict[str, Any]:
     """Return tool payload for one structured hotel-information match."""
-    entry = match.entry
-    payload = _hotel_information_entry_payload(entry)
-    payload.update(
-        {
-            "found": True,
-            "topic": entry.id,
-            "source": "HOTEL_INFORMATION_JSON",
-            "source_path": f"hotel_information[id={entry.id}].answer_tr",
-            "answer": entry.answer_tr,
-            "answer_tr": entry.answer_tr,
-            "match_score": match.score,
-            "match_type": match.match_type,
-            "matched_trigger": match.matched_trigger,
-            "should_answer_directly": not entry.human_handoff_required,
-        }
-    )
-    if entry.human_handoff_required:
-        payload["handoff"] = {
-            "needed": True,
-            "reason": f"hotel_information_handoff_required:{entry.id}",
-            "route_to_role": "ADMIN",
-        }
-        payload["risk_flags"] = ["UNRESOLVED_CASE"]
-    else:
-        payload["handoff"] = {"needed": False}
-        payload["risk_flags"] = []
-    return payload
-
-
-def _hotel_information_entry_payload(entry: HotelInformationEntry) -> dict[str, Any]:
-    """Return JSON-serializable entry fields without renaming source keys."""
-    return {
-        "id": entry.id,
-        "category": entry.category,
-        "title_tr": entry.title_tr,
-        "data_type": entry.data_type,
-        "value": entry.value,
-        "unit": entry.unit,
-        "confidence": entry.confidence,
-        "human_handoff_required": entry.human_handoff_required,
-        "missing_information": entry.missing_information,
-        "notes": entry.notes,
-        "trigger_examples": entry.trigger_examples,
-    }
+    return build_hotel_information_payload(match)
 
 
 def _hotel_information_unresolved_payload() -> dict[str, Any]:
     """Return safe unresolved payload when structured data cannot answer."""
-    return {
-        "found": False,
-        "source": "HOTEL_INFORMATION_JSON",
-        "human_handoff_required": True,
-        "should_answer_directly": False,
-        "handoff": {
-            "needed": True,
-            "reason": "hotel_information_no_verified_match",
-            "route_to_role": "ADMIN",
-        },
-        "risk_flags": ["UNRESOLVED_CASE"],
-    }
+    return hotel_information_unresolved_payload()
 
 
 class HotelInfoLookupTool(BaseTool):

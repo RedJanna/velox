@@ -32,6 +32,7 @@ from velox.core.fallback_response_library import (
     out_of_scope_refusal,
     unresolved_handoff_fallback,
 )
+from velox.core.hotel_information_responses import try_build_structured_hotel_information_response
 from velox.core.hotel_profile_loader import get_profile
 from velox.core.media_pipeline import MediaPipelineService
 from velox.core.media_response_policy import build_media_policy_response
@@ -4693,7 +4694,8 @@ def _should_auto_quote_stay_from_context(
     if str(internal_json.intent or "").lower() == "stay_quote":
         return True
     intent_text = str(internal_json.intent or conversation.current_intent or "")
-    if _response_reasks_satisfied_stay_field(LLMResponse(user_message=user_message, internal_json=internal_json), entities):
+    reask_candidate = LLMResponse(user_message=user_message, internal_json=internal_json)
+    if _response_reasks_satisfied_stay_field(reask_candidate, entities):
         return True
     return _has_stay_price_signal(
         user_text,
@@ -5220,7 +5222,11 @@ def _available_offer_room_type_ids(
         if room_type_id not in seen:
             seen.add(room_type_id)
             ids.append(room_type_id)
-        if normalized_policy and _resolve_quote_policy_key(offer, profile) == normalized_policy and room_type_id not in preferred_seen:
+        if (
+            normalized_policy
+            and _resolve_quote_policy_key(offer, profile) == normalized_policy
+            and room_type_id not in preferred_seen
+        ):
             preferred_seen.add(room_type_id)
             preferred_policy_ids.append(room_type_id)
     return preferred_policy_ids or ids
@@ -5656,6 +5662,23 @@ async def _run_message_pipeline(
                 ),
             ),
             scope_decision=scope_result.decision,
+        )
+
+    hotel_information_tool_runner = (
+        _build_dispatcher_executor(dispatcher, conversation) if dispatcher is not None else None
+    )
+    structured_hotel_response, structured_hotel_calls = await try_build_structured_hotel_information_response(
+        hotel_id=conversation.hotel_id,
+        query=original_user_text,
+        language=target_language,
+        tool_runner=hotel_information_tool_runner,
+    )
+    if structured_hotel_response is not None:
+        return _finalize_response(
+            structured_hotel_response,
+            scope_decision=scope_result.decision,
+            language_override=target_language,
+            executed_calls=structured_hotel_calls,
         )
 
     try:
@@ -6884,7 +6907,7 @@ def _build_fallback_handoff_dedupe_key(conversation: Conversation, llm_response:
     raw_key = f"HANDOFF|{intent}|{reason}|{reference_id}"
     if len(raw_key) <= TICKET_DEDUPE_KEY_MAX_LENGTH:
         return raw_key
-    digest = hashlib.sha1(raw_key.encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha1(raw_key.encode("utf-8")).hexdigest()[:16]  # noqa: S324 - dedupe key, not security
     prefix_budget = TICKET_DEDUPE_KEY_MAX_LENGTH - len("|sha1:") - len(digest)
     return f"{raw_key[:prefix_budget]}|sha1:{digest}"
 
@@ -6957,10 +6980,34 @@ def _derive_provider_status_snapshot(events: list[dict[str, Any]]) -> dict[str, 
 
     ordered = sorted(events, key=_event_sort_key)
     latest = ordered[-1]
-    sent_at = next((item.get("timestamp") for item in ordered if _normalize_provider_status(str(item.get("status") or "")) == "sent"), None)
-    delivered_at = next((item.get("timestamp") for item in ordered if _normalize_provider_status(str(item.get("status") or "")) == "delivered"), None)
-    read_at = next((item.get("timestamp") for item in ordered if _normalize_provider_status(str(item.get("status") or "")) == "read"), None)
-    failed_event = next((item for item in reversed(ordered) if _normalize_provider_status(str(item.get("status") or "")) == "failed"), None)
+    sent_at = next(
+        (
+            item.get("timestamp")
+            for item in ordered
+            if _normalize_provider_status(str(item.get("status") or "")) == "sent"
+        ),
+        None,
+    )
+    delivered_at = next(
+        (
+            item.get("timestamp")
+            for item in ordered
+            if _normalize_provider_status(str(item.get("status") or "")) == "delivered"
+        ),
+        None,
+    )
+    read_at = next(
+        (
+            item.get("timestamp")
+            for item in ordered
+            if _normalize_provider_status(str(item.get("status") or "")) == "read"
+        ),
+        None,
+    )
+    failed_event = next(
+        (item for item in reversed(ordered) if _normalize_provider_status(str(item.get("status") or "")) == "failed"),
+        None,
+    )
     return {
         "provider_status": _normalize_provider_status(str(latest.get("status") or "unknown")),
         "provider_status_updated_at": latest.get("timestamp"),
