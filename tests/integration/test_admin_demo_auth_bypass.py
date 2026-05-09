@@ -49,10 +49,24 @@ async def test_local_demo_admin_me_works_without_credentials(monkeypatch: pytest
     assert "dashboard:read" in payload["permissions"]
 
 
+async def test_local_demo_admin_me_works_with_live_runtime_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    response = await _get_admin_me(
+        monkeypatch,
+        app_env="production",
+        operation_mode="ai",
+        public_base_url="https://velox.nexlumeai.com",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["username"] == "local_demo_admin"
+    assert payload["auth_source"] == auth.LOCAL_DEMO_AUTH_SOURCE
+
+
 async def test_local_demo_admin_me_ignores_stale_access_cookie(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "app_env", "development")
-    monkeypatch.setattr(settings, "operation_mode", "test")
-    monkeypatch.setattr(settings, "public_base_url", "http://127.0.0.1:8011")
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "operation_mode", "ai")
+    monkeypatch.setattr(settings, "public_base_url", "https://velox.nexlumeai.com")
     monkeypatch.setattr(auth, "get_all_profiles", lambda: {21966: object()})
 
     transport = httpx.ASGITransport(app=_build_app())
@@ -65,19 +79,24 @@ async def test_local_demo_admin_me_ignores_stale_access_cookie(monkeypatch: pyte
 
 
 @pytest.mark.parametrize(
-    ("overrides", "base_url"),
+    "base_url",
     [
-        ({"operation_mode": "approval"}, "http://127.0.0.1:8011"),
-        ({"app_env": "production"}, "http://127.0.0.1:8011"),
-        ({"public_base_url": "https://velox.nexlumeai.com"}, "http://127.0.0.1:8011"),
-        ({}, "http://192.168.1.20:8011"),
+        "http://127.0.0.1:8001",
+        "http://localhost:8011",
+        "http://192.168.1.20:8011",
+        "https://velox.nexlumeai.com",
     ],
 )
-async def test_demo_admin_bypass_is_blocked_outside_local_test_context(
+async def test_demo_admin_bypass_is_blocked_outside_canonical_local_url(
     monkeypatch: pytest.MonkeyPatch,
-    overrides: dict[str, str],
     base_url: str,
 ) -> None:
-    response = await _get_admin_me(monkeypatch, base_url=base_url, **overrides)
+    response = await _get_admin_me(
+        monkeypatch,
+        app_env="production",
+        operation_mode="ai",
+        public_base_url="https://velox.nexlumeai.com",
+        base_url=base_url,
+    )
 
     assert response.status_code == 401

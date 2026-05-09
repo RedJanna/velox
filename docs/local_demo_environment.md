@@ -24,16 +24,15 @@ yalnizca gecici manuel deneme sayilir ve standart demo hedefinin yerini almaz.
 
 Yerel demo admin paneli, frontend hata yakalama ve UI gelistirme akislarini hizlandirmak icin girissiz acilir.
 
-Bu bypass yalnizca asagidaki kosullarin tumu birlikte saglandiginda devrededir:
+Bu bypass runtime env degerlerine degil, istek hedefinin kanonik demo URL olup olmadigina baglidir:
 
-- `OPERATION_MODE=test`
-- `APP_ENV=development`, `test` veya `local`
-- `PUBLIC_BASE_URL` localhost hedeflidir: `http://127.0.0.1:8011`, `http://localhost:8011` veya `http://[::1]:8011`
-- Istek `Host` header'i localhost hedeflidir; LAN IP veya public domain uzerinden bypass acilmaz
-- Istek istemci adresi loopback/private network olarak gorunur
+- Istek `Host` header'i tam olarak `127.0.0.1:8011` olmalidir
+- Istek istemci adresi loopback/private Docker bridge olarak gorunmelidir
+- LAN IP, `localhost`, farkli port veya public domain uzerinden bypass acilmaz
+- `APP_ENV`, `OPERATION_MODE` veya `PUBLIC_BASE_URL` degeri bu kanonik URL'yi login/2FA sayfasina ceviremez
 
-Bu kosullardan biri `http://127.0.0.1:8011/admin` uzerinde saglanmiyorsa dogru aksiyon login/2FA
-ekrani gostermek degil, demo env/config hatasini duzeltmektir.
+`http://127.0.0.1:8011/admin` uzerinde login/2FA gorunuyorsa dogru aksiyon env/config sarti eklemek
+degil, host/port bazli demo bypass kodunu duzeltmektir.
 
 Bu modda demo panel kullanici adi, sifre ve Google Authenticator kodu istemeden sentetik `local_demo_admin` kimligiyle acilir.
 `http://127.0.0.1:8011/admin` bu projenin kalici yerel demo adresidir; bu adrese hicbir zaman kullanici adi,
@@ -62,8 +61,8 @@ Minimum kritik alanlar:
 
 Guvenlik notu:
 
-- `PUBLIC_BASE_URL` yerel adres olarak kalmali: `http://127.0.0.1:8011`
-- `OPERATION_MODE=test` olarak kalmali
+- `PUBLIC_BASE_URL` demo paylasim linkleri icin yerel adres olarak kalmali: `http://127.0.0.1:8011`
+- `OPERATION_MODE=test` WhatsApp gonderimini engellemek icin daha guvenlidir; admin demo girissizligi bu degere bagli degildir
 - `CLOUDFLARE_TUNNEL_TOKEN` bos kalmali
 
 ## Baslatma
@@ -165,7 +164,7 @@ Local demo:
 - local port kullanir
 - public hostname gerektirmez
 - tunnel acmaz
-- `OPERATION_MODE=test` ile daha guvenli calisir
+- `OPERATION_MODE=test` ile WhatsApp gonderimi acisindan daha guvenli calisir
 - `http://127.0.0.1:8011/admin` admin panelini kalici olarak girissiz acar; bu URL'ye sifre, Google Authenticator, TOTP/OTP veya auth wall eklenmez
 - canli admin URL'sine dokunmaz
 
