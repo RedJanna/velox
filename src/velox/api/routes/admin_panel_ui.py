@@ -99,11 +99,12 @@ def render_admin_panel_html() -> str:
         </div>
         <div class="topbar-actions">
           <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Gezinme menüsü" aria-expanded="false">Menü</button>
-          <button id="debugStartButton" class="action-button secondary" type="button">Hata Taraması</button>
+          <button id="debugStartButton" class="action-button secondary" type="button">Kontrol Taraması</button>
           <div id="debugTopbarStatus" class="badge info" hidden>Boşta</div>
           <div class="topbar-aside">
-            <div class="badge info">Merkezi yönetim</div>
-            <div class="badge warn">Onay gerektiren işlemler görünür</div>
+            <div class="badge info">Otel kapsamı seçili</div>
+            <div class="badge whatsapp">WhatsApp bağlantısı</div>
+            <div class="badge ai">Yanıt modu izleniyor</div>
           </div>
         </div>
       </header>
@@ -247,8 +248,8 @@ def render_admin_panel_html() -> str:
         </section>
 
         <section data-view="conversations" class="section-grid" hidden>
-          <div class="split">
-            <article class="module-card">
+          <div class="conversation-ops-shell">
+            <article class="module-card conversation-list-panel">
               <div class="module-header">
                 <div><h3>Konuşma Listesi</h3><p>Filtreleri sade tutun, riskli olanları hızlıca açın.</p></div>
               </div>
@@ -289,9 +290,25 @@ def render_admin_panel_html() -> str:
                 </table>
               </div>
             </article>
-            <article id="conversationDetail" class="module-card">
+            <article id="conversationDetail" class="module-card conversation-thread-panel">
               <div class="empty-state"><p>Detay için soldan bir konuşma seçin.</p></div>
             </article>
+            <aside class="module-card conversation-side-panel" aria-label="Misafir detay paneli iskeleti">
+              <div class="module-header compact">
+                <div><h3>Misafir Detayı</h3><p>Özet, rezervasyon, AI kontrolü ve notlar burada gruplanacak.</p></div>
+              </div>
+              <div class="detail-tabs" aria-label="Misafir detay sekmeleri">
+                <button class="detail-tab is-active" type="button">Özet</button>
+                <button class="detail-tab" type="button">Rezervasyon</button>
+                <button class="detail-tab" type="button">AI Kontrolü</button>
+                <button class="detail-tab" type="button">Notlar</button>
+                <button class="detail-tab" type="button">Geçmiş</button>
+              </div>
+              <div class="conversation-side-empty">
+                <strong>Konuşma seçimi bekleniyor</strong>
+                <p>Phase 1 kapsamında sağ panel yerleşimi hazırlanır; içerik bağlama sonraki fazda ayrıştırılır.</p>
+              </div>
+            </aside>
           </div>
         </section>
 

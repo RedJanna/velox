@@ -8,16 +8,13 @@ TEST_CHAT_STYLE = """\
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --navy:#12213b;--ink:#0f172a;--muted:#64748b;--muted-2:#9aa7b8;--paper:#fff;
-  --paper-soft:#f8fafc;--sand:#f6f2e8;--line:#d6dce8;--teal:#15756f;--teal-2:#2a9d8f;--amber:#e7bf5f;
+  --paper-soft:#f8fafc;--sand:#f4f6fb;--line:#d6dce8;--brand:#192F9A;--teal:#128c7e;--teal-2:#1fa97a;--amber:#e7bf5f;--ai:#4c1d95;--handoff:#d97706;
   --red:#dc2626;--shadow:0 18px 36px rgba(15,23,42,.12);--mono:'Cascadia Code','Fira Code',monospace;
   --text-xs:12px;--text-sm:13px;--text-md:15px;--text-lg:17px;--text-xl:20px;
   --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-7:30px;
   --control-h:44px;--chip-h:34px;
 }
-html,body{height:100%;font-size:16px;font-family:'Segoe UI Variable','Aptos','Segoe UI',system-ui,sans-serif;background:
-radial-gradient(circle at top left,rgba(231,191,95,.18),transparent 24%),
-radial-gradient(circle at right top,rgba(21,117,111,.07),transparent 22%),
-linear-gradient(180deg,#f7f4ec 0%,#eef3f8 100%);color:var(--ink)}
+html,body{height:100%;font-size:16px;font-family:'Segoe UI Variable','Aptos','Segoe UI',system-ui,sans-serif;background:linear-gradient(180deg,#f4f6fb 0%,#e8edf7 100%);color:var(--ink)}
 body{overflow:hidden}
 .app{display:flex;flex-direction:column;height:100dvh;min-height:0}
 .app.is-workspace-dimmed{filter:saturate(.94) brightness(.985);transition:filter .18s ease}
@@ -1649,11 +1646,11 @@ function renderContextRail() {
   if (!conversation) {
     container.innerHTML = `
       <div class="context-empty">
-        <strong>Bağlam hazır değil</strong>
-        <p>Bir konuşma açıldığında misafir, operasyon ve teslimat özeti burada görünecek.</p>
+        <strong>Misafir detayı hazır değil</strong>
+        <p>Bir konuşma açıldığında özet, rezervasyon, AI kontrolü ve geçmiş burada görünecek.</p>
         <div class="empty-hints">
-          <span class="empty-hint">G / O / L / A ile sekmeler</span>
-          <span class="empty-hint">D ile tanılama</span>
+          <span class="empty-hint">Sekmelerden ayrıntı seçin</span>
+          <span class="empty-hint">Kontrol taraması stüdyo panelinde</span>
         </div>
       </div>`;
     return;
@@ -1667,7 +1664,7 @@ function renderContextRail() {
   if (state.contextTab === 'operations') {
     container.innerHTML = `
       <div class="context-card">
-        <h3>Operasyon Modu</h3>
+        <h3>Rezervasyon ve İşlem Durumu</h3>
         <div class="context-list">
           <div class="context-row"><span>Çalışma modu</span><span>${escapeHtml(String(state.operationMode || '-').toUpperCase())}</span></div>
           <div class="context-row"><span>Niyet</span><span>${escapeHtml(conversation.intent || '-')}</span></div>
@@ -1677,7 +1674,7 @@ function renderContextRail() {
         </div>
       </div>
       <div class="context-card">
-        <h3>Risk ve Notlar</h3>
+        <h3>Risk ve Operasyon Notları</h3>
         <div class="context-tag-row">${(conversation.risk_flags || []).length ? conversation.risk_flags.map(flag => `<span class="context-tag">${escapeHtml(flag)}</span>`).join('') : '<span class="context-tag">Risk işareti yok</span>'}</div>
       </div>`;
     return;
@@ -1705,12 +1702,23 @@ function renderContextRail() {
       </div>`;
     return;
   }
+  if (state.contextTab === 'notes') {
+    container.innerHTML = `
+      <div class="context-card">
+        <h3>Notlar</h3>
+        <div class="context-empty">
+          <strong>Not alanı hazırlanıyor</strong>
+          <p>Bu sekme Phase 1 iskeletinde ayrıldı; canlı not bağlama sonraki fazda mevcut veri akışı korunarak yapılacak.</p>
+        </div>
+      </div>`;
+    return;
+  }
   container.innerHTML = `
     <div class="context-card">
-      <h3>Teslimat Durumu</h3>
+      <h3>AI Kontrolü</h3>
       <div class="context-list">
-        <div class="context-row"><span>Mesaj durumu</span><span>${escapeHtml(delivery?.localStatus || conversation.delivery_state || 'unknown')}</span></div>
-        <div class="context-row"><span>Sağlayıcı durumu</span><span>${escapeHtml(delivery?.providerStatus || 'unknown')}</span></div>
+        <div class="context-row"><span>Yanıt durumu</span><span>${escapeHtml(delivery?.localStatus || conversation.delivery_state || 'unknown')}</span></div>
+        <div class="context-row"><span>WhatsApp durumu</span><span>${escapeHtml(delivery?.providerStatus || 'unknown')}</span></div>
         <div class="context-row"><span>WhatsApp mesaj kimliği</span><span>${escapeHtml(delivery?.whatsappMessageId || '-')}</span></div>
         <div class="context-row"><span>Onaylanma zamanı</span><span>${escapeHtml(delivery?.approvedAt ? fmtTime(delivery.approvedAt) : '-')}</span></div>
         <div class="context-row"><span>Gönderim zamanı</span><span>${escapeHtml(delivery?.sentAt ? fmtTime(delivery.sentAt) : '-')}</span></div>
@@ -1724,7 +1732,7 @@ function renderContextRail() {
       </div>
     </div>
     <div class="context-card">
-      <h3>Sağlayıcı Olay Geçmişi</h3>
+      <h3>WhatsApp Olay Geçmişi</h3>
       <div class="context-list">
         ${
           (delivery?.providerEvents || []).length

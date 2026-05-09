@@ -8,16 +8,14 @@ from velox.api.routes.ui_shared_assets import UI_SHARED_SCRIPT
 ADMIN_PANEL_STYLE = """\
 *,*::before,*::after{box-sizing:border-box}
 :root{
-  --bg:#f4efe6;--bg-2:#ebe4d8;--surface:#fffdf8;--surface-2:#f8f4ec;--ink:#102033;--muted:#5d6877;
-  --line:rgba(16,32,51,.12);--line-strong:rgba(16,32,51,.2);--accent:#0f766e;--accent-2:#1d8f86;
-  --warn:#b45309;--danger:#b42318;--danger-2:#7f1d1d;--ok:#166534;--gold:#bb8a2a;--shadow:0 18px 42px rgba(16,32,51,.08);
+  --bg:#f4f6fb;--bg-2:#e8edf7;--surface:#ffffff;--surface-2:#f7f9fc;--ink:#102033;--muted:#5d6877;
+  --line:rgba(16,32,51,.12);--line-strong:rgba(16,32,51,.2);--accent:#192F9A;--accent-2:#2850d9;
+  --whatsapp:#128c7e;--ai:#4c1d95;--handoff:#d97706;--warn:#b45309;--danger:#b42318;--danger-2:#7f1d1d;--ok:#166534;--gold:#bb8a2a;--shadow:0 18px 42px rgba(16,32,51,.08);
   --sidebar-bg:#102033;--sidebar-bg-2:#142842;--sidebar-muted:rgba(239,246,255,.72);--sidebar-line:rgba(239,246,255,.12);
   --radius-lg:26px;--radius-md:18px;--radius-sm:12px;--mono:'Cascadia Code','Fira Code',monospace;
   --sans:'Manrope','Segoe UI Variable','Aptos','Segoe UI',system-ui,sans-serif;--serif:'Fraunces','Iowan Old Style','Georgia',serif;
 }
 html,body{min-height:100%;margin:0;background:
-  radial-gradient(circle at top left,rgba(187,138,42,.18),transparent 24%),
-  radial-gradient(circle at bottom right,rgba(15,118,110,.12),transparent 22%),
   linear-gradient(180deg,var(--bg) 0%,var(--bg-2) 100%);
   color:var(--ink);font-family:var(--sans)}
 body{padding:18px}
@@ -90,7 +88,7 @@ button,input,select,textarea{font:inherit}
   outline:2px solid rgba(187,138,42,.9);outline-offset:2px
 }
 .badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:.03em}
-.badge.info{background:#e8f3f1;color:#115e59}.badge.warn{background:#fff2dd;color:#92400e}.badge.danger{background:#fde7e5;color:#991b1b}.badge.dark{background:#13253e;color:#fff}
+.badge.info{background:#e8eefc;color:#192F9A}.badge.whatsapp{background:#e7f7ef;color:#0f6f5f}.badge.ai{background:#eee9ff;color:#4c1d95}.badge.warn{background:#fff2dd;color:#92400e}.badge.danger{background:#fde7e5;color:#991b1b}.badge.dark{background:#13253e;color:#fff}
 .toast{position:fixed;top:24px;right:24px;min-width:260px;max-width:420px;padding:14px 16px;border-radius:18px;box-shadow:var(--shadow);z-index:60;background:#102033;color:#fff;opacity:0;pointer-events:none;transform:translateY(-8px);transition:.18s ease}
 .toast.is-visible{opacity:1;pointer-events:auto;transform:none}
 .toast.info{background:#102033}.toast.success{background:#115e59}.toast.warn{background:#92400e}.toast.error{background:#991b1b}
@@ -137,6 +135,18 @@ button,input,select,textarea{font:inherit}
 .module-header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px}
 .module-actions{display:flex;flex-wrap:wrap;gap:10px}
 .split{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(340px,.8fr);gap:18px}
+.conversation-ops-shell{display:grid;grid-template-columns:minmax(280px,.85fr) minmax(380px,1.35fr) minmax(260px,.8fr);gap:16px;align-items:start}
+.conversation-list-panel,.conversation-thread-panel,.conversation-side-panel{min-width:0;min-height:560px}
+.conversation-thread-panel{display:flex;flex-direction:column}
+.conversation-side-panel{position:sticky;top:18px}
+.module-header.compact{margin-bottom:12px}
+.module-header.compact h3{font-size:18px;font-family:var(--sans)}
+.detail-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.detail-tab{border:1px solid var(--line);border-radius:999px;background:var(--surface-2);color:var(--muted);padding:7px 10px;font-size:12px;font-weight:800;cursor:default}
+.detail-tab.is-active{background:#e8eefc;color:var(--accent);border-color:rgba(25,47,154,.22)}
+.conversation-side-empty{display:flex;flex-direction:column;gap:8px;border:1px dashed var(--line-strong);border-radius:18px;background:var(--surface-2);padding:14px}
+.conversation-side-empty strong{font-size:14px;color:var(--ink)}
+.conversation-side-empty p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
 .toolbar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
 .toolbar input,.toolbar select{padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--surface)}
 .toolbar-check{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
@@ -462,7 +472,8 @@ tbody tr:hover{background:#fffcf7}
 .access-editor-empty p{margin:0;color:var(--muted);line-height:1.55}
 @media(max-width:1240px){
   .card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .split,.auth-grid,.access-control-layout,.access-control-main{grid-template-columns:1fr}
+  .split,.conversation-ops-shell,.auth-grid,.access-control-layout,.access-control-main{grid-template-columns:1fr}
+  .conversation-side-panel{position:static}
   .voice-lab-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .voice-lab-layout{grid-template-columns:1fr}
   .voice-lab-table-shell{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
@@ -564,66 +575,88 @@ const VOICE_LAB_REALTIME_VOICES = [
 ];
 const NAVIGATION_GROUPS = [
   {
-    id: 'overview',
-    label: 'Genel Bakış',
-    items: [
-      {
-        id: 'dashboard',
-        label: 'Genel Bakış',
-        subtitle: 'Anlık durum özeti',
-        icon: 'GB',
-        permission: 'dashboard:read',
-        title: 'Genel Bakış',
-        lead: 'Aktif konuşmaları, bekleyen onayları ve açık talepleri tek ekranda görüntüleyin.',
-      },
-    ],
-  },
-  {
-    id: 'reception',
-    label: 'Resepsiyon',
+    id: 'main',
+    label: 'Ana Menü',
     items: [
       {
         id: 'conversations',
         label: 'Konuşmalar',
-        subtitle: 'Misafir mesajları ve geçmiş',
+        subtitle: 'WhatsApp konuşmaları',
         icon: 'K',
         permission: 'conversations:read',
         badgeKey: 'conversations_active',
         title: 'Konuşmalar',
-        lead: 'Misafir mesajlarını, durumlarını ve geçmişini inceleyin.',
+        lead: 'Misafir konuşmalarını, yanıt durumunu ve insan devri gerektiren işleri tek kokpitte izleyin.',
       },
-      {
-        id: 'tickets',
-        label: 'Destek Talepleri',
-        subtitle: 'Ekibe aktarılan görevler',
-        icon: 'D',
-        permission: 'tickets:read',
-        badgeKey: 'open_tickets',
-        title: 'Destek Talepleri',
-        lead: 'Ekibe aktarılan görevleri öncelik ve duruma göre takip edin.',
-      },
-    ],
-  },
-  {
-    id: 'reservations',
-    label: 'Rezervasyonlar',
-    items: [
       {
         id: 'holds',
         label: 'Onay Bekleyenler',
-        subtitle: 'Rezervasyon onay ve ret işlemleri',
+        subtitle: 'Rezervasyon ve işlem onayları',
         icon: 'OB',
         permission: 'holds:read',
         badgeKey: 'pending_holds',
         title: 'Onay Bekleyenler',
-        lead: 'Konaklama, restoran ve transfer taleplerini onaylayın veya reddedin.',
+        lead: 'Konaklama, restoran ve transfer taleplerinde onay bekleyen işlemleri yönetin.',
+      },
+      {
+        id: 'chatlab',
+        label: 'Chat Lab',
+        subtitle: 'Test stüdyosu',
+        icon: 'CL',
+        title: 'Chat Lab',
+        lead: 'Misafir senaryolarını canlı akıştan ayrı bir test stüdyosunda deneyin ve değerlendirin.',
+      },
+      {
+        id: 'faq',
+        label: 'Bilgi Merkezi',
+        subtitle: 'Hazır yanıt ve otel bilgisi',
+        icon: 'BM',
+        permission: 'hotels:read',
+        title: 'Bilgi Merkezi',
+        lead: 'AI yanıtlarında kullanılacak hazır bilgileri ve sık sorulan soruları sade biçimde yönetin.',
+      },
+      {
+        id: 'whatsappapi',
+        label: 'WhatsApp Bağlantısı',
+        subtitle: 'Meta bağlantısı ve şablonlar',
+        icon: 'WA',
+        roles: ['ADMIN'],
+        title: 'WhatsApp Bağlantısı',
+        lead: 'Meta bağlantısı, telefon varlıkları ve mesaj şablonlarının durumunu kontrol edin.',
+      },
+      {
+        id: 'dashboard',
+        label: 'Raporlar',
+        subtitle: 'Operasyon özeti',
+        icon: 'RP',
+        permission: 'dashboard:read',
+        title: 'Raporlar',
+        lead: 'Aktif konuşmaları, bekleyen onayları ve açık talepleri operasyon raporu olarak görüntüleyin.',
+      },
+      {
+        id: 'system',
+        label: 'Ayarlar',
+        subtitle: 'Sistem ve panel ayarları',
+        icon: 'AY',
+        title: 'Ayarlar',
+        lead: 'Sistem durumu, güvenlik ve bağlantı ayarlarını kontrol edin.',
       },
     ],
   },
   {
-    id: 'operations',
-    label: 'Operasyon',
+    id: 'advanced',
+    label: 'İleri Araçlar',
     items: [
+      {
+        id: 'tickets',
+        label: 'İnsan Devri',
+        subtitle: 'Ekibe aktarılan görevler',
+        icon: 'İD',
+        permission: 'tickets:read',
+        badgeKey: 'open_tickets',
+        title: 'İnsan Devri',
+        lead: 'Ekibe aktarılan görevleri öncelik ve duruma göre takip edin.',
+      },
       {
         id: 'restaurant',
         label: 'Restoran Yönetimi',
@@ -635,11 +668,11 @@ const NAVIGATION_GROUPS = [
       },
       {
         id: 'restaurantai',
-        label: 'Restaurant AI / Menü Asistanı',
-        subtitle: 'Katalog, sipariş ve garson akışı',
-        icon: 'RA',
+        label: 'Restoran Siparişleri',
+        subtitle: 'Katalog ve garson akışı',
+        icon: 'RS',
         permission: 'restaurant_ai:read',
-        title: 'Restaurant AI / Menü Asistanı',
+        title: 'Restoran Siparişleri',
         lead: 'Menü kataloğunu, garson WhatsApp yönlendirmesini, sipariş loglarını ve test konsolunu yönetin.',
       },
       {
@@ -651,28 +684,31 @@ const NAVIGATION_GROUPS = [
         title: 'Bildirim Ayarları',
         lead: 'Rezervasyon onayları için WhatsApp bildirim numaralarını yönetin.',
       },
-    ],
-  },
-  {
-    id: 'ai',
-    label: 'AI Yönetimi',
-    items: [
       {
-        id: 'faq',
-        label: 'Sık Sorulan Sorular',
-        subtitle: 'Hazır yanıt yönetimi',
-        icon: 'SS',
+        id: 'hotels',
+        label: 'Otel Bilgileri',
+        subtitle: 'Otel profili',
+        icon: 'OT',
         permission: 'hotels:read',
-        title: 'Sık Sorulan Sorular',
-        lead: 'Hazır yanıtları yönetin, uygunsuz içerikleri hızlıca kaldırın.',
+        title: 'Otel Bilgileri',
+        lead: 'Otel profilini düzenleyin ve değişiklikleri sisteme güvenle uygulayın.',
+      },
+      {
+        id: 'accesscontrol',
+        label: 'Rol ve Yetkiler',
+        subtitle: 'Kullanıcı ve izin yönetimi',
+        icon: 'RY',
+        permission: 'access_control:read',
+        title: 'Rol ve Yetkiler',
+        lead: 'Kullanıcı, rol, departman ve pencere bazlı işlem izinlerini aynı ekranda yönetin.',
       },
       {
         id: 'responsewindow',
-        label: 'Yanıt Penceresi',
-        subtitle: 'Tek soru yanıt önizleme',
-        icon: 'YP',
+        label: 'Yanıt Önizleme',
+        subtitle: 'Tek soru testi',
+        icon: 'YÖ',
         permission: 'conversations:read',
-        title: 'Yanıt Penceresi',
+        title: 'Yanıt Önizleme',
         lead: 'Tek müşteri sorusuna otel verisiyle geçmişsiz yanıt üretin.',
       },
       {
@@ -685,62 +721,13 @@ const NAVIGATION_GROUPS = [
         lead: 'Telefon senaryolarını canlı hatta çıkmadan kaynak, aksiyon ve güvenlik açısından ölçün.',
       },
       {
-        id: 'chatlab',
-        label: 'Test Paneli',
-        subtitle: 'Canlı test ve değerlendirme',
-        icon: 'TP',
-        title: 'Test Paneli',
-        lead: 'Yapay zekâyı canlı test edin, puanlayın ve raporlayın.',
-      },
-      {
         id: 'debug',
-        label: 'Hata Raporları',
-        subtitle: 'Canlı tarama bulguları',
-        icon: 'HR',
+        label: 'Kontrol Taraması',
+        subtitle: 'Panel kalite bulguları',
+        icon: 'KT',
         roles: ['ADMIN'],
-        title: 'Hata Raporları',
-        lead: 'Canlı panelde başlatılan yalnızca raporlama amaçlı taramaların bulgularını inceleyin.',
-      },
-    ],
-  },
-  {
-    id: 'settings',
-    label: 'Ayarlar',
-    items: [
-      {
-        id: 'hotels',
-        label: 'Otel Bilgileri',
-        subtitle: 'Otel profili ve ayarları',
-        icon: 'OT',
-        permission: 'hotels:read',
-        title: 'Otel Bilgileri',
-        lead: 'Otel profilini düzenleyin ve değişiklikleri sisteme güvenle uygulayın.',
-      },
-      {
-        id: 'accesscontrol',
-        label: 'Rol ve Yetkiler',
-        subtitle: 'Kullanıcı, rol ve izin yönetimi',
-        icon: 'RY',
-        permission: 'access_control:read',
-        title: 'Rol ve Yetkiler',
-        lead: 'Kullanıcı, rol, departman ve pencere bazlı işlem izinlerini aynı ekranda yönetin.',
-      },
-      {
-        id: 'whatsappapi',
-        label: 'WhatsApp Bağlantısı',
-        subtitle: 'Meta bağlantısı ve şablonlar',
-        icon: 'WA',
-        roles: ['ADMIN'],
-        title: 'WhatsApp Bağlantısı',
-        lead: 'Meta bağlantısı, telefon varlıkları ve mesaj şablonlarını yönetin.',
-      },
-      {
-        id: 'system',
-        label: 'Sistem Durumu',
-        subtitle: 'Sunucu ve bağlantı kontrolleri',
-        icon: 'SD',
-        title: 'Sistem Durumu',
-        lead: 'Sunucu sağlığı, alan adı ve güvenlik ayarlarını kontrol edin.',
+        title: 'Kontrol Taraması',
+        lead: 'Canlı panelde başlatılan yalnızca raporlama amaçlı kontrollerin bulgularını inceleyin.',
       },
     ],
   },

@@ -169,8 +169,8 @@ TEST_CHAT_HTML = (
         <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
       </svg>
       <div class="header-copy">
-        <h1>Velox Chat Lab</h1>
-        <p>WhatsApp benzeri operasyon akışı, canlı kuyruk ve inceleme arayüzü</p>
+        <h1>Chat Lab Test Stüdyosu</h1>
+        <p>Senaryo seç, misafir mesajını dene, AI yanıtını değerlendir</p>
       </div>
     </div>
     <div class="header-status" aria-live="polite">
@@ -180,12 +180,12 @@ TEST_CHAT_HTML = (
     <div class="header-utility">
       <div class="workspace-utility-nav" role="group" aria-label="Chat Lab çalışma araçları">
         <button class="workspace-utility-link workspace-panel-toggle" id="workspace-panel-toggle" type="button" aria-label="Çalışma ayarlarını aç" aria-expanded="false" aria-controls="workspace-flyout">
-          <span>Ayarlar</span>
-          <small>Kaynak ve mod</small>
+          <span>Stüdyo Ayarları</span>
+          <small>Kaynak ve yanıt modu</small>
         </button>
         <button class="workspace-utility-link" id="workspace-diagnostics-toggle" type="button" aria-label="Tanılama panelini aç" aria-expanded="false" aria-controls="workspace-flyout">
-          <span>Tanılama</span>
-          <small>Sinyaller ve raporlar</small>
+          <span>Kontrol Taraması</span>
+          <small>Yanıt kontrolleri</small>
         </button>
       </div>
     </div>
@@ -196,7 +196,7 @@ TEST_CHAT_HTML = (
       <div class="queue-panel-head">
         <div>
           <h2>Konuşmalar</h2>
-          <p>Canlı kuyruk, onay bekleyen yanıtlar ve dikkat gerektiren konuşmalar</p>
+          <p>Canlı kuyruk, onay bekleyen yanıtlar ve insan devri gerektiren konuşmalar</p>
         </div>
         <div class="queue-panel-actions">
           <label class="queue-toggle">
@@ -210,9 +210,9 @@ TEST_CHAT_HTML = (
       <div class="queue-toolbar">
         <div class="queue-tabs" id="queue-tabs">
           <button class="queue-tab is-active" type="button" data-queue-filter="all">Tümü</button>
-          <button class="queue-tab" type="button" data-queue-filter="approval">Onay</button>
-          <button class="queue-tab" type="button" data-queue-filter="human">Temsilci</button>
-          <button class="queue-tab" type="button" data-queue-filter="attention">Dikkat Gerektiren</button>
+          <button class="queue-tab" type="button" data-queue-filter="approval">Onay Bekleyen</button>
+          <button class="queue-tab" type="button" data-queue-filter="human">İnsan Devri</button>
+          <button class="queue-tab" type="button" data-queue-filter="attention">Riskli</button>
         </div>
         <input id="queue-search" class="header-input queue-search" type="text" placeholder="Numara, durum veya mesaj ara" aria-label="Konuşma ara">
         <div id="queue-summary" class="queue-summary" aria-live="polite"></div>
@@ -296,20 +296,21 @@ TEST_CHAT_HTML = (
     <aside class="context-panel">
       <div class="context-panel-head">
         <div>
-          <h2>Bağlam</h2>
-          <p>Misafir, operasyon modu, teslimat durumu ve denetim izi</p>
+          <h2>Misafir Detayı</h2>
+          <p>Özet, rezervasyon, AI kontrolü, notlar ve geçmiş</p>
         </div>
       </div>
       <div class="context-tabs" id="context-tabs">
-        <button class="context-tab is-active" type="button" data-context-tab="guest">Misafir</button>
-        <button class="context-tab" type="button" data-context-tab="operations">Operasyon</button>
-        <button class="context-tab" type="button" data-context-tab="delivery">Teslimat</button>
-        <button class="context-tab" type="button" data-context-tab="audit">Denetim İzi</button>
+        <button class="context-tab is-active" type="button" data-context-tab="guest">Özet</button>
+        <button class="context-tab" type="button" data-context-tab="operations">Rezervasyon</button>
+        <button class="context-tab" type="button" data-context-tab="delivery">AI Kontrolü</button>
+        <button class="context-tab" type="button" data-context-tab="notes">Notlar</button>
+        <button class="context-tab" type="button" data-context-tab="audit">Geçmiş</button>
       </div>
       <div id="context-body" class="context-body">
         <div class="context-empty">
-          <strong>Bağlam hazır değil</strong>
-          <p>Bir konuşma açıldığında misafir ve teslimat özeti burada görünecek.</p>
+          <strong>Misafir detayı hazır değil</strong>
+          <p>Bir konuşma açıldığında özet, rezervasyon ve AI kontrol bilgileri burada görünecek.</p>
         </div>
       </div>
     </aside>
@@ -322,18 +323,18 @@ TEST_CHAT_HTML = (
     <div class="workspace-flyout-header">
       <div class="workspace-flyout-title">
         <div class="workspace-flyout-meta">
-          <span class="workspace-flyout-kicker">Workspace Console</span>
+          <span class="workspace-flyout-kicker">Chat Lab Stüdyosu</span>
           <span class="workspace-flyout-sync" id="workspace-flyout-sync">Panel senkronu bekleniyor</span>
         </div>
         <strong id="workspace-flyout-heading">Çalışma Ayarları</strong>
-        <span id="workspace-flyout-description">Ortam kontrolleri ve teknik araçlar</span>
+        <span id="workspace-flyout-description">Test kaynağı, yanıt modu ve kontrol araçları</span>
       </div>
       <button class="workspace-flyout-close" id="workspace-flyout-close" type="button" aria-label="Paneli kapat">&times;</button>
     </div>
     <div class="workspace-flyout-tabs-shell">
       <div class="workspace-flyout-tabs" id="workspace-flyout-tabs" role="tablist" aria-label="Çalışma paneli sekmeleri">
-        <button class="workspace-flyout-tab is-active" id="workspace-tab-settings" data-workspace-tab="settings" type="button" role="tab" aria-selected="true" aria-controls="workspace-settings-panel">Ortam</button>
-        <button class="workspace-flyout-tab" id="workspace-tab-diagnostics" data-workspace-tab="diagnostics" type="button" role="tab" aria-selected="false" aria-controls="workspace-diagnostics-panel">Tanılama</button>
+        <button class="workspace-flyout-tab is-active" id="workspace-tab-settings" data-workspace-tab="settings" type="button" role="tab" aria-selected="true" aria-controls="workspace-settings-panel">Stüdyo</button>
+        <button class="workspace-flyout-tab" id="workspace-tab-diagnostics" data-workspace-tab="diagnostics" type="button" role="tab" aria-selected="false" aria-controls="workspace-diagnostics-panel">Kontroller</button>
       </div>
     </div>
   </div>
