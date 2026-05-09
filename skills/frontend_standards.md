@@ -4,8 +4,8 @@
 > `security_privacy.md` ve `anti_hallüçination.md` kuralları bu dosyadan önce gelir; `system_prompt_velox.md` ise bu skill'den sonra gelir.
 
 > Kod bilmeyen biri için benzetme: Bu doküman, admin panelinin **"iç mimar kılavuzu"**dur.
-> Her ekran aynı stilde, aynı malzemeyle, aynı düzenle yapılsın diye kurallar koyar.
-> Amaç: Panelin tutarlı, bakımı kolay ve güvenli olması.
+> Her ekran aynı kalite, güvenlik ve tasarım sistemi içinde kalsın diye kurallar koyar.
+> Amaç: Panelin tutarlı, bakımı kolay, güvenli ve ekran amacına uygun biçimde kullanıcı dostu olması.
 
 ---
 
@@ -134,6 +134,138 @@ button.addEventListener('click', () => doSomething(value));
 - **Minimalizm:** Azaltma en yuksek zarafettir.
 - **Micro-interactions:** Hover, focus, transition efektleri kaliteli olsun.
 - **Spacing:** Tutarlı spacing scale (CSS custom properties ile).
+- **Esnek Tutarlılık:** Tutarlılık her ekranın aynı görünmesi değil; aynı kalite, aynı token sistemi,
+  aynı erişilebilirlik standardı ve aynı UX güvenilirliği ile farklı ekran amaçlarına uygun çözümler üretmektir.
+
+### 3.1 Tasarım Esnekliği ve Ekran Karakteri
+
+Bu frontend standardı, tüm ekranların birbirinin kopyası gibi görünmesini amaçlamaz.
+Amaç; aynı kalite seviyesini korurken, her ekranın kendi kullanım amacına uygun layout,
+bilgi hiyerarşisi ve kompozisyon kullanabilmesini sağlamaktır.
+
+Tutarlılık şu anlama gelir:
+
+- Renkler aynı token sisteminden gelir.
+- Spacing aynı ölçü mantığına dayanır.
+- Font sistemi ve temel tipografi ölçeği korunur.
+- Buton, input, tablo, modal ve toast davranışları tahmin edilebilir kalır.
+- Focus, hover, disabled ve error state'leri benzer kalitededir.
+- Responsive kırılım mantığı korunur.
+- Accessibility ve güvenlik kuralları eksiksiz uygulanır.
+- Kullanıcı her ekranda nerede olduğunu ve ne yapacağını kolayca anlar.
+
+Tutarlılık şu anlama gelmez:
+
+- Her ekranın aynı kart grid yapısını kullanması.
+- Her başlığın, panelin, CTA konumunun veya kolon oranının aynı olması.
+- Operasyon ekranlarının dashboard gibi, ayarlar ekranlarının sunum sayfası gibi tasarlanması.
+- Kullanıcının işini yavaşlatan, yalnızca "premium" görünen kompozisyonlar üretmek.
+
+> **Kırmızı çizgi:** Tasarım esnekliği; XSS koruması, `escapeHtml()`, `apiFetch()`,
+> inline event yasağı, token/auth kuralları, responsive zorunluluklar veya accessibility
+> kurallarını gevşetmez. Bu dosyadaki güvenlik ve erişilebilirlik kuralları her layout için aynen geçerlidir.
+
+### 3.2 Ekran Tipine Göre Tasarım Yaklaşımı
+
+Codex, yeni bir ekran veya mevcut ekranda büyük bir UI değişikliği yapmadan önce ekranın karakterini belirlemelidir.
+Ekranın karakteri seçilen layout'u, bilgi yoğunluğunu, görsel vurguyu ve aksiyon konumlarını yönlendirir.
+
+1. **Dashboard / Overview ekranları**
+   - Daha görsel, özetleyici ve hızlı okunabilir olmalıdır.
+   - KPI kartları, grafik alanları, kısa durum blokları ve dikkat çekici ama kontrollü boşluk kullanımı uygundur.
+   - Tekdüze tablo ağırlıklı yapı varsayılan tercih olmamalıdır.
+
+2. **Operasyon / İş Takip ekranları**
+   - Kullanıcı hızlı karar alıp hızlı aksiyon verebilmelidir.
+   - Yoğun veri varsa tablo, filtre, durum etiketi, toplu işlem ve hızlı aksiyon butonları öne çıkmalıdır.
+   - Bilgi yoğunluğu kontrollü şekilde artırılabilir; gereksiz büyük boşluklardan kaçınılır.
+
+3. **Ayarlar / Konfigürasyon ekranları**
+   - Daha sakin, açıklayıcı ve güven veren bir yapı kullanılmalıdır.
+   - Form grupları, açıklama metinleri, uyarı alanları ve net kaydetme aksiyonları önemlidir.
+   - Gereksiz görsel süsleme azaltılır; hata ve başarı state'leri açık olmalıdır.
+
+4. **Detay / Profil ekranları**
+   - İçerik hiyerarşisi güçlü olmalıdır.
+   - Ana bilgi, ikincil bilgi, geçmiş hareketler ve risk/uyarı alanları görsel olarak ayrılmalıdır.
+   - Yan panel, sekmeler, bölümlenmiş kart yapısı veya activity feed kullanılabilir.
+
+5. **Chat / Mesajlaşma ekranları**
+   - Akış hissi ve uzun süreli çalışma konforu önceliklidir.
+   - Liste, konuşma alanı, mesaj kutusu ve yardımcı panel dengeli yerleşmelidir.
+   - Okuma yorgunluğunu azaltan satır uzunluğu, kontrast, spacing ve sticky kontroller önemlidir.
+
+6. **Boş Durum / İlk Kullanım ekranları**
+   - Sadece boş tablo gösterilmemelidir.
+   - Kullanıcıya ne olduğu, neden boş olduğu ve ne yapması gerektiği kısa ve net anlatılmalıdır.
+   - Gerekirse açıklayıcı CTA, küçük ipucu veya yönlendirici metin kullanılabilir.
+
+### 3.3 Esnek Kompozisyon Kuralları
+
+Codex, ekranın ana işine göre aşağıdaki düzenlerden uygun olanı seçebilir:
+
+- Tek kolon sade form yapısı
+- İki kolon ayarlar/detay yapısı
+- Sol liste + sağ detay paneli
+- Üst özet + alt tablo
+- Sekmeli yapı
+- Kart tabanlı operasyon ekranı
+- Split view
+- Yoğun tablo + sticky filtre bar
+- Dashboard grid
+- Timeline / activity feed
+- Empty state odaklı başlangıç ekranı
+
+Aynı layout kalıbı her ekrana otomatik uygulanmamalıdır.
+Yeni tasarım yapılırken önce şu soru cevaplanmalıdır:
+
+> Bu ekranın ana işi nedir ve kullanıcı burada en hızlı neyi anlamalı veya yapmalıdır?
+
+Bu soruya göre kompozisyon seçilmelidir. Minimalizm, her ekranı aynı sade kart düzenine indirgemek değildir.
+Minimalizm; ekranın amacına hizmet etmeyen öğeleri azaltmak, fakat gerekli durumlarda güçlü hiyerarşi,
+farklı layout ve zengin etkileşim kullanmaktan kaçınmamaktır.
+
+### 3.4 Görsel Çeşitlilik ve Sabit Sistem Kuralları
+
+Uyumlu kalması gerekenler:
+
+- Renk tokenları
+- Font sistemi
+- Spacing mantığı
+- Border radius sistemi
+- Focus, hover, disabled ve error davranışları
+- Buton, input, tablo, modal ve toast temel davranışları
+- Responsive kırılım mantığı
+- Accessibility standartları
+- XSS, auth, API client ve event güvenliği kuralları
+
+Esneyebilecek alanlar:
+
+- Layout tipi
+- Kart yoğunluğu
+- Başlık kompozisyonu
+- Bilgi hiyerarşisi
+- Görsel vurgu seviyesi
+- Grid oranları
+- Sidebar dışındaki iç navigasyon yapısı
+- Tab, accordion, split panel, timeline veya card-list kullanımı
+- Empty state anlatım dili
+
+Profesyonel görünüm, kullanıcı dostuluğun önüne geçmemelidir.
+Hedef arayüz; net, hızlı anlaşılır, modern, hafif premium, operasyonel olarak verimli ve gerektiğinde sıcak/açıklayıcı olmalıdır.
+Aşırı resmi, fazla steril, fazla kurumsal veya sadece görsel olarak "lüks" görünen ama kullanımı zor tasarımlardan kaçınılmalıdır.
+
+### 3.5 UI Değişikliği Öncesi Tasarım Kararı
+
+Her yeni UI ekranı veya büyük UI değişikliği öncesinde Codex kısa bir tasarım kararı vermelidir:
+
+1. Bu ekran hangi ekran tipine giriyor?
+2. Kullanıcının ana görevi ne?
+3. Bu görev için en uygun layout hangisi?
+4. Mevcut tasarım sistemiyle nasıl uyumlu kalınacak?
+5. Nerede farklılaşmak kullanıcı deneyimini iyileştirir?
+
+Bu karar verilmeden mevcut kart, grid veya panel kalıbı kopyalanmamalıdır.
 
 ---
 
@@ -278,6 +410,9 @@ Her frontend değişikliği sonrası aşağıdaki kontrol uygulanır:
 - [ ] Inline style yalnızca dinamik değerler için (sabit değerler class'ta)
 - [ ] Event listener'lar temiz (delegation veya innerHTML ile yeniden render)
 - [ ] Toast mesajları Türkçe ve anlaşılır
+- [ ] UI değişikliği öncesinde ekran tipi, kullanıcının ana görevi ve layout kararı belirlendi
+- [ ] Aynı kart/grid/panel kalıbı ekrana otomatik kopyalanmadı; kompozisyon ekran amacına göre seçildi
+- [ ] Tasarım esnekliği uygulanırken XSS, `apiFetch()`, inline event yasağı, responsive ve accessibility kuralları zayıflatılmadı
 - [ ] Admin panel/Chat Lab değişikliği etkilenen hash ile `http://127.0.0.1:8011/admin#` yerel demosunda önizlendi
 - [ ] `http://127.0.0.1:8011/admin` kullanıcı adı, şifre, Google Authenticator, TOTP/OTP veya auth wall istemeden açılıyor
 - [ ] Empty state tasarımı mevcut (boş tablo, boş liste)
