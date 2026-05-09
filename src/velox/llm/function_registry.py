@@ -448,8 +448,9 @@ def get_tool_definitions() -> list[dict[str, Any]]:
         _def(
             "hotel_info_lookup",
             (
-                "Look up static hotel information from HOTEL_PROFILE "
-                "(location links, address, contacts, description, highlights)."
+                "Look up structured hotel information and static HOTEL_PROFILE data. "
+                "For HOTEL_INFORMATION_JSON matches, answer exactly with returned answer_tr; "
+                "if human_handoff_required is true, route to a human representative."
             ),
             {
                 "type": "object",

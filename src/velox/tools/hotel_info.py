@@ -5,7 +5,10 @@ from __future__ import annotations
 import unicodedata
 from typing import Any
 
+from velox.core.hotel_information_loader import get_hotel_information, profile_has_hotel_information_dataset
+from velox.core.hotel_information_matcher import HotelInformationMatch, match_hotel_information
 from velox.core.hotel_profile_loader import get_profile
+from velox.models.hotel_information import HotelInformationEntry
 from velox.models.hotel_profile import HotelProfile
 from velox.tools.base import BaseTool
 
@@ -40,6 +43,70 @@ def _contact_payload(profile: HotelProfile, key: str) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _hotel_information_payload(match: HotelInformationMatch) -> dict[str, Any]:
+    """Return tool payload for one structured hotel-information match."""
+    entry = match.entry
+    payload = _hotel_information_entry_payload(entry)
+    payload.update(
+        {
+            "found": True,
+            "topic": entry.id,
+            "source": "HOTEL_INFORMATION_JSON",
+            "source_path": f"hotel_information[id={entry.id}].answer_tr",
+            "answer": entry.answer_tr,
+            "answer_tr": entry.answer_tr,
+            "match_score": match.score,
+            "match_type": match.match_type,
+            "matched_trigger": match.matched_trigger,
+            "should_answer_directly": not entry.human_handoff_required,
+        }
+    )
+    if entry.human_handoff_required:
+        payload["handoff"] = {
+            "needed": True,
+            "reason": f"hotel_information_handoff_required:{entry.id}",
+            "route_to_role": "ADMIN",
+        }
+        payload["risk_flags"] = ["UNRESOLVED_CASE"]
+    else:
+        payload["handoff"] = {"needed": False}
+        payload["risk_flags"] = []
+    return payload
+
+
+def _hotel_information_entry_payload(entry: HotelInformationEntry) -> dict[str, Any]:
+    """Return JSON-serializable entry fields without renaming source keys."""
+    return {
+        "id": entry.id,
+        "category": entry.category,
+        "title_tr": entry.title_tr,
+        "data_type": entry.data_type,
+        "value": entry.value,
+        "unit": entry.unit,
+        "confidence": entry.confidence,
+        "human_handoff_required": entry.human_handoff_required,
+        "missing_information": entry.missing_information,
+        "notes": entry.notes,
+        "trigger_examples": entry.trigger_examples,
+    }
+
+
+def _hotel_information_unresolved_payload() -> dict[str, Any]:
+    """Return safe unresolved payload when structured data cannot answer."""
+    return {
+        "found": False,
+        "source": "HOTEL_INFORMATION_JSON",
+        "human_handoff_required": True,
+        "should_answer_directly": False,
+        "handoff": {
+            "needed": True,
+            "reason": "hotel_information_no_verified_match",
+            "route_to_role": "ADMIN",
+        },
+        "risk_flags": ["UNRESOLVED_CASE"],
+    }
+
+
 class HotelInfoLookupTool(BaseTool):
     """Resolve static hotel facts from HOTEL_PROFILE using guest query text."""
 
@@ -53,11 +120,24 @@ class HotelInfoLookupTool(BaseTool):
         if profile is None:
             return {"found": False, "error": "Hotel profile not found."}
 
+        information_dataset = (
+            get_hotel_information(hotel_id)
+            if profile_has_hotel_information_dataset(hotel_id, profile)
+            else None
+        )
+        if information_dataset is not None:
+            match = match_hotel_information(information_dataset, query)
+            if match is not None:
+                return _hotel_information_payload(match)
+
         normalized_query = _normalize_text(query)
         extras = _profile_extras(profile)
-        location = extras.get("location") if isinstance(extras.get("location"), dict) else {}
-        description = extras.get("description") if isinstance(extras.get("description"), dict) else {}
-        highlights = extras.get("highlights") if isinstance(extras.get("highlights"), list) else []
+        raw_location = extras.get("location")
+        raw_description = extras.get("description")
+        raw_highlights = extras.get("highlights")
+        location = raw_location if isinstance(raw_location, dict) else {}
+        description = raw_description if isinstance(raw_description, dict) else {}
+        highlights = raw_highlights if isinstance(raw_highlights, list) else []
 
         wants_location = _contains_any(
             normalized_query,
@@ -196,6 +276,9 @@ class HotelInfoLookupTool(BaseTool):
                 "source_path": "highlights",
                 "value": highlights,
             }
+
+        if information_dataset is not None:
+            return _hotel_information_unresolved_payload()
 
         return {
             "found": False,

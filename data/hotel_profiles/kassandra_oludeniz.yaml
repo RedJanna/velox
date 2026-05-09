@@ -1269,6 +1269,7 @@ faq_data:
   question_variants_zh:
   - 有无障碍房间吗？
 hotel_id: 21966
+hotel_information_source: data/hotel_information/kassandra_oludeniz.json
 location:
   city: Muğla
   address: Ölüdeniz Mahallesi 224 Sk. No:12

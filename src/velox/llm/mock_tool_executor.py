@@ -10,9 +10,13 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timedelta
+from inspect import isawaitable
 from typing import Any
 
 import structlog
+
+from velox.tools.faq import FAQLookupTool
+from velox.tools.hotel_info import HotelInfoLookupTool
 
 logger = structlog.get_logger(__name__)
 
@@ -402,8 +406,12 @@ def _crm_log(args: dict[str, Any]) -> dict[str, Any]:
     return {"status": "LOGGED", "intent": args.get("intent")}
 
 
-def _faq_lookup(_args: dict[str, Any]) -> dict[str, Any]:
-    return {"answer": "Bilgi icin otel profilindeki FAQ verilerine bakiniz.", "source": "faq"}
+async def _faq_lookup(args: dict[str, Any]) -> dict[str, Any]:
+    return await FAQLookupTool().execute(**args)
+
+
+async def _hotel_info_lookup(args: dict[str, Any]) -> dict[str, Any]:
+    return await HotelInfoLookupTool().execute(**args)
 
 
 # ---------------------------------------------------------------------------
@@ -434,6 +442,7 @@ _HANDLERS: dict[str, Any] = {
     "handoff_create_ticket": _handoff_create_ticket,
     "crm_log": _crm_log,
     "faq_lookup": _faq_lookup,
+    "hotel_info_lookup": _hotel_info_lookup,
 }
 
 
@@ -459,6 +468,8 @@ async def mock_tool_executor(tool_name: str, tool_args: str | dict[str, Any]) ->
 
     try:
         result = handler(parsed_args)
+        if isawaitable(result):
+            result = await result
         logger.info("mock_tool_executed", tool=tool_name, status="ok")
         return json.dumps(result, ensure_ascii=False)
     except Exception:

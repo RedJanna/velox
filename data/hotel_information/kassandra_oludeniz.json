@@ -1,0 +1,262 @@
+{
+  "hotel_data_version": "1.0.0",
+  "language": "tr",
+  "status": "final",
+  "hotel_information": [
+    {
+      "id": "breakfast_service_type",
+      "category": "breakfast",
+      "title_tr": "Kahvaltı Servis Türü",
+      "answer_tr": "Kahvaltı açık büfe olarak servis edilmektedir.",
+      "data_type": "text",
+      "value": "Açık büfe",
+      "unit": null,
+      "confidence": "high",
+      "human_handoff_required": false,
+      "missing_information": false,
+      "notes": "Genel kahvaltı sorularında bu cevap verilebilir.",
+      "trigger_examples": [
+        "Kahvaltı var mı?",
+        "Kahvaltı nasıl servis ediliyor?",
+        "Kahvaltı açık büfe mi?",
+        "Kahvaltı dahil mi?"
+      ]
+    },
+    {
+      "id": "product_detail_handoff_rule",
+      "category": "human_handoff",
+      "title_tr": "Ürün Detayı Sorularında İnsan Temsilciye Devir",
+      "answer_tr": "Bu ürünle ilgili en doğru bilgiyi verebilmemiz için sizi ekip arkadaşlarımıza yönlendiriyoruz.",
+      "data_type": "rule",
+      "value": "Herhangi bir ürün detayı sorulursa insan temsilciye devredilmelidir.",
+      "unit": null,
+      "confidence": "high",
+      "human_handoff_required": true,
+      "missing_information": false,
+      "notes": "Kahvaltı, oda, minibar veya oteldeki herhangi bir ürün detayı hakkında kesin bilgi verilmemelidir. Sistem doğrudan insan temsilciye yönlendirmelidir.",
+      "trigger_examples": [
+        "Kahvaltıda Ezine peyniri var mı?",
+        "Kaşar peyniri var mı?",
+        "Taze portakal suyu var mı?",
+        "Kırmızı turşu biber var mı?",
+        "Mini barda hangi ürünler var?",
+        "Odada şu ürün bulunuyor mu?",
+        "Şu marka ürün kullanılıyor mu?",
+        "Kahvaltıda hangi peynir çeşitleri var?"
+      ]
+    },
+    {
+      "id": "generator_availability",
+      "category": "facility",
+      "title_tr": "Jeneratör Durumu",
+      "answer_tr": "Otelimizde jeneratör bulunmaktadır.",
+      "data_type": "boolean",
+      "value": true,
+      "unit": null,
+      "confidence": "high",
+      "human_handoff_required": false,
+      "missing_information": false,
+      "notes": "Elektrik kesintisi veya jeneratör sorularında kullanılabilir.",
+      "trigger_examples": [
+        "Otelde jeneratör var mı?",
+        "Elektrik kesilirse jeneratör devreye giriyor mu?",
+        "Jeneratörünüz mevcut mu?"
+      ]
+    },
+    {
+      "id": "belcekiz_beach_distance",
+      "category": "location",
+      "title_tr": "Belcekız Plajı Mesafesi",
+      "answer_tr": "Otelimiz, Belcekız Plajı’na yaklaşık 300 metre mesafededir. Yürüyerek ortalama 2–5 dakika içinde ulaşım sağlayabilirsiniz.",
+      "data_type": "distance",
+      "value": {
+        "distance_meters": 300,
+        "estimated_walking_time_minutes": "2-5"
+      },
+      "unit": {
+        "distance": "metre",
+        "time": "dakika"
+      },
+      "confidence": "high",
+      "human_handoff_required": false,
+      "missing_information": false,
+      "notes": "Plaj, sahil veya denize mesafe sorularında öncelikli olarak Belcekız Plajı bilgisi verilmelidir.",
+      "trigger_examples": [
+        "Plaja kaç metre?",
+        "Sahile yakın mısınız?",
+        "Denize uzaklığınız nedir?",
+        "Belcekız Plajı kaç dakika?",
+        "Otel plaja yürüme mesafesinde mi?"
+      ]
+    },
+    {
+      "id": "kumburnu_gate_distance",
+      "category": "location",
+      "title_tr": "Kumburnu Gişesi Mesafesi",
+      "answer_tr": "Otelimizden Kumburnu Gişesi’ne ulaşım yaklaşık 8–10 dakika sürmektedir.",
+      "data_type": "duration",
+      "value": {
+        "estimated_time_minutes": "8-10"
+      },
+      "unit": "dakika",
+      "confidence": "high",
+      "human_handoff_required": false,
+      "missing_information": false,
+      "notes": "Kullanıcı özellikle Kumburnu Gişesi’ni sorarsa bu cevap verilmelidir.",
+      "trigger_examples": [
+        "Kumburnu Gişesi kaç dakika?",
+        "Kumburnu’na ne kadar sürede giderim?",
+        "Kumburnu Gişesi otele uzak mı?",
+        "Kumburnu Gişesi’ne yürüyerek kaç dakika?"
+      ]
+    },
+    {
+      "id": "pool_information",
+      "category": "facility",
+      "title_tr": "Havuz Bilgisi",
+      "answer_tr": "Havuzumuz yaklaşık 100 m² büyüklüğündedir. En derin noktası yaklaşık 1,5 metredir.",
+      "data_type": "measurement",
+      "value": {
+        "area_square_meters": 100,
+        "max_depth_meters": 1.5
+      },
+      "unit": {
+        "area": "m²",
+        "depth": "metre"
+      },
+      "confidence": "high",
+      "human_handoff_required": false,
+      "missing_information": false,
+      "notes": "Havuz büyüklüğü ve derinliği sorularında kullanılabilir.",
+      "trigger_examples": [
+        "Havuz var mı?",
+        "Havuz kaç metrekare?",
+        "Havuzun derinliği ne kadar?",
+        "Havuz çocuklar için uygun mu?"
+      ]
+    },
+    {
+      "id": "internet_speed",
+      "category": "technology",
+      "title_tr": "İnternet Hızı",
+      "answer_tr": "Otelimizde internet hızı 1000 Mbps’ye kadar desteklenmektedir. Bağlantı ile ilgili bir sorun yaşamanız durumunda resepsiyonla iletişime geçebilirsiniz.",
+      "data_type": "speed",
+      "value": 1000,
+      "unit": "Mbps",
+      "confidence": "medium",
+      "human_handoff_required": false,
+      "missing_information": false,
+      "notes": "İnternet bağlantısında sorun yaşanırsa misafir resepsiyona yönlendirilmelidir.",
+      "trigger_examples": [
+        "İnternet var mı?",
+        "Wi-Fi hızlı mı?",
+        "İnternet hızınız nedir?",
+        "Odada Wi-Fi çekiyor mu?",
+        "İnternet sorunu yaşarsam ne yapmalıyım?"
+      ]
+    },
+    {
+      "id": "room_electricity_card_system",
+      "category": "room_feature",
+      "title_tr": "Oda Elektrik Kart Sistemi",
+      "answer_tr": "Odalarımızda enerji tasarruf kart sistemi bulunmaktadır. Kart çıkarıldığında odadaki elektrikli cihazların enerjisi kesilebilir.",
+      "data_type": "boolean",
+      "value": true,
+      "unit": null,
+      "confidence": "medium",
+      "human_handoff_required": false,
+      "missing_information": false,
+      "notes": "Enerji tasarruf kartı çıkarıldığında odadaki elektrikli cihazların enerjisi kesilebilir.",
+      "trigger_examples": [
+        "Odada elektrik kart sistemi var mı?",
+        "Kartı çıkarınca elektrik kesiliyor mu?",
+        "Enerji kartı var mı?",
+        "Odada klima kart çıkarılınca çalışır mı?"
+      ]
+    },
+    {
+      "id": "stair_safety_railing",
+      "category": "safety",
+      "title_tr": "Merdiven Güvenliği",
+      "answer_tr": "Otelde merdiven güvenliği korkuluklarla sağlanmaktadır. Korkuluklar gerekli standart yüksekliklere uygun şekilde yapılmıştır.",
+      "data_type": "text",
+      "value": "Merdivenlerde korkuluk bulunmaktadır.",
+      "unit": null,
+      "confidence": "medium",
+      "human_handoff_required": false,
+      "missing_information": false,
+      "notes": "Merdiven güvenliğiyle ilgili genel sorularda kullanılabilir.",
+      "trigger_examples": [
+        "Merdivenlerde korkuluk var mı?",
+        "Otel merdivenleri güvenli mi?",
+        "Çocuklar için merdiven güvenliği var mı?"
+      ]
+    },
+    {
+      "id": "room_door_lock_system",
+      "category": "room_feature",
+      "title_tr": "Oda Kapı Kilit Sistemi",
+      "answer_tr": "Oda kapılarında oda tipine göre klasik anahtar veya elektrik kartlı sistem kullanılmaktadır. Bazı odalarda klasik anahtar, bazı odalarda ise elektrik kartlı sistem mevcuttur.",
+      "data_type": "mixed",
+      "value": [
+        "Klasik anahtar",
+        "Elektrik kartlı sistem"
+      ],
+      "unit": null,
+      "confidence": "high",
+      "human_handoff_required": false,
+      "missing_information": false,
+      "notes": "Müşteriye doğrudan bazı odalarda klasik anahtar, bazı odalarda elektrik kartlı sistem olduğu söylenmelidir.",
+      "trigger_examples": [
+        "Oda kapıları kartlı mı?",
+        "Odada klasik anahtar mı var?",
+        "Kapılar kart sistemiyle mi açılıyor?",
+        "Tüm odalar kartlı sistem mi?"
+      ]
+    },
+    {
+      "id": "reception_availability",
+      "category": "service",
+      "title_tr": "Resepsiyon Hizmeti",
+      "answer_tr": "Otelimizde gece saatlerinde resepsiyon hizmeti bulunmaktadır. Misafirlerimize 7/24 destek sağlanmaktadır.",
+      "data_type": "availability",
+      "value": {
+        "night_reception_available": true,
+        "support_availability": "7/24"
+      },
+      "unit": null,
+      "confidence": "high",
+      "human_handoff_required": false,
+      "missing_information": false,
+      "notes": "Gece resepsiyon ve destek sorularında kullanılabilir.",
+      "trigger_examples": [
+        "Gece resepsiyon var mı?",
+        "Resepsiyon 24 saat açık mı?",
+        "Gece bir sorun olursa kime ulaşabilirim?",
+        "Otelinizde 7/24 destek var mı?"
+      ]
+    }
+  ],
+  "global_response_rules": [
+    {
+      "id": "do_not_guess_product_details",
+      "rule_tr": "Herhangi bir ürün detayı sorulduğunda sistem tahmin yürütmemeli, kesin bilgi vermemeli ve insan temsilciye yönlendirmelidir.",
+      "human_handoff_required": true
+    },
+    {
+      "id": "use_belcekiz_for_general_beach_questions",
+      "rule_tr": "Kullanıcı genel olarak plaj, sahil veya deniz mesafesini sorarsa öncelikle Belcekız Plajı bilgisi verilmelidir.",
+      "human_handoff_required": false
+    },
+    {
+      "id": "use_kumburnu_only_when_specifically_asked",
+      "rule_tr": "Kullanıcı özellikle Kumburnu Gişesi’ni sorarsa 8–10 dakika bilgisi verilmelidir.",
+      "human_handoff_required": false
+    },
+    {
+      "id": "keep_answers_clear_and_simple",
+      "rule_tr": "Müşteri yanıtları kısa, net, profesyonel ve anlaşılır Türkçe ile verilmelidir.",
+      "human_handoff_required": false
+    }
+  ]
+}

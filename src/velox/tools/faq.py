@@ -5,6 +5,8 @@ from difflib import SequenceMatcher
 from typing import Any
 
 from velox.config.constants import SUPPORTED_LANGUAGES
+from velox.core.hotel_information_loader import get_hotel_information, profile_has_hotel_information_dataset
+from velox.core.hotel_information_matcher import match_hotel_information
 from velox.core.hotel_profile_loader import get_profile
 from velox.models.hotel_profile import FAQEntry, FAQStatus
 from velox.tools.base import BaseTool
@@ -76,21 +78,49 @@ class FAQLookupTool(BaseTool):
         if profile is None:
             return {"found": False}
 
+        information_dataset = (
+            get_hotel_information(hotel_id)
+            if profile_has_hotel_information_dataset(hotel_id, profile)
+            else None
+        )
+        if information_dataset is not None:
+            information_match = match_hotel_information(information_dataset, query)
+            if information_match is not None:
+                information_entry = information_match.entry
+                return {
+                    "found": True,
+                    "faq_id": information_entry.id,
+                    "topic": information_entry.id,
+                    "answer_tr": information_entry.answer_tr,
+                    "answer_en": "",
+                    "answer": information_entry.answer_tr,
+                    "source": "HOTEL_INFORMATION_JSON",
+                    "source_path": f"hotel_information[id={information_entry.id}].answer_tr",
+                    "match_score": information_match.score,
+                    "human_handoff_required": information_entry.human_handoff_required,
+                    "handoff": {
+                        "needed": information_entry.human_handoff_required,
+                        "reason": f"hotel_information_handoff_required:{information_entry.id}"
+                        if information_entry.human_handoff_required
+                        else None,
+                    },
+                }
+
         faq_data = profile.faq_data
         if not faq_data:
             return {"found": False}
 
         best_item: FAQEntry | None = None
         best_score = 0.0
-        for entry in faq_data:
-            if entry.status != FAQStatus.ACTIVE:
+        for faq_entry in faq_data:
+            if faq_entry.status != FAQStatus.ACTIVE:
                 continue
-            candidates = _question_candidates(entry, language)
-            answer_tr = entry.answer_tr
-            answer_en = entry.answer_en
+            candidates = _question_candidates(faq_entry, language)
+            answer_tr = faq_entry.answer_tr
+            answer_en = faq_entry.answer_en
 
             if any(_normalize_text(candidate) == _normalize_text(query) for candidate in candidates):
-                best_item = entry
+                best_item = faq_entry
                 best_score = 1.0
                 break
 
@@ -101,7 +131,7 @@ class FAQLookupTool(BaseTool):
             )
             if score > best_score:
                 best_score = score
-                best_item = entry
+                best_item = faq_entry
 
         if best_item is None or best_score < 0.35:
             return {"found": False}

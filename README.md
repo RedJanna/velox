@@ -192,13 +192,14 @@ src/velox/
 ├── core/                      # Intent engine, state machine, verification, QC,
 │                              # scope classifier, response validator, fallback
 │                              # responses, admin debug runner/scan registry,
+│                              # hotel-information JSON loader/matcher,
 │                              # structured-output replay helpers
 ├── llm/                       # OpenAI client, prompt builder, response parser
 ├── tools/                     # Tool implementations (booking, restaurant, etc.)
 ├── adapters/                  # External service clients (Elektraweb, WhatsApp)
 ├── escalation/                # Risk detection, escalation matrix
 ├── policies/                  # Business rules (approval, payment, cancellation)
-├── models/                    # Pydantic data models
+├── models/                    # Pydantic data models, including hotel information
 ├── db/                        # Database connection, repositories, migrations
 ├── api/                       # FastAPI routes, middleware, embedded admin/chat-lab
 │                              # UI modules, admin debug/report-only and WhatsApp
@@ -212,6 +213,7 @@ Other top-level directories:
 ```
 data/
 ├── hotel_profiles/      # YAML config per hotel (e.g. kassandra_oludeniz.yaml)
+├── hotel_information/   # Structured JSON hotel facts with answer_tr + triggers
 ├── templates/           # Jinja2 message templates (tr/, en/)
 ├── escalation_matrix.yaml
 ├── scenarios/           # Test scenarios for Chat Lab
@@ -428,7 +430,7 @@ FastAPI Webhook Endpoint
     ├── 5. LLM Engine (OpenAI GPT + function calling)
     |       |--- Tool calls ──> Tools Layer
     |                            (booking, restaurant, transfer, approval,
-    |                             payment, notify, handoff, crm, faq)
+    |                             payment, notify, handoff, crm, faq, hotel_info)
     |                            ├── Elektraweb (stay) with circuit breaker
     |                            ├── PostgreSQL (restaurant/transfer)
     |                            └── External APIs with retry + backoff

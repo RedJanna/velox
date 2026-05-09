@@ -28,6 +28,7 @@ _MAX_PROFILE_JSON_CHARS = 420
 _MAX_ROOM_TYPES_IN_PROMPT = 6
 _MAX_TRANSFER_ROUTES_IN_PROMPT = 6
 _MAX_FAQ_TOPICS_IN_PROMPT = 10
+_MAX_HOTEL_INFORMATION_TOPICS_IN_PROMPT = 12
 _MAX_MENU_TEXT_TOTAL_CHARS = 5000
 _MAX_MENU_TEXT_SINGLE_CHARS = 1800
 _STATE_CONTEXT_ENTITY_KEYS = (
@@ -74,9 +75,21 @@ VELox runtime core
   state=HANDOFF or handoff.needed=true only because the guest asks about the
   menu. If no verified menu match exists, say that verified options are available
   from the ordering screen and keep the flow self-service.
-- For FAQ-style hotel questions, prefer faq_lookup instead of guessing from memory.
-- For static hotel-info questions (location, map links, address, contacts),
-  call hotel_info_lookup before answering.
+- For structured hotel-information questions (facility facts, breakfast, beach,
+  room-door systems, product details), call hotel_info_lookup before faq_lookup
+  or before answering.
+- If hotel_info_lookup returns source=HOTEL_INFORMATION_JSON, the guest-facing
+  answer must use exactly the returned answer_tr text. Do not paraphrase it,
+  expand it, translate it, or add unsupported detail.
+- If hotel_info_lookup returns human_handoff_required=true or found=false for a
+  hotel-information question, do not give a definitive hotel fact. Set
+  state=HANDOFF, handoff.needed=true, route to ADMIN, and use a short handoff
+  message.
+- Product-detail questions are strict handoff: breakfast items, minibar items,
+  room products, product brands, or any specific hotel product detail must not
+  be guessed.
+- For static hotel-info questions outside the structured JSON scope (location,
+  map links, address, contacts), call hotel_info_lookup before answering.
 - Use booking_availability and booking_quote for live stay answers.
   Never state live availability or price without tool grounding.
 - If booking_availability returns an error, handoff_required=true, or
@@ -425,6 +438,35 @@ def _summarize_faq_topics(faq_entries: list[FAQEntry]) -> str:
     return _render_section("FAQ_CONTEXT", lines)
 
 
+def _summarize_hotel_information(profile: HotelProfile) -> str:
+    """Return a compact index of structured hotel-information JSON topics."""
+    try:
+        from velox.core.hotel_information_loader import get_hotel_information
+
+        dataset = get_hotel_information(profile.hotel_id)
+    except Exception:
+        dataset = None
+
+    if dataset is None:
+        return ""
+
+    topics = [
+        (
+            f"{entry.id}:{entry.category}/{entry.title_tr}"
+            f"/handoff={str(entry.human_handoff_required).lower()}"
+        )
+        for entry in dataset.hotel_information[:_MAX_HOTEL_INFORMATION_TOPICS_IN_PROMPT]
+    ]
+    lines = [
+        f"- version={dataset.hotel_data_version}; language={dataset.language}; status={dataset.status}",
+        f"- entry_count={len(dataset.hotel_information)}",
+        "- call hotel_info_lookup before faq_lookup for these topics",
+        "- if source=HOTEL_INFORMATION_JSON, use answer_tr exactly",
+        f"- topics_sample={topics}",
+    ]
+    return _render_section("HOTEL_INFORMATION_INDEX", lines)
+
+
 def _summarize_admin_profile_context(profile: HotelProfile) -> str:
     """Return compact context for admin-managed extra profile fields."""
     extras = profile.model_extra if isinstance(profile.model_extra, dict) else {}
@@ -586,6 +628,7 @@ class PromptBuilder:
                 _summarize_restaurant(profile),
                 _summarize_payment(profile),
                 _summarize_facility_policies(profile),
+                _summarize_hotel_information(profile),
                 _summarize_faq_topics(profile.faq_data),
             ]
 

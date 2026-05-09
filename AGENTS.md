@@ -77,7 +77,7 @@ FastAPI Webhook Endpoint
     |       |--- Tool calls ──> Tools Layer ──────────────────────────┐
     |       |                   (booking, restaurant, transfer,      |
     |       |                    approval, payment, notify,          |
-    |       |                    handoff, crm, faq)                  |
+    |       |                    handoff, crm, faq, hotel_info)      |
     |       |                   Stay onayinda: create -> readback    |
     |       |                   doğrulaması olmadan PAYMENT_PENDING yok|
     |       |                        |                               |
@@ -561,14 +561,14 @@ Dosyanın en üstündeki sürüm bloğu, her güncelleme sonrası şu formatta g
 src/velox/
 ├── main.py                    # FastAPI entry point
 ├── config/                    # Settings, constants
-├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses, confirmation form rendering, stateless response preview, stay quote availability guard, Restaurant AI menu validator/localization, public order token/config helpers, admin debug runner/scan registry, structured-output replay helpers, admin access-control catalog/helpers
+├── core/                      # Intent engine, state machine, verification, QC, scope classifier, response validator, fallback responses, confirmation form rendering, stateless response preview, stay quote availability guard, structured hotel-information JSON loader/matcher, Restaurant AI menu validator/localization, public order token/config helpers, admin debug runner/scan registry, structured-output replay helpers, admin access-control catalog/helpers
 ├── llm/                       # OpenAI client, prompt builder, response parser
 ├── tools/                     # Tool implementations (booking, restaurant, etc.)
 ├── adapters/                  # External service clients (Elektraweb, WhatsApp)
 ├── voice_lab/                 # AI telesekreter pre-live scenario matrix and deterministic mock runner
 ├── escalation/                # Risk detection, escalation matrix
 ├── policies/                  # Business rules (approval, payment, cancellation)
-├── models/                    # Pydantic data models
+├── models/                    # Pydantic data models, including hotel profile and structured hotel-information datasets
 ├── db/                        # Database connection, repositories, migrations, confirmation form snapshots, Restaurant AI catalog/order log persistence, admin access-control persistence helpers
 ├── api/                       # FastAPI routes, middleware, public confirmation form and /order routes, embedded admin/chat-lab/response-preview/voice-lab/restaurant-ai UI modules, admin debug/report-only, access-control, and WhatsApp integration surfaces
 └── utils/                     # Logging, i18n, validators, admin/debug auth helpers, secret encryption, lightweight Prometheus metrics helpers
