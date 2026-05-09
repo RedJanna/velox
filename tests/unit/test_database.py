@@ -60,4 +60,5 @@ def test_normalize_conversation_state_maps_legacy_values() -> None:
         == ConversationState.NEEDS_VERIFICATION.value
     )
     assert ConversationRepository._normalize_conversation_state("") == ConversationState.GREETING.value
+    assert ConversationRepository._normalize_conversation_state("ANSWERED") == ConversationState.ANSWERED.value
     assert ConversationRepository._normalize_conversation_state("HANDOFF") == "HANDOFF"
