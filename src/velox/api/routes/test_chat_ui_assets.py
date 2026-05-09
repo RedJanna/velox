@@ -24,6 +24,18 @@ body{overflow:hidden}
 .header-copy{grid-area:copy}
 .header-copy h1{font-size:var(--text-xl);font-weight:800;letter-spacing:.01em;line-height:1.2}
 .header-copy p{font-size:13px;line-height:1.55;color:var(--muted);margin-top:4px;max-width:46ch}
+.lab-studio-strip{display:grid;grid-template-columns:minmax(220px,.9fr) minmax(260px,1.2fr) auto minmax(260px,.9fr);gap:12px;align-items:stretch;padding:12px 24px;border-bottom:1px solid rgba(18,33,59,.08);background:linear-gradient(135deg,#f8fbff 0%,#eef7f3 100%)}
+.lab-step,.lab-result-markers{display:flex;align-items:center;gap:10px;border:1px solid rgba(18,33,59,.08);border-radius:18px;background:rgba(255,255,255,.74);padding:10px 12px}
+.lab-step span{width:26px;height:26px;border-radius:999px;display:grid;place-items:center;background:var(--brand);color:#fff;font-size:12px;font-weight:900;flex:0 0 auto}
+.lab-step label,.lab-step strong{font-size:12px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.lab-step p{margin:0;font-size:12px;line-height:1.45;color:var(--muted)}
+.lab-step-wide{align-items:flex-start;flex-direction:column;gap:4px}
+.lab-step-wide span{position:absolute;opacity:0;pointer-events:none}
+.lab-result-markers{justify-content:flex-end;flex-wrap:wrap}
+.lab-result-markers button{border:1px solid rgba(18,33,59,.1);border-radius:999px;background:#fff;color:var(--muted);padding:7px 10px;font-size:12px;font-weight:900;cursor:pointer}
+.lab-result-markers button[data-lab-result=success]{color:#057a55;background:#e8f7ef}
+.lab-result-markers button[data-lab-result=needs_fix]{color:#92400e;background:#fef3c7}
+.lab-result-markers button[data-lab-result=risky]{color:#b91c1c;background:#fee2e2}
 .field{display:flex;align-items:center;gap:8px}
 .field label{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .header-select,.header-input,.input-bar textarea,.debug-input,.debug-select,.debug-textarea{
@@ -582,6 +594,7 @@ linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03))}
 }
 @media(max-width:1240px){
   .header{padding:14px 18px}
+  .lab-studio-strip{grid-template-columns:1fr 1fr;padding:12px 18px}
   .header--workspace{grid-template-columns:1fr}
   .header--workspace .header-brand{max-width:none}
   .header-status,.header-utility{justify-content:flex-start}
@@ -599,6 +612,7 @@ linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03))}
   body{overflow:auto}
   .app{height:auto;min-height:100vh}
   .header{gap:12px}
+  .lab-studio-strip{grid-template-columns:1fr}
   .header--workspace .header-brand{min-width:0}
   .header-status,.header-utility{width:100%}
   .workspace-utility-nav{grid-template-columns:1fr 1fr;max-width:none}
@@ -748,6 +762,33 @@ const el = id => document.getElementById(id);
 let _workspaceFlyoutReturnFocus = null;
 
 // escapeHtml, formatMessageHtml, formatTime provided by UI_SHARED_SCRIPT
+
+const LAB_SCENARIOS = {
+  reservation: 'Merhaba, 12-15 Haziran için iki yetişkin deniz manzaralı oda uygun mu? Fiyat ve iptal koşullarını paylaşır mısınız?',
+  restaurant: 'Bu akşam 20:30 için iki kişilik restoran rezervasyonu yapabilir miyiz? Deniz kenarı mümkünse çok iyi olur.',
+  transfer: 'Dalaman Havalimanı için yarın sabah 07:30 transfer ayarlayabilir misiniz? Ücret ve buluşma noktasını öğrenmek istiyorum.',
+  risk: 'Odaya giriş yaptık ama klima çalışmıyor ve resepsiyona ulaşamadık. Acil destek bekliyoruz.',
+};
+
+function fillLabScenario() {
+  const scenarioKey = el('lab-scenario-select')?.value || 'reservation';
+  const input = el('msg-input');
+  if (!input) return;
+  input.value = LAB_SCENARIOS[scenarioKey] || LAB_SCENARIOS.reservation;
+  input.focus();
+  saveComposerDraft();
+}
+
+function runLabScenario() {
+  fillLabScenario();
+  notify('Test mesajı hazırlandı. AI yanıtı için test başlatılıyor.', 'info');
+  sendMessage();
+}
+
+function markLabResult(result) {
+  const labels = {success: 'Başarılı', needs_fix: 'Düzeltilmeli', risky: 'Riskli'};
+  notify(`Test sonucu işaretlendi: ${labels[result] || result}`, result === 'risky' ? 'warn' : 'success');
+}
 const fmtTime = formatTime;
 
 function currentConversationKey() {
@@ -4386,6 +4427,11 @@ function wireEvents() {
     }
   });
   el('send-btn').addEventListener('click', sendMessage);
+  el('lab-scenario-select')?.addEventListener('change', fillLabScenario);
+  el('lab-run-btn')?.addEventListener('click', runLabScenario);
+  document.querySelectorAll('[data-lab-result]').forEach(button => {
+    button.addEventListener('click', () => markLabResult(button.dataset.labResult || 'success'));
+  });
   el('attach-btn').addEventListener('click', openAttachmentPicker);
   el('voice-btn').addEventListener('click', toggleVoiceRecording);
   el('attachment-input').addEventListener('change', event => {

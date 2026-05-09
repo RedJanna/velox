@@ -174,7 +174,7 @@ TEST_CHAT_HTML = (
       </div>
     </div>
     <div class="header-status" aria-live="polite">
-      <div class="source-badge" id="source-banner">Canlı kuyruk hazır.</div>
+      <div class="source-badge" id="source-banner">Test stüdyosu hazır.</div>
       <div class="header-status-pill" id="workspace-mode-indicator">Mod: Test</div>
     </div>
     <div class="header-utility">
@@ -191,12 +191,39 @@ TEST_CHAT_HTML = (
     </div>
   </div>
 
+  <section class="lab-studio-strip" aria-label="Chat Lab test akışı">
+    <div class="lab-step">
+      <span>1</span>
+      <label for="lab-scenario-select">Senaryo seç</label>
+      <select id="lab-scenario-select" class="header-select">
+        <option value="reservation">Rezervasyon uygunluğu</option>
+        <option value="restaurant">Restoran talebi</option>
+        <option value="transfer">Transfer sorusu</option>
+        <option value="risk">Riskli şikâyet</option>
+      </select>
+    </div>
+    <div class="lab-step lab-step-wide">
+      <span>2</span>
+      <strong>Misafir mesajı yaz</strong>
+      <p>Seçili senaryo mesaj alanına hazırlanır; test canlı konuşmadan ayrı değerlendirilir.</p>
+    </div>
+    <div class="lab-step">
+      <span>3</span>
+      <button class="btn btn-primary" id="lab-run-btn" type="button">Testi Başlat</button>
+    </div>
+    <div class="lab-result-markers" aria-label="Sonuç işaretleri">
+      <button type="button" data-lab-result="success">Başarılı</button>
+      <button type="button" data-lab-result="needs_fix">Düzeltilmeli</button>
+      <button type="button" data-lab-result="risky">Riskli</button>
+    </div>
+  </section>
+
   <div class="main">
     <aside class="queue-panel">
       <div class="queue-panel-head">
         <div>
-          <h2>Konuşmalar</h2>
-          <p>Canlı kuyruk, onay bekleyen yanıtlar ve insan devri gerektiren konuşmalar</p>
+          <h2>Test Kuyruğu</h2>
+          <p>Senaryo denemeleri, onay bekleyen taslaklar ve riskli test sonuçları</p>
         </div>
         <div class="queue-panel-actions">
           <label class="queue-toggle">

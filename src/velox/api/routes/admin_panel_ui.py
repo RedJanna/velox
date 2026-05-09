@@ -247,14 +247,38 @@ def render_admin_panel_html() -> str:
           <div id="dashboardQueues" class="card-grid card-grid-3"></div>
         </section>
 
-        <section data-view="conversations" class="section-grid" hidden>
-          <div class="conversation-ops-shell">
-            <article class="module-card conversation-list-panel">
-              <div class="module-header">
-                <div><h3>Konuşma Listesi</h3><p>Filtreleri sade tutun, riskli olanları hızlıca açın.</p></div>
+        <section data-view="conversations" class="section-grid operation-desk-section" hidden>
+          <div class="operation-mode-strip" aria-label="Çalışma modu özeti">
+            <div>
+              <span class="eyebrow">WhatsApp Operasyon Masası</span>
+              <strong>Test ve canlı gönderim ayrımı bu ekranda görünür tutulur.</strong>
+            </div>
+            <div class="mode-pills">
+              <span class="mode-pill is-test">Test modu</span>
+              <span class="mode-pill is-live">Canlı gönderim kontrollü</span>
+            </div>
+          </div>
+          <div class="conversation-ops-shell operation-desk-shell">
+            <article class="module-card conversation-list-panel operation-column">
+              <div class="module-header compact">
+                <div><h3>Konuşmalar</h3><p>Kim yazdı, ne istiyor ve müdahale gerekiyor mu?</p></div>
               </div>
-              <form id="conversationFilters" class="toolbar">
-                <label class="toolbar-check"><input name="active_only" type="checkbox" checked> Sadece aktif</label>
+              <div class="conversation-search">
+                <label class="sr-only" for="conversationSearchInput">Konuşma ara</label>
+                <input id="conversationSearchInput" type="search" placeholder="Misafir, durum veya niyet ara">
+              </div>
+              <div id="conversationFilterChips" class="conversation-filter-chips" aria-label="Konuşma filtreleri">
+                <button class="filter-chip is-active" type="button" data-conversation-filter="all">Tümü</button>
+                <button class="filter-chip" type="button" data-conversation-filter="unread">Okunmamış</button>
+                <button class="filter-chip" type="button" data-conversation-filter="handoff">İnsan Devri</button>
+                <button class="filter-chip" type="button" data-conversation-filter="approval">Onay Bekleyen</button>
+                <button class="filter-chip" type="button" data-conversation-filter="reservation">Rezervasyon</button>
+                <button class="filter-chip" type="button" data-conversation-filter="restaurant">Restoran</button>
+                <button class="filter-chip" type="button" data-conversation-filter="transfer">Transfer</button>
+                <button class="filter-chip" type="button" data-conversation-filter="risk">Riskli</button>
+              </div>
+              <form id="conversationFilters" class="sr-only" aria-hidden="true">
+                <input name="active_only" type="checkbox" checked>
                 <select name="status" aria-label="Konuşma durumu">
                   <option value="">Tüm durumlar</option>
                   <option value="GREETING">Karşılama</option>
@@ -264,7 +288,6 @@ def render_admin_panel_html() -> str:
                 </select>
                 <input name="date_from" type="date" aria-label="Başlangıç tarihi">
                 <input name="date_to" type="date" aria-label="Bitiş tarihi">
-                <button class="primary" type="submit">Filtrele</button>
               </form>
               <div id="conversationBulkBar" class="bulk-bar" hidden>
                 <div class="bulk-left">
@@ -283,30 +306,18 @@ def render_admin_panel_html() -> str:
                   <button class="action-button secondary action-button-sm" data-bulk-action="clear">Seçimi Temizle</button>
                 </div>
               </div>
-              <div class="table-shell">
-                <table>
-                  <thead><tr><th class="table-select">Seç</th><th>Kullanıcı</th><th>Durum</th><th>Niyet</th><th>Risk</th><th>Mesaj</th><th>İşlem</th></tr></thead>
-                  <tbody id="conversationTableBody"></tbody>
-                </table>
-              </div>
+              <div id="conversationTableBody" class="conversation-card-list" aria-live="polite"></div>
             </article>
-            <article id="conversationDetail" class="module-card conversation-thread-panel">
+            <article id="conversationDetail" class="module-card conversation-thread-panel whatsapp-thread-panel operation-column">
               <div class="empty-state"><p>Detay için soldan bir konuşma seçin.</p></div>
             </article>
-            <aside class="module-card conversation-side-panel" aria-label="Misafir detay paneli iskeleti">
+            <aside id="conversationDecisionPanel" class="module-card conversation-side-panel decision-support-panel operation-column" aria-label="Karar destek paneli">
               <div class="module-header compact">
-                <div><h3>Misafir Detayı</h3><p>Özet, rezervasyon, AI kontrolü ve notlar burada gruplanacak.</p></div>
-              </div>
-              <div class="detail-tabs" aria-label="Misafir detay sekmeleri">
-                <button class="detail-tab is-active" type="button">Özet</button>
-                <button class="detail-tab" type="button">Rezervasyon</button>
-                <button class="detail-tab" type="button">AI Kontrolü</button>
-                <button class="detail-tab" type="button">Notlar</button>
-                <button class="detail-tab" type="button">Geçmiş</button>
+                <div><h3>Karar Desteği</h3><p>Konuşma seçilince aksiyon önerisi burada görünür.</p></div>
               </div>
               <div class="conversation-side-empty">
                 <strong>Konuşma seçimi bekleniyor</strong>
-                <p>Phase 1 kapsamında sağ panel yerleşimi hazırlanır; içerik bağlama sonraki fazda ayrıştırılır.</p>
+                <p>Misafir özeti, AI’nin anladığı konu, risk ve hızlı aksiyonlar burada toplanır.</p>
               </div>
             </aside>
           </div>

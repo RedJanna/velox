@@ -135,10 +135,86 @@ button,input,select,textarea{font:inherit}
 .module-header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px}
 .module-actions{display:flex;flex-wrap:wrap;gap:10px}
 .split{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(340px,.8fr);gap:18px}
-.conversation-ops-shell{display:grid;grid-template-columns:minmax(280px,.85fr) minmax(380px,1.35fr) minmax(260px,.8fr);gap:16px;align-items:start}
-.conversation-list-panel,.conversation-thread-panel,.conversation-side-panel{min-width:0;min-height:560px}
-.conversation-thread-panel{display:flex;flex-direction:column}
-.conversation-side-panel{position:sticky;top:18px}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.operation-desk-section{gap:14px}
+.operation-mode-strip{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 18px;border:1px solid rgba(25,47,154,.12);border-radius:24px;background:linear-gradient(135deg,#f8fbff 0%,#eef7f3 100%);box-shadow:0 18px 42px rgba(25,47,154,.06)}
+.operation-mode-strip strong{display:block;margin-top:4px;font-size:14px;color:var(--ink)}
+.mode-pills{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.mode-pill{display:inline-flex;align-items:center;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:900;letter-spacing:.02em}
+.mode-pill.is-test{background:#e8eefc;color:var(--accent)}
+.mode-pill.is-live{background:#e8f7ef;color:#057a55}
+.conversation-ops-shell{display:grid;grid-template-columns:minmax(300px,.82fr) minmax(460px,1.42fr) minmax(300px,.86fr);gap:16px;align-items:stretch}
+.operation-column{min-width:0;min-height:calc(100vh - 245px)}
+.conversation-list-panel,.conversation-thread-panel,.conversation-side-panel{min-width:0}
+.conversation-thread-panel{display:flex;flex-direction:column;padding:0;overflow:hidden;background:#f6f1e8}
+.conversation-side-panel{position:sticky;top:18px;align-self:start}
+.conversation-search{margin-bottom:12px}
+.conversation-search input{width:100%;border:1px solid var(--line);border-radius:18px;background:#fff;padding:12px 14px;font-size:14px;color:var(--ink);outline:none}
+.conversation-search input:focus{border-color:rgba(25,47,154,.34);box-shadow:0 0 0 4px rgba(25,47,154,.08)}
+.conversation-filter-chips{display:flex;gap:8px;overflow:auto;padding-bottom:8px;margin-bottom:10px;scrollbar-width:thin}
+.filter-chip{flex:0 0 auto;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--muted);padding:8px 11px;font-size:12px;font-weight:900;cursor:pointer;transition:.18s ease}
+.filter-chip:hover{border-color:rgba(25,47,154,.24);color:var(--accent)}
+.filter-chip.is-active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 10px 20px rgba(25,47,154,.14)}
+.conversation-card-list{display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 405px);overflow:auto;padding-right:3px}
+.conversation-card{position:relative;width:100%;border:1px solid transparent;border-radius:20px;background:#fff;padding:12px;text-align:left;color:var(--ink);box-shadow:none;cursor:pointer;transition:.18s ease}
+.conversation-card:hover{border-color:rgba(25,47,154,.16);background:#f8fbff;transform:translateY(-1px)}
+.conversation-card.is-active{border-color:rgba(25,47,154,.35);background:linear-gradient(135deg,#eef3ff 0%,#ffffff 74%)}
+.conversation-card.is-selected{box-shadow:inset 0 0 0 2px rgba(18,140,126,.18)}
+.conversation-card-top,.conversation-card-meta,.conversation-card-footer{display:flex;align-items:center;gap:8px}
+.conversation-card-top{justify-content:space-between;margin-bottom:6px}
+.conversation-card-title{display:flex;align-items:center;gap:8px;min-width:0}
+.conversation-card-title strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+.conversation-avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#0f8b68,#35c19b);color:#fff;font-weight:900;font-size:12px;flex:0 0 auto}
+.conversation-time{font-size:12px;color:var(--muted);white-space:nowrap}
+.conversation-preview{margin:0 0 10px 42px;color:#536173;font-size:13px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.conversation-card-meta{justify-content:space-between;margin-left:42px}
+.conversation-tags{display:flex;gap:6px;flex-wrap:wrap}
+.conversation-tag,.conversation-status-badge,.unread-badge{display:inline-flex;align-items:center;border-radius:999px;font-size:11px;font-weight:900;line-height:1;padding:6px 8px}
+.conversation-tag{background:#f1f5f9;color:#475569}
+.conversation-status-badge{background:#e8eefc;color:var(--accent)}
+.conversation-status-badge.is-handoff{background:#fff4db;color:#b45309}
+.conversation-status-badge.is-risk{background:#fee2e2;color:#b91c1c}
+.conversation-status-badge.is-approval{background:#fef3c7;color:#92400e}
+.unread-badge{background:#0f8b68;color:#fff;min-width:24px;justify-content:center}
+.conversation-select-inline{position:absolute;left:10px;top:48px;width:18px;height:18px;accent-color:var(--accent)}
+.whatsapp-thread-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;background:#fff;border-bottom:1px solid var(--line)}
+.thread-guest{display:flex;align-items:center;gap:10px;min-width:0}
+.thread-guest strong{display:block;font-size:15px}
+.thread-guest span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.thread-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.whatsapp-thread-body{flex:1;overflow:auto;padding:20px 18px;background:radial-gradient(circle at 20% 0%,rgba(18,140,126,.08),transparent 30%),linear-gradient(180deg,#f8f2e8,#f4eadb)}
+.message-stream{display:flex;flex-direction:column;gap:12px}
+.chat-bubble{max-width:min(76%,680px);border-radius:18px;padding:10px 12px;background:#fff;box-shadow:0 8px 20px rgba(15,23,42,.06)}
+.chat-bubble.is-user{align-self:flex-start;border-top-left-radius:6px}
+.chat-bubble.is-assistant,.chat-bubble.is-operator{align-self:flex-end;border-top-right-radius:6px;background:#dcf8c6}
+.chat-bubble.is-system{align-self:center;max-width:82%;background:rgba(255,255,255,.72);border:1px dashed rgba(83,97,115,.22);box-shadow:none;text-align:center}
+.chat-bubble-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;color:#64748b;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
+.chat-bubble-content{white-space:pre-wrap;color:#182235;font-size:14px;line-height:1.55}
+.message-status{display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-top:7px;color:#64748b;font-size:11px;font-weight:800}
+.message-status.is-error{color:#b91c1c}
+.message-status.is-read{color:#0f8b68}
+.message-status.is-queued{color:#b45309}
+.developer-details{margin-top:8px;border-top:1px solid rgba(15,23,42,.08);padding-top:8px}
+.developer-details summary{cursor:pointer;color:#536173;font-size:12px;font-weight:900}
+.developer-details pre{max-height:220px;overflow:auto;margin:8px 0 0;padding:10px;border-radius:12px;background:#102033;color:#e5edf7;font-size:11px;white-space:pre-wrap}
+.thread-composer{padding:14px 16px;background:#fff;border-top:1px solid var(--line);display:grid;gap:10px}
+.ai-draft-box{border:1px solid rgba(25,47,154,.16);border-radius:18px;background:#f5f7ff;padding:12px}
+.ai-draft-box strong{display:block;color:var(--accent);font-size:13px;margin-bottom:4px}
+.ai-draft-box p{margin:0;color:#536173;font-size:13px;line-height:1.45}
+.composer-row{display:flex;gap:10px;align-items:flex-end}
+.composer-row textarea{flex:1;min-height:48px;resize:vertical;border:1px solid var(--line);border-radius:18px;padding:12px 14px;font:inherit;color:var(--ink)}
+.decision-support-panel{display:flex;flex-direction:column;gap:14px}
+.decision-section{border:1px solid var(--line);border-radius:20px;background:#fff;padding:14px}
+.decision-section h4{margin:0 0 10px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#536173}
+.decision-row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid rgba(15,23,42,.06);font-size:13px}
+.decision-row:last-child{border-bottom:none}
+.decision-row span{color:#64748b}
+.decision-row strong{text-align:right;color:#182235}
+.risk-list{display:flex;gap:8px;flex-wrap:wrap}
+.risk-chip{border-radius:999px;padding:7px 9px;background:#fee2e2;color:#b91c1c;font-size:12px;font-weight:900}
+.risk-chip.is-safe{background:#e8f7ef;color:#057a55}
+.quick-actions{display:grid;gap:8px}
+.quick-actions .action-button{width:100%;justify-content:center}
 .module-header.compact{margin-bottom:12px}
 .module-header.compact h3{font-size:18px;font-family:var(--sans)}
 .detail-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
@@ -580,13 +656,13 @@ const NAVIGATION_GROUPS = [
     items: [
       {
         id: 'conversations',
-        label: 'Konuşmalar',
-        subtitle: 'WhatsApp konuşmaları',
-        icon: 'K',
+        label: 'Operasyon Masası',
+        subtitle: 'WhatsApp kokpiti',
+        icon: 'WA',
         permission: 'conversations:read',
         badgeKey: 'conversations_active',
-        title: 'Konuşmalar',
-        lead: 'Misafir konuşmalarını, yanıt durumunu ve insan devri gerektiren işleri tek kokpitte izleyin.',
+        title: 'WhatsApp Operasyon Masası',
+        lead: 'Misafir konuşmalarını, AI yanıtlarını, riskleri ve insan devri gerektiren işleri tek ekranda yönetin.',
       },
       {
         id: 'holds',
@@ -739,10 +815,10 @@ const VIEW_PERMISSIONS = NAVIGATION_ITEMS.reduce((acc, item) => {
 }, {});
 
 function normalizeAdminViewKey(value) {
-  const normalized = String(value || 'dashboard').replace('#', '').trim().toLowerCase();
+  const normalized = String(value || 'conversations').replace('#', '').trim().toLowerCase();
   if (normalized === 'access-control') return 'accesscontrol';
   if (normalized === 'voice-lab') return 'voicelab';
-  return normalized || 'dashboard';
+  return normalized || 'conversations';
 }
 
 const state = {
@@ -751,15 +827,17 @@ const state = {
   bootstrapPending: null,
   hotels: [],
   selectedHotelId: window.localStorage.getItem(HOTEL_KEY) || '',
-  currentView: normalizeAdminViewKey(window.location.hash || '#dashboard'),
+  currentView: normalizeAdminViewKey(window.location.hash || '#conversations'),
   sidebarCollapsed: false,
   sidebarOpenGroups: new Set(),
   mobileSidebarOpen: false,
-  lastDebugSourceView: 'dashboard',
+  lastDebugSourceView: 'conversations',
   dashboard: null,
   conversations: [],
   conversationsTotal: 0,
   conversationDetail: null,
+  conversationFilter: 'all',
+  conversationSearch: '',
   selectedConversationIds: new Set(),
   stayHolds: [],
   selectedStayHoldIds: new Set(),
@@ -885,7 +963,7 @@ function bindRefs() {
     'totpRecovery','totpRecoveryForm','trustedSessionBanner','loginOtpField','rememberDeviceToggle',
     'loginRememberOptions','loginVerificationOptions','loginSessionOptions',
     'otpSetup','otpSecret','otpUri','otpQrImage','otpVerifyForm','otpVerifyHint','currentUser','currentRole','hotelScope','hotelSelect','nav','pageBreadcrumb','pageTitle','pageLead',
-    'dashboardCards','dashboardQueues','conversationFilters','conversationBulkBar','conversationSelectAll','conversationSelectionCount','conversationTableBody','conversationDetail',
+    'dashboardCards','dashboardQueues','conversationFilters','conversationSearchInput','conversationFilterChips','conversationBulkBar','conversationSelectAll','conversationSelectionCount','conversationTableBody','conversationDetail','conversationDecisionPanel',
     'stayHoldFilters','stayHoldTableBody','stayHoldDetail','stayHoldCreatePanel','stayWizardSteps','stayWizardBody','stayStatusChips',
     'restaurantHoldFilters','restaurantHoldTableBody','restaurantHoldDetail','restaurantHoldCreatePanel','restaurantCreateForm','restaurantStatusChips','restaurantDateFrom','restaurantDateTo',
     'transferHoldFilters','transferHoldTableBody','transferHoldDetail','transferHoldCreatePanel','transferCreateForm','transferStatusChips',
@@ -1007,6 +1085,20 @@ function bindEvents() {
     clearConversationSelection();
     loadConversations();
   });
+  refs.conversationSearchInput?.addEventListener('input', event => {
+    state.conversationSearch = String(event.target.value || '').trim().toLowerCase();
+    renderConversationListFromState();
+  });
+  refs.conversationFilterChips?.addEventListener('click', event => {
+    const button = event.target.closest('[data-conversation-filter]');
+    if (!button) return;
+    state.conversationFilter = button.dataset.conversationFilter || 'all';
+    refs.conversationFilterChips.querySelectorAll('[data-conversation-filter]').forEach(chip => {
+      chip.classList.toggle('is-active', chip === button);
+    });
+    clearConversationSelection();
+    renderConversationListFromState();
+  });
   refs.conversationTableBody?.addEventListener('change', onConversationSelectionChange);
   refs.conversationSelectAll?.addEventListener('change', onConversationSelectAllChange);
   refs.stayHoldFilters?.addEventListener('submit', event => {
@@ -1072,7 +1164,7 @@ function bindEvents() {
     }
   });
   window.addEventListener('hashchange', () => {
-    const newView = normalizeAdminViewKey(window.location.hash || '#dashboard');
+    const newView = normalizeAdminViewKey(window.location.hash || '#conversations');
     if (newView !== state.currentView) {
       setView(newView);
     }
@@ -1277,7 +1369,7 @@ function bindDelegatedEvents() {
     // Holds module events (tabs, wizards, filters, create toggles, hold selection)
     if (typeof handleHoldsModuleClick === 'function' && handleHoldsModuleClick(event.target)) return;
 
-    const target = event.target.closest('[data-bulk-action],[data-open-conversation],[data-deactivate-conversation],[data-approve-hold],[data-reject-hold],[data-restaurant-next-status],[data-restaurant-extend],[data-save-ticket],[data-facts-version-detail],[data-facts-version-rollback],[data-facts-conflict-restore-draft],[data-facts-conflict-dismiss]');
+    const target = event.target.closest('[data-bulk-action],[data-open-conversation],[data-deactivate-conversation],[data-approve-message],[data-toggle-human-override],[data-reset-conversation],[data-scroll-composer],[data-approve-hold],[data-reject-hold],[data-restaurant-next-status],[data-restaurant-extend],[data-save-ticket],[data-facts-version-detail],[data-facts-version-rollback],[data-facts-conflict-restore-draft],[data-facts-conflict-dismiss]');
     if (!target) return;
 
     if (target.dataset.bulkAction) {
@@ -1288,6 +1380,65 @@ function bindDelegatedEvents() {
     // Conversation detail
     if (target.dataset.openConversation) {
       loadConversationDetail(target.dataset.openConversation);
+      return;
+    }
+
+    if (target.dataset.approveMessage) {
+      const convId = target.dataset.approveConversation;
+      const msgId = target.dataset.approveMessage;
+      if (!convId || !msgId) return;
+      if (!confirm('Bu AI taslağını WhatsApp üzerinden göndermek istediğinize emin misiniz?')) return;
+      const originalLabel = target.textContent;
+      target.disabled = true;
+      target.textContent = 'Gönderiliyor...';
+      try {
+        await apiFetch(`/conversations/${convId}/messages/${msgId}/send`, {method: 'POST'});
+        notify('Yanıt onaylandı ve gönderildi.', 'success');
+        await loadConversationDetail(convId);
+        await loadConversations();
+      } catch (error) {
+        target.disabled = false;
+        target.textContent = originalLabel;
+        notify(error.message || 'Gönderim başarısız.', 'error');
+      }
+      return;
+    }
+
+    if (target.dataset.toggleHumanOverride) {
+      const convId = target.dataset.toggleHumanOverride;
+      const currentlyEnabled = target.dataset.currentOverride === 'true';
+      const newState = !currentlyEnabled;
+      const confirmMsg = newState
+        ? 'Bu konuşmayı insan devrine almak istediğinize emin misiniz? Yapay zekâ yanıt üretir ancak otomatik gönderim durur.'
+        : 'Bu konuşmayı tekrar AI moduna almak istediğinize emin misiniz? Uygun yanıtlar otomatik gönderilebilir.';
+      if (!confirm(confirmMsg)) return;
+      try {
+        await apiFetch(`/conversations/${convId}/human-override?enable=${newState}`, {method: 'POST'});
+        notify(newState ? 'İnsan devri aktif. Otomatik gönderim durdu.' : 'AI modu aktif.', 'success');
+        await loadConversationDetail(convId);
+        await loadConversations();
+      } catch (error) {
+        notify(error.message || 'Mod değiştirilemedi.', 'error');
+      }
+      return;
+    }
+
+    if (target.dataset.resetConversation) {
+      const convId = target.dataset.resetConversation;
+      if (!confirm('Bu konuşmayı sıfırlamak istediğinize emin misiniz?')) return;
+      try {
+        await apiFetch(`/conversations/${convId}/reset`, {method: 'POST'});
+        notify('Konuşma sıfırlandı.', 'success');
+        state.conversationDetail = null;
+        await loadConversations();
+      } catch (error) {
+        notify(error.message || 'Sıfırlama başarısız.', 'error');
+      }
+      return;
+    }
+
+    if (target.dataset.scrollComposer) {
+      refs.conversationDetail?.querySelector('[data-message-composer]')?.focus();
       return;
     }
 
@@ -1703,7 +1854,7 @@ async function hydrateSession() {
   } else if (firstNonAuthError) {
     notify(firstNonAuthError.message || 'Panel verilerinin bir bölümü yüklenemedi.', 'warn');
   }
-  setView(state.currentView || 'dashboard');
+  setView(state.currentView || 'conversations');
 }
 
 function findTerminalHydrationAuthError(results) {
@@ -1789,7 +1940,7 @@ function setView(view) {
   const navItem = getNavigationItem(view);
   if (state.me && navItem && !canAccessNavigationItem(navItem)) {
     notify('Bu bölümü görüntüleme yetkiniz bulunmuyor.', 'warn');
-    view = 'dashboard';
+    view = canAccessNavigationItem(getNavigationItem('conversations')) ? 'conversations' : 'dashboard';
   }
   state.currentView = view;
   if (view && view !== 'debug') {
@@ -1911,7 +2062,7 @@ function closeDebugRunModal() {
 
 function buildDebugRunPayload() {
   const target = refs.debugScopeCurrentView?.checked ? 'current_view' : 'all_panel';
-  const effectiveView = state.currentView || state.lastDebugSourceView || 'dashboard';
+  const effectiveView = state.currentView || state.lastDebugSourceView || 'conversations';
   return {
     mode: 'aggressive_report_only',
     scope: {
@@ -4097,11 +4248,13 @@ async function loadConversations() {
   state.conversations = response.items || [];
   state.conversationsTotal = Number(response.total || 0);
   syncConversationSelection();
-  refs.conversationTableBody.innerHTML = renderConversationRows(state.conversations);
-  if (state.conversations.length && !state.conversationDetail) {
-    loadConversationDetail(state.conversations[0].id);
-  } else if (!state.conversations.length) {
-    refs.conversationDetail.innerHTML = '<div class="empty-state"><p>Seçili konuşma yok.</p></div>';
+  const visibleItems = getVisibleConversationItems();
+  refs.conversationTableBody.innerHTML = renderConversationRows(visibleItems);
+  if (visibleItems.length && !state.conversationDetail) {
+    loadConversationDetail(visibleItems[0].id);
+  } else if (!visibleItems.length) {
+    refs.conversationDetail.innerHTML = '<div class="empty-state"><p>Bu filtrede konuşma yok.</p></div>';
+    renderDecisionPanel(null, []);
   }
   updateConversationBulkBar();
 }
@@ -4117,24 +4270,133 @@ function buildConversationParams() {
   return params;
 }
 
+function renderConversationListFromState() {
+  const visibleItems = getVisibleConversationItems();
+  syncConversationSelection();
+  refs.conversationTableBody.innerHTML = renderConversationRows(visibleItems);
+  updateConversationBulkBar();
+  const selectedId = String(state.conversationDetail?.conversation?.id || '');
+  if (selectedId && !visibleItems.some(item => String(item.id) === selectedId)) {
+    refs.conversationDetail.innerHTML = '<div class="empty-state"><p>Seçili konuşma bu filtrede görünmüyor.</p></div>';
+    renderDecisionPanel(null, []);
+  }
+}
+
+function getVisibleConversationItems() {
+  const query = String(state.conversationSearch || '').toLowerCase();
+  return (state.conversations || []).filter(item => {
+    if (!matchesConversationFilter(item, state.conversationFilter)) return false;
+    if (!query) return true;
+    const haystack = [
+      item.phone_display,
+      item.id,
+      item.current_state,
+      item.current_intent,
+      conversationPreview(item),
+      ...(item.risk_flags || []),
+      ...conversationTags(item),
+    ].join(' ').toLowerCase();
+    return haystack.includes(query);
+  });
+}
+
+function matchesConversationFilter(item, filter) {
+  const key = String(filter || 'all');
+  const intent = String(item.current_intent || '').toLowerCase();
+  const stateValue = String(item.current_state || '').toLowerCase();
+  const risks = item.risk_flags || [];
+  if (key === 'all') return true;
+  if (key === 'unread') return getConversationUnreadCount(item) > 0;
+  if (key === 'handoff') return Boolean(item.human_override) || stateValue.includes('handoff');
+  if (key === 'approval') return stateValue.includes('approval') || stateValue.includes('pending');
+  if (key === 'reservation') return /reservation|rezervasyon|booking|stay|konaklama|availability/.test(intent);
+  if (key === 'restaurant') return /restaurant|restoran|dining|order|siparis|sipariş/.test(intent);
+  if (key === 'transfer') return /transfer|airport|havalimani|havalimanı/.test(intent);
+  if (key === 'risk') return Array.isArray(risks) && risks.length > 0;
+  return true;
+}
+
+function getConversationUnreadCount(item) {
+  return Number(item.unread_count || item.unread_messages || item.pending_inbound_count || 0);
+}
+
+function conversationPreview(item) {
+  const internal = asObject(item.last_user_internal_json);
+  const candidate = internal.preview || internal.message_preview || internal.last_message || '';
+  if (candidate) return String(candidate);
+  const intent = resolveConversationIntent(item, []);
+  const stateLabel = formatConversationState(item.current_state || '-');
+  return intent && intent !== 'intent yok'
+    ? `${formatIntentLabel(intent)} talebi · ${stateLabel}`
+    : `${stateLabel} · ${Number(item.message_count || 0)} mesaj`;
+}
+
+function conversationTags(item) {
+  const tags = [];
+  const intent = String(resolveConversationIntent(item, []) || '');
+  const intentLower = intent.toLowerCase();
+  if (/restaurant|restoran|dining|order|siparis|sipariş/.test(intentLower)) tags.push('Restoran');
+  else if (/transfer|airport|havalimani|havalimanı/.test(intentLower)) tags.push('Transfer');
+  else if (/reservation|rezervasyon|booking|stay|konaklama|availability/.test(intentLower)) tags.push('Rezervasyon');
+  else if (intent && intent !== 'intent yok') tags.push(formatIntentLabel(intent));
+  if (item.human_override) tags.push('İnsan devri');
+  if ((item.risk_flags || []).length) tags.push('Riskli');
+  if (String(item.current_state || '').toLowerCase().includes('approval')) tags.push('Onay bekliyor');
+  return tags.slice(0, 4);
+}
+
+function formatIntentLabel(value) {
+  const normalized = String(value || '').replace(/_/g, ' ').trim();
+  if (!normalized) return 'Talep';
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function getConversationStatusClass(item) {
+  const stateValue = String(item.current_state || '').toLowerCase();
+  if ((item.risk_flags || []).length) return 'is-risk';
+  if (item.human_override || stateValue.includes('handoff')) return 'is-handoff';
+  if (stateValue.includes('approval') || stateValue.includes('pending')) return 'is-approval';
+  return '';
+}
+
 function renderConversationRows(items) {
   if (!items.length) {
-    return `<tr><td colspan="7"><div class="empty-state"><p>Filtreye uygun konuşma bulunamadı.</p></div></td></tr>`;
+    return `<div class="empty-state"><p>Filtreye uygun konuşma bulunamadı.</p></div>`;
   }
   return items.map(item => `
-    <tr class="${state.selectedConversationIds.has(String(item.id)) ? 'is-selected' : ''}" data-conversation-row="${escapeHtml(item.id)}">
-      <td class="table-select"><input class="row-select" type="checkbox" data-select-conversation="${escapeHtml(item.id)}" ${state.selectedConversationIds.has(String(item.id)) ? 'checked' : ''} aria-label="Konuşmayı seç"></td>
-      <td><div class="stack"><strong>${escapeHtml(item.phone_display || 'Maskeli kullanıcı')}</strong><span class="muted mono">${escapeHtml(item.id)}</span></div></td>
-      <td><span class="pill open">${escapeHtml(formatConversationState(item.current_state || '-'))}</span>${item.human_override ? ' <span class="pill pill-warning" title="İnsan devri aktif">👤</span>' : ''}</td>
-      <td>${escapeHtml(resolveConversationIntent(item, []))}</td>
-      <td>${escapeHtml((item.risk_flags || []).join(', ') || 'Yok')}</td>
-      <td>${escapeHtml(item.message_count || 0)}</td>
-      <td class="action-cell">
-        <button class="inline-button primary" data-open-conversation="${escapeHtml(item.id)}">Detay</button>
-        ${item.is_active ? `<button class="inline-button danger" data-deactivate-conversation="${escapeHtml(item.id)}">Pasife Al</button>` : '<span class="pill pill-closed">Pasif</span>'}
-      </td>
-    </tr>
+    <div role="button" tabindex="0" class="conversation-card ${state.selectedConversationIds.has(String(item.id)) ? 'is-selected' : ''} ${String(state.conversationDetail?.conversation?.id || '') === String(item.id) ? 'is-active' : ''}" data-open-conversation="${escapeHtml(item.id)}" data-conversation-row="${escapeHtml(item.id)}">
+      <input class="conversation-select-inline row-select" type="checkbox" data-select-conversation="${escapeHtml(item.id)}" ${state.selectedConversationIds.has(String(item.id)) ? 'checked' : ''} aria-label="Konuşmayı seç" onclick="event.stopPropagation()">
+      <div class="conversation-card-top">
+        <div class="conversation-card-title">
+          <span class="conversation-avatar" aria-hidden="true">${escapeHtml(getGuestInitials(item.phone_display || 'Misafir'))}</span>
+          <strong>${escapeHtml(item.phone_display || 'Maskeli misafir')}</strong>
+        </div>
+        <span class="conversation-time">${escapeHtml(formatConversationTime(item.updated_at || item.created_at))}</span>
+      </div>
+      <p class="conversation-preview">${escapeHtml(conversationPreview(item))}</p>
+      <div class="conversation-card-meta">
+        <div class="conversation-tags">
+          <span class="conversation-status-badge ${getConversationStatusClass(item)}">${escapeHtml(formatConversationState(item.current_state || '-'))}</span>
+          ${conversationTags(item).map(tag => `<span class="conversation-tag">${escapeHtml(tag)}</span>`).join('')}
+        </div>
+        ${getConversationUnreadCount(item) ? `<span class="unread-badge">${escapeHtml(getConversationUnreadCount(item))}</span>` : ''}
+      </div>
+    </div>
   `).join('');
+}
+
+function getGuestInitials(value) {
+  const text = String(value || 'Misafir').replace(/[^\\p{L}\\p{N}\\s]/gu, ' ').trim();
+  const parts = text.split(/\\s+/).filter(Boolean);
+  if (!parts.length) return 'M';
+  return parts.slice(0, 2).map(part => part[0]).join('').toUpperCase();
+}
+
+function formatConversationTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString('tr-TR', {hour: '2-digit', minute: '2-digit'});
 }
 
 function syncConversationSelection() {
@@ -4146,10 +4408,11 @@ function syncConversationSelection() {
 
 function updateConversationBulkBar() {
   const selectedCount = state.selectedConversationIds.size;
-  const hasItems = (state.conversations || []).length > 0;
+  const visibleItems = getVisibleConversationItems();
+  const hasItems = visibleItems.length > 0;
   if (refs.conversationBulkBar) refs.conversationBulkBar.hidden = !hasItems;
   if (refs.conversationSelectionCount) {
-    refs.conversationSelectionCount.textContent = `${selectedCount} seçili · bu sayfa ${state.conversations.length} · filtre toplamı ${state.conversationsTotal || 0}`;
+    refs.conversationSelectionCount.textContent = `${selectedCount} seçili · görünür ${visibleItems.length} · toplam ${state.conversationsTotal || 0}`;
   }
 
   if (refs.conversationBulkBar) {
@@ -4160,7 +4423,7 @@ function updateConversationBulkBar() {
   }
 
   if (refs.conversationSelectAll) {
-    const total = (state.conversations || []).length;
+    const total = visibleItems.length;
     if (!total) {
       refs.conversationSelectAll.checked = false;
       refs.conversationSelectAll.indeterminate = false;
@@ -4187,7 +4450,7 @@ function clearConversationSelection() {
   if (refs.conversationTableBody) {
     refs.conversationTableBody.querySelectorAll('[data-select-conversation]').forEach(input => {
       input.checked = false;
-      const row = input.closest('tr');
+      const row = input.closest('[data-conversation-row]');
       if (row) row.classList.remove('is-selected');
     });
   }
@@ -4205,14 +4468,15 @@ function onConversationSelectionChange(event) {
   const convId = String(target.dataset.selectConversation || '');
   if (!convId) return;
   toggleConversationSelection(convId, target.checked);
-  const row = target.closest('tr');
+  const row = target.closest('[data-conversation-row]');
   if (row) row.classList.toggle('is-selected', target.checked);
+  event.stopPropagation();
 }
 
 function onConversationSelectAllChange() {
   if (!refs.conversationSelectAll) return;
   const checked = refs.conversationSelectAll.checked;
-  const items = state.conversations || [];
+  const items = getVisibleConversationItems();
   items.forEach(item => {
     const convId = String(item.id);
     if (checked) state.selectedConversationIds.add(convId);
@@ -4221,7 +4485,7 @@ function onConversationSelectAllChange() {
   if (refs.conversationTableBody) {
     refs.conversationTableBody.querySelectorAll('[data-select-conversation]').forEach(input => {
       input.checked = checked;
-      const row = input.closest('tr');
+      const row = input.closest('[data-conversation-row]');
       if (row) row.classList.toggle('is-selected', checked);
     });
   }
@@ -4290,7 +4554,7 @@ async function selectFilteredConversations() {
       const convId = String(input.dataset.selectConversation || '');
       const checked = state.selectedConversationIds.has(convId);
       input.checked = checked;
-      const row = input.closest('tr');
+      const row = input.closest('[data-conversation-row]');
       if (row) row.classList.toggle('is-selected', checked);
     });
     updateConversationBulkBar();
@@ -4311,65 +4575,179 @@ async function loadConversationDetail(conversationId) {
   state.conversationDetail = response;
   const resolvedIntent = resolveConversationIntent(response.conversation, response.messages || []);
   const resolvedState = resolveConversationState(response.conversation, response.messages || []);
-  const audit = extractLatestUserAudit(response.messages || []);
+  const messages = response.messages || [];
+  const approvalMessage = findLatestPendingAssistantMessage(messages);
   refs.conversationDetail.innerHTML = `
-    <div class="module-header">
-      <div>
-        <h3>Konuşma Detayı</h3>
-        <p>${escapeHtml(response.conversation.phone_display || 'Maskeli kullanıcı')} · ${escapeHtml(resolvedState)}</p>
+    <div class="whatsapp-thread-header">
+      <div class="thread-guest">
+        <span class="conversation-avatar" aria-hidden="true">${escapeHtml(getGuestInitials(response.conversation.phone_display || 'Misafir'))}</span>
+        <div>
+          <strong>${escapeHtml(response.conversation.phone_display || 'Maskeli misafir')}</strong>
+          <span>${escapeHtml(resolvedState)} · ${escapeHtml(formatIntentLabel(resolvedIntent))}</span>
+        </div>
       </div>
-      <div class="inline-flex-center">
-        <div class="badge dark">${escapeHtml(resolvedIntent)}</div>
+      <div class="thread-actions">
+        <span class="conversation-status-badge ${getConversationStatusClass(response.conversation)}">${escapeHtml(response.conversation.human_override ? 'İnsan devri' : 'AI izliyor')}</span>
         ${response.conversation.is_active ? `
-          <button class="action-button ${response.conversation.human_override ? 'primary' : 'warn'} action-button-sm" data-toggle-human-override="${escapeHtml(String(response.conversation.id))}" data-current-override="${response.conversation.human_override ? 'true' : 'false'}" aria-label="İnsan devri / yapay zekâ modu değiştir">${response.conversation.human_override ? 'Yapay Zekâ Moduna Al' : 'İnsan Devrine Al'}</button>
-          <button class="action-button danger action-button-sm" data-reset-conversation="${escapeHtml(String(response.conversation.id))}" aria-label="Seçili konuşmayı sıfırla">Sıfırla</button>
+          <button class="action-button ${response.conversation.human_override ? 'primary' : 'warn'} action-button-sm" data-toggle-human-override="${escapeHtml(String(response.conversation.id))}" data-current-override="${response.conversation.human_override ? 'true' : 'false'}">${response.conversation.human_override ? 'AI Moduna Al' : 'İnsan Devrine Al'}</button>
         ` : '<span class="pill pill-closed">Kapalı</span>'}
       </div>
     </div>
-    ${renderUserAuditSection(audit)}
-    <div class="timeline">
-      ${(response.messages || []).map(message => `
-        <article class="message ${escapeHtml(message.role || 'system')}">
-          <header><strong>${escapeHtml(message.role || 'system')}</strong><span class="muted">${formatDate(message.created_at)}</span></header>
-          <pre>${escapeHtml(message.content || '')}</pre>
-          ${renderMessageAuditRow(message)}
-        </article>
-      `).join('')}
+    <div class="whatsapp-thread-body">
+      <div class="message-stream">
+        ${messages.length ? messages.map(renderOperationMessageBubble).join('') : '<div class="empty-state"><p>Henüz mesaj yok.</p></div>'}
+      </div>
+    </div>
+    <div class="thread-composer">
+      ${approvalMessage ? renderAiDraftBox(response.conversation, approvalMessage) : `
+        <div class="ai-draft-box">
+          <strong>AI taslağı</strong>
+          <p>Onay bekleyen taslak yok. Yeni yanıt üretimi mevcut backend akışı üzerinden yapılır.</p>
+        </div>
+      `}
+      <div class="composer-row">
+        <textarea data-message-composer placeholder="Misafire sorulacak kısa notu yazın" aria-label="Misafire sorulacak mesaj"></textarea>
+        <button class="action-button secondary" type="button" data-scroll-composer="true">Düzenle</button>
+      </div>
     </div>
   `;
-  const overrideBtn = refs.conversationDetail.querySelector('[data-toggle-human-override]');
-  if (overrideBtn) {
-    overrideBtn.addEventListener('click', async () => {
-      const convId = overrideBtn.dataset.toggleHumanOverride;
-      const currentlyEnabled = overrideBtn.dataset.currentOverride === 'true';
-      const newState = !currentlyEnabled;
-      const confirmMsg = newState
-        ? 'Bu konuşmayı İNSAN DEVRİNE almak istediğinize emin misiniz? Yapay zekâ yanıt üretmeye devam edecek ancak mesajlar WhatsApp üzerinden GÖNDERİLMEYECEK.'
-        : 'Bu konuşmayı tekrar YAPAY ZEKÂ MODUNA almak istediğinize emin misiniz? Mesajlar otomatik olarak gönderilmeye başlanacak.';
-      if (!confirm(confirmMsg)) return;
-      try {
-        await apiFetch(`/conversations/${convId}/human-override?enable=${newState}`, {method: 'POST'});
-        notify(newState ? 'İnsan devri aktif — mesajlar gönderilmeyecek.' : 'Yapay zekâ modu aktif — mesajlar otomatik gönderilecek.', 'success');
-        loadConversationDetail(convId);
-        loadConversations();
-      } catch (error) {
-        notify(error.message, 'error');
-      }
-    });
+  renderDecisionPanel(response.conversation, messages);
+  renderConversationListFromState();
+}
+
+function renderOperationMessageBubble(message) {
+  const role = String(message.role || 'system').toLowerCase();
+  const bubbleClass = role === 'user' ? 'is-user' : role === 'assistant' ? 'is-assistant' : role === 'operator' ? 'is-operator' : 'is-system';
+  const roleLabel = role === 'user' ? 'Misafir' : role === 'assistant' ? 'AI' : role === 'operator' ? 'Operatör' : 'Sistem';
+  const status = deriveMessageStatus(message);
+  return `
+    <article class="chat-bubble ${bubbleClass}">
+      <div class="chat-bubble-header">
+        <span>${escapeHtml(roleLabel)}</span>
+        <span>${escapeHtml(formatDate(message.created_at))}</span>
+      </div>
+      <div class="chat-bubble-content">${escapeHtml(message.content || '')}</div>
+      ${role === 'assistant' || role === 'operator' ? `<div class="message-status ${escapeHtml(status.className)}">${escapeHtml(status.label)}</div>` : ''}
+      ${renderDeveloperDetails(message)}
+    </article>
+  `;
+}
+
+function deriveMessageStatus(message) {
+  const internal = asObject(message.internal_json);
+  const providerStatus = String(internal.provider_status || internal.delivery_status || '').toLowerCase();
+  if (internal.provider_error || internal.failed_at || providerStatus === 'failed' || providerStatus === 'error') return {label: 'Hata', className: 'is-error'};
+  if (internal.send_blocked || internal.approval_pending) return {label: 'Kuyrukta', className: 'is-queued'};
+  if (providerStatus === 'read' || internal.read_at) return {label: 'Okundu', className: 'is-read'};
+  if (providerStatus === 'delivered' || internal.delivered_at) return {label: 'Teslim edildi', className: ''};
+  if (message.whatsapp_message_id || internal.whatsapp_message_id || internal.sent_at || providerStatus === 'sent') return {label: 'Gönderildi', className: ''};
+  return {label: 'Kuyrukta', className: 'is-queued'};
+}
+
+function renderDeveloperDetails(message) {
+  const internal = asObject(message.internal_json);
+  const toolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
+  if (!Object.keys(internal).length && !toolCalls.length) return '';
+  return `
+    <details class="developer-details">
+      <summary>Geliştirici Detayı</summary>
+      <pre>${escapeHtml(JSON.stringify({internal_json: internal, tool_calls: toolCalls}, null, 2))}</pre>
+    </details>
+  `;
+}
+
+function findLatestPendingAssistantMessage(messages) {
+  return [...(messages || [])].reverse().find(message => {
+    if (message.role !== 'assistant') return false;
+    const internal = asObject(message.internal_json);
+    return Boolean(internal.send_blocked || internal.approval_pending);
+  }) || null;
+}
+
+function renderAiDraftBox(conversation, message) {
+  return `
+    <div class="ai-draft-box">
+      <strong>AI taslağı onay bekliyor</strong>
+      <p>${escapeHtml(truncateText(message.content || '', 220))}</p>
+      <div class="module-actions mt-sm">
+        <button class="action-button primary action-button-sm" data-approve-conversation="${escapeHtml(String(conversation.id))}" data-approve-message="${escapeHtml(String(message.id))}">Onayla ve Gönder</button>
+        <button class="action-button secondary action-button-sm" data-scroll-composer="true">Düzenle</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderDecisionPanel(conversation, messages) {
+  if (!refs.conversationDecisionPanel) return;
+  if (!conversation) {
+    refs.conversationDecisionPanel.innerHTML = `
+      <div class="module-header compact"><div><h3>Karar Desteği</h3><p>Konuşma seçilince aksiyon önerisi burada görünür.</p></div></div>
+      <div class="conversation-side-empty"><strong>Konuşma seçimi bekleniyor</strong><p>Misafir özeti, AI’nin anladığı konu, risk ve hızlı aksiyonlar burada toplanır.</p></div>
+    `;
+    return;
   }
-  const resetBtn = refs.conversationDetail.querySelector('[data-reset-conversation]');
-  if (resetBtn) {
-    resetBtn.addEventListener('click', async () => {
-      if (!confirm('Bu konuşmayı sıfırlamak istediğinize emin misiniz? Kullanıcının bir sonraki mesajı yeni bir konuşma başlatacaktır.')) return;
-      try {
-        await apiFetch(`/conversations/${resetBtn.dataset.resetConversation}/reset`, {method: 'POST'});
-        notify('Konuşma sıfırlandı.', 'success');
-        loadConversations();
-      } catch (error) {
-        notify(error.message, 'error');
-      }
-    });
-  }
+  const latestAssistant = [...(messages || [])].reverse().find(message => message.role === 'assistant');
+  const latestUser = [...(messages || [])].reverse().find(message => message.role === 'user');
+  const assistantInternal = asObject(latestAssistant?.internal_json);
+  const pendingMessage = findLatestPendingAssistantMessage(messages || []);
+  const risks = conversation.risk_flags || assistantInternal.risk_flags || [];
+  refs.conversationDecisionPanel.innerHTML = `
+    <div class="module-header compact">
+      <div><h3>Karar Desteği</h3><p>Şimdi ne yapılmalı?</p></div>
+    </div>
+    <section class="decision-section">
+      <h4>Misafir Özeti</h4>
+      <div class="decision-row"><span>Misafir</span><strong>${escapeHtml(conversation.phone_display || 'Maskeli misafir')}</strong></div>
+      <div class="decision-row"><span>Ne istiyor?</span><strong>${escapeHtml(formatIntentLabel(resolveConversationIntent(conversation, messages || [])))}</strong></div>
+      <div class="decision-row"><span>Durum</span><strong>${escapeHtml(resolveConversationState(conversation, messages || []))}</strong></div>
+      <div class="decision-row"><span>Son mesaj</span><strong>${escapeHtml(truncateText(latestUser?.content || 'Yok', 72))}</strong></div>
+    </section>
+    <section class="decision-section">
+      <h4>AI Ne Yaptı?</h4>
+      <div class="decision-row"><span>Taslak</span><strong>${escapeHtml(pendingMessage ? 'Onay bekliyor' : latestAssistant ? 'Yanıt oluşturdu' : 'Henüz yok')}</strong></div>
+      <div class="decision-row"><span>Kaynak</span><strong>${escapeHtml(resolveAssistantSource(assistantInternal))}</strong></div>
+      <div class="decision-row"><span>Eksik bilgi</span><strong>${escapeHtml(resolveMissingInfo(assistantInternal))}</strong></div>
+      <div class="decision-row"><span>İnsan devri</span><strong>${escapeHtml(conversation.human_override ? 'Aktif' : 'Gerekmiyor')}</strong></div>
+    </section>
+    <section class="decision-section">
+      <h4>Risk</h4>
+      <div class="risk-list">
+        ${Array.isArray(risks) && risks.length ? risks.map(risk => `<span class="risk-chip">${escapeHtml(risk)}</span>`).join('') : '<span class="risk-chip is-safe">Risk yok</span>'}
+      </div>
+    </section>
+    <section class="decision-section">
+      <h4>Hızlı Aksiyonlar</h4>
+      <div class="quick-actions">
+        <button class="action-button primary" ${pendingMessage ? '' : 'disabled'} data-approve-conversation="${escapeHtml(String(conversation.id))}" data-approve-message="${escapeHtml(String(pendingMessage?.id || ''))}">Onayla ve Gönder</button>
+        <button class="action-button secondary" data-scroll-composer="true">Düzenle</button>
+        <button class="action-button secondary" type="button" disabled>Reddet</button>
+        <button class="action-button secondary" data-scroll-composer="true">Misafire Sor</button>
+        <button class="action-button warn" data-toggle-human-override="${escapeHtml(String(conversation.id))}" data-current-override="${conversation.human_override ? 'true' : 'false'}">${conversation.human_override ? 'AI Moduna Al' : 'İnsan Devrine Al'}</button>
+        <button class="action-button danger" data-reset-conversation="${escapeHtml(String(conversation.id))}">Sıfırla</button>
+      </div>
+    </section>
+  `;
+}
+
+function resolveAssistantSource(internal) {
+  const source = internal.source || internal.source_name || internal.knowledge_source || internal.tool_name;
+  if (source) return String(source);
+  const toolCalls = Array.isArray(internal.tool_calls) ? internal.tool_calls : [];
+  if (toolCalls.length) return 'Araç sonucu';
+  return 'Kaynak bilgisi yok';
+}
+
+function resolveMissingInfo(internal) {
+  const missing = internal.missing_fields || internal.missing_info || internal.required_fields_missing;
+  if (Array.isArray(missing) && missing.length) return missing.join(', ');
+  if (typeof missing === 'string' && missing.trim()) return missing;
+  return 'Yok';
+}
+
+function truncateText(value, maxLength) {
+  const text = String(value || '').replace(/\\s+/g, ' ').trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1)}…`;
 }
 
 // Hold functions moved to admin_panel_holds_assets.py
