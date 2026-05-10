@@ -199,9 +199,12 @@ button,input,select,textarea{font:inherit}
 .developer-details pre{max-height:220px;overflow:auto;margin:8px 0 0;padding:10px;border-radius:12px;background:#102033;color:#e5edf7;font-size:11px;white-space:pre-wrap}
 .message-menu-button{border:none;border-radius:999px;background:rgba(255,255,255,.64);color:#334155;width:28px;height:24px;display:inline-grid;place-items:center;font-weight:900;cursor:pointer}
 .message-menu-button:hover,.message-menu-button:focus-visible{background:#fff;outline:2px solid rgba(25,47,154,.22);outline-offset:2px}
-.response-context-menu{position:fixed;z-index:120;min-width:180px;padding:8px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 24px 54px rgba(16,32,51,.18)}
+.response-context-menu{position:fixed;z-index:120;min-width:190px;padding:8px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 24px 54px rgba(16,32,51,.18)}
 .response-context-menu button{width:100%;border:none;border-radius:12px;background:transparent;color:#182235;padding:10px 12px;text-align:left;font-size:13px;font-weight:900;cursor:pointer}
-.response-context-menu button:hover,.response-context-menu button:focus-visible{background:#fff4db;color:#92400e;outline:none}
+.response-context-menu button:hover,.response-context-menu button:focus-visible{background:#eef2ff;color:var(--accent);outline:none}
+.response-context-menu button.is-warn:hover,.response-context-menu button.is-warn:focus-visible{background:#fff4db;color:#92400e}
+.operation-faq-dialog{max-width:680px;width:min(94vw,680px)}
+.operation-faq-dialog .dialog-card{max-height:86vh;overflow:auto}
 .thread-composer{padding:14px 16px;background:#fff;border-top:1px solid var(--line);display:grid;gap:10px}
 .ai-draft-box{border:1px solid rgba(25,47,154,.16);border-radius:18px;background:#f5f7ff;padding:12px}
 .ai-draft-box strong{display:block;color:var(--accent);font-size:13px;margin-bottom:4px}
@@ -971,6 +974,7 @@ const state = {
   responseReviewDetail: null,
   activeResponseReviewId: '',
   responseContextMenu: null,
+  operationFaqMessage: null,
   voiceLabScenarios: [],
   voiceLabResult: null,
   voiceLabMatrixResults: [],
@@ -1029,7 +1033,9 @@ function bindRefs() {
     'accessTotpSecret','accessTotpUri','accessUsersList','accessPermissionMeta','accessPermissionTree',
     'accessResetPermissionsButton','accessSavePermissionsButton',
     'ticketFilters','ticketTableBody','hotelProfileSelect','hotelProfileEditor','applyHotelProfileJson','saveHotelProfile',
-    'faqFilters','faqTableBody','faqDetail',
+    'faqFilters','faqTableBody','faqDetail','operationFaqDialog','operationFaqDialogForm','operationFaqDialogClose',
+    'operationFaqDialogCancel','operationFaqTopic','operationFaqQuestionTr','operationFaqAnswerTr','operationFaqQuestionEn',
+    'operationFaqAnswerEn','operationFaqStatus','operationFaqDialogResult',
     'notifPhoneTableBody','addNotifPhoneForm',
     'hotelProfileMeta','hotelProfileSections','hotelProfileSectionBody','hotelFactsConflict','hotelFactsStatus','hotelFactsHistory','hotelFactsEvents','hotelFactsVersionDetail','publishHotelFacts','slotFilters','slotDisplayInterval','slotTableBody','slotSummaryCards','slotCreateForm','slotDeleteForm','systemChecks','systemMeta',
     'sessionSummary','sessionPreferencesForm','sessionRememberToggle','sessionPreferenceFields',
@@ -1209,6 +1215,9 @@ function bindEvents() {
     event.preventDefault();
     loadFaqs();
   });
+  refs.operationFaqDialogClose?.addEventListener('click', closeOperationFaqDialog);
+  refs.operationFaqDialogCancel?.addEventListener('click', closeOperationFaqDialog);
+  refs.operationFaqDialogForm?.addEventListener('submit', submitOperationFaqDialog);
   refs.addNotifPhoneForm?.addEventListener('submit', onAddNotifPhone);
   refs.decisionForm?.addEventListener('submit', onDecisionSubmit);
   refs.hotelProfileSections?.addEventListener('click', onHotelProfileSectionNav);
@@ -5010,25 +5019,206 @@ function openResponseContextMenuForBubble(bubble, anchorRect) {
   const conversationId = bubble.dataset.reviewConversation || '';
   const messageId = bubble.dataset.reviewMessage || '';
   if (!conversationId || !messageId) return;
+  const messageText = getOperationMessageText(conversationId, messageId, bubble);
   const menu = document.createElement('div');
   menu.className = 'response-context-menu';
   menu.setAttribute('role', 'menu');
-  menu.innerHTML = `
-    <button type="button" role="menuitem" data-report-message="${escapeHtml(messageId)}" data-report-conversation="${escapeHtml(conversationId)}">Raporla</button>
-  `;
+  appendResponseContextMenuButton(menu, 'Raporla', () => reportOperationMessage(conversationId, messageId), {tone: 'warn'});
+  if (hasCopyableText(messageText)) {
+    appendResponseContextMenuButton(menu, 'Kopyala', () => copyOperationMessage(conversationId, messageId, bubble));
+    appendResponseContextMenuButton(menu, "SSS'e Ekle", () => openOperationFaqDialog(conversationId, messageId));
+  }
   document.body.appendChild(menu);
-  const left = Math.min(anchorRect.left || 0, window.innerWidth - 200);
-  const top = Math.min((anchorRect.top || 0) + (anchorRect.height || 0) + 4, window.innerHeight - 80);
+  const left = Math.min(anchorRect.left || 0, window.innerWidth - menu.offsetWidth - 12);
+  const top = Math.min((anchorRect.top || 0) + (anchorRect.height || 0) + 4, window.innerHeight - menu.offsetHeight - 12);
   menu.style.left = `${Math.max(12, left)}px`;
   menu.style.top = `${Math.max(12, top)}px`;
   state.responseContextMenu = menu;
   menu.querySelector('button')?.focus();
 }
 
+function appendResponseContextMenuButton(menu, label, handler, options = {}) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.setAttribute('role', 'menuitem');
+  button.textContent = label;
+  if (options.tone === 'warn') button.classList.add('is-warn');
+  button.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    handler();
+  });
+  menu.appendChild(button);
+  return button;
+}
+
 function closeResponseContextMenu() {
   if (state.responseContextMenu) {
     state.responseContextMenu.remove();
     state.responseContextMenu = null;
+  }
+}
+
+function normalizeClipboardText(value) {
+  return String(value ?? '').replace(/\\r\\n?/g, '\\n');
+}
+
+function hasCopyableText(value) {
+  return normalizeClipboardText(value).replace(/\\s/g, '').length > 0;
+}
+
+function clipboardHtmlForText(text) {
+  return `<pre style="margin:0;white-space:pre-wrap;font-family:Cascadia Code,Fira Code,Consolas,monospace;font-size:13px;line-height:1.5">${escapeHtml(normalizeClipboardText(text))}</pre>`;
+}
+
+async function writeOperationClipboardText(text) {
+  const normalized = normalizeClipboardText(text);
+  if (typeof navigator === 'undefined' || !navigator.clipboard) {
+    throw new Error('clipboard_unavailable');
+  }
+  if (typeof ClipboardItem !== 'undefined' && typeof Blob !== 'undefined' && typeof navigator.clipboard.write === 'function') {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/plain': new Blob([normalized], {type: 'text/plain'}),
+        'text/html': new Blob([clipboardHtmlForText(normalized)], {type: 'text/html'}),
+      })]);
+      return;
+    } catch (_error) {
+      // Some browser permission models only allow writeText; fall through to that safer path.
+    }
+  }
+  await navigator.clipboard.writeText(normalized);
+}
+
+function getOperationMessages() {
+  return Array.isArray(state.conversationDetail?.messages) ? state.conversationDetail.messages : [];
+}
+
+function findOperationMessage(conversationId, messageId) {
+  const activeConversationId = String(state.conversationDetail?.conversation?.id || '');
+  if (String(conversationId || '') && activeConversationId && String(conversationId) !== activeConversationId) return null;
+  return getOperationMessages().find(message => String(message.id || '') === String(messageId || '')) || null;
+}
+
+function getOperationMessageText(conversationId, messageId, bubble = null) {
+  const message = findOperationMessage(conversationId, messageId);
+  const fallbackText = bubble?.querySelector?.('.chat-bubble-content')?.textContent || '';
+  return normalizeClipboardText(message?.content || fallbackText).trim();
+}
+
+async function copyOperationMessage(conversationId, messageId, bubble = null) {
+  const text = getOperationMessageText(conversationId, messageId, bubble);
+  closeResponseContextMenu();
+  if (!hasCopyableText(text)) {
+    notify('Kopyalanacak yanıt yok.', 'warn');
+    return;
+  }
+  try {
+    await writeOperationClipboardText(text);
+    notify('Yanıt panoya kopyalandı.', 'success');
+  } catch (_error) {
+    notify('Tarayıcı kopyalama izni vermedi.', 'warn');
+  }
+}
+
+function extractOperationFaqPair(conversationId, messageId) {
+  const messages = getOperationMessages();
+  const index = messages.findIndex(message => String(message.id || '') === String(messageId || ''));
+  const target = index >= 0 ? messages[index] : findOperationMessage(conversationId, messageId);
+  const role = String(target?.role || '').toLowerCase();
+  const selectedText = normalizeClipboardText(target?.content || '').trim();
+  let question = '';
+  let answer = '';
+  if (role === 'user') {
+    question = selectedText;
+    const nextAnswer = messages.slice(index + 1).find(message => ['assistant','operator','system'].includes(String(message.role || '').toLowerCase()));
+    answer = normalizeClipboardText(nextAnswer?.content || '').trim();
+  } else {
+    answer = selectedText;
+    const previousQuestion = messages.slice(0, Math.max(0, index)).reverse().find(message => String(message.role || '').toLowerCase() === 'user');
+    question = normalizeClipboardText(previousQuestion?.content || '').trim();
+  }
+  const conversation = state.conversationDetail?.conversation || {};
+  const topic = formatIntentLabel(resolveConversationIntent(conversation, messages)) || 'Operasyon yanıtı';
+  return {question, answer, topic};
+}
+
+function closeOperationFaqDialog() {
+  state.operationFaqMessage = null;
+  refs.operationFaqDialog?.close?.();
+}
+
+function setOperationFaqField(refName, value) {
+  if (refs[refName]) refs[refName].value = value || '';
+}
+
+function openOperationFaqDialog(conversationId, messageId) {
+  closeResponseContextMenu();
+  const pair = extractOperationFaqPair(conversationId, messageId);
+  if (!refs.operationFaqDialog) {
+    notify('SSS penceresi yüklenemedi.', 'error');
+    return;
+  }
+  state.operationFaqMessage = {conversationId: String(conversationId || ''), messageId: String(messageId || '')};
+  setOperationFaqField('operationFaqTopic', pair.topic);
+  setOperationFaqField('operationFaqQuestionTr', pair.question);
+  setOperationFaqField('operationFaqAnswerTr', pair.answer);
+  setOperationFaqField('operationFaqQuestionEn', pair.question);
+  setOperationFaqField('operationFaqAnswerEn', pair.answer);
+  setOperationFaqField('operationFaqStatus', 'ACTIVE');
+  if (refs.operationFaqDialogResult) {
+    refs.operationFaqDialogResult.hidden = true;
+    refs.operationFaqDialogResult.textContent = '';
+  }
+  refs.operationFaqDialog.showModal();
+}
+
+function resolveOperationFaqHotelId() {
+  const conversationHotelId = state.conversationDetail?.conversation?.hotel_id;
+  return String(state.selectedHotelId || conversationHotelId || state.me?.hotel_id || '');
+}
+
+async function submitOperationFaqDialog(event) {
+  event.preventDefault();
+  const hotelId = resolveOperationFaqHotelId();
+  if (!hotelId) {
+    notify('SSS eklemek için önce otel seçin.', 'warn');
+    return;
+  }
+  const topic = String(refs.operationFaqTopic?.value || '').trim();
+  const questionTr = String(refs.operationFaqQuestionTr?.value || '').trim();
+  const answerTr = String(refs.operationFaqAnswerTr?.value || '').trim();
+  const questionEn = String(refs.operationFaqQuestionEn?.value || '').trim();
+  const answerEn = String(refs.operationFaqAnswerEn?.value || '').trim();
+  const status = String(refs.operationFaqStatus?.value || 'ACTIVE').trim();
+  if (!topic) { notify('Konu alanı zorunludur.', 'warn'); return; }
+  if (!answerTr) { notify('Cevap (TR) alanı zorunludur.', 'warn'); return; }
+  if (!answerEn) { notify('Cevap (EN) alanı zorunludur.', 'warn'); return; }
+
+  const submitButton = refs.operationFaqDialogForm?.querySelector('button[type="submit"]');
+  const originalLabel = submitButton?.textContent || 'SSS Kaydet';
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = 'Kaydediliyor...';
+  }
+  try {
+    const payload = {topic, question_tr: questionTr, answer_tr: answerTr, question_en: questionEn, answer_en: answerEn, status};
+    await apiFetch(`/hotels/${encodeURIComponent(hotelId)}/faq`, {method: 'POST', body: payload});
+    notify('SSS kaydı oluşturuldu.', 'success');
+    refs.operationFaqDialog?.close?.();
+    state.operationFaqMessage = null;
+    if (state.currentView === 'faq') await loadFaqs();
+  } catch (error) {
+    notify(error.message || 'SSS kaydı oluşturulamadı.', 'error');
+    if (refs.operationFaqDialogResult) {
+      refs.operationFaqDialogResult.hidden = false;
+      refs.operationFaqDialogResult.textContent = error.message || 'SSS kaydı oluşturulamadı.';
+    }
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = originalLabel;
+    }
   }
 }
 

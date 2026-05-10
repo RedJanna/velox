@@ -4887,6 +4887,7 @@ function clearClientSession() {
   state.selectedConversationIds = new Set();
   state.faqs = [];
   state.faqDetail = null;
+  state.operationFaqMessage = null;
   state.hotelProfileLoadedSourceChecksum = null;
   state.hotelProfileLoadedDraftSnapshot = null;
   state.hotelProfileHasUnsavedChanges = false;

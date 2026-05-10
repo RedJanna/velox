@@ -1779,6 +1779,53 @@ def render_admin_panel_html(initial_view: str | None = None) -> str:
     </div>
   </dialog>
 
+  <dialog id="operationFaqDialog" class="dialog operation-faq-dialog" aria-labelledby="operationFaqDialogTitle">
+    <div class="dialog-card">
+      <div class="dialog-head response-translation-head">
+        <div>
+          <h3 id="operationFaqDialogTitle">SSS'e Ekle</h3>
+          <p>Sistem yanıtını ilgili misafir sorusuyla birlikte bilgi merkezine eklemeden önce kontrol edin.</p>
+        </div>
+        <button id="operationFaqDialogClose" class="inline-button secondary" type="button" aria-label="SSS penceresini kapat">Kapat</button>
+      </div>
+      <form id="operationFaqDialogForm" class="field-grid">
+        <div class="field full">
+          <label for="operationFaqTopic">Konu</label>
+          <input id="operationFaqTopic" type="text" maxlength="120" placeholder="Örn. Restoran rezervasyonu">
+        </div>
+        <div class="field full">
+          <label for="operationFaqQuestionTr">Soru (TR)</label>
+          <textarea id="operationFaqQuestionTr" rows="3" maxlength="500" placeholder="Misafirin sorusu"></textarea>
+        </div>
+        <div class="field full">
+          <label for="operationFaqAnswerTr">Cevap (TR)</label>
+          <textarea id="operationFaqAnswerTr" rows="5" maxlength="4000" placeholder="Kontrol edilmiş cevap"></textarea>
+        </div>
+        <div class="field">
+          <label for="operationFaqQuestionEn">Soru (EN)</label>
+          <textarea id="operationFaqQuestionEn" rows="3" maxlength="500"></textarea>
+        </div>
+        <div class="field">
+          <label for="operationFaqAnswerEn">Cevap (EN)</label>
+          <textarea id="operationFaqAnswerEn" rows="3" maxlength="4000"></textarea>
+        </div>
+        <div class="field full">
+          <label for="operationFaqStatus">Durum</label>
+          <select id="operationFaqStatus">
+            <option value="ACTIVE">Aktif</option>
+            <option value="DRAFT">Taslak</option>
+            <option value="PAUSED">Duraklatıldı</option>
+          </select>
+        </div>
+        <div id="operationFaqDialogResult" class="helper-box field full" hidden></div>
+        <div class="dialog-actions field full">
+          <button id="operationFaqDialogCancel" class="inline-button secondary" type="button">Vazgeç</button>
+          <button class="inline-button primary" type="submit">SSS Kaydet</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
   <dialog id="serviceModeDialog" class="service-mode-dialog" aria-label="Servis Modu">
     <div class="service-mode-shell service-mode-v2">
       <header class="service-mode-header">
