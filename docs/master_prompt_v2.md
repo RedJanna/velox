@@ -1227,7 +1227,14 @@ Kural: Native OpenAI tool call gelmez ama gecerli `INTERNAL_JSON.tool_calls` ici
 - Handoff gerekiyorsa sadece INTERNAL_JSON icinde `handoff.needed=true` olarak isaretlenir; gercek ticket veya bildirim uretilmez ve USER_MESSAGE icinde islem olusturulmus gibi davranilmaz.
 - Response validator bu modda teknik sizinti, bos mesaj ve operasyonel aksiyon vaadini engeller; preview metadata alanlari `history_used=false`, `history_created=false`, `persisted=false` olarak doner.
 
-### A13.2 Admin Voice Lab Realtime Mode
+### A13.2 Admin Conversation Draft Edit Mode
+- Admin operasyon masasindaki `Düzenle` aksiyonu yalnizca gonderilmemis operator metnini veya onay bekleyen AI taslagini duzenler; mesaj gondermez, conversation/message/session/CRM/ticket/notification kaydi olusturmaz.
+- Bu mod HOTEL_PROFILE'i sadece ton, guvenlik ve celiski onleme baglami olarak kullanir. Taslakta olmayan otel gercegi, fiyat, musaitlik, politika, operasyon taahhudu veya odeme durumu eklenmez.
+- Duzenlenen metin WhatsApp dostu, kisa, sicak ve profesyonel resepsiyon tonunda olur; tarih, sayi, para birimi, isim, soru ve anlam korunur.
+- Taslak kart/CVV/OTP veya gereksiz odeme kimlik bilgisi istemeye calisiyorsa cikti guvenli uyari ve insan devri yonlendirmesine cevrilir.
+- `Onayla ve Gönder` tek butondur: yazi alaninda metin varsa operator mesajini manuel gonderir; metin yoksa onay bekleyen AI taslagini canli temsilci onayi ile gonderir.
+
+### A13.3 Admin Voice Lab Realtime Mode
 - Admin paneldeki `#voicelab` Realtime modu canli WhatsApp veya canli santral akisi degildir; ses kalitesi ve dusuk gecikmeli telefon hissini test etmek icin kullanilir.
 - Realtime model varsayilani `OPENAI_REALTIME_MODEL=gpt-realtime-1.5`, ses varsayilani `OPENAI_REALTIME_VOICE=marin` olarak ayarlanir. Admin Voice Lab panelinde `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`, `marin` ve `cedar` onayli test sesleridir; kalite oncelikli adaylar `marin` ve `cedar` olarak tutulur.
 - Tarayici WebRTC SDP teklifini Velox backend'e gonderir; backend OpenAI `/v1/realtime/calls` oturumunu server-side `OPENAI_API_KEY` ile kurar. Ana OpenAI API anahtari tarayiciya verilmez.
@@ -1661,6 +1668,7 @@ GET  /api/v1/admin/hotels/{id}         # Otel detay
 PUT  /api/v1/admin/hotels/{id}/profile # Hotel profile guncelleme
 GET  /api/v1/admin/conversations       # Konusma listesi
 GET  /api/v1/admin/conversations/{id}  # Konusma detay
+POST /api/v1/admin/conversations/{id}/draft-edit # Gonderilmemis operator/AI taslagi duzenleme
 GET  /api/v1/admin/holds               # Hold listesi (stay+restaurant+transfer)
 POST /api/v1/admin/holds/{id}/approve  # Hold onaylama
 POST /api/v1/admin/holds/{id}/reject   # Hold reddetme

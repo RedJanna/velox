@@ -2762,12 +2762,14 @@ def test_chat_lab_guest_context_exposes_reservation_actions() -> None:
 
 def test_operation_quick_actions_do_not_stay_silent_when_no_pending_draft() -> None:
     assert "function syncOperationQuickActions() {\n  return;\n}" not in ADMIN_PANEL_SCRIPT
-    assert "Düzenleyip Gönder" in ADMIN_PANEL_SCRIPT
-    assert "Mesajı Gönder" in ADMIN_PANEL_SCRIPT
-    assert "Taslağı Alana Taşı" in ADMIN_PANEL_SCRIPT
-    assert "Taslağı Temizle" in ADMIN_PANEL_SCRIPT
-    assert "Taslağı Reddet" in ADMIN_PANEL_SCRIPT
+    assert "data-ai-edit-composer" in ADMIN_PANEL_SCRIPT
+    assert "/draft-edit" in ADMIN_PANEL_SCRIPT
+    assert "Onayla ve Gönder" in ADMIN_PANEL_SCRIPT
+    assert "Düzenle" in ADMIN_PANEL_SCRIPT
+    assert "Mesajı Gönder" not in ADMIN_PANEL_SCRIPT
+    assert "Taslağı Alana Taşı" not in ADMIN_PANEL_SCRIPT
+    assert "Taslağı Temizle" not in ADMIN_PANEL_SCRIPT
+    assert "Misafire Sor" not in ADMIN_PANEL_SCRIPT
     assert "Onay bekleyen AI taslağı yok. Önce bir mesaj yazın veya yeni AI taslağı bekleyin." in ADMIN_PANEL_SCRIPT
-    assert "Bu buton AI rewrite yapmaz" in ADMIN_PANEL_SCRIPT
-    assert "Buraya yazdığınız metin AI tarafından otomatik düzeltilmez" in ADMIN_PANEL_SCRIPT
-    assert "\"Mesajı Gönder\" ve \"Misafire Sor\" aynı manuel gönderim akışını kullanır." in ADMIN_PANEL_SCRIPT
+    assert "Düzenle, yazdığınız metni veya bekleyen AI taslağını otel resepsiyonu tonunda toparlar" in ADMIN_PANEL_SCRIPT
+    assert '"Onayla ve Gönder" yazı alanında metin varsa operatör mesajını gönderir' in ADMIN_PANEL_SCRIPT

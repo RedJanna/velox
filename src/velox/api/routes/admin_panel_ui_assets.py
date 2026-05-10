@@ -1454,7 +1454,7 @@ function bindDelegatedEvents() {
     // Holds module events (tabs, wizards, filters, create toggles, hold selection)
     if (typeof handleHoldsModuleClick === 'function' && handleHoldsModuleClick(event.target)) return;
 
-    const target = event.target.closest('[data-open-message-menu],[data-report-message],[data-review-classify],[data-bulk-action],[data-open-conversation],[data-deactivate-conversation],[data-approve-message],[data-send-composer],[data-toggle-human-override],[data-reset-conversation],[data-scroll-composer],[data-reject-operation-message],[data-clear-composer],[data-approve-hold],[data-reject-hold],[data-restaurant-next-status],[data-restaurant-extend],[data-save-ticket],[data-facts-version-detail],[data-facts-version-rollback],[data-facts-conflict-restore-draft],[data-facts-conflict-dismiss]');
+    const target = event.target.closest('[data-open-message-menu],[data-report-message],[data-review-classify],[data-bulk-action],[data-open-conversation],[data-deactivate-conversation],[data-approve-message],[data-send-composer],[data-ai-edit-composer],[data-toggle-human-override],[data-reset-conversation],[data-reject-operation-message],[data-approve-hold],[data-reject-hold],[data-restaurant-next-status],[data-restaurant-extend],[data-save-ticket],[data-facts-version-detail],[data-facts-version-rollback],[data-facts-conflict-restore-draft],[data-facts-conflict-dismiss]');
     if (!target) return;
 
     if (target.dataset.openMessageMenu) {
@@ -1533,6 +1533,16 @@ function bindDelegatedEvents() {
       return;
     }
 
+    if (target.dataset.aiEditComposer) {
+      const convId = target.dataset.aiEditComposer;
+      if (!convId) return;
+      await editOperationComposerWithAi(convId, {
+        trigger: target,
+        sourceMessageId: target.dataset.sourceMessageId || '',
+      });
+      return;
+    }
+
     if (target.dataset.toggleHumanOverride) {
       const convId = target.dataset.toggleHumanOverride;
       const currentlyEnabled = target.dataset.currentOverride === 'true';
@@ -1585,26 +1595,6 @@ function bindDelegatedEvents() {
       } finally {
         target.disabled = false;
         target.textContent = originalLabel;
-      }
-      return;
-    }
-
-    if (target.dataset.clearComposer) {
-      if (!getOperationComposerText()) {
-        focusOperationComposer();
-        notify('Temizlenecek yazılı taslak yok.', 'warn');
-        return;
-      }
-      clearOperationComposer();
-      notify('Yazdığınız taslak temizlendi.', 'success');
-      return;
-    }
-
-    if (target.dataset.scrollComposer) {
-      const pendingContent = getCurrentOperationPendingMessage()?.content || '';
-      focusOperationComposer(pendingContent);
-      if (!pendingContent && !getOperationComposerText()) {
-        notify('Onay bekleyen AI taslağı yok. Bu buton AI rewrite yapmaz; aşağıya operatör mesajınızı yazabilirsiniz.', 'info');
       }
       return;
     }
@@ -5029,10 +5019,10 @@ async function loadConversationDetail(conversationId) {
         </div>
       `}
       <div class="composer-row">
-        <textarea data-message-composer placeholder="Misafire sorulacak kısa notu yazın" aria-label="Misafire sorulacak mesaj"></textarea>
-        <button class="action-button secondary" type="button" data-scroll-composer="true">Taslağı Alana Taşı</button>
+        <textarea data-message-composer placeholder="Misafire gönderilecek kısa mesajı yazın" aria-label="Misafire gönderilecek mesaj"></textarea>
+        <button class="action-button secondary" type="button" data-ai-edit-composer="${escapeHtml(String(response.conversation.id))}" data-source-message-id="${escapeHtml(String(approvalMessage?.id || ''))}">Düzenle</button>
       </div>
-      <p class="composer-note">Buraya yazdığınız metin AI tarafından otomatik düzeltilmez; gönderildiğinde olduğu gibi misafire gider.</p>
+      <p class="composer-note">Düzenle, yazdığınız metni veya bekleyen AI taslağını otel resepsiyonu tonunda toparlar; Onayla ve Gönder son kontrolünüzden sonra gönderir.</p>
     </div>
   `;
   renderDecisionPanel(response.conversation, messages);
@@ -5391,33 +5381,14 @@ function syncOperationQuickActions() {
     root.querySelectorAll?.('[data-approve-message]').forEach(button => {
       const hasDraft = Boolean(String(button.dataset.approveMessage || '').trim());
       button.disabled = !hasDraft && !hasComposerText;
-      button.textContent = hasDraft
-        ? (hasComposerText ? 'Düzenleyip Gönder' : 'Onayla ve Gönder')
-        : (hasComposerText ? 'Mesajı Gönder' : 'Onayla ve Gönder');
+      button.textContent = 'Onayla ve Gönder';
       button.title = hasDraft
         ? (hasComposerText
-            ? 'AI taslağı yerine yazdığınız düzenlenmiş mesajı misafire gönderir.'
+            ? 'AI taslağı yerine yazdığınız mesajı misafire gönderir.'
             : 'Onay bekleyen AI taslağını doğrudan misafire gönderir.')
         : (hasComposerText
-            ? 'Yazdığınız operatör mesajını olduğu gibi misafire gönderir. AI yeniden yazmaz.'
+            ? 'Yazdığınız operatör mesajını misafire gönderir.'
             : 'Onay bekleyen AI taslağı yok.');
-    });
-
-    root.querySelectorAll?.('[data-scroll-composer]').forEach(button => {
-      button.textContent = hasPendingDraft
-        ? (hasComposerText ? 'Taslağı Düzenle' : 'Taslağı Alana Taşı')
-        : (hasComposerText ? 'Metni Düzenle' : 'Mesaj Yaz');
-      button.title = hasPendingDraft
-        ? 'AI taslağını aşağıdaki yazı alanına taşır. Yapay zekaya yeniden yazdırmaz.'
-        : 'Mesaj yazma alanını odaklar. Yapay zekaya yeniden yazdırmaz.';
-    });
-
-    root.querySelectorAll?.('[data-clear-composer]').forEach(button => {
-      button.disabled = !hasComposerText;
-      button.textContent = 'Taslağı Temizle';
-      button.title = hasComposerText
-        ? 'Yazdığınız operatör taslağını temizler.'
-        : 'Temizlenecek yazılı taslak yok.';
     });
 
     root.querySelectorAll?.('[data-reject-operation-message]').forEach(button => {
@@ -5428,14 +5399,72 @@ function syncOperationQuickActions() {
         : 'Reddedilecek AI taslağı yok.';
     });
 
-    root.querySelectorAll?.('[data-send-composer]').forEach(button => {
-      button.disabled = !hasComposerText;
-      button.textContent = 'Misafire Sor';
+    root.querySelectorAll?.('[data-ai-edit-composer]').forEach(button => {
+      button.disabled = !hasComposerText && !hasPendingDraft;
+      button.textContent = 'Düzenle';
       button.title = hasComposerText
-        ? 'Yazdığınız soruyu olduğu gibi misafire gönderir. Teknik olarak normal manuel gönderimle aynı akıştır.'
-        : 'Önce misafire gönderilecek mesajı yazın.';
+        ? 'Yazdığınız mesajı AI desteğiyle otel resepsiyonu tonunda düzenler; göndermez.'
+        : hasPendingDraft
+          ? 'Bekleyen AI taslağını düzenleyip yazı alanına taşır; göndermez.'
+          : 'Önce bir mesaj yazın veya AI taslağı bekleyin.';
     });
   });
+}
+
+function getOperationEditSource(sourceMessageId = '') {
+  const composerText = getOperationComposerText();
+  if (composerText) {
+    return {message: composerText, sourceMessageId: sourceMessageId || ''};
+  }
+  const pendingMessage = getCurrentOperationPendingMessage();
+  const pendingText = String(pendingMessage?.content || '').trim();
+  return {
+    message: pendingText,
+    sourceMessageId: sourceMessageId || String(pendingMessage?.id || ''),
+  };
+}
+
+async function editOperationComposerWithAi(conversationId, options = {}) {
+  const source = getOperationEditSource(options.sourceMessageId || '');
+  if (!source.message) {
+    focusOperationComposer();
+    notify('Önce düzenlenecek mesajı yazın veya bekleyen AI taslağını seçin.', 'warn');
+    return false;
+  }
+  const trigger = options.trigger;
+  const originalLabel = trigger?.textContent || '';
+  if (trigger) {
+    trigger.disabled = true;
+    trigger.textContent = 'Düzenleniyor...';
+  }
+  try {
+    const result = await apiFetch(`/conversations/${conversationId}/draft-edit`, {
+      method: 'POST',
+      body: {
+        message: source.message,
+        source_message_id: source.sourceMessageId || null,
+      },
+    });
+    const editedMessage = String(result.edited_message || '').trim();
+    if (!editedMessage) {
+      notify('AI düzenleme sonucu boş döndü.', 'warn');
+      return false;
+    }
+    const composer = getOperationComposerField();
+    if (composer) composer.value = editedMessage;
+    focusOperationComposer();
+    notify('Mesaj AI desteğiyle düzenlendi. Göndermeden önce son kez kontrol edin.', 'success');
+    syncOperationQuickActions();
+    return true;
+  } catch (error) {
+    notify(error.message || 'AI düzenleme yapılamadı.', 'error');
+    return false;
+  } finally {
+    if (trigger) {
+      trigger.disabled = false;
+      trigger.textContent = originalLabel || 'Düzenle';
+    }
+  }
 }
 
 async function sendOperationComposerMessage(conversationId, options = {}) {
@@ -5489,7 +5518,7 @@ function renderAiDraftBox(conversation, message) {
       <p>${escapeHtml(truncateText(message.content || '', 220))}</p>
       <div class="module-actions mt-sm">
         <button class="action-button primary action-button-sm" data-approve-conversation="${escapeHtml(String(conversation.id))}" data-approve-message="${escapeHtml(String(message.id))}">Onayla ve Gönder</button>
-        <button class="action-button secondary action-button-sm" data-scroll-composer="true">Düzenle</button>
+        <button class="action-button secondary action-button-sm" data-ai-edit-composer="${escapeHtml(String(conversation.id))}" data-source-message-id="${escapeHtml(String(message.id))}">Düzenle</button>
       </div>
     </div>
   `;
@@ -5537,15 +5566,11 @@ function renderDecisionPanel(conversation, messages) {
       <h4>Hızlı Aksiyonlar</h4>
       <div class="quick-actions">
         <button class="action-button primary" data-approve-conversation="${escapeHtml(String(conversation.id))}" data-approve-message="${escapeHtml(String(pendingMessage?.id || ''))}">Onayla ve Gönder</button>
-        <button class="action-button secondary" data-scroll-composer="true">Taslağı Alana Taşı</button>
-        ${pendingMessage
-          ? `<button class="action-button secondary" type="button" data-reject-conversation="${escapeHtml(String(conversation.id))}" data-reject-operation-message="${escapeHtml(String(pendingMessage.id))}">Reddet</button>`
-          : `<button class="action-button secondary" type="button" data-clear-composer="true">Reddet</button>`}
-        <button class="action-button secondary" data-send-composer="${escapeHtml(String(conversation.id))}" data-send-purpose="ask" data-replace-message-id="${escapeHtml(String(pendingMessage?.id || ''))}">Misafire Sor</button>
+        <button class="action-button secondary" data-ai-edit-composer="${escapeHtml(String(conversation.id))}" data-source-message-id="${escapeHtml(String(pendingMessage?.id || ''))}">Düzenle</button>
         <button class="action-button warn" data-toggle-human-override="${escapeHtml(String(conversation.id))}" data-current-override="${conversation.human_override ? 'true' : 'false'}">${conversation.human_override ? 'AI Moduna Al' : 'İnsan Devrine Al'}</button>
         <button class="action-button danger" data-reset-conversation="${escapeHtml(String(conversation.id))}">Sıfırla</button>
       </div>
-      <p class="quick-actions-note">"Mesajı Gönder" ve "Misafire Sor" aynı manuel gönderim akışını kullanır. Fark buton dilidir. "Taslağı Alana Taşı" ise AI rewrite değil, mevcut taslağı yazı alanına taşır.</p>
+      <p class="quick-actions-note">"Onayla ve Gönder" yazı alanında metin varsa operatör mesajını gönderir; metin yoksa bekleyen AI taslağını onaylar. "Düzenle" yalnızca yazı alanına AI destekli öneri taşır, gönderim yapmaz.</p>
     </section>
   `;
 }

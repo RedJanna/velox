@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from velox.adapters.elektraweb.endpoints import cancel_reservation, get_reservation
 from velox.adapters.whatsapp.client import get_whatsapp_client
+from velox.adapters.whatsapp.formatter import WhatsAppFormatter
 from velox.api.middleware.auth import (
     TokenData,
     TokenResponse,
@@ -33,6 +34,8 @@ from velox.db.repositories.hotel import NotificationPhoneRepository
 from velox.db.repositories.restaurant import RestaurantRepository
 from velox.db.repositories.transfer import TransferRepository
 from velox.escalation.matrix import reload_matrix
+from velox.llm.client import LLMUnavailableError, get_llm_client
+from velox.llm.prompt_builder import get_prompt_builder
 from velox.models.conversation import ConversationBulkActionRequest, ConversationBulkOverrideRequest, Message
 from velox.models.hotel_profile import FAQEntry, FAQStatus, HotelProfile
 from velox.models.restaurant import RestaurantSlotBulkDeleteRequest, RestaurantSlotCreate, RestaurantSlotUpdate
@@ -134,6 +137,63 @@ class ConversationManualSendRequest(BaseModel):
         if not text:
             raise ValueError("Mesaj alani bos birakilamaz.")
         return text
+
+
+class ConversationDraftEditRequest(BaseModel):
+    """Admin-only AI edit request for one unsent conversation draft."""
+
+    message: str = Field(min_length=1, max_length=4096)
+    source_message_id: UUID | None = None
+
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, value: str) -> str:
+        """Reject whitespace-only draft edit requests."""
+        text = value.strip()
+        if not text:
+            raise ValueError("Düzenlenecek mesaj boş bırakılamaz.")
+        return text
+
+
+class ConversationDraftEditResponse(BaseModel):
+    """AI-edited draft text returned to the admin composer."""
+
+    edited_message: str
+    model: str
+    changed: bool
+    safety_notes: list[str] = Field(default_factory=list)
+
+
+_CONVERSATION_DRAFT_EDIT_RESPONSE_FORMAT: dict[str, Any] = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "velox_admin_conversation_draft_edit",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "edited_message": {"type": "string"},
+                "safety_notes": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["edited_message", "safety_notes"],
+        },
+    },
+}
+
+_CONVERSATION_DRAFT_EDIT_PROMPT = """
+ADMIN_CONVERSATION_DRAFT_EDITOR (STRICT)
+- You edit an unsent admin/operator WhatsApp draft for a hotel guest.
+- Return only the revised draft text in the requested JSON schema.
+- Preserve the original meaning, language, dates, numbers, currency, names, questions, and operational intent.
+- Use a warm, professional hotel reception tone; keep it concise and WhatsApp-friendly.
+- Use HOTEL_PROFILE only as style/safety context and to avoid contradictions.
+- Do not add hotel facts, prices, availability, amenities, policy details, promises, reservation/payment status, or time commitments that are not already in the draft.
+- Do not claim that an operation was completed unless the draft already says it and it is clearly safe.
+- Never ask for card numbers, CVV, OTP, bank passwords, or unnecessary personal data.
+- If the draft asks for card/OTP/payment credentials, rewrite it into a safe handoff warning instead.
+- Do not include markdown code fences, explanations, or internal notes in edited_message.
+""".strip()
 
 
 class HotelFactsRollbackRequest(BaseModel):
@@ -2259,6 +2319,163 @@ async def deactivate_conversation(
         with contextlib.suppress(Exception):
             await redis_client.delete(f"velox:human_override:{row['phone_hash']}")
     return {"status": "deactivated", "conversation_id": str(conversation_id)}
+
+
+def _extract_admin_draft_edit_content(response: dict[str, Any]) -> str:
+    """Extract plain assistant content from an OpenAI chat completion response."""
+    choices = response.get("choices", [])
+    if not choices:
+        return ""
+    message = choices[0].get("message", {})
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict) and isinstance(item.get("text"), str):
+                parts.append(item["text"])
+        return "\n".join(parts)
+    return ""
+
+
+def _safe_recent_message_context(rows: list[Any]) -> list[dict[str, str]]:
+    """Keep recent conversation context compact and free of technical fields."""
+    context: list[dict[str, str]] = []
+    for row in reversed(rows):
+        role = str(row["role"] or "system").strip().lower()
+        content = str(row["content"] or "").strip()
+        if not content:
+            continue
+        context.append({"role": role, "content": content[:700]})
+    return context
+
+
+async def _edit_conversation_draft_with_ai(
+    *,
+    hotel_id: int,
+    conversation_id: UUID,
+    draft_message: str,
+    recent_messages: list[Any],
+) -> ConversationDraftEditResponse:
+    """Rewrite an unsent admin draft without sending or persisting it."""
+    llm_client = get_llm_client()
+    prompt_builder = get_prompt_builder()
+    safe_context = {
+        "draft_to_edit": draft_message,
+        "recent_messages": _safe_recent_message_context(recent_messages),
+        "output": "Return the edited WhatsApp draft only in JSON.",
+    }
+    messages = [
+        {"role": "system", "content": prompt_builder.build_system_prompt(hotel_id)},
+        {"role": "system", "content": _CONVERSATION_DRAFT_EDIT_PROMPT},
+        {"role": "user", "content": orjson.dumps(safe_context).decode()},
+    ]
+    response = await llm_client.chat_completion(
+        messages=messages,
+        response_format=_CONVERSATION_DRAFT_EDIT_RESPONSE_FORMAT,
+    )
+    raw_content = _extract_admin_draft_edit_content(response).strip()
+    if not raw_content:
+        logger.warning(
+            "admin_conversation_draft_edit_empty",
+            hotel_id=hotel_id,
+            conversation_id=str(conversation_id),
+            message_chars=len(draft_message),
+        )
+        raise HTTPException(status_code=502, detail="AI düzenleme sonucu boş döndü.")
+    try:
+        payload = orjson.loads(raw_content)
+    except orjson.JSONDecodeError as exc:
+        logger.warning(
+            "admin_conversation_draft_edit_invalid_json",
+            hotel_id=hotel_id,
+            conversation_id=str(conversation_id),
+            message_chars=len(draft_message),
+            response_chars=len(raw_content),
+        )
+        raise HTTPException(status_code=502, detail="AI düzenleme sonucu okunamadı.") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=502, detail="AI düzenleme sonucu geçersiz.")
+    edited_message = WhatsAppFormatter.truncate(str(payload.get("edited_message") or "").strip())
+    if not edited_message:
+        raise HTTPException(status_code=502, detail="AI düzenleme sonucu boş döndü.")
+    raw_notes = payload.get("safety_notes")
+    safety_notes = [str(item)[:120] for item in raw_notes if isinstance(item, str)] if isinstance(raw_notes, list) else []
+    logger.info(
+        "admin_conversation_draft_edited",
+        hotel_id=hotel_id,
+        conversation_id=str(conversation_id),
+        message_chars=len(draft_message),
+        edited_chars=len(edited_message),
+        changed=edited_message != draft_message,
+        model=llm_client.primary_model,
+    )
+    return ConversationDraftEditResponse(
+        edited_message=edited_message,
+        model=llm_client.primary_model,
+        changed=edited_message != draft_message,
+        safety_notes=safety_notes,
+    )
+
+
+@router.post("/conversations/{conversation_id}/draft-edit", response_model=ConversationDraftEditResponse)
+async def edit_conversation_draft(
+    conversation_id: UUID,
+    body: ConversationDraftEditRequest,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> ConversationDraftEditResponse:
+    """AI-edit an unsent operator draft and return it to the admin composer."""
+    check_permission(user, "conversations:read")
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        conv_row = await conn.fetchrow(
+            "SELECT id, hotel_id FROM conversations WHERE id = $1",
+            conversation_id,
+        )
+        if conv_row is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        hotel_id = ensure_hotel_access(user, conv_row["hotel_id"])
+
+        if body.source_message_id is not None:
+            source_row = await conn.fetchrow(
+                "SELECT id FROM messages WHERE id = $1 AND conversation_id = $2",
+                body.source_message_id,
+                conversation_id,
+            )
+            if source_row is None:
+                raise HTTPException(status_code=404, detail="Source draft not found")
+
+        recent_messages = await conn.fetch(
+            """
+            SELECT role, content
+            FROM messages
+            WHERE conversation_id = $1
+            ORDER BY created_at DESC
+            LIMIT 6
+            """,
+            conversation_id,
+        )
+
+    try:
+        return await _edit_conversation_draft_with_ai(
+            hotel_id=hotel_id,
+            conversation_id=conversation_id,
+            draft_message=body.message,
+            recent_messages=list(recent_messages),
+        )
+    except LLMUnavailableError as exc:
+        logger.warning(
+            "admin_conversation_draft_edit_llm_unavailable",
+            hotel_id=hotel_id,
+            conversation_id=str(conversation_id),
+            message_chars=len(body.message),
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="AI düzenleme şu anda kullanılamıyor. Lütfen kısa süre sonra tekrar deneyin.",
+        ) from exc
 
 
 @router.post("/conversations/{conversation_id}/manual-send")
