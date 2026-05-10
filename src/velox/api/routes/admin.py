@@ -33,7 +33,7 @@ from velox.db.repositories.hotel import NotificationPhoneRepository
 from velox.db.repositories.restaurant import RestaurantRepository
 from velox.db.repositories.transfer import TransferRepository
 from velox.escalation.matrix import reload_matrix
-from velox.models.conversation import ConversationBulkActionRequest, ConversationBulkOverrideRequest
+from velox.models.conversation import ConversationBulkActionRequest, ConversationBulkOverrideRequest, Message
 from velox.models.hotel_profile import FAQEntry, FAQStatus, HotelProfile
 from velox.models.restaurant import RestaurantSlotBulkDeleteRequest, RestaurantSlotCreate, RestaurantSlotUpdate
 from velox.models.webhook_events import ApprovalEvent
@@ -118,6 +118,22 @@ class HotelFactsValidateRequest(BaseModel):
 
 class HotelFactsPublishRequest(BaseModel):
     expected_source_profile_checksum: str | None = Field(default=None, min_length=64, max_length=64)
+
+
+class ConversationManualSendRequest(BaseModel):
+    """Manual operator message payload for one conversation."""
+
+    message: str = Field(min_length=1, max_length=4096)
+    replace_message_id: UUID | None = None
+
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, value: str) -> str:
+        """Reject whitespace-only operator messages."""
+        text = value.strip()
+        if not text:
+            raise ValueError("Mesaj alani bos birakilamaz.")
+        return text
 
 
 class HotelFactsRollbackRequest(BaseModel):
@@ -2245,6 +2261,126 @@ async def deactivate_conversation(
     return {"status": "deactivated", "conversation_id": str(conversation_id)}
 
 
+@router.post("/conversations/{conversation_id}/manual-send")
+async def send_manual_conversation_message(
+    conversation_id: UUID,
+    body: ConversationManualSendRequest,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Send one operator-authored WhatsApp message for the selected conversation."""
+    check_permission(user, "conversations:read")
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        conv_row = await conn.fetchrow(
+            "SELECT id, hotel_id, phone_display FROM conversations WHERE id = $1",
+            conversation_id,
+        )
+        if conv_row is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        ensure_hotel_access(user, conv_row["hotel_id"])
+
+        replace_row = None
+        if body.replace_message_id is not None:
+            replace_row = await conn.fetchrow(
+                "SELECT id, role, internal_json, whatsapp_message_id FROM messages WHERE id = $1 AND conversation_id = $2",
+                body.replace_message_id,
+                conversation_id,
+            )
+            if replace_row is None:
+                raise HTTPException(status_code=404, detail="Replacement draft not found")
+            if replace_row["role"] != "assistant":
+                raise HTTPException(status_code=400, detail="Only assistant drafts can be replaced")
+
+        user_phone_row = await conn.fetchrow(
+            """
+            SELECT internal_json FROM messages
+            WHERE conversation_id = $1 AND role = 'user'
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            conversation_id,
+        )
+
+    def _pj(raw: Any) -> dict[str, Any]:
+        if raw is None:
+            return {}
+        if isinstance(raw, dict):
+            return raw
+        if isinstance(raw, (str, bytes, bytearray)):
+            try:
+                v = orjson.loads(raw)
+                return v if isinstance(v, dict) else {}
+            except Exception:
+                return {}
+        return {}
+
+    phone = str(conv_row["phone_display"] or "")
+    if not phone or "*" in phone:
+        user_internal = _pj(user_phone_row["internal_json"] if user_phone_row else None)
+        wa_id = user_internal.get("wa_id") or ""
+        if wa_id:
+            phone = wa_id
+    if not phone or "*" in phone:
+        raise HTTPException(
+            status_code=400,
+            detail="Bu konusma icin gercek telefon numarasi bulunamadi.",
+        )
+
+    whatsapp_client = get_whatsapp_client()
+    try:
+        send_result = await whatsapp_client.send_text_message(to=phone, body=body.message, force=True)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"WhatsApp gonderilemedi: {exc}") from exc
+
+    whatsapp_message_id: str | None = None
+    if isinstance(send_result, dict):
+        messages = send_result.get("messages")
+        if isinstance(messages, list) and messages:
+            first = messages[0]
+            if isinstance(first, dict):
+                whatsapp_message_id = str(first.get("id", "")).strip() or None
+
+    repository = ConversationRepository()
+    operator_message = await repository.add_message(
+        Message(
+            conversation_id=conversation_id,
+            role="operator",
+            content=body.message,
+            internal_json={
+                "manual_send": True,
+                "source": "admin_operation_desk",
+                "sent_at": datetime.now(UTC).isoformat(),
+                "sent_by": user.username,
+                "whatsapp_message_id": whatsapp_message_id,
+            },
+        )
+    )
+
+    if replace_row is not None:
+        replace_internal = _pj(replace_row["internal_json"])
+        replace_internal["rejected"] = True
+        replace_internal["rejected_at"] = datetime.now(UTC).isoformat()
+        replace_internal["rejected_by"] = user.username
+        replace_internal["approval_pending"] = False
+        replace_internal["send_blocked"] = True
+        replace_internal["replaced_by_manual_send"] = True
+        if operator_message.id is not None:
+            replace_internal["replacement_message_id"] = str(operator_message.id)
+        async with db.acquire() as conn:
+            await conn.execute(
+                "UPDATE messages SET internal_json = $1 WHERE id = $2",
+                orjson.dumps(replace_internal).decode(),
+                body.replace_message_id,
+            )
+
+    return {
+        "status": "sent",
+        "conversation_id": str(conversation_id),
+        "message_id": str(operator_message.id) if operator_message.id is not None else None,
+        "replaced_message_id": str(body.replace_message_id) if body.replace_message_id is not None else None,
+    }
+
+
 @router.post("/conversations/{conversation_id}/messages/{message_id}/send")
 async def approve_and_send_message(
     conversation_id: UUID,
@@ -2380,6 +2516,62 @@ async def approve_and_send_message(
         )
 
     return {"status": "sent", "message_id": str(message_id), "conversation_id": str(conversation_id)}
+
+
+@router.post("/conversations/{conversation_id}/messages/{message_id}/reject")
+async def reject_pending_conversation_message(
+    conversation_id: UUID,
+    message_id: UUID,
+    request: Request,
+    user: Annotated[TokenData, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Reject one assistant draft so it is no longer shown as pending."""
+    check_permission(user, "conversations:read")
+    db = request.app.state.db_pool
+    async with db.acquire() as conn:
+        conv_row = await conn.fetchrow(
+            "SELECT id, hotel_id FROM conversations WHERE id = $1",
+            conversation_id,
+        )
+        if conv_row is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        ensure_hotel_access(user, conv_row["hotel_id"])
+
+        msg_row = await conn.fetchrow(
+            "SELECT id, role, internal_json FROM messages WHERE id = $1 AND conversation_id = $2",
+            message_id,
+            conversation_id,
+        )
+        if msg_row is None:
+            raise HTTPException(status_code=404, detail="Message not found")
+        if msg_row["role"] != "assistant":
+            raise HTTPException(status_code=400, detail="Only assistant drafts can be rejected")
+
+        raw_internal = msg_row["internal_json"]
+        if raw_internal is None:
+            internal: dict[str, Any] = {}
+        elif isinstance(raw_internal, dict):
+            internal = raw_internal
+        else:
+            try:
+                decoded = orjson.loads(raw_internal)
+            except Exception:
+                decoded = {}
+            internal = decoded if isinstance(decoded, dict) else {}
+
+        internal["rejected"] = True
+        internal["rejected_at"] = datetime.now(UTC).isoformat()
+        internal["rejected_by"] = user.username
+        internal["approval_pending"] = False
+        internal["send_blocked"] = True
+
+        await conn.execute(
+            "UPDATE messages SET internal_json = $1 WHERE id = $2",
+            orjson.dumps(internal).decode(),
+            message_id,
+        )
+
+    return {"status": "rejected", "conversation_id": str(conversation_id), "message_id": str(message_id)}
 
 
 @router.post("/conversations/{conversation_id}/human-override")

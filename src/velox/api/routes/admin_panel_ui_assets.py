@@ -1452,7 +1452,7 @@ function bindDelegatedEvents() {
     // Holds module events (tabs, wizards, filters, create toggles, hold selection)
     if (typeof handleHoldsModuleClick === 'function' && handleHoldsModuleClick(event.target)) return;
 
-    const target = event.target.closest('[data-open-message-menu],[data-report-message],[data-review-classify],[data-bulk-action],[data-open-conversation],[data-deactivate-conversation],[data-approve-message],[data-toggle-human-override],[data-reset-conversation],[data-scroll-composer],[data-approve-hold],[data-reject-hold],[data-restaurant-next-status],[data-restaurant-extend],[data-save-ticket],[data-facts-version-detail],[data-facts-version-rollback],[data-facts-conflict-restore-draft],[data-facts-conflict-dismiss]');
+    const target = event.target.closest('[data-open-message-menu],[data-report-message],[data-review-classify],[data-bulk-action],[data-open-conversation],[data-deactivate-conversation],[data-approve-message],[data-send-composer],[data-toggle-human-override],[data-reset-conversation],[data-scroll-composer],[data-reject-operation-message],[data-clear-composer],[data-approve-hold],[data-reject-hold],[data-restaurant-next-status],[data-restaurant-extend],[data-save-ticket],[data-facts-version-detail],[data-facts-version-rollback],[data-facts-conflict-restore-draft],[data-facts-conflict-dismiss]');
     if (!target) return;
 
     if (target.dataset.openMessageMenu) {
@@ -1485,7 +1485,19 @@ function bindDelegatedEvents() {
     if (target.dataset.approveMessage) {
       const convId = target.dataset.approveConversation;
       const msgId = target.dataset.approveMessage;
-      if (!convId || !msgId) return;
+      if (!convId) return;
+      const composerText = getOperationComposerText();
+      if (composerText) {
+        await sendOperationComposerMessage(convId, {
+          message: composerText,
+          purpose: 'approve',
+          replaceMessageId: msgId || '',
+          trigger: target,
+          confirmSend: true,
+        });
+        return;
+      }
+      if (!msgId) return;
       if (!confirm('Bu AI taslağını WhatsApp üzerinden göndermek istediğinize emin misiniz?')) return;
       const originalLabel = target.textContent;
       target.disabled = true;
@@ -1500,6 +1512,18 @@ function bindDelegatedEvents() {
         target.textContent = originalLabel;
         notify(error.message || 'Gönderim başarısız.', 'error');
       }
+      return;
+    }
+
+    if (target.dataset.sendComposer) {
+      const convId = target.dataset.sendComposer;
+      if (!convId) return;
+      await sendOperationComposerMessage(convId, {
+        purpose: target.dataset.sendPurpose || 'ask',
+        replaceMessageId: target.dataset.replaceMessageId || '',
+        trigger: target,
+        confirmSend: target.dataset.sendPurpose !== 'ask',
+      });
       return;
     }
 
@@ -1536,8 +1560,42 @@ function bindDelegatedEvents() {
       return;
     }
 
+    if (target.dataset.rejectOperationMessage) {
+      const convId = target.dataset.rejectConversation;
+      const msgId = target.dataset.rejectOperationMessage;
+      if (!convId || !msgId) return;
+      if (!confirm('Bu AI taslağını reddetmek istediğinize emin misiniz?')) return;
+      const originalLabel = target.textContent;
+      target.disabled = true;
+      target.textContent = 'Reddediliyor...';
+      try {
+        await apiFetch(`/conversations/${convId}/messages/${msgId}/reject`, {method: 'POST'});
+        clearOperationComposer();
+        notify('AI taslağı reddedildi.', 'success');
+        await loadConversationDetail(convId);
+        await loadConversations();
+      } catch (error) {
+        notify(error.message || 'Taslak reddedilemedi.', 'error');
+      } finally {
+        target.disabled = false;
+        target.textContent = originalLabel;
+      }
+      return;
+    }
+
+    if (target.dataset.clearComposer) {
+      if (!getOperationComposerText()) {
+        focusOperationComposer();
+        notify('Temizlenecek yazılı taslak yok.', 'warn');
+        return;
+      }
+      clearOperationComposer();
+      notify('Yazdığınız taslak temizlendi.', 'success');
+      return;
+    }
+
     if (target.dataset.scrollComposer) {
-      refs.conversationDetail?.querySelector('[data-message-composer]')?.focus();
+      focusOperationComposer(getCurrentOperationPendingMessage()?.content || '');
       return;
     }
 
@@ -1653,6 +1711,12 @@ function bindDelegatedEvents() {
 
     if (target.dataset.factsConflictDismiss && typeof dismissHotelFactsConflict === 'function') {
       dismissHotelFactsConflict();
+    }
+  });
+
+  refs.panelView.addEventListener('input', event => {
+    if (event.target?.matches?.('[data-message-composer]')) {
+      syncOperationQuickActions();
     }
   });
 }
@@ -4961,6 +5025,7 @@ async function loadConversationDetail(conversationId) {
     </div>
   `;
   renderDecisionPanel(response.conversation, messages);
+  syncOperationQuickActions();
   renderConversationListFromState();
 }
 
@@ -5273,6 +5338,85 @@ function findLatestPendingAssistantMessage(messages) {
   return [...(messages || [])].reverse().find(isOperationPendingAssistantMessage) || null;
 }
 
+function getOperationComposerField() {
+  return refs.conversationDetail?.querySelector('[data-message-composer]') || null;
+}
+
+function getOperationComposerText() {
+  return String(getOperationComposerField()?.value || '').trim();
+}
+
+function getCurrentOperationPendingMessage() {
+  return findLatestPendingAssistantMessage(getOperationMessages());
+}
+
+function focusOperationComposer(prefill = '') {
+  const composer = getOperationComposerField();
+  if (!composer) return;
+  if (prefill && !String(composer.value || '').trim()) composer.value = String(prefill);
+  composer.focus();
+  if (typeof composer.setSelectionRange === 'function') {
+    const caret = String(composer.value || '').length;
+    composer.setSelectionRange(caret, caret);
+  }
+  syncOperationQuickActions();
+}
+
+function clearOperationComposer() {
+  const composer = getOperationComposerField();
+  if (!composer) return;
+  composer.value = '';
+  syncOperationQuickActions();
+}
+
+function syncOperationQuickActions() {
+  return;
+}
+
+async function sendOperationComposerMessage(conversationId, options = {}) {
+  const composer = getOperationComposerField();
+  const message = String(options.message || composer?.value || '').trim();
+  if (!message) {
+    focusOperationComposer();
+    notify('Önce misafire gönderilecek mesajı yazın.', 'warn');
+    return false;
+  }
+  const purpose = String(options.purpose || 'approve');
+  const replaceMessageId = String(options.replaceMessageId || '').trim();
+  const confirmMessage = purpose === 'ask'
+    ? 'Bu soruyu misafire göndermek istediğinize emin misiniz?'
+    : 'Bu mesajı misafire göndermek istediğinize emin misiniz?';
+  if (options.confirmSend !== false && !confirm(confirmMessage)) return false;
+  const trigger = options.trigger;
+  const originalLabel = trigger?.textContent || '';
+  if (trigger) {
+    trigger.disabled = true;
+    trigger.textContent = 'Gönderiliyor...';
+  }
+  try {
+    await apiFetch(`/conversations/${conversationId}/manual-send`, {
+      method: 'POST',
+      body: {
+        message,
+        replace_message_id: replaceMessageId || null,
+      },
+    });
+    clearOperationComposer();
+    notify(purpose === 'ask' ? 'Soru misafire gönderildi.' : 'Mesaj misafire gönderildi.', 'success');
+    await loadConversationDetail(conversationId);
+    await loadConversations();
+    return true;
+  } catch (error) {
+    notify(error.message || 'Mesaj gönderilemedi.', 'error');
+    return false;
+  } finally {
+    if (trigger) {
+      trigger.disabled = false;
+      trigger.textContent = originalLabel;
+    }
+  }
+}
+
 function renderAiDraftBox(conversation, message) {
   return `
     <div class="ai-draft-box">
@@ -5327,10 +5471,12 @@ function renderDecisionPanel(conversation, messages) {
     <section class="decision-section">
       <h4>Hızlı Aksiyonlar</h4>
       <div class="quick-actions">
-        <button class="action-button primary" ${pendingMessage ? '' : 'disabled'} data-approve-conversation="${escapeHtml(String(conversation.id))}" data-approve-message="${escapeHtml(String(pendingMessage?.id || ''))}">Onayla ve Gönder</button>
+        <button class="action-button primary" data-approve-conversation="${escapeHtml(String(conversation.id))}" data-approve-message="${escapeHtml(String(pendingMessage?.id || ''))}">Onayla ve Gönder</button>
         <button class="action-button secondary" data-scroll-composer="true">Düzenle</button>
-        <button class="action-button secondary" type="button" disabled>Reddet</button>
-        <button class="action-button secondary" data-scroll-composer="true">Misafire Sor</button>
+        ${pendingMessage
+          ? `<button class="action-button secondary" type="button" data-reject-conversation="${escapeHtml(String(conversation.id))}" data-reject-operation-message="${escapeHtml(String(pendingMessage.id))}">Reddet</button>`
+          : `<button class="action-button secondary" type="button" data-clear-composer="true">Reddet</button>`}
+        <button class="action-button secondary" data-send-composer="${escapeHtml(String(conversation.id))}" data-send-purpose="ask" data-replace-message-id="${escapeHtml(String(pendingMessage?.id || ''))}">Misafire Sor</button>
         <button class="action-button warn" data-toggle-human-override="${escapeHtml(String(conversation.id))}" data-current-override="${conversation.human_override ? 'true' : 'false'}">${conversation.human_override ? 'AI Moduna Al' : 'İnsan Devrine Al'}</button>
         <button class="action-button danger" data-reset-conversation="${escapeHtml(String(conversation.id))}">Sıfırla</button>
       </div>
