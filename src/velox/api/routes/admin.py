@@ -2265,7 +2265,7 @@ async def approve_and_send_message(
         ensure_hotel_access(user, conv_row["hotel_id"])
 
         msg_row = await conn.fetchrow(
-            "SELECT id, role, content, internal_json FROM messages WHERE id = $1 AND conversation_id = $2",
+            "SELECT id, role, content, internal_json, whatsapp_message_id FROM messages WHERE id = $1 AND conversation_id = $2",
             message_id,
             conversation_id,
         )
@@ -2296,8 +2296,43 @@ async def approve_and_send_message(
                 return {}
         return {}
 
+    def _message_requires_manual_send(message_row: Any, internal_payload: dict[str, Any]) -> bool:
+        whatsapp_message_id = message_row["whatsapp_message_id"] if message_row is not None else None
+        content = str(message_row["content"] or "").strip() if message_row is not None else ""
+        provider_status = str(
+            internal_payload.get("provider_status") or internal_payload.get("delivery_status") or ""
+        ).strip().lower()
+        if (
+            internal_payload.get("provider_error")
+            or internal_payload.get("failed_at")
+            or provider_status in {"failed", "error"}
+        ):
+            return False
+        if internal_payload.get("send_blocked") or internal_payload.get("approval_pending"):
+            return True
+        if (
+            whatsapp_message_id
+            or internal_payload.get("whatsapp_message_id")
+            or internal_payload.get("sent_at")
+            or internal_payload.get("delivered_at")
+            or internal_payload.get("read_at")
+            or internal_payload.get("approved_by")
+            or provider_status in {"sent", "delivered", "read"}
+        ):
+            return False
+        if not content:
+            return False
+        return bool(
+            internal_payload.get("state")
+            or internal_payload.get("intent")
+            or internal_payload.get("next_step")
+            or internal_payload.get("entities")
+            or internal_payload.get("tool_calls")
+            or internal_payload
+        )
+
     internal = _pj(msg_row["internal_json"])
-    if not internal.get("send_blocked") and not internal.get("approval_pending"):
+    if not _message_requires_manual_send(msg_row, internal):
         return {"status": "already_sent", "message_id": str(message_id)}
 
     phone = str(conv_row["phone_display"] or "")

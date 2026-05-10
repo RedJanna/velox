@@ -4988,7 +4988,7 @@ function deriveMessageStatus(message) {
   const internal = asObject(message.internal_json);
   const providerStatus = String(internal.provider_status || internal.delivery_status || '').toLowerCase();
   if (internal.provider_error || internal.failed_at || providerStatus === 'failed' || providerStatus === 'error') return {label: 'Hata', className: 'is-error'};
-  if (internal.send_blocked || internal.approval_pending) return {label: 'Kuyrukta', className: 'is-queued'};
+  if (isOperationPendingAssistantMessage(message)) return {label: 'Kuyrukta', className: 'is-queued'};
   if (providerStatus === 'read' || internal.read_at) return {label: 'Okundu', className: 'is-read'};
   if (providerStatus === 'delivered' || internal.delivered_at) return {label: 'Teslim edildi', className: ''};
   if (message.whatsapp_message_id || internal.whatsapp_message_id || internal.sent_at || providerStatus === 'sent') return {label: 'Gönderildi', className: ''};
@@ -5057,6 +5057,31 @@ function closeResponseContextMenu() {
     state.responseContextMenu.remove();
     state.responseContextMenu = null;
   }
+}
+
+function isOperationPendingAssistantMessage(message) {
+  if (!message || String(message.role || '').toLowerCase() !== 'assistant') return false;
+  const internal = asObject(message.internal_json);
+  const providerStatus = String(internal.provider_status || internal.delivery_status || '').toLowerCase();
+  if (internal.provider_error || internal.failed_at || providerStatus === 'failed' || providerStatus === 'error') return false;
+  if (internal.send_blocked || internal.approval_pending) return true;
+  if (
+    message.whatsapp_message_id ||
+    internal.whatsapp_message_id ||
+    internal.sent_at ||
+    internal.delivered_at ||
+    internal.read_at ||
+    internal.approved_by ||
+    providerStatus === 'sent' ||
+    providerStatus === 'delivered' ||
+    providerStatus === 'read'
+  ) {
+    return false;
+  }
+  return Boolean(
+    String(message.content || '').trim() &&
+    (internal.state || internal.intent || internal.next_step || internal.entities || internal.tool_calls || Object.keys(internal).length)
+  );
 }
 
 function normalizeClipboardText(value) {
@@ -5245,11 +5270,7 @@ async function reportOperationMessage(conversationId, messageId) {
 }
 
 function findLatestPendingAssistantMessage(messages) {
-  return [...(messages || [])].reverse().find(message => {
-    if (message.role !== 'assistant') return false;
-    const internal = asObject(message.internal_json);
-    return Boolean(internal.send_blocked || internal.approval_pending);
-  }) || null;
+  return [...(messages || [])].reverse().find(isOperationPendingAssistantMessage) || null;
 }
 
 function renderAiDraftBox(conversation, message) {
