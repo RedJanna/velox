@@ -1497,7 +1497,11 @@ function bindDelegatedEvents() {
         });
         return;
       }
-      if (!msgId) return;
+      if (!msgId) {
+        focusOperationComposer();
+        notify('Onay bekleyen AI taslağı yok. Önce bir mesaj yazın veya yeni AI taslağı bekleyin.', 'warn');
+        return;
+      }
       if (!confirm('Bu AI taslağını WhatsApp üzerinden göndermek istediğinize emin misiniz?')) return;
       const originalLabel = target.textContent;
       target.disabled = true;
@@ -1595,7 +1599,11 @@ function bindDelegatedEvents() {
     }
 
     if (target.dataset.scrollComposer) {
-      focusOperationComposer(getCurrentOperationPendingMessage()?.content || '');
+      const pendingContent = getCurrentOperationPendingMessage()?.content || '';
+      focusOperationComposer(pendingContent);
+      if (!pendingContent && !getOperationComposerText()) {
+        notify('Onay bekleyen AI taslağı yok. Aşağıya yeni bir operatör mesajı yazabilirsiniz.', 'info');
+      }
       return;
     }
 
@@ -5370,7 +5378,60 @@ function clearOperationComposer() {
 }
 
 function syncOperationQuickActions() {
-  return;
+  const composerText = getOperationComposerText();
+  const hasComposerText = Boolean(composerText);
+  const pendingMessage = getCurrentOperationPendingMessage();
+  const hasPendingDraft = Boolean(pendingMessage?.id);
+  const quickActionRoots = [refs.conversationDetail, refs.conversationDecisionPanel].filter(Boolean);
+
+  quickActionRoots.forEach(root => {
+    root.querySelectorAll?.('[data-approve-message]').forEach(button => {
+      const hasDraft = Boolean(String(button.dataset.approveMessage || '').trim());
+      button.disabled = !hasDraft && !hasComposerText;
+      button.textContent = hasDraft
+        ? (hasComposerText ? 'Düzenleyip Gönder' : 'Onayla ve Gönder')
+        : (hasComposerText ? 'Mesajı Gönder' : 'Onayla ve Gönder');
+      button.title = hasDraft
+        ? (hasComposerText
+            ? 'AI taslağı yerine yazdığınız düzenlenmiş mesajı misafire gönderir.'
+            : 'Onay bekleyen AI taslağını doğrudan misafire gönderir.')
+        : (hasComposerText
+            ? 'Yazdığınız operatör mesajını misafire gönderir.'
+            : 'Onay bekleyen AI taslağı yok.');
+    });
+
+    root.querySelectorAll?.('[data-scroll-composer]').forEach(button => {
+      button.textContent = hasPendingDraft
+        ? (hasComposerText ? 'Mesajı Düzenle' : 'Düzenle')
+        : (hasComposerText ? 'Mesajı Düzenle' : 'Mesaj Yaz');
+      button.title = hasPendingDraft
+        ? 'AI taslağını aşağıdaki yazı alanına taşır ve düzenlemenizi sağlar.'
+        : 'Mesaj yazma alanını odaklar.';
+    });
+
+    root.querySelectorAll?.('[data-clear-composer]').forEach(button => {
+      button.disabled = !hasComposerText;
+      button.textContent = 'Taslağı Temizle';
+      button.title = hasComposerText
+        ? 'Yazdığınız operatör taslağını temizler.'
+        : 'Temizlenecek yazılı taslak yok.';
+    });
+
+    root.querySelectorAll?.('[data-reject-operation-message]').forEach(button => {
+      button.disabled = !hasPendingDraft;
+      button.textContent = 'Taslağı Reddet';
+      button.title = hasPendingDraft
+        ? 'Onay bekleyen AI taslağını reddeder; misafire hiçbir mesaj göndermez.'
+        : 'Reddedilecek AI taslağı yok.';
+    });
+
+    root.querySelectorAll?.('[data-send-composer]').forEach(button => {
+      button.disabled = !hasComposerText;
+      button.title = hasComposerText
+        ? 'Yazdığınız metni operatör mesajı olarak misafire gönderir.'
+        : 'Önce misafire gönderilecek mesajı yazın.';
+    });
+  });
 }
 
 async function sendOperationComposerMessage(conversationId, options = {}) {

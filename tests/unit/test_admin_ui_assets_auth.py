@@ -2758,3 +2758,13 @@ def test_chat_lab_guest_context_exposes_reservation_actions() -> None:
     assert "Rezervasyon İptal Et" in TEST_CHAT_SCRIPT
     assert "/api/v1/admin/holds/" in TEST_CHAT_SCRIPT
     assert "/cancel-reservation" in TEST_CHAT_SCRIPT
+
+
+def test_operation_quick_actions_do_not_stay_silent_when_no_pending_draft() -> None:
+    assert "function syncOperationQuickActions() {\n  return;\n}" not in ADMIN_PANEL_SCRIPT
+    assert "Düzenleyip Gönder" in ADMIN_PANEL_SCRIPT
+    assert "Mesajı Gönder" in ADMIN_PANEL_SCRIPT
+    assert "Taslağı Temizle" in ADMIN_PANEL_SCRIPT
+    assert "Taslağı Reddet" in ADMIN_PANEL_SCRIPT
+    assert "Onay bekleyen AI taslağı yok. Önce bir mesaj yazın veya yeni AI taslağı bekleyin." in ADMIN_PANEL_SCRIPT
+    assert "Onay bekleyen AI taslağı yok. Aşağıya yeni bir operatör mesajı yazabilirsiniz." in ADMIN_PANEL_SCRIPT
