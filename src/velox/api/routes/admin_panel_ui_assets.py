@@ -211,6 +211,7 @@ button,input,select,textarea{font:inherit}
 .ai-draft-box p{margin:0;color:#536173;font-size:13px;line-height:1.45}
 .composer-row{display:flex;gap:10px;align-items:flex-end}
 .composer-row textarea{flex:1;min-height:48px;resize:vertical;border:1px solid var(--line);border-radius:18px;padding:12px 14px;font:inherit;color:var(--ink)}
+.composer-note{margin:0;font-size:12px;line-height:1.5;color:#64748b}
 .decision-support-panel{display:flex;flex-direction:column;gap:14px}
 .decision-section{border:1px solid var(--line);border-radius:20px;background:#fff;padding:14px}
 .decision-section h4{margin:0 0 10px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#536173}
@@ -223,6 +224,7 @@ button,input,select,textarea{font:inherit}
 .risk-chip.is-safe{background:#e8f7ef;color:#057a55}
 .quick-actions{display:grid;gap:8px}
 .quick-actions .action-button{width:100%;justify-content:center}
+.quick-actions-note{margin:4px 0 0;font-size:12px;line-height:1.55;color:#64748b}
 .response-review-section{gap:16px}
 .response-review-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;border:1px solid rgba(25,47,154,.12);border-radius:26px;background:linear-gradient(135deg,#f8fbff 0%,#fff7ea 100%);padding:20px;box-shadow:0 18px 42px rgba(25,47,154,.06)}
 .response-review-hero h3{margin:4px 0 6px;font-family:var(--serif);font-size:28px}
@@ -1602,7 +1604,7 @@ function bindDelegatedEvents() {
       const pendingContent = getCurrentOperationPendingMessage()?.content || '';
       focusOperationComposer(pendingContent);
       if (!pendingContent && !getOperationComposerText()) {
-        notify('Onay bekleyen AI taslağı yok. Aşağıya yeni bir operatör mesajı yazabilirsiniz.', 'info');
+        notify('Onay bekleyen AI taslağı yok. Bu buton AI rewrite yapmaz; aşağıya operatör mesajınızı yazabilirsiniz.', 'info');
       }
       return;
     }
@@ -5028,8 +5030,9 @@ async function loadConversationDetail(conversationId) {
       `}
       <div class="composer-row">
         <textarea data-message-composer placeholder="Misafire sorulacak kısa notu yazın" aria-label="Misafire sorulacak mesaj"></textarea>
-        <button class="action-button secondary" type="button" data-scroll-composer="true">Düzenle</button>
+        <button class="action-button secondary" type="button" data-scroll-composer="true">Taslağı Alana Taşı</button>
       </div>
+      <p class="composer-note">Buraya yazdığınız metin AI tarafından otomatik düzeltilmez; gönderildiğinde olduğu gibi misafire gider.</p>
     </div>
   `;
   renderDecisionPanel(response.conversation, messages);
@@ -5396,17 +5399,17 @@ function syncOperationQuickActions() {
             ? 'AI taslağı yerine yazdığınız düzenlenmiş mesajı misafire gönderir.'
             : 'Onay bekleyen AI taslağını doğrudan misafire gönderir.')
         : (hasComposerText
-            ? 'Yazdığınız operatör mesajını misafire gönderir.'
+            ? 'Yazdığınız operatör mesajını olduğu gibi misafire gönderir. AI yeniden yazmaz.'
             : 'Onay bekleyen AI taslağı yok.');
     });
 
     root.querySelectorAll?.('[data-scroll-composer]').forEach(button => {
       button.textContent = hasPendingDraft
-        ? (hasComposerText ? 'Mesajı Düzenle' : 'Düzenle')
-        : (hasComposerText ? 'Mesajı Düzenle' : 'Mesaj Yaz');
+        ? (hasComposerText ? 'Taslağı Düzenle' : 'Taslağı Alana Taşı')
+        : (hasComposerText ? 'Metni Düzenle' : 'Mesaj Yaz');
       button.title = hasPendingDraft
-        ? 'AI taslağını aşağıdaki yazı alanına taşır ve düzenlemenizi sağlar.'
-        : 'Mesaj yazma alanını odaklar.';
+        ? 'AI taslağını aşağıdaki yazı alanına taşır. Yapay zekaya yeniden yazdırmaz.'
+        : 'Mesaj yazma alanını odaklar. Yapay zekaya yeniden yazdırmaz.';
     });
 
     root.querySelectorAll?.('[data-clear-composer]').forEach(button => {
@@ -5427,8 +5430,9 @@ function syncOperationQuickActions() {
 
     root.querySelectorAll?.('[data-send-composer]').forEach(button => {
       button.disabled = !hasComposerText;
+      button.textContent = 'Misafire Sor';
       button.title = hasComposerText
-        ? 'Yazdığınız metni operatör mesajı olarak misafire gönderir.'
+        ? 'Yazdığınız soruyu olduğu gibi misafire gönderir. Teknik olarak normal manuel gönderimle aynı akıştır.'
         : 'Önce misafire gönderilecek mesajı yazın.';
     });
   });
@@ -5533,7 +5537,7 @@ function renderDecisionPanel(conversation, messages) {
       <h4>Hızlı Aksiyonlar</h4>
       <div class="quick-actions">
         <button class="action-button primary" data-approve-conversation="${escapeHtml(String(conversation.id))}" data-approve-message="${escapeHtml(String(pendingMessage?.id || ''))}">Onayla ve Gönder</button>
-        <button class="action-button secondary" data-scroll-composer="true">Düzenle</button>
+        <button class="action-button secondary" data-scroll-composer="true">Taslağı Alana Taşı</button>
         ${pendingMessage
           ? `<button class="action-button secondary" type="button" data-reject-conversation="${escapeHtml(String(conversation.id))}" data-reject-operation-message="${escapeHtml(String(pendingMessage.id))}">Reddet</button>`
           : `<button class="action-button secondary" type="button" data-clear-composer="true">Reddet</button>`}
@@ -5541,6 +5545,7 @@ function renderDecisionPanel(conversation, messages) {
         <button class="action-button warn" data-toggle-human-override="${escapeHtml(String(conversation.id))}" data-current-override="${conversation.human_override ? 'true' : 'false'}">${conversation.human_override ? 'AI Moduna Al' : 'İnsan Devrine Al'}</button>
         <button class="action-button danger" data-reset-conversation="${escapeHtml(String(conversation.id))}">Sıfırla</button>
       </div>
+      <p class="quick-actions-note">"Mesajı Gönder" ve "Misafire Sor" aynı manuel gönderim akışını kullanır. Fark buton dilidir. "Taslağı Alana Taşı" ise AI rewrite değil, mevcut taslağı yazı alanına taşır.</p>
     </section>
   `;
 }

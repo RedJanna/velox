@@ -2764,7 +2764,10 @@ def test_operation_quick_actions_do_not_stay_silent_when_no_pending_draft() -> N
     assert "function syncOperationQuickActions() {\n  return;\n}" not in ADMIN_PANEL_SCRIPT
     assert "Düzenleyip Gönder" in ADMIN_PANEL_SCRIPT
     assert "Mesajı Gönder" in ADMIN_PANEL_SCRIPT
+    assert "Taslağı Alana Taşı" in ADMIN_PANEL_SCRIPT
     assert "Taslağı Temizle" in ADMIN_PANEL_SCRIPT
     assert "Taslağı Reddet" in ADMIN_PANEL_SCRIPT
     assert "Onay bekleyen AI taslağı yok. Önce bir mesaj yazın veya yeni AI taslağı bekleyin." in ADMIN_PANEL_SCRIPT
-    assert "Onay bekleyen AI taslağı yok. Aşağıya yeni bir operatör mesajı yazabilirsiniz." in ADMIN_PANEL_SCRIPT
+    assert "Bu buton AI rewrite yapmaz" in ADMIN_PANEL_SCRIPT
+    assert "Buraya yazdığınız metin AI tarafından otomatik düzeltilmez" in ADMIN_PANEL_SCRIPT
+    assert "\"Mesajı Gönder\" ve \"Misafire Sor\" aynı manuel gönderim akışını kullanır." in ADMIN_PANEL_SCRIPT
