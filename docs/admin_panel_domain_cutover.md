@@ -10,6 +10,14 @@ https://velox.nexlumeai.com/admin#whatsappapi
 
 Desteklenen `#whatsappapi`, `#whatsapp-api` ve `#whatsappapı` varyantlari panel tarafinda `whatsappapi` gorunumune normalize edilir. Meta OAuth callback backend rotasi `/api/v1/admin/whatsapp/oauth/callback` altindadir; bu path reverse proxy tarafindan API'ye ulasabilir kalmalidir.
 
+Yanlis, eksik veya duzeltilmesi gereken AI/operator/sistem yanitlari icin Response Review akisi ayri admin URL'si olarak sunulur:
+
+```text
+https://velox.nexlumeai.com/admin/response-review
+```
+
+Bu ekran ayni admin auth/session kurallarini kullanir. Operations Desk sag-tik `Raporla` aksiyonu yalnizca `review_id` ile bu URL'ye yonlenir; mesaj icerigi veya konusma baglami URL parametresine yazilmaz.
+
 Rezervasyon onay formlari musterilere admin panel local adresiyle degil, public HTTPS route ile paylasilir:
 
 ```text
@@ -102,9 +110,10 @@ curl -fsS https://nexlumeai.com/api/v1/health/ready
 curl -fsS https://nexlumeai.com/api/v1/admin/bootstrap/status
 curl -I https://nexlumeai.com/
 curl -I https://nexlumeai.com/admin
+curl -I https://nexlumeai.com/admin/response-review
 curl -I https://velox.nexlumeai.com/admin
 curl -I https://nexlumeai.com/confirmations/invalid-token-for-smoke-check
 ```
 
-Tarayici dogrulamasinda `https://velox.nexlumeai.com/admin#whatsappapi` adresi acilarak hash tabanli WhatsApp gorunumu kontrol edilir.
+Tarayici dogrulamasinda `https://velox.nexlumeai.com/admin#whatsappapi` adresi acilarak hash tabanli WhatsApp gorunumu, `https://velox.nexlumeai.com/admin/response-review` adresi acilarak Response Review gorunumu kontrol edilir.
 `/confirmations/{token}` icin gecersiz token smoke check'i `404` dondurmelidir; gercek token ile kontrol yalnizca test verisi uzerinden yapilir.

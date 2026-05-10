@@ -192,6 +192,7 @@ src/velox/
 ├── core/                      # Intent engine, state machine, verification, QC,
 │                              # scope classifier, response validator, fallback
 │                              # responses, admin debug runner/scan registry,
+│                              # response review/feedback export service,
 │                              # hotel-information JSON loader/matcher/response builder,
 │                              # structured-output replay helpers
 ├── llm/                       # OpenAI client, prompt builder, response parser
@@ -199,10 +200,10 @@ src/velox/
 ├── adapters/                  # External service clients (Elektraweb, WhatsApp)
 ├── escalation/                # Risk detection, escalation matrix
 ├── policies/                  # Business rules (approval, payment, cancellation)
-├── models/                    # Pydantic data models, including hotel information
-├── db/                        # Database connection, repositories, migrations
+├── models/                    # Pydantic data models, including response review and hotel information
+├── db/                        # Database connection, repositories, migrations, response review queue tables
 ├── api/                       # FastAPI routes, middleware, embedded admin/chat-lab
-│                              # UI modules, admin debug/report-only and WhatsApp
+│                              # UI modules, response review, admin debug/report-only and WhatsApp
 │                              # integration surfaces
 └── utils/                     # Logging, i18n, validators, admin/debug auth helpers,
                                # secret encryption, lightweight Prometheus metrics helpers
@@ -249,6 +250,7 @@ scripts/                 # Utility scripts
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/admin` | Admin panel UI (SPA) |
+| `GET` | `/admin/response-review` | Response Review and Reporting UI |
 | `POST` | `/api/v1/admin/login` | Username/password + TOTP or trusted-device login |
 | `POST` | `/api/v1/admin/logout` | End active access session, keep trusted device if present |
 | `GET` | `/api/v1/admin/me` | Current user info |
@@ -301,6 +303,10 @@ scripts/                 # Utility scripts
 | `GET` | `/api/v1/admin/conversations/{id}` | Conversation detail + messages |
 | `POST` | `/api/v1/admin/conversations/{id}/reset` | Reset conversation state |
 | `POST` | `/api/v1/admin/conversations/reset-by-phone` | Reset by phone number |
+| `POST` | `/api/v1/admin/response-reviews` | Report one AI/operator/system response from Operations Desk |
+| `GET` | `/api/v1/admin/response-reviews` | List reported responses |
+| `GET` | `/api/v1/admin/response-reviews/{id}` | Reported response detail with context |
+| `POST` | `/api/v1/admin/response-reviews/{id}/classify` | Classify response and export to feedback files |
 | `GET` | `/api/v1/admin/holds` | List all holds (stay, restaurant, transfer) |
 | `POST` | `/api/v1/admin/holds/{hold_id}/approve` | Approve hold |
 | `POST` | `/api/v1/admin/holds/{hold_id}/reject` | Reject hold |

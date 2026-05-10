@@ -197,6 +197,11 @@ button,input,select,textarea{font:inherit}
 .developer-details{margin-top:8px;border-top:1px solid rgba(15,23,42,.08);padding-top:8px}
 .developer-details summary{cursor:pointer;color:#536173;font-size:12px;font-weight:900}
 .developer-details pre{max-height:220px;overflow:auto;margin:8px 0 0;padding:10px;border-radius:12px;background:#102033;color:#e5edf7;font-size:11px;white-space:pre-wrap}
+.message-menu-button{border:none;border-radius:999px;background:rgba(255,255,255,.64);color:#334155;width:28px;height:24px;display:inline-grid;place-items:center;font-weight:900;cursor:pointer}
+.message-menu-button:hover,.message-menu-button:focus-visible{background:#fff;outline:2px solid rgba(25,47,154,.22);outline-offset:2px}
+.response-context-menu{position:fixed;z-index:120;min-width:180px;padding:8px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 24px 54px rgba(16,32,51,.18)}
+.response-context-menu button{width:100%;border:none;border-radius:12px;background:transparent;color:#182235;padding:10px 12px;text-align:left;font-size:13px;font-weight:900;cursor:pointer}
+.response-context-menu button:hover,.response-context-menu button:focus-visible{background:#fff4db;color:#92400e;outline:none}
 .thread-composer{padding:14px 16px;background:#fff;border-top:1px solid var(--line);display:grid;gap:10px}
 .ai-draft-box{border:1px solid rgba(25,47,154,.16);border-radius:18px;background:#f5f7ff;padding:12px}
 .ai-draft-box strong{display:block;color:var(--accent);font-size:13px;margin-bottom:4px}
@@ -215,6 +220,39 @@ button,input,select,textarea{font:inherit}
 .risk-chip.is-safe{background:#e8f7ef;color:#057a55}
 .quick-actions{display:grid;gap:8px}
 .quick-actions .action-button{width:100%;justify-content:center}
+.response-review-section{gap:16px}
+.response-review-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;border:1px solid rgba(25,47,154,.12);border-radius:26px;background:linear-gradient(135deg,#f8fbff 0%,#fff7ea 100%);padding:20px;box-shadow:0 18px 42px rgba(25,47,154,.06)}
+.response-review-hero h3{margin:4px 0 6px;font-family:var(--serif);font-size:28px}
+.response-review-hero p{margin:0;max-width:850px;color:var(--muted);line-height:1.55}
+.response-review-shell{display:grid;grid-template-columns:minmax(320px,.8fr) minmax(0,1.35fr);gap:16px;align-items:start}
+.response-review-list-panel,.response-review-detail-panel{min-width:0}
+.response-review-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:10px;align-items:end;margin-bottom:14px}
+.response-review-filters label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:900;color:#536173;text-transform:uppercase;letter-spacing:.04em}
+.response-review-filters select{width:100%;border:1px solid var(--line);border-radius:14px;background:#fff;padding:10px;color:var(--ink)}
+.response-review-list{display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 350px);overflow:auto;padding-right:3px}
+.response-review-card{border:1px solid var(--line);border-radius:18px;background:#fff;padding:14px;text-align:left;cursor:pointer;transition:.18s ease}
+.response-review-card:hover{border-color:rgba(25,47,154,.24);background:#f8fbff}
+.response-review-card.is-active{border-color:rgba(25,47,154,.42);box-shadow:inset 0 0 0 2px rgba(25,47,154,.08)}
+.response-review-card-top,.response-review-meta,.review-action-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.response-review-card strong{display:block;line-height:1.35}
+.response-review-card p{margin:8px 0 10px;color:#536173;font-size:13px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.review-chip{display:inline-flex;align-items:center;border-radius:999px;padding:6px 8px;font-size:11px;font-weight:900;background:#eef2f7;color:#334155}
+.review-chip.open{background:#fff4db;color:#92400e}.review-chip.finalized{background:#e8f7ef;color:#057a55}.review-chip.in_review{background:#e8eefc;color:#192F9A}.review-chip.closed{background:#f1f5f9;color:#64748b}
+.review-chip.correct{background:#e8f7ef;color:#057a55}.review-chip.incorrect{background:#fee2e2;color:#b91c1c}.review-chip.needs_revision{background:#fff4db;color:#92400e}
+.response-review-detail-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(310px,.9fr);gap:16px}
+.review-detail-card{border:1px solid var(--line);border-radius:20px;background:#fff;padding:16px}
+.review-detail-card h4{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#536173}
+.reported-message-box{border-radius:18px;background:#f8fbff;border:1px solid rgba(25,47,154,.12);padding:14px;white-space:pre-wrap;line-height:1.55}
+.review-context-stream{display:flex;flex-direction:column;gap:8px}
+.review-context-message{border-radius:14px;padding:10px 12px;background:#f8fafc;border:1px solid rgba(15,23,42,.08)}
+.review-context-message.is-target{border-color:rgba(25,47,154,.34);background:#eef3ff}
+.review-context-message b{display:flex;justify-content:space-between;gap:10px;margin-bottom:5px;font-size:12px;color:#536173}
+.review-form{display:grid;gap:12px}
+.review-form label{display:grid;gap:7px;font-size:12px;font-weight:900;color:#536173;text-transform:uppercase;letter-spacing:.04em}
+.review-form select,.review-form textarea{border:1px solid var(--line);border-radius:14px;background:#fff;padding:11px 12px;color:var(--ink)}
+.review-form textarea{min-height:110px;resize:vertical;line-height:1.5}
+.review-history{display:flex;flex-direction:column;gap:8px}
+.review-history-item{border-left:3px solid rgba(25,47,154,.32);padding:6px 0 6px 10px;color:#536173;font-size:13px}
 .module-header.compact{margin-bottom:12px}
 .module-header.compact h3{font-size:18px;font-family:var(--sans)}
 .detail-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
@@ -548,7 +586,7 @@ tbody tr:hover{background:#fffcf7}
 .access-editor-empty p{margin:0;color:var(--muted);line-height:1.55}
 @media(max-width:1240px){
   .card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .split,.conversation-ops-shell,.auth-grid,.access-control-layout,.access-control-main{grid-template-columns:1fr}
+  .split,.conversation-ops-shell,.auth-grid,.access-control-layout,.access-control-main,.response-review-shell,.response-review-detail-grid{grid-template-columns:1fr}
   .conversation-side-panel{position:static}
   .voice-lab-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .voice-lab-layout{grid-template-columns:1fr}
@@ -561,7 +599,8 @@ tbody tr:hover{background:#fffcf7}
   .topbar-aside{justify-content:flex-start}
   .table-shell{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
   .table-shell table{min-width:640px}
-  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid,.debug-summary-grid,.debug-layout,.response-preview-layout,.response-preview-diagnostics,.voice-lab-summary-grid,.voice-lab-layout,.voice-lab-tuning-grid,.voice-lab-realtime-grid,.voice-lab-elevenlabs-grid,.voice-lab-result-grid,.access-toggle-grid,.access-user-controls{grid-template-columns:1fr}
+  .field-grid,.dense-form,.status-list,.profile-section-grid,.profile-inline-grid,.profile-overview-grid,.debug-summary-grid,.debug-layout,.response-preview-layout,.response-preview-diagnostics,.response-review-filters,.voice-lab-summary-grid,.voice-lab-layout,.voice-lab-tuning-grid,.voice-lab-realtime-grid,.voice-lab-elevenlabs-grid,.voice-lab-result-grid,.access-toggle-grid,.access-user-controls{grid-template-columns:1fr}
+  .response-review-hero{flex-direction:column}
   .topbar{padding:18px 20px;border-radius:24px;flex-direction:column}
   .card-grid{grid-template-columns:1fr}
   .status-strip{grid-template-columns:1fr}
@@ -663,6 +702,15 @@ const NAVIGATION_GROUPS = [
         badgeKey: 'conversations_active',
         title: 'WhatsApp Operasyon Masası',
         lead: 'Misafir konuşmalarını, AI yanıtlarını, riskleri ve insan devri gerektiren işleri tek ekranda yönetin.',
+      },
+      {
+        id: 'responsereview',
+        label: 'Yanıt İnceleme',
+        subtitle: 'Raporlanan cevaplar',
+        icon: 'YR',
+        permission: 'response_reviews:read',
+        title: 'Yanıt İnceleme ve Raporlama',
+        lead: 'Raporlanan AI ve sistem yanıtlarını sınıflandırın, kalite feedback dosyalarına kontrollü aktarın.',
       },
       {
         id: 'holds',
@@ -815,9 +863,10 @@ const VIEW_PERMISSIONS = NAVIGATION_ITEMS.reduce((acc, item) => {
 }, {});
 
 function normalizeAdminViewKey(value) {
-  const normalized = String(value || 'conversations').replace('#', '').trim().toLowerCase();
+  const normalized = String(value || CONFIG.initial_view || 'conversations').replace('#', '').trim().toLowerCase();
   if (normalized === 'access-control') return 'accesscontrol';
   if (normalized === 'voice-lab') return 'voicelab';
+  if (normalized === 'response-review' || normalized === 'response_review') return 'responsereview';
   return normalized || 'conversations';
 }
 
@@ -827,7 +876,7 @@ const state = {
   bootstrapPending: null,
   hotels: [],
   selectedHotelId: window.localStorage.getItem(HOTEL_KEY) || '',
-  currentView: normalizeAdminViewKey(window.location.hash || '#conversations'),
+  currentView: normalizeAdminViewKey(window.location.hash || CONFIG.initial_view || '#conversations'),
   sidebarCollapsed: false,
   sidebarOpenGroups: new Set(),
   mobileSidebarOpen: false,
@@ -917,6 +966,11 @@ const state = {
   debugBrowserScanTarget: '',
   responsePreviewResult: null,
   responsePreviewLoading: false,
+  responseReviewItems: [],
+  responseReviewTotal: 0,
+  responseReviewDetail: null,
+  activeResponseReviewId: '',
+  responseContextMenu: null,
   voiceLabScenarios: [],
   voiceLabResult: null,
   voiceLabMatrixResults: [],
@@ -964,6 +1018,7 @@ function bindRefs() {
     'loginRememberOptions','loginVerificationOptions','loginSessionOptions',
     'otpSetup','otpSecret','otpUri','otpQrImage','otpVerifyForm','otpVerifyHint','currentUser','currentRole','hotelScope','hotelSelect','nav','pageBreadcrumb','pageTitle','pageLead',
     'dashboardCards','dashboardQueues','conversationFilters','conversationSearchInput','conversationFilterChips','conversationBulkBar','conversationSelectAll','conversationSelectionCount','conversationTableBody','conversationDetail','conversationDecisionPanel',
+    'responseReviewFilters','responseReviewStatusFilter','responseReviewClassificationFilter','responseReviewErrorFilter','responseReviewRefresh','responseReviewList','responseReviewDetail',
     'stayHoldFilters','stayHoldTableBody','stayHoldDetail','stayHoldCreatePanel','stayWizardSteps','stayWizardBody','stayStatusChips',
     'restaurantHoldFilters','restaurantHoldTableBody','restaurantHoldDetail','restaurantHoldCreatePanel','restaurantCreateForm','restaurantStatusChips','restaurantDateFrom','restaurantDateTo',
     'transferHoldFilters','transferHoldTableBody','transferHoldDetail','transferHoldCreatePanel','transferCreateForm','transferStatusChips',
@@ -1015,7 +1070,10 @@ function bindEvents() {
   refs.sidebarOverlay?.addEventListener('click', closeSidebar);
   refs.nav?.addEventListener('click', onNavigationClick);
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') closeSidebar();
+    if (event.key === 'Escape') {
+      closeSidebar();
+      closeResponseContextMenu();
+    }
   });
   refs.loginForm?.addEventListener('submit', onLogin);
   refs.bootstrapForm?.addEventListener('submit', onBootstrap);
@@ -1101,6 +1159,16 @@ function bindEvents() {
   });
   refs.conversationTableBody?.addEventListener('change', onConversationSelectionChange);
   refs.conversationSelectAll?.addEventListener('change', onConversationSelectAllChange);
+  refs.responseReviewFilters?.addEventListener('submit', event => {
+    event.preventDefault();
+    loadResponseReviews();
+  });
+  refs.responseReviewRefresh?.addEventListener('click', () => loadResponseReviews());
+  refs.responseReviewList?.addEventListener('click', event => {
+    const card = event.target.closest('[data-response-review-id]');
+    if (!card) return;
+    loadResponseReviewDetail(card.dataset.responseReviewId);
+  });
   refs.stayHoldFilters?.addEventListener('submit', event => {
     event.preventDefault();
     loadStayHolds();
@@ -1155,6 +1223,12 @@ function bindEvents() {
     loadRestaurantSlots({syncRestaurantFilters: true});
   });
   document.getElementById('closeDecision').addEventListener('click', () => refs.decisionDialog.close());
+  refs.panelView?.addEventListener('contextmenu', onOperationMessageContextMenu);
+  document.addEventListener('click', event => {
+    if (!event.target.closest?.('.response-context-menu') && !event.target.closest?.('[data-open-message-menu]')) {
+      closeResponseContextMenu();
+    }
+  });
   window.addEventListener('message', async event => {
     if (event.data && event.data.type === 'chatlab:auth-required') {
       await loadChatLab();
@@ -1369,8 +1443,24 @@ function bindDelegatedEvents() {
     // Holds module events (tabs, wizards, filters, create toggles, hold selection)
     if (typeof handleHoldsModuleClick === 'function' && handleHoldsModuleClick(event.target)) return;
 
-    const target = event.target.closest('[data-bulk-action],[data-open-conversation],[data-deactivate-conversation],[data-approve-message],[data-toggle-human-override],[data-reset-conversation],[data-scroll-composer],[data-approve-hold],[data-reject-hold],[data-restaurant-next-status],[data-restaurant-extend],[data-save-ticket],[data-facts-version-detail],[data-facts-version-rollback],[data-facts-conflict-restore-draft],[data-facts-conflict-dismiss]');
+    const target = event.target.closest('[data-open-message-menu],[data-report-message],[data-review-classify],[data-bulk-action],[data-open-conversation],[data-deactivate-conversation],[data-approve-message],[data-toggle-human-override],[data-reset-conversation],[data-scroll-composer],[data-approve-hold],[data-reject-hold],[data-restaurant-next-status],[data-restaurant-extend],[data-save-ticket],[data-facts-version-detail],[data-facts-version-rollback],[data-facts-conflict-restore-draft],[data-facts-conflict-dismiss]');
     if (!target) return;
+
+    if (target.dataset.openMessageMenu) {
+      const bubble = target.closest('[data-review-message]');
+      if (bubble) openResponseContextMenuForBubble(bubble, target.getBoundingClientRect());
+      return;
+    }
+
+    if (target.dataset.reportMessage) {
+      await reportOperationMessage(target.dataset.reportConversation, target.dataset.reportMessage);
+      return;
+    }
+
+    if (target.dataset.reviewClassify) {
+      await submitResponseReviewClassification(target.dataset.reviewClassify);
+      return;
+    }
 
     if (target.dataset.bulkAction) {
       runConversationBulkAction(target.dataset.bulkAction);
@@ -1969,6 +2059,7 @@ function setView(view) {
 
   if (view === 'dashboard') loadDashboard();
   if (view === 'conversations') loadConversations();
+  if (view === 'responsereview') loadResponseReviews({selectFromQuery: true});
   if (view === 'holds') switchHoldsTab(state.activeHoldsTab || 'stay');
   if (view === 'tickets') loadTickets();
   if (view === 'hotels') loadHotelProfileSection();
@@ -4178,6 +4269,255 @@ async function loadChatLab() {
   }
 }
 
+async function loadResponseReviews(options = {}) {
+  if (!refs.responseReviewList) return;
+  const params = new URLSearchParams();
+  if (state.me?.role === 'ADMIN' && state.selectedHotelId) params.set('hotel_id', state.selectedHotelId);
+  const statusValue = refs.responseReviewStatusFilter?.value || '';
+  const classificationValue = refs.responseReviewClassificationFilter?.value || '';
+  const errorValue = refs.responseReviewErrorFilter?.value || '';
+  if (statusValue) params.set('status', statusValue);
+  if (classificationValue) params.set('classification', classificationValue);
+  if (errorValue) params.set('error_type', errorValue);
+  params.set('limit', '80');
+  try {
+    const response = await apiFetch(`/response-reviews?${params.toString()}`);
+    state.responseReviewItems = response.items || [];
+    state.responseReviewTotal = Number(response.total || 0);
+    renderResponseReviewList();
+    const requestedId = options.selectFromQuery ? new URLSearchParams(window.location.search).get('review_id') : '';
+    const targetId = requestedId || state.activeResponseReviewId || state.responseReviewItems[0]?.id || '';
+    if (targetId) await loadResponseReviewDetail(targetId, {silent: true});
+    else renderResponseReviewEmptyDetail();
+  } catch (error) {
+    refs.responseReviewList.innerHTML = `<div class="empty-state"><p>${escapeHtml(error.message || 'Rapor listesi alınamadı.')}</p></div>`;
+  }
+}
+
+function renderResponseReviewList() {
+  if (!refs.responseReviewList) return;
+  if (!state.responseReviewItems.length) {
+    refs.responseReviewList.innerHTML = '<div class="empty-state"><p>Bu filtrelerle raporlanan yanıt bulunamadı.</p></div>';
+    return;
+  }
+  refs.responseReviewList.innerHTML = state.responseReviewItems.map(item => `
+    <button class="response-review-card ${state.activeResponseReviewId === item.id ? 'is-active' : ''}" type="button" data-response-review-id="${escapeHtml(item.id)}">
+      <div class="response-review-card-top">
+        <strong>${escapeHtml(formatReviewErrorType(item.error_type))}</strong>
+        <span class="review-chip ${escapeHtml(item.status)}">${escapeHtml(formatReviewStatus(item.status))}</span>
+      </div>
+      <p>${escapeHtml(truncateText(item.message_content || '', 180))}</p>
+      <div class="response-review-meta">
+        <span class="review-chip ${escapeHtml(item.classification)}">${escapeHtml(formatReviewClassification(item.classification))}</span>
+        <span class="muted">${escapeHtml(formatDate(item.reported_at))}</span>
+      </div>
+      <div class="response-review-meta mt-sm">
+        <span class="muted">${escapeHtml(item.reported_by_display_name || item.reported_by_username || 'Bilinmiyor')}</span>
+        <span class="muted">${escapeHtml(item.included_in_report ? 'Raporda' : 'Rapor dışı')}</span>
+      </div>
+    </button>
+  `).join('');
+}
+
+function renderResponseReviewEmptyDetail() {
+  if (!refs.responseReviewDetail) return;
+  refs.responseReviewDetail.innerHTML = `
+    <div class="empty-state">
+      <p>Bir rapor seçin veya operasyon masasındaki AI yanıtına sağ tıklayıp <strong>Raporla</strong> aksiyonunu kullanın.</p>
+    </div>
+  `;
+}
+
+async function loadResponseReviewDetail(reviewId, options = {}) {
+  if (!reviewId || !refs.responseReviewDetail) return;
+  try {
+    const params = new URLSearchParams();
+    if (state.me?.role === 'ADMIN' && state.selectedHotelId) params.set('hotel_id', state.selectedHotelId);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const detail = await apiFetch(`/response-reviews/${encodeURIComponent(reviewId)}${query}`);
+    state.activeResponseReviewId = detail.id;
+    state.responseReviewDetail = detail;
+    renderResponseReviewList();
+    renderResponseReviewDetail(detail);
+  } catch (error) {
+    if (!options.silent) notify(error.message || 'Rapor detayı alınamadı.', 'error');
+  }
+}
+
+function renderResponseReviewDetail(detail) {
+  const contextMessages = Array.isArray(detail.context_messages) ? detail.context_messages : [];
+  refs.responseReviewDetail.innerHTML = `
+    <div class="module-header compact">
+      <div>
+        <h3>İnceleme Detayı</h3>
+        <p>${escapeHtml(detail.conversation_snapshot?.phone_display || 'Maskeli misafir')} · ${escapeHtml(formatReviewStatus(detail.status))}</p>
+      </div>
+      <span class="review-chip ${escapeHtml(detail.classification)}">${escapeHtml(formatReviewClassification(detail.classification))}</span>
+    </div>
+    <div class="response-review-detail-grid">
+      <div class="review-detail-card">
+        <h4>Raporlanan Yanıt</h4>
+        <div class="reported-message-box">${escapeHtml(detail.message_content || '')}</div>
+        <div class="decision-row"><span>Konuşma</span><strong>${escapeHtml(detail.conversation_id)}</strong></div>
+        <div class="decision-row"><span>Mesaj</span><strong>${escapeHtml(detail.message_id)}</strong></div>
+        <div class="decision-row"><span>Raporlayan</span><strong>${escapeHtml(detail.reported_by_display_name || detail.reported_by_username || '-')}</strong></div>
+        <div class="decision-row"><span>Rapor zamanı</span><strong>${escapeHtml(formatDate(detail.reported_at))}</strong></div>
+        <h4 class="mt-md">Konuşma Bağlamı</h4>
+        <div class="review-context-stream">
+          ${contextMessages.map(message => renderReviewContextMessage(message, detail.message_id)).join('')}
+        </div>
+      </div>
+      <div class="review-detail-card">
+        <h4>Karar ve Feedback</h4>
+        <form class="review-form" data-review-form>
+          <label>Hata Tipi
+            <select name="error_type">
+              ${renderReviewErrorOptions(detail.error_type)}
+            </select>
+          </label>
+          <label>Puan
+            <select name="rating">
+              <option value="5" ${detail.rating === 5 ? 'selected' : ''}>5 · Doğru örnek</option>
+              <option value="4" ${detail.rating === 4 ? 'selected' : ''}>4 · Fazla ayrıntı</option>
+              <option value="3" ${!detail.rating || detail.rating === 3 ? 'selected' : ''}>3 · Eksik bilgi</option>
+              <option value="2" ${detail.rating === 2 ? 'selected' : ''}>2 · Hatalı anlatım</option>
+              <option value="1" ${detail.rating === 1 ? 'selected' : ''}>1 · Yanlış bilgi</option>
+            </select>
+          </label>
+          <label>Referans Yanıt
+            <textarea name="gold_standard" placeholder="Yanlış veya düzeltilmeli ise olması gereken kısa cevabı yazın.">${escapeHtml(detail.gold_standard || '')}</textarea>
+          </label>
+          <label>Not
+            <textarea name="notes" placeholder="Operasyon veya kalite ekibi için kısa not.">${escapeHtml(detail.notes || '')}</textarea>
+          </label>
+          <label class="toggle-row">
+            <span class="toggle-copy"><strong>Genel rapora dahil et</strong><small>Problemli yanıt final raporlarında kullanılır.</small></span>
+            <span class="switch"><input name="included_in_report" type="checkbox" ${detail.included_in_report ? 'checked' : ''}><span class="switch-track"><span class="switch-thumb"></span></span></span>
+          </label>
+          <div class="review-action-row">
+            <button class="action-button primary" type="button" data-review-classify="correct">Doğru</button>
+            <button class="action-button warn" type="button" data-review-classify="needs_revision">Düzeltilmeli</button>
+            <button class="action-button danger" type="button" data-review-classify="incorrect">Yanlış</button>
+          </div>
+        </form>
+        <h4 class="mt-md">İşlem Geçmişi</h4>
+        <div class="review-history">
+          ${(detail.actions || []).length ? detail.actions.map(renderReviewHistoryItem).join('') : '<div class="muted">Henüz işlem yok.</div>'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderReviewContextMessage(message, targetId) {
+  const isTarget = String(message.id || '') === String(targetId || '');
+  const roleLabel = message.role === 'user' ? 'Misafir' : message.role === 'assistant' ? 'AI' : message.role === 'operator' ? 'Operatör' : 'Sistem';
+  return `
+    <div class="review-context-message ${isTarget ? 'is-target' : ''}">
+      <b><span>${escapeHtml(roleLabel)}</span><span>${escapeHtml(formatDate(message.created_at))}</span></b>
+      <div>${escapeHtml(message.content || '')}</div>
+    </div>
+  `;
+}
+
+function renderReviewHistoryItem(action) {
+  return `
+    <div class="review-history-item">
+      <strong>${escapeHtml(formatReviewAction(action.action_type))}</strong>
+      <span>${escapeHtml(action.actor_username || '-')} · ${escapeHtml(formatDate(action.created_at))}</span>
+      ${action.notes ? `<div>${escapeHtml(action.notes)}</div>` : ''}
+    </div>
+  `;
+}
+
+async function submitResponseReviewClassification(classification) {
+  const detail = state.responseReviewDetail;
+  if (!detail) return;
+  const form = refs.responseReviewDetail.querySelector('[data-review-form]');
+  if (!form) return;
+  const data = new FormData(form);
+  const isCorrect = classification === 'correct';
+  const payload = {
+    classification,
+    error_type: isCorrect ? 'not_classified' : String(data.get('error_type') || 'other'),
+    rating: isCorrect ? 5 : Number(data.get('rating') || 3),
+    gold_standard: isCorrect ? null : String(data.get('gold_standard') || '').trim(),
+    notes: String(data.get('notes') || '').trim() || null,
+    included_in_report: !isCorrect && Boolean(data.get('included_in_report')),
+    finalize: true,
+  };
+  if (!isCorrect && !payload.gold_standard) {
+    notify('Yanlış veya düzeltilmeli kararında referans yanıt zorunludur.', 'warn');
+    return;
+  }
+  if (!isCorrect && payload.error_type === 'not_classified') {
+    notify('Yanlış veya düzeltilmeli kararında hata tipi seçilmelidir.', 'warn');
+    return;
+  }
+  try {
+    const params = new URLSearchParams();
+    if (state.me?.role === 'ADMIN' && state.selectedHotelId) params.set('hotel_id', state.selectedHotelId);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const updated = await apiFetch(`/response-reviews/${encodeURIComponent(detail.id)}/classify${query}`, {method: 'POST', body: payload});
+    notify('İnceleme kaydedildi ve feedback yapısına aktarıldı.', 'success');
+    state.responseReviewDetail = updated;
+    await loadResponseReviews();
+    await loadResponseReviewDetail(updated.id, {silent: true});
+  } catch (error) {
+    notify(error.message || 'İnceleme kaydedilemedi.', 'error');
+  }
+}
+
+function renderReviewErrorOptions(selected) {
+  return [
+    ['not_classified','Seçilmedi'],
+    ['wrong_info','Yanlış bilgi'],
+    ['missing_info','Eksik bilgi'],
+    ['wrong_intent','Niyet ıskalama'],
+    ['source_mismatch','Kaynak uyumsuzluğu'],
+    ['unsupported_claim','Kaynaksız iddia'],
+    ['policy_risk','Politika riski'],
+    ['pii_risk','PII riski'],
+    ['tone_or_length','Ton / uzunluk'],
+    ['language_issue','Dil sorunu'],
+    ['tool_mismatch','Araç sonucu uyumsuz'],
+    ['handoff_required','İnsan devri gerekirdi'],
+    ['delivery_status_issue','Teslimat durumu'],
+    ['other','Diğer'],
+  ].map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === selected ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
+}
+
+function formatReviewStatus(value) {
+  return {open: 'Açık', in_review: 'İncelemede', finalized: 'Tamamlandı', closed: 'Kapalı'}[String(value || '')] || 'Açık';
+}
+
+function formatReviewClassification(value) {
+  return {needs_review: 'İnceleme bekliyor', correct: 'Doğru', incorrect: 'Yanlış', needs_revision: 'Düzeltilmeli'}[String(value || '')] || 'İnceleme bekliyor';
+}
+
+function formatReviewErrorType(value) {
+  return {
+    not_classified: 'Hata tipi seçilmedi',
+    wrong_info: 'Yanlış bilgi',
+    missing_info: 'Eksik bilgi',
+    wrong_intent: 'Niyet ıskalama',
+    source_mismatch: 'Kaynak uyumsuzluğu',
+    unsupported_claim: 'Kaynaksız iddia',
+    policy_risk: 'Politika riski',
+    pii_risk: 'PII riski',
+    tone_or_length: 'Ton / uzunluk',
+    language_issue: 'Dil sorunu',
+    tool_mismatch: 'Araç uyumsuzluğu',
+    handoff_required: 'İnsan devri gerekirdi',
+    delivery_status_issue: 'Teslimat durumu',
+    other: 'Diğer',
+  }[String(value || '')] || 'Diğer';
+}
+
+function formatReviewAction(value) {
+  return {reported: 'Raporlandı', classified: 'Sınıflandırıldı'}[String(value || '')] || value || 'İşlem';
+}
+
 async function loadDashboard() {
   const query = state.selectedHotelId ? `?hotel_id=${encodeURIComponent(state.selectedHotelId)}` : '';
   state.dashboard = await apiFetch(`/dashboard/overview${query}`);
@@ -4620,11 +4960,13 @@ function renderOperationMessageBubble(message) {
   const bubbleClass = role === 'user' ? 'is-user' : role === 'assistant' ? 'is-assistant' : role === 'operator' ? 'is-operator' : 'is-system';
   const roleLabel = role === 'user' ? 'Misafir' : role === 'assistant' ? 'AI' : role === 'operator' ? 'Operatör' : 'Sistem';
   const status = deriveMessageStatus(message);
+  const canReport = ['assistant','operator','system'].includes(role) && message.id && state.conversationDetail?.conversation?.id;
   return `
-    <article class="chat-bubble ${bubbleClass}">
+    <article class="chat-bubble ${bubbleClass}" ${canReport ? `tabindex="0" data-review-conversation="${escapeHtml(String(state.conversationDetail.conversation.id))}" data-review-message="${escapeHtml(String(message.id))}" data-review-role="${escapeHtml(role)}"` : ''}>
       <div class="chat-bubble-header">
         <span>${escapeHtml(roleLabel)}</span>
         <span>${escapeHtml(formatDate(message.created_at))}</span>
+        ${canReport ? `<button class="message-menu-button" type="button" data-open-message-menu="true" aria-label="Yanıt menüsü">⋯</button>` : ''}
       </div>
       <div class="chat-bubble-content">${escapeHtml(message.content || '')}</div>
       ${role === 'assistant' || role === 'operator' ? `<div class="message-status ${escapeHtml(status.className)}">${escapeHtml(status.label)}</div>` : ''}
@@ -4654,6 +4996,62 @@ function renderDeveloperDetails(message) {
       <pre>${escapeHtml(JSON.stringify({internal_json: internal, tool_calls: toolCalls}, null, 2))}</pre>
     </details>
   `;
+}
+
+function onOperationMessageContextMenu(event) {
+  const bubble = event.target.closest?.('[data-review-message]');
+  if (!bubble) return;
+  event.preventDefault();
+  openResponseContextMenuForBubble(bubble, {left: event.clientX, top: event.clientY, width: 0, height: 0});
+}
+
+function openResponseContextMenuForBubble(bubble, anchorRect) {
+  closeResponseContextMenu();
+  const conversationId = bubble.dataset.reviewConversation || '';
+  const messageId = bubble.dataset.reviewMessage || '';
+  if (!conversationId || !messageId) return;
+  const menu = document.createElement('div');
+  menu.className = 'response-context-menu';
+  menu.setAttribute('role', 'menu');
+  menu.innerHTML = `
+    <button type="button" role="menuitem" data-report-message="${escapeHtml(messageId)}" data-report-conversation="${escapeHtml(conversationId)}">Raporla</button>
+  `;
+  document.body.appendChild(menu);
+  const left = Math.min(anchorRect.left || 0, window.innerWidth - 200);
+  const top = Math.min((anchorRect.top || 0) + (anchorRect.height || 0) + 4, window.innerHeight - 80);
+  menu.style.left = `${Math.max(12, left)}px`;
+  menu.style.top = `${Math.max(12, top)}px`;
+  state.responseContextMenu = menu;
+  menu.querySelector('button')?.focus();
+}
+
+function closeResponseContextMenu() {
+  if (state.responseContextMenu) {
+    state.responseContextMenu.remove();
+    state.responseContextMenu = null;
+  }
+}
+
+async function reportOperationMessage(conversationId, messageId) {
+  closeResponseContextMenu();
+  try {
+    const body = {
+      conversation_id: String(conversationId || ''),
+      message_id: String(messageId || ''),
+      reason: 'Operasyon masasından raporlandı.',
+      error_type: 'not_classified',
+    };
+    if (state.me?.role === 'ADMIN' && state.selectedHotelId) body.hotel_id = Number(state.selectedHotelId);
+    const review = await apiFetch('/response-reviews', {
+      method: 'POST',
+      body,
+    });
+    notify('Yanıt inceleme kuyruğuna alındı.', 'success');
+    const reviewId = encodeURIComponent(review.id || '');
+    window.location.href = `/admin/response-review?review_id=${reviewId}`;
+  } catch (error) {
+    notify(error.message || 'Yanıt raporlanamadı.', 'error');
+  }
 }
 
 function findLatestPendingAssistantMessage(messages) {

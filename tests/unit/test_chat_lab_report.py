@@ -75,6 +75,31 @@ def _write_feedback_file(base_dir: Path, name: str, created_at: str) -> None:
     (target / f"{name}.yaml").write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
 
+def _write_response_review_feedback_file(
+    base_dir: Path,
+    name: str,
+    created_at: str,
+    *,
+    included_in_report: bool,
+) -> None:
+    target = base_dir / "bad_feedback" / "rating_2" / "yanlis_bilgi" / "2026-03"
+    target.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": "chat_lab_feedback.v1",
+        "feedback_id": name,
+        "created_at": created_at,
+        "rating": 2,
+        "category": "yanlis_bilgi",
+        "tags": ["wrong_info"],
+        "input": "Restoran rezervasyonu var mi?",
+        "output": "Kesin olarak vardir.",
+        "gold_standard": "Once rezervasyon bilgisi dogrulanmalidir.",
+        "source_flow": "response_review",
+        "included_in_report": included_in_report,
+    }
+    (target / f"{name}.yaml").write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+
 @pytest.mark.asyncio
 async def test_report_service_generates_yaml_report_with_best_model(tmp_path: Path) -> None:
     feedback_root = tmp_path / "chat_lab_feedback"
@@ -115,3 +140,24 @@ async def test_report_service_returns_no_feedback_when_range_is_empty(tmp_path: 
 
     assert response.status == "no_feedback"
     assert response.recommendation_count == 0
+
+
+@pytest.mark.asyncio
+async def test_report_service_skips_response_review_feedback_not_included_in_report(tmp_path: Path) -> None:
+    feedback_root = tmp_path / "chat_lab_feedback"
+    _write_response_review_feedback_file(
+        feedback_root,
+        "fb_review_001",
+        "2026-03-10T10:00:00+00:00",
+        included_in_report=False,
+    )
+    service = ChatLabReportService(feedback_root=feedback_root, llm_client=_FakeLLMClient())
+
+    response = await service.generate_report(
+        ChatLabReportRequest(
+            date_from=datetime(2026, 3, 10, 0, 0, tzinfo=UTC),
+            date_to=datetime(2026, 3, 10, 23, 59, tzinfo=UTC),
+        )
+    )
+
+    assert response.status == "no_feedback"

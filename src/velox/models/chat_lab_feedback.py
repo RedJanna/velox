@@ -112,6 +112,14 @@ class ChatLabFeedbackRequest(BaseModel):
     conversation_id: str | None = Field(default=None, max_length=128)
     import_file: str | None = Field(default=None, max_length=255)
     role_mapping: dict[str, ChatLabImportRole] = Field(default_factory=dict)
+    source_flow: str | None = Field(default=None, max_length=80)
+    report_id: str | None = Field(default=None, max_length=128)
+    report_reason: str | None = Field(default=None, max_length=1000)
+    reporter_username: str | None = Field(default=None, max_length=120)
+    reviewer_username: str | None = Field(default=None, max_length=120)
+    review_classification: str | None = Field(default=None, max_length=40)
+    included_in_report: bool = False
+    redact_for_review: bool = False
 
     @model_validator(mode="after")
     def validate_feedback_request(self) -> ChatLabFeedbackRequest:

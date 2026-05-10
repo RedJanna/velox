@@ -27,12 +27,13 @@ ADMIN_UI_NO_STORE_HEADERS = {
 }
 
 
-def render_admin_panel_html() -> str:
+def render_admin_panel_html(initial_view: str | None = None) -> str:
     """Assemble the standalone admin panel HTML document."""
     config_json = json.dumps(
         {
             "panel_url": settings.admin_panel_url,
             "public_host": settings.public_host,
+            "initial_view": initial_view,
         },
         ensure_ascii=False,
     )
@@ -320,6 +321,76 @@ def render_admin_panel_html() -> str:
                 <p>Misafir özeti, AI’nin anladığı konu, risk ve hızlı aksiyonlar burada toplanır.</p>
               </div>
             </aside>
+          </div>
+        </section>
+
+        <section data-view="responsereview" class="section-grid response-review-section" hidden>
+          <div class="response-review-hero" aria-label="Yanıt inceleme özeti">
+            <div>
+              <span class="eyebrow">Response Review</span>
+              <h3>Yanıt İnceleme ve Raporlama</h3>
+              <p>Operasyon masasından raporlanan AI, operatör ve sistem yanıtlarını sınıflandırın; doğru örnekleri ve problemli yanıtları kontrollü feedback yapısına aktarın.</p>
+            </div>
+            <div class="mode-pills">
+              <span class="mode-pill is-test">Audit izli</span>
+              <span class="mode-pill is-live">Feedback kontrollü</span>
+            </div>
+          </div>
+          <div class="response-review-shell">
+            <article class="module-card response-review-list-panel">
+              <div class="module-header compact">
+                <div><h3>Raporlanan Yanıtlar</h3><p>Dikey kuyruk, durum ve hata tipine göre filtrelenir.</p></div>
+                <button id="responseReviewRefresh" class="action-button secondary action-button-sm" type="button">Yenile</button>
+              </div>
+              <form id="responseReviewFilters" class="response-review-filters">
+                <label>
+                  <span>Durum</span>
+                  <select id="responseReviewStatusFilter" name="status">
+                    <option value="">Tümü</option>
+                    <option value="open">Açık</option>
+                    <option value="in_review">İncelemede</option>
+                    <option value="finalized">Tamamlandı</option>
+                    <option value="closed">Kapalı</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Karar</span>
+                  <select id="responseReviewClassificationFilter" name="classification">
+                    <option value="">Tümü</option>
+                    <option value="needs_review">İnceleme bekliyor</option>
+                    <option value="correct">Doğru</option>
+                    <option value="incorrect">Yanlış</option>
+                    <option value="needs_revision">Düzeltilmeli</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Hata Tipi</span>
+                  <select id="responseReviewErrorFilter" name="error_type">
+                    <option value="">Tümü</option>
+                    <option value="wrong_info">Yanlış bilgi</option>
+                    <option value="missing_info">Eksik bilgi</option>
+                    <option value="wrong_intent">Niyet ıskalama</option>
+                    <option value="source_mismatch">Kaynak uyumsuzluğu</option>
+                    <option value="unsupported_claim">Kaynaksız iddia</option>
+                    <option value="policy_risk">Politika riski</option>
+                    <option value="pii_risk">PII riski</option>
+                    <option value="tone_or_length">Ton / uzunluk</option>
+                    <option value="language_issue">Dil sorunu</option>
+                    <option value="tool_mismatch">Araç sonucu uyumsuz</option>
+                    <option value="handoff_required">İnsan devri gerekirdi</option>
+                    <option value="delivery_status_issue">Teslimat durumu</option>
+                    <option value="other">Diğer</option>
+                  </select>
+                </label>
+                <button class="action-button primary action-button-sm" type="submit">Kontrol Et</button>
+              </form>
+              <div id="responseReviewList" class="response-review-list" aria-live="polite"></div>
+            </article>
+            <article id="responseReviewDetail" class="module-card response-review-detail-panel">
+              <div class="empty-state">
+                <p>Bir rapor seçin veya operasyon masasındaki AI yanıtına sağ tıklayıp <strong>Raporla</strong> aksiyonunu kullanın.</p>
+              </div>
+            </article>
           </div>
         </section>
 
@@ -2191,6 +2262,11 @@ if ADMIN_PANEL_ROUTE == "/admin":
         """Serve the standalone admin panel HTML."""
         return HTMLResponse(content=render_admin_panel_html(), headers=ADMIN_UI_NO_STORE_HEADERS)
 
+    @router.get("/admin/response-review", response_class=HTMLResponse)
+    async def response_review_ui() -> HTMLResponse:
+        """Serve the response review flow under a separate admin URL."""
+        return HTMLResponse(content=render_admin_panel_html(initial_view="responsereview"), headers=ADMIN_UI_NO_STORE_HEADERS)
+
 else:
 
     @router.get(ADMIN_PANEL_ROUTE, response_class=HTMLResponse)
@@ -2198,10 +2274,20 @@ else:
         """Serve the standalone admin panel HTML using configured path."""
         return HTMLResponse(content=render_admin_panel_html(), headers=ADMIN_UI_NO_STORE_HEADERS)
 
+    @router.get(f"{ADMIN_PANEL_ROUTE.rstrip('/')}/response-review", response_class=HTMLResponse)
+    async def response_review_ui() -> HTMLResponse:
+        """Serve the response review flow under the configured admin URL."""
+        return HTMLResponse(content=render_admin_panel_html(initial_view="responsereview"), headers=ADMIN_UI_NO_STORE_HEADERS)
+
     @router.get("/admin", response_class=HTMLResponse, include_in_schema=False)
     async def admin_panel_ui_legacy() -> HTMLResponse:
         """Serve admin UI on legacy path for compatibility during cutover."""
         return HTMLResponse(content=render_admin_panel_html(), headers=ADMIN_UI_NO_STORE_HEADERS)
+
+    @router.get("/admin/response-review", response_class=HTMLResponse, include_in_schema=False)
+    async def response_review_ui_legacy() -> HTMLResponse:
+        """Serve response review UI on legacy admin path for compatibility."""
+        return HTMLResponse(content=render_admin_panel_html(initial_view="responsereview"), headers=ADMIN_UI_NO_STORE_HEADERS)
 
 
 # ── POST fallback: prevent 405 when JS fails and browser submits the login
@@ -2215,9 +2301,20 @@ async def admin_panel_post_fallback() -> RedirectResponse:
     return RedirectResponse(url="/admin", status_code=303)
 
 
+@router.post("/admin/response-review", response_class=RedirectResponse, include_in_schema=False)
+async def response_review_post_fallback() -> RedirectResponse:
+    """Catch accidental native form POST to response review and redirect to GET."""
+    return RedirectResponse(url="/admin/response-review", status_code=303)
+
+
 if ADMIN_PANEL_ROUTE != "/admin":
 
     @router.post(ADMIN_PANEL_ROUTE, response_class=RedirectResponse, include_in_schema=False)
     async def admin_panel_post_fallback_custom() -> RedirectResponse:
         """Catch accidental native form POST to custom admin path and redirect."""
         return RedirectResponse(url=ADMIN_PANEL_ROUTE, status_code=303)
+
+    @router.post(f"{ADMIN_PANEL_ROUTE.rstrip('/')}/response-review", response_class=RedirectResponse, include_in_schema=False)
+    async def response_review_post_fallback_custom() -> RedirectResponse:
+        """Catch accidental native form POST to custom response review and redirect."""
+        return RedirectResponse(url=f"{ADMIN_PANEL_ROUTE.rstrip('/')}/response-review", status_code=303)

@@ -44,6 +44,9 @@ logger = structlog.get_logger(__name__)
 _FILE_WRITE_LOCK = asyncio.Lock()
 _FEEDBACK_SCHEMA_VERSION = "chat_lab_feedback.v1"
 _TRANSCRIPT_SCHEMA_VERSION = "chat_lab_import.v1"
+_EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+_CARD_PATTERN = re.compile(r"\b(?:\d[ -]?){13,19}\b")
+_PHONE_LIKE_PATTERN = re.compile(r"(?<!\w)\+?\d[\d\s().-]{8,}\d(?!\w)")
 
 
 class ChatLabFeedbackError(RuntimeError):
@@ -147,6 +150,22 @@ class ChatLabFeedbackService:
             "excerpt": source["excerpt"],
             "source_file": source["source_file"],
         }
+        if payload.source_flow:
+            record["source_flow"] = payload.source_flow
+        if payload.report_id:
+            record["report_id"] = payload.report_id
+        if payload.report_reason:
+            record["report_reason"] = payload.report_reason
+        if payload.reporter_username:
+            record["reporter_username"] = payload.reporter_username
+        if payload.reviewer_username:
+            record["reviewer_username"] = payload.reviewer_username
+        if payload.review_classification:
+            record["review_classification"] = payload.review_classification
+        if payload.included_in_report:
+            record["included_in_report"] = payload.included_in_report
+        if payload.redact_for_review:
+            record = _redact_feedback_record(record)
 
         async with _FILE_WRITE_LOCK:
             storage_path.parent.mkdir(parents=True, exist_ok=True)
@@ -238,7 +257,7 @@ class ChatLabFeedbackService:
         messages = await self._repository.get_messages(conversation.id, limit=500, offset=0)
         excerpt = _messages_until_target(messages, payload.assistant_message_id)
         assistant_message = excerpt[-1]
-        if assistant_message.role != "assistant":
+        if assistant_message.role != "assistant" and payload.source_flow != "response_review":
             raise FeedbackMessageNotFoundError("The selected message is not an assistant reply.")
 
         assistant_internal = assistant_message.internal_json or {}
@@ -301,7 +320,9 @@ class ChatLabFeedbackService:
         raw_transcript = self._load_import_json(payload.import_file)
         role_result = _resolve_import_roles(raw_transcript, payload.role_mapping)
         if role_result["status"] != "ready":
-            raise ChatLabImportError("İçe aktarılan konuşma geri bildirimi kaydedilmeden önce rol eşleştirmesi yapılmalıdır.")
+            raise ChatLabImportError(
+                "İçe aktarılan konuşma geri bildirimi kaydedilmeden önce rol eşleştirmesi yapılmalıdır."
+            )
 
         messages = _normalize_import_messages(raw_transcript, role_result["role_mapping"])
         excerpt = _message_views_until_target(messages, payload.assistant_message_id)
@@ -510,6 +531,35 @@ def _serialize_excerpt(messages: Sequence[Message]) -> list[dict[str, Any]]:
     ]
 
 
+def _redact_feedback_record(record: dict[str, Any]) -> dict[str, Any]:
+    """Return a response-review feedback record with direct PII patterns masked."""
+    return {key: _redact_value(value) for key, value in record.items()}
+
+
+def _redact_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return _redact_text(value)
+    if isinstance(value, list):
+        return [_redact_value(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _redact_value(item) for key, item in value.items()}
+    return value
+
+
+def _redact_text(value: str) -> str:
+    text = _EMAIL_PATTERN.sub("[email_masked]", value)
+    text = _CARD_PATTERN.sub("[payment_data_masked]", text)
+
+    def replace_phone(match: re.Match[str]) -> str:
+        raw = match.group(0)
+        digits = "".join(char for char in raw if char.isdigit())
+        if len(digits) < 10:
+            return raw
+        return "[phone_masked]"
+
+    return _PHONE_LIKE_PATTERN.sub(replace_phone, text)
+
+
 def _tool_call_names(raw_tool_calls: Any) -> list[str]:
     if not isinstance(raw_tool_calls, list):
         return []
@@ -521,8 +571,10 @@ def _tool_call_names(raw_tool_calls: Any) -> list[str]:
 
 
 def _write_yaml_file(path: Path, payload: dict[str, Any]) -> None:
-    with path.open("w", encoding="utf-8") as file_obj:
+    temp_path = path.with_name(f".{path.name}.tmp")
+    with temp_path.open("w", encoding="utf-8") as file_obj:
         yaml.safe_dump(payload, file_obj, allow_unicode=True, sort_keys=False, width=1000)
+    temp_path.replace(path)
 
 
 def _ensure_test_phone(phone: str) -> str:

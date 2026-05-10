@@ -23,6 +23,9 @@ class _FakeConversationRepository:
         _ = (hotel_id, phone_hash)
         return self._conversation
 
+    async def get_by_id(self, conversation_id) -> Conversation | None:
+        return self._conversation if str(self._conversation.id) == str(conversation_id) else None
+
     async def get_messages(self, conversation_id, limit: int = 500, offset: int = 0) -> list[Message]:
         _ = (conversation_id, limit, offset)
         return self._messages
@@ -138,6 +141,42 @@ async def test_feedback_service_saves_non_approved_five_rating_under_reviewed(tm
     assert len(saved_files) == 1
     assert "good_feedback" in str(saved_files[0])
     assert "reviewed" in str(saved_files[0])
+
+
+@pytest.mark.asyncio
+async def test_response_review_feedback_redacts_direct_pii_patterns(tmp_path: Path) -> None:
+    conversation, messages, assistant_id = _conversation_with_messages()
+    messages[0].content = "Telefonum +90 533 222 77 88 ve e-postam guest@example.com"
+    messages[1].content = "Kart numaraniz 4111 1111 1111 1111 olarak gorunuyor."
+    service = _build_service(tmp_path, conversation, messages)
+
+    await service.submit_feedback(
+        ChatLabFeedbackRequest(
+            source_type="live_conversation",
+            conversation_id=str(conversation.id),
+            assistant_message_id=assistant_id,
+            rating=2,
+            category="yanlis_bilgi",
+            tags=["yanlis_bilgi"],
+            gold_standard="Odeme bilgisi sohbette tekrar edilmemeli ve insan devrine alinmalidir.",
+            source_flow="response_review",
+            report_id="review-1",
+            reporter_username="ops",
+            reviewer_username="manager",
+            review_classification="incorrect",
+            included_in_report=True,
+            redact_for_review=True,
+        )
+    )
+
+    saved_files = sorted((tmp_path / "chat_lab_feedback").rglob("*.yaml"))
+    payload = yaml.safe_load(saved_files[0].read_text(encoding="utf-8"))
+    serialized = yaml.safe_dump(payload, allow_unicode=True)
+    assert "guest@example.com" not in serialized
+    assert "4111 1111 1111 1111" not in serialized
+    assert "+90 533 222 77 88" not in serialized
+    assert payload["source_flow"] == "response_review"
+    assert payload["included_in_report"] is True
 
 
 @pytest.mark.asyncio

@@ -35,6 +35,7 @@ Use the affected hash route when possible, for example:
 ```text
 http://127.0.0.1:8011/admin#accesscontrol
 http://127.0.0.1:8011/admin#holds
+http://127.0.0.1:8011/admin/response-review
 ```
 
 Minimum checks:
@@ -70,6 +71,7 @@ docker compose --env-file .env.production -f docker-compose.prod.yml exec app py
 
 Migration `031_reservation_confirmation_forms.sql` creates the secure HTML confirmation form table. It must be applied before admin approval flows are considered ready, because post-approval delivery depends on `reservation_confirmation_forms`.
 Migration `033_public_restaurant_ordering.sql` extends Restaurant AI orders for the public `/order` QR flow, two customer confirmations, and staff approval states. It must be applied before the public restaurant ordering panel is enabled.
+Migration `034_response_review_reports.sql` creates the Operations Desk response-review queue and action audit tables. It must be applied before the `/admin/response-review` screen or message-level `Raporla` action is considered ready.
 
 ## 5. Verify Health and Readiness
 ```bash
@@ -132,6 +134,7 @@ GitHub Actions workflow: `.github/workflows/ci.yml`
 ## 7. Production Checklist
 - [ ] All env vars set in `.env.production`
 - [ ] Admin panel/frontend/UI text changes previewed on `http://127.0.0.1:8011/admin#` before production deployment
+- [ ] Response Review changes previewed on `http://127.0.0.1:8011/admin/response-review` when message reporting/review flow is touched
 - [ ] Public admin panel still requires username, password, and Google Authenticator; unauthenticated `/api/v1/admin/me` returns 401
 - [ ] DB migration ran successfully
 - [ ] `/admin#holds` confirmation form panel previewed locally

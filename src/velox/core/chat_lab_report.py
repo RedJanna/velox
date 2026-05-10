@@ -227,6 +227,8 @@ def _load_feedback_records(root: Path, date_from: datetime, date_to: datetime) -
 
         if not isinstance(data, dict):
             continue
+        if data.get("source_flow") == "response_review" and not data.get("included_in_report"):
+            continue
         created_at = _parse_datetime(data.get("created_at") or data.get("timestamp"))
         if created_at is None or created_at < date_from or created_at > date_to:
             continue
