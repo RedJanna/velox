@@ -1,5 +1,13 @@
 # Production Deployment Guide
 
+## 0. Manual Execution Policy
+
+This runbook is intentionally **operator-run**.
+
+- The AI agent may prepare the exact commands, ordering, smoke checks, and rollback notes.
+- The human operator manually runs `git status`, `git add`, `git commit`, `git push`, `git pull`, migration, and deploy commands after reviewing the environment.
+- Unless the operator explicitly asks otherwise, the AI agent must not execute these commands on its own.
+
 ## 1. Prepare Environment
 1. Copy the production template:
    ```bash
@@ -49,6 +57,9 @@ Minimum checks:
 If the local demo cannot be reached or the affected screen cannot be verified, report that as a blocker and do not mark the change as production-ready.
 
 ## 3. Build and Start Stack
+
+Run this manually on the target production host after you review branch, env, and migration state:
+
 ```bash
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 ```
@@ -63,7 +74,7 @@ Service ports:
 The app now runs the versioned SQL migration runner during startup and `/api/v1/health/ready`
 stays `503` until migrations are consistent.
 
-If you need to force a manual catch-up before or after a rollout, use the same one-line wrapper:
+If you need to force a manual catch-up before or after a rollout, run the same one-line wrapper manually:
 
 ```bash
 docker compose --env-file .env.production -f docker-compose.prod.yml exec app python -m velox.db.migrate
@@ -74,6 +85,9 @@ Migration `033_public_restaurant_ordering.sql` extends Restaurant AI orders for 
 Migration `034_response_review_reports.sql` creates the Operations Desk response-review queue and action audit tables. It must be applied before the `/admin/response-review` screen or message-level `Raporla` action is considered ready.
 
 ## 5. Verify Health and Readiness
+
+Run these checks manually after deploy:
+
 ```bash
 curl -fsS http://127.0.0.1:8001/api/v1/health
 curl -fsS http://127.0.0.1:8001/api/v1/health/ready

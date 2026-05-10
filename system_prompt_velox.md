@@ -66,6 +66,7 @@ Kurallar arasında çakışma olursa aşağıdaki öncelik sırası uygulanır:
 - **Backend Docker'ı önce doğrula:** Problem analizi, teşhis, hata ayıklama veya root cause analysis yaparken önce Docker'daki backend servislerini (`app`, `db`, `redis` ve ilgili sidecar'lar) durum, healthcheck, log, config/env, bağımlılık ve migration bütünlüğü açısından kontrol et; bu adım tamamlanmadan model/prompt/frontend katmanına geçme.
 - **Gözlemlenebilir çalış:** Hata araştırırken log, akış, bağımlılık, yapılandırma ve veri durumunu kontrol et.
 - **Kritik doküman senkronizasyonu uygula:** Aşağıdaki üç belgeden etkilenen varsa güncellemeyi aynı görevde ve aynı committe tamamla: `docs/master_prompt_v2.md`, `docs/admin_panel_domain_cutover.md`, `docs/production_deployment.md`.
+- **Git ve deploy komutlarını varsayılan olarak çalıştırma:** `git status`, `git add`, `git commit`, `git push`, `git pull`, migration ve deploy komutlarını kendiliğinden uygulama; gerekli komutları hazırla ve kullanıcı manuel çalıştırsın. Yalnızca kullanıcı açıkça komutun terminalde senin tarafından çalıştırılmasını isterse istisna değerlendir.
 
 ---
 
@@ -376,6 +377,8 @@ Bu bölüm, projede yapılan değişikliğin canlıda görünmesi için hangi ad
 - `docker compose ... up -d --build ...`: İlgili container'ı veya stack'i yeni kod/yapılandırma ile ayağa kaldırır.
 - `migration`: Veritabanı şeması değiştiyse DB'yi yeni kodla uyumlu hale getirir.
 
+> **Varsayılan operasyon kuralı:** LLM bu komutları kendi başına çalıştırmaz. Gerekli tek satır komutları ve çalışma sırasını üretir; kullanıcı komutları manuel yürütür ve kontrol eder.
+
 > **Kritik ayrım:** `git pull`, programın "çalışması" için değil, deploy hedefinin en güncel kodu alması için gereklidir.
 > Aynı çalışma alanında kod değiştirip aynı çalışma alanından container build ediliyorsa `git pull` zorunlu değildir.
 > Uzak sunucu veya ayrı deploy ortamı varsa ve değişiklikler repoya push edildiyse, deploy öncesi `git pull` zorunludur.
@@ -434,13 +437,13 @@ Admin panel, Chat Lab, frontend kodu, görünür UI metni, rol/yetki ekranı, bu
 - Yerel geliştirme akışı:
   1. İlgili doğrulamayı çalıştır
   2. Admin panel/frontend değişikliğiyse `13.4` yerel demo önizleme kapısını uygula
-  3. `git status` kontrol et
-  4. `commit`
-  5. `push`
+  3. Kullanıcı için `git status` kontrol komutunu hazırla
+  4. Kullanıcı için `commit` komutunu hazırla
+  5. Kullanıcı için `push` komutunu hazırla
 - Canlı deploy hedefinde:
-  1. Gerekliyse `git pull`
-  2. `docker compose -f docker-compose.prod.yml up -d --build app`
-  3. Health ve readiness doğrula
+  1. Gerekliyse kullanıcı için `git pull` komutunu hazırla
+  2. Kullanıcı için `docker compose -f docker-compose.prod.yml up -d --build app` komutunu hazırla
+  3. Kullanıcı için health ve readiness doğrulama komutlarını hazırla
 
 **Standart komut (uzak production ortamı için):**
 
@@ -452,7 +455,7 @@ git pull && docker compose -f docker-compose.prod.yml up -d --build app && curl 
 
 - Migration dosyası aynı iş içinde üretilir.
 - Deploy sırasında migration uygulanmadan app güncellemesi tamamlanmış sayılmaz.
-- Migration'dan sonra `app` yeniden ayağa kaldırılır ve etkilenen endpoint için smoke check yapılır.
+- Migration'dan sonra kullanıcı `app` yeniden ayağa kaldırır ve etkilenen endpoint için smoke check çalıştırır.
 
 **Standart sıra:**
 
@@ -522,7 +525,7 @@ Canlıya yansıdı demeden önce en az şu kontroller yapılır:
 ### 13.7 LLM operasyon davranışı
 
 - Kullanıcı "canlıya yansıt", "deploy et", "güncelleme görünsün" diyorsa LLM önce değişikliği sınıflandırır, sonra doğru komutu seçer.
-- Kullanıcıyı belirsiz bırakacak genel tavsiye yerine, bu projeye uygun net komut verir veya uygular.
+- Kullanıcıyı belirsiz bırakacak genel tavsiye yerine, bu projeye uygun net komut verir; varsayılan olarak bu komutları kendisi çalıştırmaz.
 - Birden fazla durum birlikte varsa en yüksek kapsamlı akış seçilir.
   - Örnek: Hem migration hem compose değiştiyse, full stack + migration akışı uygulanır.
 - Deploy başarısızsa LLM bunu açıkça söyler; başarısız deploy'u başarılı gibi raporlamaz.

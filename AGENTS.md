@@ -274,16 +274,26 @@ If the developer explicitly writes `ULTRATHINK`, switch to deeper analysis mode:
 - Review performance, security, scalability, maintainability, and failure modes
 - Avoid early closure on the first plausible answer
 
-## Auto-Commit Rule
-After completing each task, you MUST commit your changes:
-```bash
-git add -A && git commit -m "Task XX: <short description of what was done>"
-```
-Replace `XX` with the task number and provide a brief summary. Example:
-```bash
-git add -A && git commit -m "Task 04: Elektraweb PMS adapter with JWT auth and retry"
-```
-This is mandatory — do NOT skip the commit step.
+## Manual Git & Deploy Execution Rule
+
+Git ve deploy komutları varsayılan olarak **kullanıcı tarafından manuel çalıştırılır**.
+
+LLM:
+- Gerekli `git status`, `git add`, `git commit`, `git push`, `git pull`, migration ve deploy komutlarını hazırlar
+- Hangi sırayla çalıştırılması gerektiğini açıkça yazar
+- Riskleri, ön kontrolleri ve doğrulama adımlarını belirtir
+- Ancak bu komutları terminalde **kendi başına çalıştırmaz**
+
+Varsayılan yasak:
+- `git status`
+- `git add`
+- `git commit`
+- `git push`
+- `git pull`
+- production veya local deploy komutları
+- migration çalıştırma komutları
+
+İstisna yalnızca kullanıcı açıkça "komutu sen çalıştır" derse uygulanır. Aksi halde LLM komutları önerir, kullanıcı manuel yürütür.
 
 ### Migration Automation Policy (Manual adımı azaltmak için zorunlu akış)
 
@@ -293,16 +303,16 @@ This is mandatory — do NOT skip the commit step.
 - **Kural 3:** Lokal geliştirmede backend başlatmadan önce migration komutu çalıştırılır; manuel SQL komutu istisna/fallback olarak kalır.
 - **Kural 4:** CI/CD hattında migration kontrolü zorunludur; migration uygulanmadan deploy tamamlanmış sayılmaz.
 - **Kural 5:** Runtime'da migration eksikliği tespit edilirse endpoint 500 yerine anlamlı 503 + aksiyon mesajı döndürmelidir.
-- **Kural 6 (LLM operasyon davranışı):** Migration eksikliği hatasında LLM kullanıcıdan izin isteyip komutu kendisi uygular; kullanıcıyı uzun manuel adım listesiyle bırakmaz.
+- **Kural 6 (LLM operasyon davranışı):** Migration eksikliği hatasında LLM tek satır komutu hazırlar, nedenini açıklar ve kullanıcıya manuel çalıştırma sırasını verir; varsayılan olarak komutu kendisi çalıştırmaz.
 - **Kural 7 (Tek satır komut standardı):** PowerShell/terminal satır bölünmesi kaynaklı hata riskine karşı migration komutları tek satır verilir. Çok satırlı örnek sadece açıkça istenirse paylaşılır.
 - **Kural 8 (İzin/escalation):** Komut sandbox veya yetki nedeniyle escalated izin gerektiriyorsa LLM doğrudan izin talebi açar; önce kullanıcıya uzun teknik açıklama gönderip beklemez.
-- **Kural 9 (Doğrulama sonrası adım):** Migration çalıştıktan sonra LLM standart olarak `app restart` + ilgili endpoint smoke check adımını önerir veya uygular.
+- **Kural 9 (Doğrulama sonrası adım):** Migration çalıştıktan sonra LLM standart olarak `app restart` + ilgili endpoint smoke check adımını önerir; varsayılan olarak bu komutları kendisi çalıştırmaz.
 
 > **Standartlaştırma notu:** Projede bir migration wrapper komutu tanımlandığında AGENTS.md ve README aynı komutu referans almalıdır.
 
-> **⚠️ Güvenlik notu:** `git add -A` kullanırken `.gitignore` dosyasının güncel olduğundan emin ol.
+> **⚠️ Güvenlik notu:** Kullanıcı `git add -A` çalıştırmadan önce `.gitignore` dosyasının güncel olduğundan emin ol.
 > `.env`, `*.pem`, `credentials.*`, `secrets.*` gibi hassas dosyalar `.gitignore`'da **mutlaka** listelenmeli.
-> Commit öncesi `git status` ile eklenen dosyaları kontrol et — hassas dosya görürsen **commit etme**, uyar.
+> Commit öncesi kullanıcı `git status` ile eklenen dosyaları kontrol etmelidir — hassas dosya görürse **commit etmemeli**, LLM bunu açıkça uyarmalıdır.
 
 ## Required .gitignore Entries
 The following patterns **MUST** be in `.gitignore` before any commit. If missing, add them first:
@@ -344,7 +354,7 @@ docker-compose.override.yml
 logs/
 ```
 
-> **Kural:** Her `git add -A` öncesi `git status` çalıştır.
+> **Kural:** Her `git add -A` öncesi kullanıcı manuel `git status` çalıştırmalıdır.
 > Yukarıdaki pattern'lara uyan dosya staged'daysa **commit etme**, `.gitignore`'u düzelt.
 
 ## Multi-Tenant Architecture (İkinci Otel ve Sonrası)
